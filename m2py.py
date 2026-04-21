@@ -2981,6 +2981,7 @@ _PERSONID_REF_VARS = frozenset({
     'ELHUB_PERS_MALEPUNKTID_FNR', 'KJORETOY_KJORETOYID_FNR',
     'TRAFULYK_PERS_FNR',
     'ARBEIDSFORHOLD_PERSON',
+    'NPRID',  # NPR person id — same encrypted PID as SSB PERSONID_1, lets cross-registry merges auto-detect.
 })
 
 # Hendelses-profil for import-event variabler.
@@ -3126,7 +3127,7 @@ def _get_df_key_col(df):
     if df is None:
         return None
     for c in ('PERSONID_1', 'ARBEIDSFORHOLD_ID', 'KJORETOY_ID',
-              'NUDB_KURS_LOEPENR', 'AGGRSHOPPID', 'unit_id'):
+              'NUDB_KURS_LOEPENR', 'AGGRSHOPPID', 'NPRID', 'unit_id'):
         if c in df.columns:
             return c
     return None
