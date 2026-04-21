@@ -1,0 +1,132 @@
+// ===================================================================
+// Example: Finne antall personbiler per familie
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Kj%C3%B8ret%C3%B8yanalyser/Finne%20antall%20personbiler%20per%20familie/
+// ===================================================================
+// Eksempelet under viser hvordan man kan telle opp antall personbiler per familie. Det har en
+// del fellestrekk med eksempelet Finne antall personbiler per individ. Men i dette tilfellet
+// foretar man en to-trinns aggregering: Først teller man opp antall personbiler per individ ved
+// hjelp av kommandoen collapse(count) når man står i et personbildatasett, for så å koble
+// opplysningen inn i et persondatasett som blant annet inneholder en variabel med
+// familieidentifikatorer. Deretter aggregerer man opp til familienivå ved kommandoen collapse
+// der man nå bruker familie som aggregeringsmål.
+//
+// For å finne tall for familier som ikke eier en personbil, er det viktig at man bruker et
+// persondatasett (totalpopulasjon) som basis, dvs. at man kobler antallet personbiler inn i et
+// persondatasett (og ikke motsatt), og deretter aggregerer til familienivå. Personer som det
+// ikke finnes en link til fra personbildatasettet vil per definisjon være individer som ikke
+// eier en personbil.
+// ===================================================================
+
+require no.ssb.fdb:32 as db
+
+// Lager persondatasett med familienummer
+create-dataset befolkning
+import db/BEFOLKNING_KOMMNR_FORMELL 2024-01-01 as kommune
+import db/NUDB_BU 2023-08-01 as utdanning
+import db/INNTEKT_LONN 2022-12-31 as lønn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as fdato
+import db/BEFOLKNING_REGSTAT_FAMNR 2023-01-01 as famnr
+
+generate alder = 2024 - int(fdato/100)
+generate utdanningsnivå = substr(utdanning,1,1)
+destring utdanningsnivå
+
+
+// Lager personbildatasett
+create-dataset personbiler
+import db/KJORETOY_KJT_GRUP 2023-12-31 as kjøretøygruppe
+import db/KJORETOY_KJORETOYID_FNR 2023-12-31 as idnr
+tabulate kjøretøygruppe
+keep if kjøretøygruppe == '101'
+
+// Aggregerer til individnivå og finner antall personbiler per individ
+collapse (count) kjøretøygruppe -> ant_personbiler, by(idnr)
+
+// Kobler opplysning om antall personbiler på persondatasettet
+merge ant_personbiler into befolkning
+
+
+// Aggregerer persondatasettet opp til familienivå og lager statistikk over antall biler per familie
+use befolkning
+collapse(sum) ant_personbiler lønn -> sum_lønn_familie (max) utdanningsnivå -> max_utdanningsnivå alder -> alder_eldst, by(famnr)
+
+recode max_utdanningsnivå \
+    (0/3 = 1 'Ikke fullført VG') \
+	(4/5 = 2 'Videregående utdanning') \
+	(6 = 3 'Lavere UH-utdanning') \
+	(7 = 4 'Høyere UH-utdanning (mastergradsnivå)') \
+	(8 = 5 'Forskerutdanning') \
+	(9 = 6 'Uoppgitt')
+
+
+// Kloner variabel for antall personbiler, og slår sammen antall over 2 til samlet kategori for den ene variabelen
+clone-variables ant_personbiler -> ant_personbiler_raw
+recode ant_personbiler (missing = 0 'Ingen')(3/max = 3 '>')
+recode ant_personbiler_raw (missing = 0 'Ingen')
+
+textblock
+Totalpopulasjonen (familier) fordelt på antall personbiler
+endblock
+tabulate ant_personbiler
+piechart ant_personbiler
+
+textblock
+Antall personbiler per familie fordelt på høyeste utdanningsnivå i familien
+endblock
+tabulate max_utdanningsnivå ant_personbiler, rowpct missing
+piechart ant_personbiler if max_utdanningsnivå == 1
+piechart ant_personbiler if max_utdanningsnivå == 2
+piechart ant_personbiler if inrange(max_utdanningsnivå,3,5)
+barchart(mean) ant_personbiler_raw, over(max_utdanningsnivå)
+
+textblock
+Gjennomsnittlig total familieårslønn og alder for eldste person i familien fordelt på antall personbiler
+endblock
+barchart(mean) sum_lønn_familie, over(ant_personbiler)
+barchart(mean) alder_eldst, over(ant_personbiler)
+
+
+// Lager geografiske inndelinger
+
+// Henter nyeste oppdaterte bostedskommune på individnivå og kobler det på familiedatasettet via familienummeret (som er
+// lik identifikatoren til eldste person i familien) - bostedsopplysningen vil da peke til bostedskommunen til eldste
+// person i familien. Dette vil i praksis også være familiens bosted.
+create-dataset bosted
+import db/BEFOLKNING_KOMMNR_FORMELL 2024-01-01 as kommune
+merge kommune into befolkning on famnr
+
+use befolkning
+generate fylke = substr(kommune,1,2)
+
+define-labels fylkelbl \
+	'03' Oslo \
+	'11' Rogaland \
+	'15' 'Møre og Romsdal' \
+	'18' Nordland \
+	'31' Østfold \
+	'32' Akershus \
+	'33' Buskerud \
+	'34' Innlandet \
+	'39' Vestfold \
+	'40' Telemark \
+	'42' Agder \
+	'46' Vestland \
+	'50' Trøndelag \
+	'55' Troms \
+	'56' Finnmark
+assign-labels fylke fylkelbl
+
+// Kloner kommunevariabel og trekker ut storbyer fra den ene variabelen (resten plasseres i samlet kategori)
+clone-variables kommune -> storby
+replace storby = '9999' if !inlist(storby, '0301', '1103', '3201', '3301', '4204', '4601', '5001', '5501')
+recode storby ('9999' = '9999' 'Øvrige kommuner')
+
+textblock
+Antall personbiler per familie fordelt på bosted og topp 10 kommuner rangert etter andel familier som ikke eier personbil
+endblock
+tabulate fylke ant_personbiler, rowpct rowsort(0)
+barchart(mean) ant_personbiler_raw, over(fylke)
+
+tabulate kommune ant_personbiler, rowpct rowsort(0) bottom(10)
+tabulate storby ant_personbiler, rowpct rowsort(0)
+barchart(mean) ant_personbiler_raw, over(storby)

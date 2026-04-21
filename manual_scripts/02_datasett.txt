@@ -1,0 +1,14 @@
+// Eksempel 2.10: Oppretting og justering av et datasett
+require no.ssb.fdb:12 as db
+create-dataset demografidata
+import db/BEFOLKNING_KJOENN as kjonn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+import db/SIVSTANDFDT_SIVSTAND 2015-01-01 as sivstand
+import db/INNTEKT_BRUTTOFORM 2015-01-01 as formue
+// Endrer navn på variabler ved å legge til årsangivelse
+rename sivstand sivstand15
+rename formue formue15
+// Sletter variabelen kjonn fra datasettet
+drop kjonn
+// Beholder kun gifte personer i datasettet
+keep if sivstand15 == '2'

@@ -1,0 +1,54 @@
+// ===================================================================
+// Example: Paneldata-analyse
+// Source: https://microdata.no/manual/eksempel/Regresjonsanalyser/Paneldata-analyse/
+// ===================================================================
+// Paneldata-analyse beskrives som en mer avansert form for lineær regresjonsanalyse der en
+// tar hensyn til varians over tid. Teknikken har likhetstrekk med vanlig OLS-regresjon og
+// krever at den avhengige variabelen inneholder kontinuerlige/metriske verdier, f.eks.
+// inntekt. Det fundamentale skillet er at paneldata må være organisert med flere målinger
+// per enhet på ulike tidspunkter, noe som gir et datasett med T x N observasjoner, der T er
+// måletidspunkter og N er antall populasjonsenheter.
+//
+// Et viktig praktisk råd: Paneldatasett blir svært store ettersom hver enhet måles flere
+// ganger. Det anbefales å bruke populasjoner under 1 million enheter for å unngå overdreven
+// belastning og lange prosesseringstider. For eksempel kan analyse av hele befolkningen over
+// bare to tidspunkter gi ca. 10 millioner observasjoner.
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:23 as db
+
+// Lager først en paneldatapopulasjon (bør være minst mulig)
+// Populasjon: Personer som fullfører masterstudium i høstsemesteret 2015
+create-dataset populasjon
+import db/NUDB_AAR_FORSTE_FULLF_HOV as fullf_master
+keep if fullf_master > 201507 & fullf_master < 201601
+
+// Oppretter et nytt tomt datasett som består av individene fra datasettet populasjon
+clone-units populasjon paneldata
+
+// Henter et sett med variabler med gitte måletidspunkter inn i det tomme datasettet
+use paneldata
+import-panel db/INNTEKT_WLONN db/SIVSTANDFDT_SIVSTAND db/BEFOLKNING_KOMMNR_FAKTISK \
+    2016-01-01 2017-01-01 2018-01-01 2019-01-01
+
+// Koder om og kjører deskriptiv statistikk samt regresjonsanalyse
+rename INNTEKT_WLONN årslønn
+generate gift = 0
+replace gift = 1 if SIVSTANDFDT_SIVSTAND == '2'
+generate oslo = 0
+replace oslo = 1 if BEFOLKNING_KOMMNR_FAKTISK == '0301'
+
+tabulate-panel gift
+tabulate-panel oslo
+tabulate-panel gift oslo
+
+summarize-panel årslønn
+transitions-panel oslo gift
+
+// Gjennomfører paneldata-regresjon med hhv. fixed og random effects
+regress-panel årslønn gift oslo, fe
+regress-panel årslønn gift oslo, re
+
+// Foretar hausman-test
+hausman årslønn gift oslo

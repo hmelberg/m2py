@@ -1,0 +1,23 @@
+// Eksempel 4: Nye variabler, aggregering og utvalg
+// generate, aggregate, collapse, sample.
+
+create-dataset agg
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+import fd/BOSATT_KOMMUNE as kommune
+
+generate hoy_inntekt = 1 * (inntekt > 600000)
+generate inntekt_mill = inntekt / 1e6
+summarize inntekt_mill hoy_inntekt kjonn
+
+sample 0.5 12345
+summarize inntekt kjonn
+
+aggregate (mean) inntekt -> snitt_kommune, by(kommune)
+aggregate (count) inntekt -> n, by(kommune)
+summarize snitt_kommune n
+
+// collapse erstatter data med én rad per by-gruppe; angi alle (stat) var -> navn i samme kommando
+collapse (mean) inntekt -> snitt (count) inntekt -> antall, by(kommune)
+summarize snitt antall
+tabulate kommune

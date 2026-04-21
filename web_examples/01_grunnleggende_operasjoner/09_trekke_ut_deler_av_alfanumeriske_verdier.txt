@@ -1,0 +1,41 @@
+// ===================================================================
+// Example: Trekke ut deler av alfanumeriske verdier
+// Source: https://microdata.no/manual/eksempel/Grunnleggende%20operasjoner/Trekke%20ut%20deler%20av%20alfanumeriske%20verdier/
+// ===================================================================
+// For variables with alphanumeric values, one can extract parts of the values/strings using the
+// `substr()` function ("For variabler med alfanumeriske verdier kan en trekke ut deler av
+// verdiene/strengene ved hjelp av funksjonen `substr()`").
+//
+// This function uses three parameters: a variable name, a starting position, and the number of
+// characters to extract. For example, `substr(bosted, 1, 2)` retrieves the first two characters
+// from a string, demonstrating conversion of municipality codes to county-level data.
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:23 as db
+
+create-dataset demografidata
+import db/BEFOLKNING_KOMMNR_FAKTISK 2021-01-01 as bosted
+
+// Koder om fra kommune- til fylkesnivå
+generate fylke = substr(bosted, 1, 2)
+
+// Legger til verdilabler for å navngi fylker med navn (=> penere deskriptiv output)
+define-labels fylkerstring \
+	'03' Oslo \
+	'11' Rogaland \
+	'15' 'Møre og Romsdal' \
+	'18' Nordland \
+	'30' Viken \
+	'34' Innlandet \
+	'38' 'Vestfold og Telemark' \
+	'42' Agder \
+	'46' Vestland \
+	'50' Trøndelag \
+	'54' 'Troms og Finnmark' \
+	'21' Spitsbergen \
+	'25' 'Utdanning i utlandet' \
+	'99' Uoppgitt
+assign-labels fylke fylkerstring
+
+tabulate fylke

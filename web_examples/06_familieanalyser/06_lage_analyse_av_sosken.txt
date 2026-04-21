@@ -1,0 +1,48 @@
+// ===================================================================
+// Example: Lage analyse av søsken
+// Source: https://microdata.no/manual/eksempel/Tema - Familieanalyser/Lage analyse av søsken/
+// ===================================================================
+// Skriptet demonstrerer hvordan man bruker søskenidentifikatorvariabelen BEFOLKNING_SOESKEN_
+// FNR til å finne alle søsken innenfor samme søskenflokk. Denne teknikken gjør det mulig å
+// generere aggregert statistikk på tvers av søskengrupper - som gjennomsnittslønn eller
+// antall søsken - som deretter kan kobles inn i et persondatasett for videre analyser der
+// søskeninformasjon fungerer som forklaringsvariabel.
+//
+// Søskenidentifikatorvariabelen fungerer på samme måte som familieidentifikatoren
+// BEFOLKNING_REGSTAT_FAMNR: alle medlemmer av samme søskengruppe deler en identisk
+// identifikator, som tilsvarer personnummeret til den eldste personen i gruppen.
+//
+// Skriptet er en oppdatert versjon som bruker de nye søskenidentifikatorene som ble gjort
+// tilgjengelige i 2025, og som vesentlig forenkler prosessen med å lage søskendatasett
+// sammenlignet med tidligere fremgangsmåter.
+// ===================================================================
+
+require no.ssb.fdb:43 as db
+
+create-dataset bosatte
+import db/BEFOLKNING_STATUSKODE 2023-01-01 as regstat
+keep if regstat == '1'
+import db/INNTEKT_WLONN 2023-12-31 as lønn
+import db/BEFOLKNING_SOESKEN_FNR as søskennr
+
+create-dataset søskendata
+import db/BEFOLKNING_SOESKEN_FNR as søskennr
+import db/BEFOLKNING_FOEDSELS_AAR_MND as fdato
+import db/INNTEKT_WLONN 2023-12-31 as lønn
+collapse(mean) lønn -> snittlønn_søsken (count) fdato -> ant_søsken, by(søskennr)
+merge snittlønn_søsken ant_søsken into bosatte on søskennr
+
+use bosatte
+summarize lønn snittlønn_søsken ant_søsken
+
+textblock
+Antall søsken for personer med minst ett søsken
+endblock
+tabulate ant_søsken
+barchart(count) ant_søsken
+
+textblock
+Gjennomsnittslønn for søsken fordelt på antall søsken i søskenflokken. Populasjon = alle bosatte personer med søsken. Personer med null i lønn holdes utenfor statistikken.
+endblock
+tabulate ant_søsken, summarize(snittlønn_søsken)
+barchart(mean) snittlønn_søsken, over(ant_søsken)

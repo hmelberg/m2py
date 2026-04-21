@@ -1,0 +1,332 @@
+{
+  "type": "register",
+  "data_type": "string",
+  "microdata_datatype": "Alfanumerisk",
+  "description": "Yrkeskode STYRK08, hovedarbeidsforhold Enhetstype: Person. Temporalitet: Tverrsnitt. Gyldighetsperiode: 2015-11-16 – 2024-11-16.",
+  "short_title": "Yrkeskode STYRK08, hovedarbeidsforhold",
+  "temporalitet": "Tverrsnitt",
+  "enhetstype": "Person",
+  "updated_at": "2025-05-13",
+  "databank": "no.ssb.fdb",
+  "topics": [
+    "Arbeid og lønn → Sysselsetting"
+  ],
+  "keywords": [
+    "hovedarbeidsforhold",
+    "styrk08",
+    "yrkeskode"
+  ],
+  "labels": {
+    "0000": "Uoppgitt / yrker som ikke kan identifiseres",
+    "0110": "Offiserer fra fenrik og høyere grad",
+    "0210": "Befal med sersjant grad",
+    "0310": "Menige",
+
+    "1111": "Politikere",
+    "1112": "Toppledere i offentlig administrasjon",
+    "1120": "Administrerende direktører",
+
+    "1211": "Finans- og økonomisjefer",
+    "1212": "Personalsjefer",
+    "1213": "Strategi- og planleggingssjefer",
+    "1221": "Salgs- og markedssjefer",
+    "1222": "PR- og informasjonssjefer",
+
+    "1311": "Ledere i skogbruk, gartnerier mv.",
+    "1321": "Ledere av industriproduksjon mv.",
+    "1322": "Ledere av olje- og gassutvinning mv.",
+    "1323": "Ledere av bygge- og anleggsvirksomhet",
+    "1324": "Ledere av logistikk og transport mv.",
+
+    "1341": "Ledere av omsorgstjenester for barn",
+    "1342": "Ledere av helsetjenester",
+    "1343": "Ledere av eldreomsorg",
+    "1344": "Ledere av sosialomsorg",
+    "1345": "Ledere av utdanning og undervisning",
+
+    "2111": "Fysikere og astronomer",
+    "2113": "Kjemikere",
+    "2120": "Matematikere, statistikere mv.",
+    "2131": "Biologer, botanikere, zoologer mv.",
+
+    "2142": "Sivilingeniører (bygg og anlegg)",
+    "2143": "Sivilingeniører (miljøteknikk)",
+    "2144": "Sivilingeniører (maskin- og marinteknikk)",
+    "2149": "Andre sivilingeniører (unntatt elektroteknologi)",
+
+    "2151": "Sivilingeniører (elkraftteknikk)",
+    "2152": "Sivilingeniører (elektronikk)",
+
+    "2211": "Allmennpraktiserende leger",
+    "2212": "Legespesialister",
+
+    "2221": "Spesialsykepleiere",
+    "2223": "Sykepleiere",
+
+    "2250": "Veterinærer",
+
+    "2261": "Tannleger",
+    "2262": "Farmasøyter",
+    "2264": "Fysioterapeuter",
+    "2267": "Ergoterapeuter",
+
+    "2310": "Universitets- og høyskolelektorer/-lærere",
+    "2330": "Lektorer mv. (videregående skole)",
+    "2341": "Grunnskolelærere",
+    "2342": "Førskolelærere",
+
+    "2411": "Revisorer, regnskapsrådgivere",
+    "2412": "Finans- og investeringsrådgivere",
+    "2421": "Organisasjonsrådgivere mv.",
+    "2423": "Personal- og karriererådgivere",
+
+    "2511": "Systemanalytikere/-arkitekter",
+    "2512": "Programvareutviklere",
+    "2514": "Applikasjonsprogrammerere",
+    "2522": "Systemadministratorer",
+
+    "2611": "Jurister og advokater",
+    "2612": "Dommere",
+
+    "2634": "Psykologer",
+
+    "3112": "Bygningsingeniører",
+    "3113": "Elkraftingeniører",
+    "3114": "Elektronikkingeniører",
+    "3115": "Maskiningeniører",
+    "3116": "Kjemiingeniører",
+
+    "3133": "Kontrolloperatører innen kjemisk prosessindustri",
+    "3134": "Kontrolloperatører ved olje- og naturgassraffineringsanlegg",
+
+    "3211": "Radiografer mv.",
+    "3212": "Bioingeniører",
+    "3213": "Reseptarer",
+
+    "3256": "Helsesekretærer",
+    "3258": "Ambulansepersonell",
+
+    "3311": "Finansmeglere",
+    "3313": "Regnskapsførere",
+
+    "3322": "Selgere (engros)",
+    "3323": "Innkjøpere",
+
+    "3412": "Miljøarbeidere innen sosiale fagfelt",
+    "3422": "Trenere og idrettsdommere",
+
+    "3511": "Driftsteknikere, IKT",
+    "3512": "Brukerstøtte, IKT",
+
+    "4110": "Kontormedarbeidere",
+    "4132": "Dataregistrere",
+
+    "4211": "Kundebehandlere, bank og postkontor",
+
+    "4222": "Kundesentermedarbeidere",
+    "4224": "Hotellresepsjonister",
+
+    "4311": "Regnskapsmedarbeidere",
+    "4313": "Lønningsmedarbeidere",
+
+    "4321": "Lagermedarbeidere og materialforvaltere",
+
+    "4412": "Postbud og postsorterere",
+
+    "5111": "Flyverter, båtverter mv.",
+    "5113": "Reiseledere og guider",
+
+    "5120": "Kokker",
+    "5131": "Servitører",
+
+    "5141": "Frisører",
+
+    "5221": "Butikkmedarbeidere",
+
+    "5311": "Barnehage- og skolefritidsassistenter mv.",
+
+    "5321": "Helsefagarbeidere",
+    "5322": "Hjemmehjelper",
+
+    "5411": "Brannkonstabler",
+    "5413": "Fengselsbetjenter",
+    "5414": "Vektere",
+
+    "6111": "Korn- og grønnsaksprodusenter",
+    "6113": "Gartnere",
+
+    "6121": "Melke- og husdyrprodusenter",
+
+    "6210": "Skogbrukere",
+    "6222": "Fiskere",
+
+    "7112": "Murere",
+    "7115": "Tømrere og snekkere",
+
+    "7122": "Gulv- og flisleggere",
+    "7126": "Rørleggere og VVS-montører",
+
+    "7212": "Sveisere",
+    "7222": "Verktøymaker, låsesmeder mv.",
+
+    "7231": "Bilmekanikere",
+    "7233": "Anleggsmaskin- og industrimekanikere",
+
+    "7411": "Elektrikere",
+    "7422": "Tele- og IKT-installatører",
+
+    "7511": "Slaktere, fiskehandlere mv.",
+    "7512": "Bakere, konditorer mv.",
+
+    "7522": "Møbelsnekkere",
+
+    "7531": "Skreddere, buntmakere mv.",
+
+    "7542": "Skytebaser og sprengningsarbeidere",
+
+    "8111": "Bergfagarbeidere",
+    "8113": "Operatører innen boring mv.",
+
+    "8121": "Operatører innen metallurgiske prosessfag",
+
+    "8131": "Operatører innen kjemisk industri",
+
+    "8141": "Operatører innen produksjon av gummiprodukter",
+    "8142": "Operatører innen plastprodukter",
+
+    "8160": "Operatører innen næringsmiddelproduksjon",
+
+    "8172": "Operatører innen trelastproduksjon",
+
+    "8211": "Montører av mekaniske produkter",
+    "8212": "Montører av elektriske og elektroniske produkter",
+
+    "8322": "Bil-, drosje- og varebilførere",
+    "8332": "Lastebil- og trailersjåfører",
+
+    "8342": "Anleggsmaskinførere",
+    "8344": "Truckførere",
+
+    "9112": "Renholdere i virksomheter",
+
+    "9211": "Hjelpearbeidere i nyttevekstproduksjon",
+    "9216": "Hjelpearbeidere innen havbruk",
+
+    "9312": "Hjelpearbeidere i anlegg",
+
+    "9412": "Kjøkkenassistenter",
+
+    "9510": "Reklamedistributører mv.",
+
+    "9611": "Renovasjonsarbeidere",
+    "9613": "Gatefeiere mv.",
+
+    "XXXX": "Uoppgitt/ukjent yrke"
+  },
+  "distribution": {
+    "0000": 0.02,
+    "0110": 0.005,
+    "0210": 0.005,
+    "0310": 0.01,
+
+    "1112": 0.005,
+    "1120": 0.01,
+
+    "1211": 0.01,
+    "1221": 0.01,
+
+    "2142": 0.02,
+    "2144": 0.02,
+    "2151": 0.01,
+    "2152": 0.01,
+
+    "2211": 0.01,
+    "2212": 0.01,
+    "2223": 0.03,
+
+    "2310": 0.01,
+    "2330": 0.01,
+    "2341": 0.02,
+    "2342": 0.02,
+
+    "2411": 0.02,
+    "2421": 0.02,
+
+    "2512": 0.03,
+    "2514": 0.02,
+    "2522": 0.01,
+
+    "2611": 0.01,
+
+    "3112": 0.015,
+    "3113": 0.01,
+    "3115": 0.01,
+
+    "3212": 0.01,
+    "3256": 0.01,
+
+    "3313": 0.01,
+    "3322": 0.01,
+    "3323": 0.01,
+
+    "3412": 0.005,
+    "3422": 0.005,
+
+    "3511": 0.02,
+    "3512": 0.02,
+
+    "4110": 0.03,
+    "4211": 0.02,
+    "4222": 0.02,
+
+    "4311": 0.02,
+    "4321": 0.02,
+
+    "5120": 0.01,
+    "5131": 0.02,
+
+    "5221": 0.06,
+
+    "5311": 0.02,
+    "5321": 0.04,
+    "5322": 0.02,
+
+    "5414": 0.02,
+
+    "6113": 0.005,
+    "6121": 0.005,
+    "6222": 0.01,
+
+    "7115": 0.03,
+    "7126": 0.02,
+    "7212": 0.02,
+    "7231": 0.02,
+    "7233": 0.02,
+    "7411": 0.03,
+    "7422": 0.02,
+    "7512": 0.02,
+
+    "8113": 0.015,
+    "8121": 0.01,
+    "8131": 0.01,
+    "8142": 0.01,
+    "8160": 0.02,
+    "8172": 0.01,
+
+    "8211": 0.02,
+    "8212": 0.02,
+
+    "8322": 0.04,
+    "8332": 0.03,
+    "8342": 0.03,
+    "8344": 0.02,
+
+    "9112": 0.03,
+    "9211": 0.01,
+    "9312": 0.01,
+    "9412": 0.02,
+    "9611": 0.02,
+    "XXXX": 0.02
+  }
+}
+

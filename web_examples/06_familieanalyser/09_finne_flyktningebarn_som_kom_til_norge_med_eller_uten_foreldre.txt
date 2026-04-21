@@ -1,0 +1,68 @@
+// ===================================================================
+// Example: Finne flyktningebarn som kom til Norge med eller uten foreldre
+// Source: https://microdata.no/manual/eksempel/Tema - Familieanalyser/Finne flyktningebarn som kom til Norge med eller uten foreldre/
+// ===================================================================
+// Eksempelet demonstrerer hvordan man identifiserer om flyktningebarn som kom til Norge
+// kom med sine foreldre eller alene. Analysen sammenligner ankomstdatoer mellom barn og
+// deres foreldre - når året for første opphold stemmer overens, indikerer det at de kom
+// sammen.
+//
+// Metodikken inkluderer innvandringsgrunndata for å bekrefte flyktningstatus, fødeland
+// for å fastslå opprinnelse, og alder ved ankomst for å fokusere på barn 0-17 år. Caset
+// som undersøkes omfatter flyktninger fra Bosnia.
+// ===================================================================
+
+textblock
+Finne ut om et barn (0-17 år) kom som flyktning med eller uten foreldre.
+Dette eksempelet ser på flyktninger fra Bosnia.
+endblock
+
+require no.ssb.fdb:30 as db
+
+create-dataset flyktningebarn
+import db/BEFOLKNING_INNGRUNN1 as innvandringsgrunn
+import db/BEFOLKNING_FODELAND as fødeland
+import db/BEFOLKNING_INNALDER as innvandringsalder
+tabulate innvandringsgrunn if fødeland == '155'
+summarize innvandringsalder if innvandringsgrunn == 'FLU' & fødeland == '155'
+keep if innvandringsgrunn == 'FLU' & fødeland == '155' & inrange(innvandringsalder,0,17)
+
+import db/BEFOLKNING_FAR_FNR as farid
+import db/BEFOLKNING_MOR_FNR as morid
+import db/BEFOLKNING_FORSTDATO as første_opphold
+replace første_opphold = int(første_opphold / 10000)
+histogram første_opphold, discrete
+// Kommentar: De fleste fikk opphold i 1993 eller 1994
+
+
+create-dataset flyktningforeldre
+import db/BEFOLKNING_INNGRUNN1 as innvandringsgrunn
+keep if innvandringsgrunn == 'FLU'
+
+import db/BEFOLKNING_FORSTDATO as første_opphold_far
+replace første_opphold_far = int(første_opphold_far / 10000)
+clone-variables første_opphold_far -> første_opphold_mor
+
+merge første_opphold_far into flyktningebarn on farid
+merge første_opphold_mor into flyktningebarn on morid
+
+
+use flyktningebarn
+histogram første_opphold_far, discrete
+histogram første_opphold_mor, discrete
+tabulate første_opphold, missing
+tabulate første_opphold_far, missing
+tabulate første_opphold_mor, missing
+
+generate kom_sammen_med_far = første_opphold == første_opphold_far
+generate kom_sammen_med_mor = første_opphold == første_opphold_mor
+generate kom_sammen_med_mor_og_far = kom_sammen_med_far & kom_sammen_med_mor
+generate kom_sammen_med_mor_eller_far = kom_sammen_med_far | kom_sammen_med_mor
+
+tabulate kom_sammen_med_far, cellpct freq
+tabulate kom_sammen_med_mor, cellpct freq
+tabulate kom_sammen_med_mor_og_far, cellpct freq
+tabulate kom_sammen_med_mor_eller_far, cellpct freq
+piechart kom_sammen_med_mor_eller_far
+// Kommentar: Kun 4% av flyktningebarn fra Bosnia kom til Norge uten foreldre.
+// Resten kom med enten mor eller far (eller begge). De fleste av dem som kom med minst en forelder kom med mor.

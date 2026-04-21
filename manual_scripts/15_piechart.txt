@@ -1,0 +1,23 @@
+// Eksempel 4.8.4: Piechart og hexbin-plot
+require no.ssb.fdb:12 as db
+create-dataset demografidata
+import db/INNTEKT_WYRKINNT 2015-01-01 as innt
+import db/INNTEKT_BRUTTOFORM 2015-01-01 as formue
+import db/BEFOLKNING_KJOENN as kjonn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+import db/BOSATTEFDT_BOSTED 2015-01-01 as bosted
+// Koder om fra kommune- til fylkesnivå
+generate fylke = substr(bosted,1,2)
+define-labels fylkerstring '01' 'Ostfold' '02' 'Akershus' '03' 'Oslo' '04' 'Hedmark' '05' 'Oppland' '06' 'Buskerud' '07' 'Vestfold' '08' 'Telemark' '09' 'Aust-Agder' '10' 'Vest-Agder' '11' 'Rogaland' '12' 'Hordaland' '14' 'Sogn og Fjordane' '15' 'More og Romsdal' '16' 'Sor-Trondelag' '17' 'Nord-Trondelag' '18' 'Nordland' '19' 'Troms' '20' 'Finnmark' '99' 'Uoppgitt'
+assign-labels fylke fylkerstring
+
+// Genererer alder per 2015
+generate alder = 2015 - int(faarmnd/100)
+// Kakediagram
+drop if alder < 16
+piechart kjonn
+piechart fylke
+
+// Hexbinplot
+hexbin formue innt
+hexbin formue innt if alder > 50

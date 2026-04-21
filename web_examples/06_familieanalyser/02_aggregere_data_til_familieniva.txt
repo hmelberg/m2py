@@ -1,0 +1,87 @@
+// ===================================================================
+// Example: Aggregere data til familienivå
+// Source: https://microdata.no/manual/eksempel/Tema - Familieanalyser/Aggregere data til familienivå/
+// ===================================================================
+// Personer kan kobles til et familienummer som gjør det mulig å aggregere informasjon på
+// familienivå. De som tilhører samme familie har et felles familienummer som er avledet fra
+// personnummeret til den eldste personen i familien.
+//
+// Eksempelet bygger først et persondatasett som filtrerer for personer i familier bestående
+// av ektepar med små barn (kategori 2.1.1), og legger til demografiske opplysninger. Siden
+// familieinntekt er data på familienivå må et separat datasett opprettes - man kan ikke
+// blande variabler med ulike enhetstyper. Tilnærmingen importerer yrkesinntekt på
+// individnivå, og bruker collapse(sum)-kommandoen til å summere inntekter per familienummer,
+// noe som gir et datasett med familie som enhet. Til slutt kobles familieinntekt tilbake på
+// persondatasettet ved bruk av merge-kommandoen.
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:30 as db
+
+// Oppretter først et persondatasett for personer i familier bestående av ektepar med små barn
+create-dataset persondata
+import db/BEFOLKNING_REGSTAT_FAMTYP 2021-01-01 as famtype
+tabulate famtype
+keep if famtype == '2.1.1'
+
+// Legger til diverse demografiske opplysninger
+import db/BEFOLKNING_KJOENN as kjønn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+generate alder = 2021 - int(faarmnd/100)
+
+import db/BEFOLKNING_KOMMNR_FAKTISK 2021-01-01 as bosted
+generate fylke = substr(bosted, 1, 2)
+
+import db/BEFOLKNING_BARN_I_HUSH 2021-01-01 as antbarn
+
+
+// Oppretter datasett for generering av total yrkesinntekt per familie => enhet = familie
+create-dataset familiedata
+import db/BEFOLKNING_REGSTAT_FAMNR 2021-01-01 as famnr
+import db/INNTEKT_WYRKINNT 2021-01-01 as yrkesinnt
+collapse (sum) yrkesinnt, by(famnr)
+rename yrkesinnt familieinnt
+
+// Kobler familieinntekt på persondatasettet (enhet = personer)
+merge familieinnt into persondata on PERSONID_1
+
+// Lager familiestatistikk. Familienummeret består av person-id til eldste person i familien, så når en fjerner
+// individer med manglende familieinntekt sitter en igjen med et datasett med familie som enhet.
+// Alle personopplysninger vil da gjelde for eldste person i familien
+use persondata
+drop if sysmiss(familieinnt)
+
+rename alder alder_eldst
+rename kjønn kjønn_eldst
+
+define-labels fylketekst \
+	'03' Oslo \
+	'11' Rogaland \
+	'15' 'Møre og Romsdal' \
+	'18' Nordland \
+	'30' Viken \
+	'34' Innlandet \
+	'38' 'Vestfold og Telemark' \
+	'42' Agder \
+	'46' Vestland \
+	'50' Trøndelag \
+	'54' 'Troms og Finnmark' \
+	'21' Spitsbergen \
+	'25' 'Utdanning i utlandet' \
+	'99' Uoppgitt
+assign-labels fylke fylketekst
+
+tabulate fylke
+
+histogram alder_eldst, discrete
+histogram antbarn, discrete percent
+
+tabulate antbarn
+tabulate antbarn, cellpct
+tabulate antbarn kjønn_eldst
+
+summarize familieinnt
+barchart (mean) familieinnt, over(fylke)
+barchart (mean) familieinnt, over(antbarn)
+histogram familieinnt, freq
+histogram familieinnt, by(antbarn) percent

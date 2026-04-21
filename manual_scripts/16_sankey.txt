@@ -1,0 +1,18 @@
+// Eksempel 4.8.5: Sankey - overgangsdiagram
+require no.ssb.fdb:12 as db
+create-dataset demografidata
+import db/SIVSTANDFDT_SIVSTAND 2010-01-01 as sivstand10
+import db/SIVSTANDFDT_SIVSTAND 2015-01-01 as sivstand15
+import db/BOSATTEFDT_BOSTED 2010-01-01 as bosted10
+import db/BOSATTEFDT_BOSTED 2015-01-01 as bosted15
+// Koder om fra kommune- til fylkesnivå
+generate fylke10 = substr(bosted10,1,2)
+generate fylke15 = substr(bosted15,1,2)
+define-labels fylkerstring '01' 'Ostfold' '02' 'Akershus' '03' 'Oslo' '04' 'Hedmark' '05' 'Oppland' '06' 'Buskerud' '07' 'Vestfold' '08' 'Telemark' '09' 'Aust-Agder' '10' 'Vest-Agder' '11' 'Rogaland' '12' 'Hordaland' '14' 'Sogn og Fjordane' '15' 'More og Romsdal' '16' 'Sor-Trondelag' '17' 'Nord-Trondelag' '18' 'Nordland' '19' 'Troms' '20' 'Finnmark' '99' 'Uoppgitt'
+assign-labels fylke10 fylkerstring
+assign-labels fylke15 fylkerstring
+sankey fylke10 fylke15 if fylke10 == '12'
+sankey fylke10 fylke15 if fylke15 == '03'
+sankey fylke10 fylke15 if fylke15 == '03' & fylke10 != '03'
+sankey sivstand10 sivstand15
+sankey sivstand10 sivstand15 if sivstand10 == '2'

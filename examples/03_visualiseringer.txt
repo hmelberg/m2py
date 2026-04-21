@@ -1,0 +1,19 @@
+// Eksempel 3: Visualiseringer
+// Søylediagram, histogram, boksplott, spredningsplott og kakediagram.
+
+create-dataset figurer
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+import fd/BOSATT_KOMMUNE as kommune
+
+define-labels kjonn_etikett 1 Mann 2 Kvinne
+assign-labels kjonn kjonn_etikett
+
+barchart kjonn
+histogram inntekt
+boxplot inntekt
+boxplot inntekt, over(kjonn)
+scatter inntekt kjonn
+piechart kjonn
+generate inntekt_mill = inntekt / 1e6
+hexbin inntekt_mill kjonn

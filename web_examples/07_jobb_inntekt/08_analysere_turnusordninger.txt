@@ -1,0 +1,51 @@
+// ===================================================================
+// Example: Analysere turnusordninger
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Jobb-%20og%20inntektsanalyser/Analysere%20turnusordninger/
+// ===================================================================
+// Skriptet viser hvordan man kan jobbe med jobbdata fra A-ordningen. Dette konkrete eksempelet
+// demonstrerer hvordan man kan foreta en analyse av turnusordninger.
+// ===================================================================
+
+require no.ssb.fdb:30 as db
+
+// Lager datasett for sysselsatte (persondata)
+create-dataset sysselsatte2
+import db/ARBLONN_PERS_KJOENN 2021-07-16 as kjønn
+import db/ARBLONN_PERS_ALDER 2021-07-16 as alder
+
+// Lager datasett for arbeidsforhold (jobbdata)
+create-dataset arbeidsforhold2
+import db/ARBLONN_ARB_TID_ORDNING 2021-07-16 as arb_ordning
+import db/ARBLONN_ARB_ARBEIDSTID 2021-07-16 as arbtid
+import db/ARBEIDSFORHOLD_PERSON as personid
+
+tabulate arb_ordning
+
+// Aggregerer fra jobbdata- til persondatanivå ved å summere arbeidstid og stillingsprosent per person.
+// Kobler deretter jobbopplysningene på persondatasettet sysselsatte
+keep if arb_ordning == 'dogn355'
+generate ant_turnus = 1
+collapse (sum) ant_turnus arbtid, by(personid)
+merge ant_turnus arbtid into sysselsatte2
+
+// Lager turnus-statistikk
+use sysselsatte2
+tabulate ant_turnus, summarize(arbtid) mean freq
+
+generate turnus = 0
+replace turnus = 1 if ant_turnus >= 1
+
+summarize arbtid if turnus
+
+tabulate turnus, cellpct freq
+tabulate kjønn turnus, rowpct freq
+tabulate kjønn if turnus, summarize(arbtid)
+
+generate aldersgr = 1
+replace aldersgr = 2 if alder > 25
+replace aldersgr = 3 if alder > 40
+replace aldersgr = 4 if alder > 60
+assign-labels aldersgr alderslabel
+
+tabulate aldersgr turnus, rowpct freq
+tabulate aldersgr if turnus, summarize(arbtid)

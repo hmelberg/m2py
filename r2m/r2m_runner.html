@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>r2m — R to microdata.no translator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f4f6f9;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #1a3a5c;
+      color: #fff;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.15rem; font-weight: 600; }
+    header p  { font-size: 0.8rem; opacity: 0.75; }
+
+    #status-bar {
+      background: #2c5282;
+      color: #bee3f8;
+      font-size: 0.78rem;
+      padding: 4px 18px;
+      flex-shrink: 0;
+      min-height: 24px;
+    }
+
+    .panels {
+      display: flex;
+      flex: 1;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+      border-right: 1px solid #cbd5e0;
+    }
+    .panel:last-child { border-right: none; }
+
+    .panel-header {
+      background: #edf2f7;
+      padding: 6px 12px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #4a5568;
+      border-bottom: 1px solid #cbd5e0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    textarea, .output-area {
+      flex: 1;
+      font-family: "Fira Code", "Consolas", "Courier New", monospace;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      padding: 10px 12px;
+      border: none;
+      resize: none;
+      outline: none;
+      background: #fff;
+      white-space: pre;
+      overflow: auto;
+    }
+
+    .output-area {
+      color: #1a202c;
+    }
+
+    .output-area .comment { color: #718096; }
+    .output-area .cmd     { color: #2b6cb0; font-weight: 500; }
+    .output-area .warning { color: #c05621; }
+
+    #warnings-panel {
+      background: #fffbeb;
+      border-top: 1px solid #f6e05e;
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      font-family: "Fira Code", monospace;
+      color: #744210;
+      max-height: 120px;
+      overflow-y: auto;
+      flex-shrink: 0;
+      white-space: pre-wrap;
+    }
+    #warnings-panel:empty { display: none; }
+
+    footer {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 14px;
+      background: #edf2f7;
+      border-top: 1px solid #cbd5e0;
+      flex-shrink: 0;
+    }
+
+    button {
+      padding: 6px 20px;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: background 0.15s;
+    }
+    #btn-translate {
+      background: #2b6cb0;
+      color: #fff;
+    }
+    #btn-translate:hover   { background: #2c5282; }
+    #btn-translate:disabled { background: #90cdf4; cursor: default; }
+    #btn-copy {
+      background: #e2e8f0;
+      color: #2d3748;
+    }
+    #btn-copy:hover { background: #cbd5e0; }
+    #btn-clear {
+      background: #fff5f5;
+      color: #c53030;
+      margin-left: auto;
+    }
+    #btn-clear:hover { background: #fed7d7; }
+
+    .df-label {
+      font-size: 0.8rem;
+      color: #4a5568;
+    }
+    #df-name-input {
+      width: 90px;
+      padding: 4px 7px;
+      border: 1px solid #cbd5e0;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      font-family: monospace;
+    }
+
+    .badge {
+      font-size: 0.68rem;
+      background: #bee3f8;
+      color: #2a4365;
+      border-radius: 3px;
+      padding: 1px 5px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>r2m &mdash; R to microdata.no</h1>
+    <p>Translates tidyverse/dplyr R code to microdata.no script commands</p>
+  </div>
+</header>
+
+<div id="status-bar">Loading WebR&hellip;</div>
+
+<div class="panels">
+  <!-- Left: R input -->
+  <div class="panel">
+    <div class="panel-header">
+      R code
+      <span class="badge">input</span>
+    </div>
+    <textarea id="r-input" spellcheck="false" placeholder="# Paste your R / tidyverse code here
+# Use ## microdata and ## r to switch between pass-through and translated blocks
+
+df <- readRDS('data.rds')   # loading is ignored
+
+df <- df |>
+  filter(age >= 18) |>
+  mutate(
+    log_income = log(income),
+    high_edu   = ifelse(edu >= 16, 1, 0)
+  )
+
+df |>
+  group_by(sex) |>
+  summarise(
+    mean_inc = mean(income),
+    n        = n()
+  )
+
+lm(income ~ age + edu + sex, data = df)
+"></textarea>
+  </div>
+
+  <!-- Right: microdata output -->
+  <div class="panel">
+    <div class="panel-header">
+      microdata.no script
+      <span class="badge">output</span>
+    </div>
+    <div class="output-area" id="microdata-output">
+      <span style="color:#a0aec0">(translation will appear here)</span>
+    </div>
+    <div id="warnings-panel"></div>
+  </div>
+</div>
+
+<footer>
+  <button id="btn-translate" disabled>Translate</button>
+  <button id="btn-copy">Copy output</button>
+
+  <div style="position:relative">
+    <button id="btn-examples" style="background:#e2e8f0;color:#2d3748">Examples ▾</button>
+    <div id="examples-menu" style="
+      display:none; position:absolute; bottom:calc(100% + 6px); left:0;
+      background:#fff; border:1px solid #cbd5e0; border-radius:6px;
+      box-shadow:0 4px 14px rgba(0,0,0,0.12); min-width:220px; z-index:50;
+      font-size:0.82rem;
+    ">
+      <div style="padding:6px 12px 4px;font-size:0.7rem;text-transform:uppercase;color:#718096;font-weight:600">Examples</div>
+      <button class="ex-btn" data-ex="basic"     style="display:block;width:100%;text-align:left;padding:8px 14px;border:none;background:none;cursor:pointer">Basic transforms &amp; filters</button>
+      <button class="ex-btn" data-ex="recode"    style="display:block;width:100%;text-align:left;padding:8px 14px;border:none;background:none;cursor:pointer">Recode &amp; case_when</button>
+      <button class="ex-btn" data-ex="groupby"   style="display:block;width:100%;text-align:left;padding:8px 14px;border:none;background:none;cursor:pointer">Group-by / collapse</button>
+      <button class="ex-btn" data-ex="regress"   style="display:block;width:100%;text-align:left;padding:8px 14px;border:none;background:none;cursor:pointer">Regression models</button>
+      <button class="ex-btn" data-ex="multidf"   style="display:block;width:100%;text-align:left;padding:8px 14px;border:none;background:none;cursor:pointer">Multiple datasets</button>
+      <button class="ex-btn" data-ex="stats"     style="display:block;width:100%;text-align:left;padding:8px 14px;border:none;background:none;cursor:pointer">Statistical tests &amp; survival</button>
+      <button class="ex-btn" data-ex="reshape"   style="display:block;width:100%;text-align:left;padding:8px 14px;border:none;background:none;cursor:pointer">Joins &amp; reshape</button>
+      <button class="ex-btn" data-ex="ggplots"   style="display:block;width:100%;text-align:left;padding:8px 14px;border:none;background:none;cursor:pointer">ggplot2 plots</button>
+      <button class="ex-btn" data-ex="cleaning"  style="display:block;width:100%;text-align:left;padding:8px 14px;border:none;background:none;cursor:pointer">Data cleaning &amp; row functions</button>
+      <button class="ex-btn" data-ex="panel"     style="display:block;width:100%;text-align:left;padding:8px 14px;border:none;background:none;cursor:pointer">Panel &amp; causal methods</button>
+      <button class="ex-btn" data-ex="mixed"     style="display:block;width:100%;text-align:left;padding:8px 14px;border:none;background:none;cursor:pointer">Mixed R + microdata blocks</button>
+    </div>
+  </div>
+
+  <label class="df-label">
+    Default df&nbsp;name:
+    <input id="df-name-input" type="text" value="df" />
+  </label>
+  <button id="btn-clear">Clear</button>
+</footer>
+
+<script type="module">
+  import { WebR } from 'https://webr.r-wasm.org/latest/webr.mjs';
+
+  const status   = document.getElementById('status-bar');
+  const btnTrans = document.getElementById('btn-translate');
+  const btnCopy  = document.getElementById('btn-copy');
+  const btnClear = document.getElementById('btn-clear');
+  const rInput   = document.getElementById('r-input');
+  const outDiv   = document.getElementById('microdata-output');
+  const warnDiv  = document.getElementById('warnings-panel');
+  const dfInput  = document.getElementById('df-name-input');
+
+  // ── initialise WebR ────────────────────────────────────────────────────────
+  const webR = new WebR();
+  await webR.init();
+  status.textContent = 'Loading translator modules…';
+
+  // Load R source files in dependency order
+  const R_FILES = ['r2m/expr.R', 'r2m/commands.R', 'r2m/translator.R'];
+
+  for (const file of R_FILES) {
+    try {
+      const resp = await fetch(file);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const code = await resp.text();
+      await webR.evalRVoid(code);
+    } catch (e) {
+      status.textContent = `Error loading ${file}: ${e.message}`;
+      console.error(e);
+      throw e;
+    }
+  }
+
+  status.textContent = 'Ready — WebR loaded';
+  btnTrans.disabled = false;
+
+  // ── translate ──────────────────────────────────────────────────────────────
+  async function doTranslate() {
+    const rCode  = rInput.value.trim();
+    const dfName = dfInput.value.trim() || 'df';
+
+    if (!rCode) {
+      outDiv.innerHTML = '<span style="color:#a0aec0">(no input)</span>';
+      warnDiv.textContent = '';
+      return;
+    }
+
+    btnTrans.disabled = true;
+    status.textContent = 'Translating…';
+
+    try {
+      // Pass code and df_name into R
+      await webR.objs.globalEnv.bind('r2m_code',    rCode);
+      await webR.objs.globalEnv.bind('r2m_df_name', dfName);
+
+      const result = await webR.evalR(
+        'translate(r2m_code, df_name = r2m_df_name)'
+      );
+      const obj = await result.toJs({ depth: 2 });
+
+      // obj is a named list: script, warnings
+      const script   = obj.values[0].values[0] ?? '';
+      const warnings = obj.values[1].values[0] ?? '';
+
+      renderOutput(script, warnings);
+      status.textContent = 'Done';
+    } catch (e) {
+      outDiv.textContent  = '// Translation error:\n// ' + e.message;
+      warnDiv.textContent = '';
+      status.textContent  = 'Error — see output panel';
+      console.error(e);
+    } finally {
+      btnTrans.disabled = false;
+    }
+  }
+
+  // ── render ─────────────────────────────────────────────────────────────────
+  function renderOutput(script, warnings) {
+    // Syntax-highlight the output
+    const lines = script.split('\n');
+    const html  = lines.map(line => {
+      const esc = line
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      if (esc.startsWith('//')) return `<span class="comment">${esc}</span>`;
+      if (esc.startsWith('#'))  return `<span class="comment">${esc}</span>`;
+      if (/^\s*$/.test(esc))    return esc;
+      // Bold the first word (command keyword)
+      return esc.replace(/^(\S+)/, '<span class="cmd">$1</span>');
+    }).join('\n');
+
+    outDiv.innerHTML = html || '<span style="color:#a0aec0">(empty output)</span>';
+
+    // Warnings panel
+    if (warnings && warnings.trim()) {
+      warnDiv.textContent = '⚠ Warnings:\n' + warnings.trim();
+    } else {
+      warnDiv.textContent = '';
+    }
+  }
+
+  // ── copy ───────────────────────────────────────────────────────────────────
+  btnCopy.addEventListener('click', () => {
+    const text = outDiv.innerText;
+    navigator.clipboard.writeText(text).then(() => {
+      const orig = btnCopy.textContent;
+      btnCopy.textContent = 'Copied!';
+      setTimeout(() => { btnCopy.textContent = orig; }, 1500);
+    });
+  });
+
+  // ── clear ──────────────────────────────────────────────────────────────────
+  btnClear.addEventListener('click', () => {
+    rInput.value = '';
+    outDiv.innerHTML = '<span style="color:#a0aec0">(translation will appear here)</span>';
+    warnDiv.textContent = '';
+  });
+
+  // ── keyboard shortcut: Ctrl/Cmd+Enter ──────────────────────────────────────
+  rInput.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      if (!btnTrans.disabled) doTranslate();
+    }
+  });
+
+  btnTrans.addEventListener('click', doTranslate);
+
+  // ── examples ───────────────────────────────────────────────────────────────
+  const EXAMPLES = {
+
+basic: `# Basic transforms and filters
+# Variables: income, age, edu, sex
+
+df <- df |>
+  filter(age >= 18, income > 0) |>
+  mutate(
+    log_income = log(income),
+    age_sq     = age^2,
+    high_edu   = ifelse(edu >= 16, 1, 0)
+  ) |>
+  select(income, log_income, age, age_sq, high_edu, edu, sex)
+
+df <- df |> drop_na(income, age)
+
+summary(df)
+hist(df$income)
+`,
+
+recode: `# Recode and case_when
+# Variables: region (1-3), edu_years, sex (1/2)
+
+df <- df |>
+  mutate(
+    region_name = case_when(
+      region == 1 ~ 'North',
+      region == 2 ~ 'South',
+      region == 3 ~ 'West',
+      TRUE        ~ 'Other'
+    ),
+    edu_group = case_when(
+      edu_years < 10                   ~ 1,
+      edu_years >= 10 & edu_years < 13 ~ 2,
+      edu_years >= 13                  ~ 3,
+      TRUE                             ~ NA_real_
+    ),
+    sex_label = ifelse(sex == 1, 'Male', 'Female')
+  )
+
+table(df$edu_group, df$sex_label)
+`,
+
+groupby: `# Group-by: collapse and aggregate
+# Variables: income, sector, sex
+
+# Collapse to group-level summary dataset
+sector_stats <- df |>
+  group_by(sector, sex) |>
+  summarise(
+    mean_income   = mean(income),
+    median_income = median(income),
+    n             = n()
+  )
+
+# Add group mean back as a new column on every row
+df <- df |>
+  group_by(sector) |>
+  mutate(mean_inc_sector = mean(income))
+
+boxplot(df$income ~ df$sector)
+`,
+
+regress: `# Regression models
+# Variables: income, age, edu, sex, employed (0/1)
+
+df <- df |>
+  mutate(log_income = log(income))
+
+# OLS
+lm(log_income ~ age + edu + sex, data = df)
+
+# OLS with interaction
+lm(log_income ~ age + edu + sex + age:sex, data = df)
+
+# Logit
+glm(employed ~ age + edu + sex, family = binomial(), data = df)
+
+# Poisson
+glm(employed ~ age + edu, family = poisson(), data = df)
+`,
+
+multidf: `# Multiple datasets
+# Variables: income, age, edu, sex, employed (0/1), region
+
+employed <- df |>
+  filter(employed == 1, age >= 18) |>
+  mutate(log_income = log(income))
+
+retired <- df |>
+  filter(age >= 67) |>
+  select(age, income, sex, region)
+
+employed |>
+  group_by(sex) |>
+  summarise(
+    mean_inc = mean(income),
+    n        = n()
+  )
+
+lm(log_income ~ age + edu + sex, data = employed)
+`,
+
+stats: `# Statistical tests, labels, and survival
+# Variables: income, age, edu, sex, time, event (0/1)
+
+library(survival)
+
+# Normality tests
+shapiro.test(df$income)
+
+# Correlation matrix
+cor(df[, c('income', 'age', 'edu')])
+
+# Chi-squared test of independence
+chisq.test(table(df$sex, df$edu))
+
+# ANOVA
+aov(income ~ factor(edu) + factor(sex), data = df)
+
+# t-test
+t.test(income ~ sex, data = df)
+
+# Value labels on sex
+df$sex <- factor(df$sex, levels = c(1, 2), labels = c('Male', 'Female'))
+
+# Destring (if income is stored as character)
+df$income <- as.numeric(df$income)
+
+# Fill missing income with 0
+df$income <- coalesce(df$income, 0)
+
+# Advanced regression
+glm(employed ~ age + edu, family = binomial(link = 'probit'), data = df)
+MASS::glm.nb(n_jobs ~ age + edu, data = df)
+ivreg::ivreg(income ~ edu | parent_edu, data = df)
+
+# Survival analysis
+km_fit <- survfit(Surv(time, event) ~ sex, data = df)
+coxph_fit <- survival::coxph(Surv(time, event) ~ age + sex + edu, data = df)
+`,
+
+reshape: `# Joins and reshape
+# Datasets: df (persons), employer (employer info), df_wide (panel wide format)
+
+library(dplyr)
+library(tidyr)
+
+# Left join: add employer info to person dataset
+df <- df |>
+  left_join(employer, by = 'employer_id')
+
+# Inner join: keep only matched rows
+matched <- df |>
+  inner_join(employer, by = 'employer_id')
+
+# Pivot wider → narrower (wide panel to long)
+df_long <- df_wide |>
+  pivot_longer(
+    cols        = c(income2020, income2021, income2022),
+    names_to    = 'year',
+    values_to   = 'income'
+  )
+
+# Pivot long → wider
+df_wide2 <- df_long |>
+  pivot_wider(names_from = year, values_from = income)
+
+# Sampling
+df_sample <- df |> sample_n(5000)
+df_10pct  <- df |> sample_frac(0.10)
+
+# Count / tabulate
+df |> count(sex, edu_group)
+`,
+
+ggplots: `# ggplot2 plots → microdata charts
+# Variables: income, age, sex (1/2), region, sector
+
+library(ggplot2)
+
+# Histogram
+ggplot(df, aes(x = income)) + geom_histogram(bins = 20)
+
+# Histogram by group
+ggplot(df, aes(x = income)) +
+  geom_histogram(bins = 15) +
+  facet_wrap(~sex)
+
+# Bar chart — counts per region
+ggplot(df, aes(x = region)) + geom_bar()
+
+# Stacked bar chart with fill
+ggplot(df, aes(x = region, fill = sex)) +
+  geom_bar(position = "stack")
+
+# Column chart (pre-summarised data)
+ggplot(df, aes(x = sector, y = mean_inc)) + geom_col()
+
+# Boxplot by group
+ggplot(df, aes(x = sex, y = income)) + geom_boxplot()
+
+# Scatter → hexbin
+ggplot(df, aes(x = age, y = income)) + geom_point()
+`,
+
+cleaning: `# Data cleaning, row functions & new patterns
+# Variables: income, wage1, wage2, wage3, sex, edu, region, start_year
+
+library(dplyr)
+
+# Scalar constants become let-bindings
+BASE_YEAR  <- 2000
+MIN_INCOME <- 10000
+
+# Replace missing income with 0 (coalesce)
+df$income <- coalesce(df$income, 0)
+
+# Coalesce inside mutate: fill missing with previous-year wage
+df <- df |>
+  mutate(wage_fill = coalesce(wage1, wage2))
+
+# Row-wise mean and total across three wage variables
+df <- df |>
+  mutate(
+    mean_wage  = rowMeans(cbind(wage1, wage2, wage3)),
+    total_wage = rowSums(cbind(wage1, wage2, wage3))
+  )
+
+# Normality tests before modelling
+shapiro.test(df$income)
+shapiro.test(df$wage1)
+
+# Chi-squared test of independence
+chisq.test(table(df$sex, df$edu))
+
+# Standard filter + tabulate
+df <- df |> filter(income >= MIN_INCOME)
+df |> count(sex, edu)
+`,
+
+panel: `# Panel regression, multilevel, RDD and Oaxaca decomposition
+# Variables: income, edu, age, sex, region, margin, vote, female
+
+library(plm)
+library(lme4)
+library(rdrobust)
+library(oaxaca)
+
+# Panel data: fixed effects (within estimator)
+plm::plm(income ~ edu + age + sex,
+         data  = df,
+         model = 'within')
+
+# Panel data: random effects
+plm::plm(income ~ edu + age + sex,
+         data  = df,
+         model = 'random')
+
+# Multilevel / mixed model: income ~ edu + age, grouped by region
+lme4::lmer(income ~ edu + age + (1 | region), data = df)
+
+# Two-level model with two grouping levels
+lme4::lmer(income ~ edu + age + (1 | region) + (1 | sector), data = df)
+
+# Regression discontinuity design
+# Running variable: margin (centred at 0)
+rdrobust::rdrobust(df$vote, df$margin)
+
+# RDD with explicit cutoff (e.g. income threshold at 500 000)
+rdrobust::rdrobust(df$income, df$margin, c = 500000)
+
+# Oaxaca-Blinder decomposition: wage gap by sex
+oaxaca::oaxaca(income ~ edu + age | female, data = df)
+`,
+
+mixed: `## microdata
+create-dataset mydata
+require w income age edu sex sector
+
+## r
+df <- df |>
+  filter(age >= 18, income > 0) |>
+  mutate(log_income = log(income))
+
+df <- df |>
+  mutate(
+    edu_group = case_when(
+      edu < 10             ~ 1,
+      edu >= 10 & edu < 13 ~ 2,
+      edu >= 13            ~ 3,
+      TRUE                 ~ NA_real_
+    )
+  )
+
+lm(log_income ~ age + edu_group + sex, data = df)
+
+## microdata
+tabulate edu_group sex
+histogram log_income
+`
+  };
+
+  // Toggle examples menu
+  const exMenu  = document.getElementById('examples-menu');
+  const btnEx   = document.getElementById('btn-examples');
+  btnEx.addEventListener('click', e => {
+    e.stopPropagation();
+    exMenu.style.display = exMenu.style.display === 'none' ? 'block' : 'none';
+  });
+  document.addEventListener('click', () => { exMenu.style.display = 'none'; });
+
+  // Load example on click
+  document.querySelectorAll('.ex-btn').forEach(btn => {
+    btn.addEventListener('mouseover', () => { btn.style.background = '#edf2f7'; });
+    btn.addEventListener('mouseout',  () => { btn.style.background = 'none'; });
+    btn.addEventListener('click', () => {
+      const code = EXAMPLES[btn.dataset.ex];
+      if (code) rInput.value = code;
+      exMenu.style.display = 'none';
+    });
+  });
+</script>
+</body>
+</html>

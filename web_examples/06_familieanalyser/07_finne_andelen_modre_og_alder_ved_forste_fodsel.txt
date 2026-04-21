@@ -1,0 +1,53 @@
+// ===================================================================
+// Example: Finne andelen mødre og alder ved første fødsel
+// Source: https://microdata.no/manual/eksempel/Tema - Familieanalyser/Finne andelen mødre og alder ved første fødsel/
+// ===================================================================
+// Skriptet demonstrerer hvordan man identifiserer andelen mødre og deres alder ved første
+// fødsel blant kvinner 16 år eller eldre som er bosatt i Norge per 1. januar 2023.
+//
+// Eksempelet bruker en tilnærming med to datasett: først opprettes et populasjonsdatasett
+// med kvalifiserte kvinner, deretter konstrueres et separat datasett med førstefødte barn
+// (identifisert ved paritet == 1). Disse datasettene fusjoneres for å koble mors-
+// informasjon med enkeltkvinners data, noe som gjør det mulig å beregne andelen mødre og
+// analysere alder ved fødsel på tvers av ulike generasjonskohorter.
+// ===================================================================
+
+// Kobler til database
+require no.ssb.fdb:30 as db
+
+// Lager populasjonsdatasett av kvinner 16 år eller eldre, bosatt i Norge per 1/1 2023
+create-dataset kvinner
+import db/BEFOLKNING_STATUSKODE 2023-01-01 as regstat
+import db/BEFOLKNING_KJOENN as kjønn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+generate fødselsår = int(faarmnd / 100)
+generate alder = 2023 - fødselsår
+keep if kjønn == '2' & alder >= 16 & regstat == '1'
+
+// Lager barnedatasett bestående av førstefødte (paritet == 1)
+create-dataset barnedata
+import db/BEFOLKNING_PARITET as paritet
+keep if paritet == 1
+
+import db/BEFOLKNING_MOR_FNR as morid
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+generate fødselsår_barn = int(faarmnd / 100)
+
+collapse(mean) fødselsår_barn, by(morid)
+
+merge fødselsår_barn into kvinner
+
+use kvinner
+generate mor = !sysmiss(fødselsår_barn)
+generate fødselsalder = fødselsår_barn - fødselsår
+
+tabulate mor, freq cellpct
+piechart mor
+
+summarize fødselsalder
+histogram fødselsalder, discrete
+
+tabulate fødselsår if inrange(fødselsår,1970,1979), summarize(fødselsalder)
+tabulate fødselsår if inrange(fødselsår,1960,1969), summarize(fødselsalder)
+tabulate fødselsår if inrange(fødselsår,1950,1959), summarize(fødselsalder)
+tabulate fødselsår if inrange(fødselsår,1940,1949), summarize(fødselsalder)

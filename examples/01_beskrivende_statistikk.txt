@@ -1,0 +1,11 @@
+// Eksempel 1: Beskrivende statistikk
+// Opprett datasett, importer variabler og se nøkkeltall med summarize.
+
+create-dataset beskrivelse
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+import fd/BOSATT_KOMMUNE as kommune
+
+summarize inntekt kjonn
+summarize inntekt, gini iqr
+summarize inntekt if kjonn == 1, gini

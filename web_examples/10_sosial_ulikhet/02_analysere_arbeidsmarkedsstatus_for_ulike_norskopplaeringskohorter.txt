@@ -1,0 +1,191 @@
+// ===================================================================
+// Example: Analysere arbeidsmarkedsstatus for ulike norskopplæringskohorter
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Sosial%20ulikhet%20og%20utenforskap/Analysere%20arbeidsmarkedsstatus%20for%20ulike%20norskoppl%C3%A6ringskohorter/
+// ===================================================================
+// The script demonstrates how to analyze employment outcomes for immigrants who participated in
+// introduction programs. Specifically, it examines "flyktninger fra ikke-nordiske land i alderen
+// 18-55 år" (refugees from non-Nordic countries aged 18-55).
+//
+// The analysis compares two cohorts: refugees who arrived before the introduction program was
+// established (1990-1999) versus those arriving after its implementation (2009-2018). This
+// allows researchers to assess employment status, education participation, job-seeking activity,
+// and benefit receipt three years after arrival.
+//
+// An important caveat notes that not all individuals in the 2009-2018 cohort necessarily
+// participated in the program, as comprehensive participation data was not yet available at the
+// time of writing. The example provides background context that the introduction program became
+// mandatory across all municipalities in 2004 and includes Norwegian language and civics
+// instruction.
+// ===================================================================
+
+require no.ssb.fdb:40 as db
+
+//--------------- Definerer populasjon -------------------
+
+//Grunnlagspopulasjon: Innvandrere fra ikke-nordiske land fra 1990 og senere
+create-dataset flyktninger
+import db/BEFOLKNING_INNGRUNN1 as innvandringsgrunn
+import db/BEFOLKNING_FORSTDATO as første_oppholdsdato
+import db/BEFOLKNING_FODELAND as fødeland
+import db/BEFOLKNING_INNALDER as innvandringsalder
+
+generate første_oppholdsår = int(første_oppholdsdato/10000)
+tabulate innvandringsgrunn
+piechart innvandringsgrunn
+summarize første_oppholdsår innvandringsalder
+
+//Selekterer på flyktninger
+keep if innvandringsgrunn == 'FLU'
+
+//Selekterer på aldersgruppen 18-55 (målgruppen for introduksjonsprogrammet)
+keep if inrange(innvandringsalder,18,55)
+
+//Lager og selekterer på to tidsperioder: Flyktninger som innvandret hhv. før og etter introduksjonsprogrammet ble innført
+generate introduksjonsprogram = 1 if inrange(første_oppholdsår,2009,2018)
+replace introduksjonsprogram = 0 if inrange(første_oppholdsår,1990,1999)
+keep if inlist(introduksjonsprogram,0,1)
+
+define-labels introlbl 0 'Ikke introduksjonsprogram' 1 'Introduksjonsprogram'
+assign-labels introduksjonsprogram introlbl
+
+textblock
+Flyktninger etter første oppholdsår og status for introduksjonsprogrammet
+endblock
+tabulate første_oppholdsår introduksjonsprogram
+barchart(count) første_oppholdsår
+
+
+//---- Kobler på data om sysselsetting, ledighet, og helse/trygd tre år etter innvandring -----
+generate lønnsmottaker_3 = .
+generate dagpengemottaker_3 = .
+generate gr_hj_stønad_ufør_3 = .
+generate sosialhjelpsmottaker_3 = .
+
+for år in 1993:2002
+  import db/INNTEKT_WLONN date_fmt($år) as lønn++$år
+  import db/INNTEKT_ARBLED date_fmt($år) as dagpenger++$år
+  import db/INNTEKT_GRUNN_HJELP date_fmt($år) as grunn_hjelpestønad++$år
+  import db/INNTEKT_KODE218 date_fmt($år) as uføretrygd++$år
+  import db/INNTEKT_SOSIAL date_fmt($år) as sosialhjelp++$år
+
+  barchart (mean) lønn++$år dagpenger++$år grunn_hjelpestønad++$år uføretrygd++$år sosialhjelp++$år if første_oppholdsår == $år-3
+
+  replace lønnsmottaker_3 = 1 if (lønn++$år > 0) & (første_oppholdsår == $år - 3)
+  replace dagpengemottaker_3 = 1 if (dagpenger++$år > 0) & (første_oppholdsår == $år - 3)
+  replace gr_hj_stønad_ufør_3 = 1 if (grunn_hjelpestønad++$år > 0 | uføretrygd++$år > 0) & (første_oppholdsår == $år - 3)
+  replace sosialhjelpsmottaker_3 = 1 if (sosialhjelp++$år > 0) & (første_oppholdsår == $år - 3)
+
+  barchart (sum) lønnsmottaker_3 dagpengemottaker_3 gr_hj_stønad_ufør_3 sosialhjelpsmottaker_3 if første_oppholdsår == $år-3
+
+  drop lønn++$år dagpenger++$år grunn_hjelpestønad++$år uføretrygd++$år sosialhjelp++$år
+end
+
+for år in 2012:2021
+  import db/INNTEKT_WLONN date_fmt($år) as lønn++$år
+  import db/INNTEKT_ARBLED date_fmt($år) as dagpenger++$år
+  import db/INNTEKT_GRUNN_HJELP date_fmt($år) as grunn_hjelpestønad++$år
+  import db/INNTEKT_KODE218 date_fmt($år) as uføretrygd++$år
+  import db/INNTEKT_SOSIAL date_fmt($år) as sosialhjelp++$år
+
+  barchart (mean) lønn++$år dagpenger++$år grunn_hjelpestønad++$år uføretrygd++$år sosialhjelp++$år if første_oppholdsår == $år-3
+
+  replace lønnsmottaker_3 = 1 if (lønn++$år > 0) & (første_oppholdsår == $år - 3)
+  replace dagpengemottaker_3 = 1 if (dagpenger++$år > 0) & (første_oppholdsår == $år - 3)
+  replace gr_hj_stønad_ufør_3 = 1 if (grunn_hjelpestønad++$år > 0 | uføretrygd++$år > 0) & (første_oppholdsår == $år - 3)
+  replace sosialhjelpsmottaker_3 = 1 if (sosialhjelp++$år > 0) & (første_oppholdsår == $år - 3)
+
+  barchart (sum) lønnsmottaker_3 dagpengemottaker_3 gr_hj_stønad_ufør_3 sosialhjelpsmottaker_3 if første_oppholdsår == $år-3
+
+  drop lønn++$år dagpenger++$år grunn_hjelpestønad++$år uføretrygd++$år sosialhjelp++$år
+end
+
+
+//-----Kobler på data om pågående utdanning (målt over hele året tre år senere) --------------
+
+generate utdanning_3 = .
+
+create-dataset kurs_personid
+import db/NUDB_KURS_FNR as personid
+
+for år in 1993:2002
+  let kurs = kurs++$år
+  let utdanning = utdanning++$år
+  let ant_kurs = ant_kurs++$år
+
+  create-dataset $kurs
+  import-event db/NUDB_KURS_NUS date_fmt($år) to date_fmt($år,12,31) as $utdanning
+
+  use kurs_personid
+  merge personid into $kurs
+
+  use $kurs
+  collapse(count) $utdanning -> $ant_kurs, by(personid)
+  merge $ant_kurs into flyktninger
+
+  use flyktninger
+  replace utdanning_3 = 1 if ($ant_kurs > 0) & (første_oppholdsår == $år - 3)
+
+  drop $ant_kurs
+  delete-dataset $kurs
+end
+
+for år in 2012:2021
+  let kurs = kurs++$år
+  let utdanning = utdanning++$år
+  let ant_kurs = ant_kurs++$år
+
+  create-dataset $kurs
+  import-event db/NUDB_KURS_NUS date_fmt($år) to date_fmt($år,12,31) as $utdanning
+
+  use kurs_personid
+  merge personid into $kurs
+
+  use $kurs
+  collapse(count) $utdanning -> $ant_kurs, by(personid)
+  merge $ant_kurs into flyktninger
+
+  use flyktninger
+  replace utdanning_3 = 1 if ($ant_kurs > 0) & (første_oppholdsår == $år - 3)
+
+  drop $ant_kurs
+  delete-dataset $kurs
+end
+
+delete-dataset kurs_personid
+
+
+//-------------------- Lager statistikk ------------------------
+
+textblock
+Antall flyktninger totalt i alderen 18-55 år, og fordelt på introduksjonsprogramstatus
+endblock
+summarize
+summarize if introduksjonsprogram == 0
+summarize if introduksjonsprogram == 1
+
+textblock
+Status tre år senere, fordelt på introduksjonsprogramstatus
+endblock
+barchart(sum) lønnsmottaker_3 dagpengemottaker_3 gr_hj_stønad_ufør_3 sosialhjelpsmottaker_3 utdanning_3, over(introduksjonsprogram)
+
+//Lager en gjensidig utelukkende inndeling av statuser
+generate status_3 = 9
+replace status_3 = 5 if sosialhjelpsmottaker_3
+replace status_3 = 4 if gr_hj_stønad_ufør_3
+replace status_3 = 3 if dagpengemottaker_3
+replace status_3 = 2 if utdanning_3
+replace status_3 = 1 if lønnsmottaker_3
+
+define-labels statuslbl 1 Lønnsmottaker 2 Utdanning 3 Dagpengemottaker 4 "Grunn-, hjelpestønad og uføretrygd" 5 Sosialhjelp 9 Annet
+assign-labels status_3 statuslbl
+
+textblock
+Status tre år senere (gjensidig utelukkende kategorisering med vekt på jobb og utdanning (prioriteres foran trygder o.l. dersom man har overlappende statuser)), fordelt på årstall for første oppholdsår og introduksjonsprogramstatus.
+endblock
+tabulate første_oppholdsår status_3, rowpct
+
+barchart(percent) status_3, over(første_oppholdsår) stack
+barchart(count) status_3, over(første_oppholdsår) stack
+
+barchart(percent) status_3, over(introduksjonsprogram) stack
+barchart(count) status_3, over(introduksjonsprogram) stack

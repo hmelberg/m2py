@@ -1,0 +1,102 @@
+// ===================================================================
+// Example: Lage statistikk over ansatte og utdanningsnivå innen yrker og næringer
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Jobb-%20og%20inntektsanalyser/Lage%20statistikk%20over%20ansatte%20og%20utdanningsniv%C3%A5%20innen%20yrker%20og%20n%C3%A6ringer/
+// ===================================================================
+// Dette eksempelet demonstrerer hvordan man lager en deskriptiv oversikt over utdanningsnivåer
+// fordelt på næringsgrupper og yrkeskategorier, samt hvordan man identifiserer andelen
+// IT-utdannede arbeidstakere innen ulike næringer.
+//
+// En viktig begrensning er at næringsdata kun er tilgjengelig til og med 2019 og ikke lenger
+// oppdateres i microdata.no av datasikkerhetsgrunner. 2019 er derfor siste tilgjengelige årgang
+// for dette datasettet.
+// ===================================================================
+
+require no.ssb.fdb:40 as db
+
+create-dataset case1
+import db/REGSYS_ARB_YRKE_STYRK08 2023-11-16 as yrke
+import db/REGSYS_VIRK_NACE1_SN07 2019-11-16 as næring
+import db/NUDB_BU 2023-08-01 as utdanning
+
+generate utdnivå = substr(utdanning,1,1)
+generate yrkesgr = substr(yrke,1,1)
+generate næringsgr = substr(næring,1,2)
+
+destring næringsgr utdnivå
+
+// Koder om næring til standard SSB-gruppering
+recode næringsgr \
+    (1/3 = 1 "Jordbruk, skogbruk, fiske") \
+	(5/9 = 2 "Bergverksdrift og utvinning") \
+	(10/33 = 3 "Industri") \
+	(35/39 = 4 "Elektrisitet, vann og renovasjon") \
+	(41/43 = 5 "Bygge- og anleggsvirksomhet") \
+	(45/47 = 6 "Varehandel, reparasjon av motorvogner") \
+	(49/53 = 7 "Transport og lagring") \
+	(55/56 = 8 "Overnattings- og serveringsvirksomhet") \
+	(58/63 = 9 "Informasjon og kommunikasjon") \
+	(64/66 = 10 "Finansiering og forsikring") \
+	(68/75 = 11 "Teknisk tjenesteyting, eiendomsdrift") \
+	(77/82 = 12 "Forretningsmessig tjenesteyting") \
+	(84 = 13 "Off.adm., forsvar, sosialforsikring") \
+	(85 = 14 "Undervisning") \
+	(86/88 = 15 "Helse- og sosialtjenester") \
+	(90/99 = 16 "Personlig tjenesteyting") \
+	(-2/0 = 99 "Ugyldig næringskode") \
+
+
+// Lager labler for utdanningsnivå
+define-labels utdlabel \
+	0 'Ingen utdanning' \
+	1 Barneskole \
+	2 Ungdomsskole \
+	3 Videregående \
+	4 'Videregående - avsluttende' \
+	5 'Påbygging til videregående' \
+	6 'UH-utdanning - lavere nivå' \
+	7 'UH-utdanning - høyere nivå' \
+	8 Forskerutdanning \
+	9 Uoppgitt
+assign-labels utdnivå utdlabel
+
+textblock
+Antall sysselsatte innen næringsgrupper (SSB-gruppering)
+endblock
+barchart(count) næringsgr, horizontal
+tabulate næringsgr
+
+textblock
+Utdanningsnivå innen næringsgrupper
+endblock
+barchart(percent) utdnivå, over(næringsgr) stack horizontal
+tabulate næringsgr utdnivå, rowpct
+
+textblock
+Utdanningsnivå innen yrkeskategorier
+
+Yrkeskategoriene: Hierarkisk gruppering 0-9 der 9 er laveste nivå (yrker med lave krav til utdanning)
+Kategori 0 er en blandet gruppe av personer ikke i jobb, selvstendig næringsdrivende og militært personell.
+Kategori 1 består av lederyrker og politikere. Kategori 2 består av akademiske yrker. Etc
+endblock
+barchart(percent) utdnivå, over(yrkesgr) stack horizontal
+tabulate yrkesgr utdnivå, rowpct
+
+
+// IT-stillinger
+
+generate it_stilling = inlist(yrke,'1330','2356','2511','2512','2513','2514','2519','2521','2522','2523','2529','3511','3512','3513','3514')
+
+define-labels itlbl 0 'Annet' 1 'IT-stilling'
+assign-labels it_stilling itlbl
+
+textblock
+Antall sysselsatte innen utvalgte IT-yrker
+endblock
+barchart(count) yrke if it_stilling, horizontal
+tabulate yrke if it_stilling
+
+textblock
+Andel IT-stillinger/yrker innen næringsgrupper
+endblock
+barchart(count) it_stilling, over(næringsgr) stack horizontal
+tabulate næringsgr it_stilling, rowpct

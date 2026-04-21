@@ -1,0 +1,101 @@
+// ===================================================================
+// Example: Restrukturere datasett fra long- til wide-format
+// Source: https://microdata.no/manual/eksempel/Sammensatte%20operasjoner/Restrukturere%20datasett%20fra%20long-%20til%20wide-format/
+// ===================================================================
+// Skriptet nedenfor viser hvordan man bruker `reshape-from-panel` i praksis.
+//
+// Først lages det et vanlig datasett av typen wide, bestående av et 1% tilfeldig utvalg av alle
+// som var registrert bosatt i Norge per 1/1 2019. Det ferdig konverterte long-datasettet vil
+// inkludere variabelen date@panel som inneholder verdien på undernivået til hver enkelt enhet. I
+// dette tilfellet verdiene 19 og 20. Se eget analyseeksempel for forklaring av hva som skjer når
+// man bruker `reshape-to-panel`.
+//
+// Deretter brukes `reshape-from-panel` til å gjøre datasettet om til wide-format igjen. Dette vil
+// da gi oss det samme datasettet som vi startet med. Merk at man ikke spesifiserer variabler eller
+// prefiks ved bruk av denne kommandoen, og at alle variabler konverteres til wide-format med
+// suffiks basert på tilhørende undernivå. Dette gjelder også kjønn, selv om dette er en fast
+// opplysning. Man kan som i eksempelet under fjerne de overflødige kjønn-variablene og døpe om til
+// «kjønn».
+//
+// Siste del av eksempelet lager et klassisk paneldatasett ved bruk av kommandoen `import-panel`,
+// og bruker så `reshape-from-panel` til å konvertere dataene til wide-format. Legg merke til at
+// her blir suffiksene annerledes. Ved bruk av `tabulate-panel` eller `summarize-panel` vil det se
+// ut som at undernivået har verdier av typen «YYYY-MM-DD», men dette gjelder bare som
+// visningsformat. De faktiske verdiene for date@panel bruker i dette tilfellet referansedatoer som
+// verdiformat (antall dager målt fra 1/1 1970). Dette løser man ved å døpe om variabelnavnene med
+// kommandoen `rename`. Legg merke til at det konverterte datasettet blir identisk med resultatet
+// fra konverteringen av datasettet laget ved hjelp av `reshape-to-panel`.
+// ===================================================================
+
+require no.ssb.fdb:23 as db
+
+// Lager et wide-datasett bestående av 1% av alle bosatte per 1/1 2019
+create-dataset wide
+import db/BEFOLKNING_STATUSKODE 2019-01-01 as regstat19
+keep if regstat19 == '1'
+sample 0.01 333
+import db/BEFOLKNING_STATUSKODE 2020-01-01 as regstat20
+import db/SIVSTANDFDT_SIVSTAND 2019-01-01 as sivstand19
+import db/SIVSTANDFDT_SIVSTAND 2020-01-01 as sivstand20
+import db/BEFOLKNING_KJOENN as kjønn
+import db/INNTEKT_WLONN 2019-01-01 as lønn19
+import db/INNTEKT_WLONN 2020-01-01 as lønn20
+
+tabulate regstat19, missing
+tabulate regstat20, missing
+tabulate sivstand19, missing
+tabulate sivstand20, missing
+tabulate kjønn, missing
+
+summarize lønn19 lønn20
+
+// Restrukturerer til panel-/long-format
+reshape-to-panel regstat sivstand lønn
+
+tabulate-panel regstat, missing
+tabulate-panel sivstand, missing
+tabulate-panel kjønn, missing
+summarize-panel lønn
+
+// Restrukturerer tilbake til wide-format
+reshape-from-panel
+drop kjønn20
+rename kjønn19 kjønn
+
+tabulate regstat19, missing
+tabulate regstat20, missing
+tabulate sivstand19, missing
+tabulate sivstand20, missing
+tabulate kjønn, missing
+summarize lønn19 lønn20
+
+
+// Lager et nytt paneldatasett for samme populasjon vha. import-panel
+clone-units wide paneltest
+use paneltest
+import-panel db/BEFOLKNING_STATUSKODE db/SIVSTANDFDT_SIVSTAND db/INNTEKT_WLONN db/BEFOLKNING_KJOENN 2019-01-01 2020-01-01
+rename BEFOLKNING_STATUSKODE regstat
+rename SIVSTANDFDT_SIVSTAND sivstand
+rename INNTEKT_WLONN lønn
+rename BEFOLKNING_KJOENN kjønn
+
+tabulate-panel regstat, missing
+tabulate-panel sivstand, missing
+tabulate-panel kjønn, missing
+summarize-panel lønn
+
+// Restrukturerer til wide-format
+reshape-from-panel
+drop kjønn18262
+rename kjønn17897 kjønn
+
+rename regstat17897 regstat19
+rename regstat18262 regstat20
+
+rename sivstand17897 sivstand19
+rename sivstand18262 sivstand20
+
+rename lønn17897 lønn19
+rename lønn18262 lønn20
+
+summarize lønn19 lønn20

@@ -1,0 +1,38 @@
+// ===================================================================
+// Example: Opprette og endre et datasett
+// Source: https://microdata.no/manual/eksempel/Grunnleggende%20operasjoner/Opprette%20og%20endre%20et%20datasett/
+// ===================================================================
+// A standard wide-format dataset is created through three steps: establishing a database connection
+// using `require`, creating an empty dataset with `create-dataset`, and importing at least one
+// variable using `import`.
+//
+// It is recommended to connect to the newest database version to access the latest variables and
+// updates. A key constraint is that only one variable can be imported at a time when creating a
+// wide-format dataset ("Man kan bare importere en variabel om gangen når man lager et wide-format
+// datasett"). The import function performs two essential tasks: retrieving data observations for a
+// specific measurement point and linking the data to the current population through a unique
+// built-in unit identifier.
+//
+// After dataset creation, modifications are possible, including renaming datasets or variables,
+// removing variables, or eliminating observations. As an additional tip, the `outer_join` option
+// allows overriding the default left-join principle to retrieve all observations for a given time
+// period, even for individuals not previously in the dataset population.
+// ===================================================================
+
+require no.ssb.fdb:23 as db
+
+create-dataset demografidata
+import db/BEFOLKNING_KJOENN as kjønn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+import db/SIVSTANDFDT_SIVSTAND 2020-01-01 as sivstand
+import db/INNTEKT_BRUTTOFORM 2020-01-01 as formue
+
+// Endrer navn på variabler ved å legge til årsangivelse
+rename sivstand sivstand20
+rename formue formue20
+
+// Sletter variabelen kjonn fra datasettet
+drop kjønn
+
+// Beholder kun gifte personer i datasettet
+keep if sivstand20 == '2'

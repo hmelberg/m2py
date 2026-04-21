@@ -1,0 +1,173 @@
+// ===================================================================
+// Example: Praktisk gjennomgang – temakurs om jobbdata fra A-ordningen
+// Source: https://microdata.no/manual/eksempel/Kursmateriale/Praktisk gjennomgang – temakurs om jobbdata fra A-ordningen/
+// ===================================================================
+// Skriptet nedenfor viser hvordan man kan jobbe med jobbdata fra A-ordningen. Dette ble
+// gjennomgått i temakurs som ble kjørt to ganger i 2022. Materialet demonstrerer teknikker
+// for å håndtere sysselsettingsinformasjon, inkludert konvertering av data fra jobbnivå til
+// personnivå, arbeid med både numeriske og kategoriske sysselsettingsvariabler, og sammen-
+// kobling av persondata med jobbdata. Veiledningen dekker også spesialiserte temaer som
+// turnusordninger, og inkluderer et case-eksempel som bruker outer joins for å fange opp
+// individer som kommer i jobb i løpet av ulike observasjonsperioder.
+// ===================================================================
+
+require no.ssb.fdb:30 as db
+
+textblock
+1) Hvordan konvertere data fra jobb- til personnivå - numeriske opplysninger
+----------------------------------------------------------------------------
+endblock
+
+// Lager datasett for sysselsatte (persondata)
+create-dataset sysselsatte
+import db/ARBLONN_PERS_KJOENN 2021-07-16 as kjønn
+import db/ARBLONN_PERS_ALDER 2021-07-16 as alder
+
+// Lager datasett for arbeidsforhold (jobbdata)
+create-dataset arbeidsforhold
+import db/ARBLONN_ARB_ARBEIDSTID 2021-07-16 as arbtid
+import db/ARBLONN_ARB_STILLINGSPST 2021-07-16 as stillingspst
+import db/ARBEIDSFORHOLD_PERSON as personid
+
+// Aggregerer fra jobbdata- til persondatanivå ved å summere arbeidstid og stillingsprosent per person.
+// Kobler deretter jobbopplysningene på persondatasettet sysselsatte
+collapse (sum) arbtid stillingspst, by(personid)
+merge arbtid stillingspst into sysselsatte
+
+// Lager jobbstatistikk
+use sysselsatte
+
+summarize arbtid stillingspst
+tabulate kjønn, summarize(arbtid)
+tabulate kjønn, summarize(stillingspst)
+
+generate aldersgr = 1
+replace aldersgr = 2 if alder > 25
+replace aldersgr = 3 if alder > 40
+replace aldersgr = 4 if alder > 60
+define-labels alderslabel 1 '0-25' 2 '26-40' 3 '41-60' 4 '61->'
+assign-labels aldersgr alderslabel
+tabulate aldersgr kjønn, summarize(arbtid)
+tabulate aldersgr kjønn, summarize(stillingspst)
+
+
+textblock
+2) Hvordan konvertere data fra jobb- til personnivå - kategoriske opplysninger
+------------------------------------------------------------------------------
+endblock
+
+create-dataset vestland
+import db/ARBLONN_PERS_KOMMNR 2021-07-31 as bosted
+keep if substr(bosted,1,2) == '46'
+import db/ARBLONN_PERS_KJOENN 2021-07-16 as kjønn
+
+create-dataset heltid
+import db/ARBLONN_ARB_H3LDELTID 2021-07-16 as heldel
+import db/ARBLONN_ARB_ARBEIDSTID 2021-07-16 as arbtid
+import db/ARBEIDSFORHOLD_PERSON as personid
+tabulate heldel
+keep if heldel == '1'
+destring heldel
+collapse(sum) heldel arbtid, by(personid)
+rename heldel hel
+rename arbtid arbtid_hel
+merge hel arbtid_hel into vestland
+
+create-dataset deltid
+import db/ARBLONN_ARB_H3LDELTID 2021-07-16 as heldel
+import db/ARBLONN_ARB_ARBEIDSTID 2021-07-16 as arbtid
+import db/ARBEIDSFORHOLD_PERSON as personid
+keep if heldel == '2'
+destring heldel
+replace heldel = heldel/2
+collapse(sum) heldel arbtid, by(personid)
+rename heldel del
+rename arbtid arbtid_del
+merge del arbtid_del into vestland
+
+use vestland
+tabulate hel
+tabulate del
+tabulate del kjønn, rowpct freq
+tabulate del, summarize(arbtid_del)
+tabulate kjønn, summarize(arbtid_del)
+tabulate kjønn, summarize(arbtid_hel)
+
+
+textblock
+3) Case om turnusordninger
+-----------------------------------------------
+endblock
+
+// Lager datasett for sysselsatte (persondata)
+create-dataset sysselsatte2
+import db/ARBLONN_PERS_KJOENN 2021-07-16 as kjønn
+import db/ARBLONN_PERS_ALDER 2021-07-16 as alder
+
+// Lager datasett for arbeidsforhold (jobbdata)
+create-dataset arbeidsforhold2
+import db/ARBLONN_ARB_TID_ORDNING 2021-07-16 as arb_ordning
+import db/ARBLONN_ARB_ARBEIDSTID 2021-07-16 as arbtid
+import db/ARBEIDSFORHOLD_PERSON as personid
+
+tabulate arb_ordning
+
+// Aggregerer fra jobbdata- til persondatanivå ved å summere arbeidstid og stillingsprosent per person. Kobler deretter jobbopplysningene på persondatasettet sysselsatte
+keep if arb_ordning == 'dogn355'
+generate ant_turnus = 1
+collapse (sum) ant_turnus arbtid, by(personid)
+merge ant_turnus arbtid into sysselsatte2
+
+// Lager turnus-statistikk
+use sysselsatte2
+tabulate ant_turnus, summarize(arbtid) mean freq
+
+generate turnus = 0
+replace turnus = 1 if ant_turnus >= 1
+
+summarize arbtid if turnus
+
+tabulate turnus, cellpct freq
+tabulate kjønn turnus, rowpct freq
+tabulate kjønn if turnus, summarize(arbtid)
+
+generate aldersgr = 1
+replace aldersgr = 2 if alder > 25
+replace aldersgr = 3 if alder > 40
+replace aldersgr = 4 if alder > 60
+assign-labels aldersgr alderslabel
+
+tabulate aldersgr turnus, rowpct freq
+tabulate aldersgr if turnus, summarize(arbtid)
+
+
+textblock
+4) Data på jobbnivå: Hvordan koble sammen persondata med jobbdata
+-----------------------------------------------------------------
+endblock
+
+create-dataset jobber
+import db/ARBLONN_ARB_YRKE_STYRK08 2021-07-16 as yrke
+import db/ARBLONN_ARB_ARBEIDSTID 2021-07-16 as arbeidstid
+import db/ARBLONN_LONN_EKV_IALT 2021-06-30 as mndlønn_heltidsekv
+import db/ARBEIDSFORHOLD_PERSON as personid
+
+create-dataset personer
+import db/ARBLONN_PERS_KJOENN 2021-07-16 as kjønn
+merge kjønn into jobber on personid
+
+use jobber
+tabulate yrke kjønn, summarize(mndlønn_heltidsekv)
+tabulate yrke kjønn, summarize(arbeidstid)
+
+textblock
+5) Case med outer join for å få med personer som kommer i jobb utover observasjonsperioden
+------------------------------------------------------------------------------------------
+endblock
+
+create-dataset jobber_alle
+import db/ARBLONN_ARB_ARBEIDSTID 2021-01-16 as arbtid2101
+import db/ARBLONN_ARB_ARBEIDSTID 2021-02-16 as arbtid2102, outer_join
+import db/ARBLONN_ARB_ARBEIDSTID 2021-03-16 as arbtid2103, outer_join
+
+summarize

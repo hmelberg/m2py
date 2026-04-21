@@ -1,0 +1,37 @@
+// ===================================================================
+// Example: Lineær regresjonsanalyse
+// Source: https://microdata.no/manual/eksempel/Regresjonsanalyser/Lineær regresjonsanalyse/
+// ===================================================================
+// Lineære regresjonsanalyser (OLS) brukes til å estimere marginaleffekter/koeffisientverdier
+// for et sett med forklaringsvariabler, der utfalls-/responsvariabelen er metrisk. Analytikere
+// kan tilpasse resultatet gjennom ulike opsjoner, inkludert visning av konstantledd, justering
+// av signifikansnivå, modelldiagnostikk, robuste estimater og cluster-baserte estimeringer.
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:33 as db
+
+//Starter med å lage populasjon
+create-dataset demografidata
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+import db/BEFOLKNING_STATUSKODE 2020-01-01 as regstat
+generate alder = 2020 - int(faarmnd / 100)
+keep if regstat == '1' & inrange(alder,16,66)
+
+// Importerer relevante variabler for analysen
+import db/BEFOLKNING_KJOENN as kjønn
+import db/SIVSTANDFDT_SIVSTAND 2020-01-01 as sivstand
+import db/INNTEKT_BRUTTOFORM 2020-01-01 as formue
+import db/INNTEKT_WYRKINNT 2021-01-01 as innt21
+
+// Tilrettelegger de uavhengige variablene slik at de passer med den statistiske modellen
+// (innebærer at de fleste variabler gjøres som til dummy'er)
+generate mann = kjønn == '1'
+generate gift = sivstand == '2'
+generate formuehøy = formue > 1500000
+
+// Tester for korrelasjon mellom to av de uavhengige variablene
+correlate alder formuehøy
+
+// Kjører regresjonsanalysen der den avhengige variabelen alltid listes først
+regress innt21 mann gift alder formuehøy

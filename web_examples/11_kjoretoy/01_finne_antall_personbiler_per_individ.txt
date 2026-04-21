@@ -1,0 +1,121 @@
+// ===================================================================
+// Example: Finne antall personbiler per individ
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Kj%C3%B8ret%C3%B8yanalyser/Finne%20antall%20personbiler%20per%20individ/
+// ===================================================================
+// The example demonstrates how to count the number of personal cars per individual using the
+// collapse(count) command on a vehicle dataset, then link this aggregated information to a
+// person dataset containing demographic details.
+//
+// A crucial methodological point is emphasized: to identify individuals who don't own vehicles,
+// one must use a person dataset (total population) as the foundation, then merge vehicle counts
+// into it. This approach ensures that persons without vehicle records are correctly identified
+// as non-owners, since the absence of a link from the vehicle dataset inherently indicates no
+// vehicle ownership.
+// ===================================================================
+
+require no.ssb.fdb:32 as db
+
+// Lager persondatasett
+create-dataset befolkning
+import db/BEFOLKNING_KOMMNR_FORMELL 2024-01-01 as kommune
+import db/NUDB_BU 2023-08-01 as utdanning
+import db/REGSYS_ARB_YRKE_STYRK08 2023-11-16 as yrke
+import db/INNTEKT_LONN 2022-12-31 as lønn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as fdato
+
+generate fylke = substr(kommune,1,2)
+generate utdanningsnivå = substr(utdanning,1,1)
+generate alder = 2024 - int(fdato/100)
+
+
+// Lager personbildatasett
+create-dataset personbiler
+import db/KJORETOY_KJT_GRUP 2023-12-31 as kjøretøygruppe
+import db/KJORETOY_KJORETOYID_FNR 2023-12-31 as idnr
+tabulate kjøretøygruppe
+keep if kjøretøygruppe == '101'
+
+// Aggregerer til individnivå og finner antall personbiler per individ
+collapse (count) kjøretøygruppe -> ant_personbiler, by(idnr)
+
+// Kobler opplysning om antall personbiler på persondatasettet
+merge ant_personbiler into befolkning
+
+
+// Bruker persondatasettet til å lage statistikk over antall personbiler per individ
+use befolkning
+
+destring utdanningsnivå
+recode utdanningsnivå \
+    (0/3 = 1 'Ikke fullført VG') \
+	(4/5 = 2 'Videregående utdanning') \
+	(6 = 3 'Lavere UH-utdanning') \
+	(7 = 4 'Høyere UH-utdanning (mastergradsnivå)') \
+	(8 = 5 'Forskerutdanning') \
+	(9 = 6 'Uoppgitt')
+
+
+// Kloner variabel for antall personbiler, og slår sammen antall over 2 til samlet kategori for den ene variabelen
+clone-variables ant_personbiler -> ant_personbiler_raw
+recode ant_personbiler (missing = 0 'Ingen')(3/max = 3 '>')
+recode ant_personbiler_raw (missing = 0 'Ingen')
+
+textblock
+Totalpopulasjonen fordelt på antall personbiler og tall for personer innen hhv.
+Lederyrker ('1') og yrker uten særlig krav til utdanning ('9')
+endblock
+tabulate ant_personbiler
+piechart ant_personbiler
+piechart ant_personbiler if substr(yrke,1,1) == '1'
+piechart ant_personbiler if substr(yrke,1,1) == '9'
+
+textblock
+Antall personbiler per person fordelt på utdanningsnivå
+endblock
+tabulate utdanningsnivå ant_personbiler, rowpct missing
+piechart ant_personbiler if utdanningsnivå == 1
+piechart ant_personbiler if utdanningsnivå == 2
+piechart ant_personbiler if inrange(utdanningsnivå,3,5)
+barchart(mean) ant_personbiler_raw, over(utdanningsnivå)
+
+textblock
+Gjennomsnittlig årslønn og alder fordelt på antall personbiler
+endblock
+barchart(mean) lønn, over(ant_personbiler)
+barchart(mean) alder, over(ant_personbiler)
+
+
+//Lager geografiske inndelinger
+
+define-labels fylkelbl \
+	'03' Oslo \
+	'11' Rogaland \
+	'15' 'Møre og Romsdal' \
+	'18' Nordland \
+	'31' Østfold \
+	'32' Akershus \
+	'33' Buskerud \
+	'34' Innlandet \
+	'39' Vestfold \
+	'40' Telemark \
+	'42' Agder \
+	'46' Vestland \
+	'50' Trøndelag \
+	'55' Troms \
+	'56' Finnmark
+assign-labels fylke fylkelbl
+
+// Kloner kommunevariabel og trekker ut storbyer fra den ene variabelen (resten plasseres i samlet kategori)
+clone-variables kommune -> storby
+replace storby = '9999' if !inlist(storby,'0301','1103','3201','3301','4204','4601','5001','5501')
+recode storby ('9999' = '9999' 'Øvrige kommuner')
+
+textblock
+Antall personbiler per person fordelt på bosted, og topp 10 kommuner rangert etter andel individer som ikke eier personbil
+endblock
+tabulate fylke ant_personbiler, rowpct rowsort(0)
+barchart(mean) ant_personbiler_raw, over(fylke)
+
+tabulate kommune ant_personbiler, rowpct rowsort(0) bottom(10)
+tabulate storby ant_personbiler, rowpct rowsort(0)
+barchart(mean) ant_personbiler_raw, over(storby)

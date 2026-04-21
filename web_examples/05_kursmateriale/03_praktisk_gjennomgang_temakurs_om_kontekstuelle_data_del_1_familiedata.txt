@@ -1,0 +1,238 @@
+// ===================================================================
+// Example: Praktisk gjennomgang – temakurs om kontekstuelle data del 1 - familiedata
+// Source: https://microdata.no/manual/eksempel/Kursmateriale/Praktisk gjennomgang – temakurs om kontekstuelle data del 1 - familiedata/
+// ===================================================================
+// Skriptet nedenfor viser hvordan man kan jobbe med familiedata. Dette ble gjennomgått i
+// temakurs som ble kjørt to ganger i 2022. Materialet demonstrerer teknikker for å aggregere
+// informasjon fra individnivå til familienivå, og viser hvordan man inkluderer kontekstuell
+// informasjon på kommunenivå. Mer detaljer om kommunenivådata finnes i et eget eksempel som
+// fokuserer på regionale analyser.
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:23 as db
+
+textblock
+1) Aggregere fra persondata til familiedata
+-------------------------------------------
+endblock
+
+// Oppretter først et persondatasett for personer i familier bestående av ektepar med små barn
+create-dataset persondata1
+import db/BEFOLKNING_REGSTAT_FAMTYP 2019-01-01 as famtype
+tabulate famtype
+keep if famtype == '2.1.1'
+
+// Legger til demografiske opplysninger
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+generate alder = 2019 - int(faarmnd/100)
+import db/BEFOLKNING_BARN_I_REGSTAT_FAMNR 2019-01-01 as antbarn
+
+// Oppretter datasett for generering av total yrkesinntekt per familie => enhet = familie
+create-dataset familiedata1
+import db/BEFOLKNING_REGSTAT_FAMNR 2019-01-01 as famnr
+import db/INNTEKT_WYRKINNT 2019-01-01 as yrkesinnt
+collapse (sum) yrkesinnt, by(famnr)
+rename yrkesinnt familieinnt
+
+// Kobler familieinntekt på persondatasettet (enhet = personer)
+merge familieinnt into persondata1 on PERSONID_1
+
+// Lager familiestatistikk. Familienummeret består av person-id til eldste person i familien, så når en fjerner
+// individer med manglende familieinntekt sitter en igjen med et datasett med familie som enhet. Alle personopplysninger
+// vil da gjelde for eldste person i familien
+use persondata1
+drop if sysmiss(familieinnt)
+rename alder alder_eldst
+
+histogram alder_eldst, discrete
+histogram antbarn, discrete percent
+tabulate antbarn
+
+summarize familieinnt
+barchart (mean) familieinnt, by(antbarn)
+histogram familieinnt, freq
+histogram familieinnt, by(antbarn) percent
+
+
+textblock
+2) Konstruere familiedata og koble på persondatasett
+----------------------------------------------------
+endblock
+
+// Oppretter først et persondatasett for personer i familier bestående av ektepar med små barn
+create-dataset persondata2
+import db/BEFOLKNING_REGSTAT_FAMTYP 2019-01-01 as famtype
+import db/BEFOLKNING_REGSTAT_FAMNR 2019-01-01 as famnr
+tabulate famtype
+keep if famtype == '2.1.1'
+
+// Legger til diverse demografiske opplysninger
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+generate alder = 2019 - int(faarmnd/100)
+import db/BEFOLKNING_BARN_I_REGSTAT_FAMNR 2019-01-01 as antbarn
+
+
+// Oppretter datasett for generering av total yrkesinntekt per familie => enhet = familie
+create-dataset familiedata2
+import db/BEFOLKNING_REGSTAT_FAMNR 2019-01-01 as famnr
+import db/INNTEKT_WYRKINNT 2019-01-01 as yrkesinnt
+collapse (sum) yrkesinnt, by(famnr)
+rename yrkesinnt familieinnt
+
+// Kobler familieinntekt på persondatasettet (enhet = personer)
+merge familieinnt into persondata2 on famnr
+
+// Lager person- og familiestatistikk
+use persondata2
+histogram alder, discrete
+histogram antbarn, discrete percent
+tabulate antbarn
+
+summarize familieinnt
+barchart (mean) familieinnt, by(antbarn)
+histogram familieinnt, freq
+histogram familieinnt, by(antbarn) percent
+
+
+textblock
+3) Koble foreldredata på persondata
+-----------------------------------
+endblock
+
+// Lager et persondatasett med lenker til far og mor
+create-dataset persondata3
+import db/INNTEKT_WYRKINNT 2019-01-01 as inntekt
+import db/BEFOLKNING_KJOENN as kjønn
+import db/NUDB_BU 2019-01-01 as utd
+import db/BEFOLKNING_FAR_FNR as fnr_far
+import db/BEFOLKNING_MOR_FNR as fnr_mor
+
+// Henter opplysninger om foreldre og kobler på persondatasett
+create-dataset foreldredata3
+import db/INNTEKT_WYRKINNT 2019-01-01 as inntekt_far
+import db/NUDB_BU 2019-01-01 as utd_far
+clone-variables inntekt_far -> inntekt_mor
+clone-variables utd_far -> utd_mor
+
+merge inntekt_far utd_far into persondata3 on fnr_far
+merge inntekt_mor utd_mor into persondata3 on fnr_mor
+
+// Kjører en enkel lineær regresjon for å teste sammenheng mellom egen og foreldres inntekt
+use persondata3
+generate mann = 0
+replace mann = 1 if kjønn == '1'
+
+destring utd
+generate høyutd = 0
+replace høyutd = 1 if utd >= 700000 & utd < 900000
+replace høyutd = utd if sysmiss(utd)
+
+destring utd_far
+generate høyutd_far = 0
+replace høyutd_far = 1 if utd_far >= 700000 & utd_far < 900000
+replace høyutd_far = utd_far if sysmiss(utd_far)
+
+destring utd_mor
+generate høyutd_mor = 0
+replace høyutd_mor = 1 if utd_mor >= 700000 & utd_mor < 900000
+replace høyutd_mor = utd_mor if sysmiss(utd_mor)
+
+summarize inntekt inntekt_far inntekt_mor
+histogram inntekt_far, percent
+histogram inntekt_mor, percent
+correlate inntekt_far inntekt_mor
+tabulate høyutd_far høyutd_mor
+
+regress inntekt mann inntekt_far inntekt_mor høyutd høyutd_far høyutd_mor
+
+
+textblock
+4) Koble data om foreldre og besteforeldre på persondatasett
+----------------------------------------------------
+endblock
+
+// Lager et persondatasett med lenker til far og mor
+create-dataset persondata4
+import db/INNTEKT_WYRKINNT 2019-01-01 as inntekt
+import db/BEFOLKNING_KJOENN as kjønn
+import db/NUDB_BU 2019-01-01 as utd
+import db/BEFOLKNING_FAR_FNR as fnr_far
+import db/BEFOLKNING_MOR_FNR as fnr_mor
+
+// Henter opplysninger om foreldre og kobler på persondatasett
+create-dataset foreldre4
+import db/INNTEKT_WYRKINNT 2019-01-01 as inntekt_far
+import db/NUDB_BU 2019-01-01 as utd_far
+clone-variables inntekt_far -> inntekt_mor
+clone-variables utd_far -> utd_mor
+
+import db/BEFOLKNING_FAR_FNR as fnr_farfar
+import db/BEFOLKNING_FAR_FNR as fnr_morfar
+import db/BEFOLKNING_MOR_FNR as fnr_farmor
+import db/BEFOLKNING_MOR_FNR as fnr_mormor
+
+merge inntekt_far utd_far fnr_farfar fnr_farmor into persondata4 on fnr_far
+merge inntekt_mor utd_mor fnr_morfar fnr_mormor into persondata4 on fnr_mor
+
+create-dataset besteforeldre4
+import db/INNTEKT_WYRKINNT 2019-01-01 as inntekt_farfar
+import db/NUDB_BU 2019-01-01 as utd_farfar
+clone-variables inntekt_farfar -> inntekt_farmor
+clone-variables inntekt_farfar -> inntekt_morfar
+clone-variables inntekt_farfar -> inntekt_mormor
+clone-variables utd_farfar -> utd_farmor
+clone-variables utd_farfar -> utd_morfar
+clone-variables utd_farfar -> utd_mormor
+
+merge inntekt_farfar utd_farfar into persondata4 on fnr_farfar
+merge inntekt_farmor utd_farmor into persondata4 on fnr_farmor
+merge inntekt_morfar utd_morfar into persondata4 on fnr_morfar
+merge inntekt_mormor utd_mormor into persondata4 on fnr_mormor
+
+use persondata4
+summarize inntekt inntekt_far inntekt_mor inntekt_farfar inntekt_farmor inntekt_morfar inntekt_mormor
+barchart(mean) inntekt inntekt_far inntekt_mor inntekt_farfar inntekt_farmor inntekt_morfar inntekt_mormor
+
+
+
+textblock
+5) Konstruere persondatasett bestående av ektefeller
+----------------------------------------------------
+endblock
+
+// Lager datasett bestående av eldste person i hver familie
+create-dataset eldst5
+import db/BEFOLKNING_REGSTAT_FAMNR 2021-01-01 as famnr
+import db/BEFOLKNING_REGSTAT_PERSONKODE 2021-01-01 as personkode_eldst
+import db/BEFOLKNING_PARSTATUS 2021-01-01 as parstatus_eldst
+import db/REGSYS_ARB_YRKE_STYRK08 2020-11-16 as yrke_eldst
+keep if personkode_eldst == '1'
+
+// Lager datasett med yngste person i hver familie, og som ikke er barn
+create-dataset yngst5
+import db/BEFOLKNING_REGSTAT_FAMNR 2021-01-01 as famnr
+import db/BEFOLKNING_REGSTAT_PERSONKODE 2021-01-01 as personkode_yngst
+import db/BEFOLKNING_PARSTATUS 2021-01-01 as parstatus_yngst
+import db/REGSYS_ARB_YRKE_STYRK08 2020-11-16 as yrke_yngst
+keep if personkode_yngst == '2'
+
+// Bruker datasettet med eldste personer og kobler tilhørende variabler inn i datasett med yngste personer via
+// familienummer (familienummer = eldste persons id-nummer)
+use eldst5
+merge personkode_eldst parstatus_eldst yrke_eldst into yngst5 on famnr
+
+// Datasettet yngst inneholder nå data om begge ektefeller/parmedlemmer for alle par i befolkningen.
+// Kjører kontrolltabeller
+use yngst5
+tabulate personkode_yngst, missing
+tabulate personkode_eldst, missing
+tabulate parstatus_yngst, missing
+tabulate parstatus_eldst, missing
+tabulate yrke_eldst, missing
+tabulate yrke_yngst, missing
+
+//Sjekk om begge, en eller ingen av ektefellene/parmedlemmene er i jobb
+generate jobb_yngst = 1 if sysmiss(yrke_yngst) == 0
+generate jobb_eldst = 1 if sysmiss(yrke_eldst) == 0
+tabulate jobb_eldst jobb_yngst, missing

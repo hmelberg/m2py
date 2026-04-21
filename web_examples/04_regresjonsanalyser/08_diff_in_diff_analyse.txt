@@ -1,0 +1,58 @@
+// ===================================================================
+// Example: Diff-in-diff-analyse
+// Source: https://microdata.no/manual/eksempel/Regresjonsanalyser/Diff-in-diff-analyse/
+// ===================================================================
+// I eksempelet under kjøres en diff-in-diff-analyse. Det demonstreres ved først å trekke et
+// tilfeldig utvalg på 100 000 individer og lage et paneldatasett for årene 2018-2021. Panelet
+// balanseres ved å fjerne observasjoner med manglende verdier.
+//
+// Analysen definerer kvinner som behandlingsgruppe og menn som kontrollgruppe, med
+// behandlingsperioden startende i 2020. Etter å ha kjørt kommandoen regress-panel-diff mens
+// det kontrolleres for sivilstatus, bosted og utdanningsnivå, viser resultatene en ATET
+// (Average Treatment Effect on the Treated) verdi på -1991,77, som ikke er statistisk
+// signifikant.
+// ===================================================================
+
+require no.ssb.fdb:23 as db
+
+// Lager et tilfeldig utvalg på 100000
+create-dataset populasjon
+import db/BEFOLKNING_KJOENN as kjønn
+sample 100000 3322
+clone-units populasjon paneldata
+
+// Lager et paneldatasett for den tilfeldige populasjonen
+use paneldata
+import-panel db/INNTEKT_LONN db/SIVSTANDFDT_SIVSTAND db/BOSATTEFDT_BOSTED db/BEFOLKNING_KJOENN \
+    db/NUDB_BU 2018-01-01 2019-01-01 2020-01-01 2021-01-01
+rename INNTEKT_LONN lønn
+rename SIVSTANDFDT_SIVSTAND sivstand
+rename BOSATTEFDT_BOSTED bosted
+rename BEFOLKNING_KJOENN kjønn
+rename NUDB_BU utd
+
+// Balanserer paneldatasettet
+drop if sysmiss(lønn) | sysmiss(sivstand) | sysmiss(bosted) | sysmiss(kjønn) | sysmiss(utd)
+
+// Lager gruppe- og behandingsvariablene (obligatorisk)
+generate gruppe = 0
+replace gruppe = 1 if kjønn == '2'
+
+generate behandling = 0
+replace behandling = 1 if year(date@panel) >= 2020
+
+// Koder øvrige forklaringsvariabler
+generate gift = 0
+replace gift = 1 if sivstand == '2'
+
+generate oslo = 0
+replace oslo = 1 if bosted == '0301'
+
+generate høyutd = 0
+replace høyutd = 1 if substr(utd,1,1) == '7' | substr(utd,1,1) == '8'
+
+// Kjører diff-in-diff-analyse
+summarize-panel lønn if gruppe == 1
+summarize-panel lønn if gruppe == 0
+
+regress-panel-diff lønn gruppe behandling gift oslo høyutd

@@ -1,0 +1,17 @@
+// Eksempel 4.8.2: Summarize og boxplot
+require no.ssb.fdb:12 as db
+create-dataset demografidata
+import db/INNTEKT_WYRKINNT 2015-01-01 as innt
+import db/INNTEKT_BRUTTOFORM 2015-01-01 as formue
+import db/BEFOLKNING_KJOENN as kjonn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+import db/BOSATTEFDT_BOSTED 2015-01-01 as bosted
+// Koder om fra kommune- til fylkesnivå
+generate fylke = substr(bosted,1,2)
+// Lager alder per 2015
+generate alder = 2015 - int(faarmnd/100)
+summarize innt formue
+summarize formue if alder > 50
+summarize formue if bosted == '0301'
+boxplot innt formue
+boxplot innt, over(kjonn)

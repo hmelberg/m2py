@@ -1,0 +1,43 @@
+// Eksempel 2.11a: Sammenkobling av foreldreopplysninger
+// Kobler til databank
+require no.ssb.fdb:12 as db
+
+// Lager et persondatasett med lenker til far og mor
+create-dataset persondata
+import db/INNTEKT_WYRKINNT 2019-01-01 as inntekt
+import db/BEFOLKNING_KJOENN as kjonn
+import db/NUDB_BU 2019-01-01 as utd
+import db/BEFOLKNING_FAR_FNR as fnr_far
+import db/BEFOLKNING_MOR_FNR as fnr_mor
+
+// Henter opplysninger om far og kobler på persondatasett
+create-dataset foreldredata
+import db/INNTEKT_WYRKINNT 2019-01-01 as inntekt_far
+import db/NUDB_BU 2019-01-01 as utd_far
+clone-variables inntekt_far -> inntekt_mor
+clone-variables utd_far -> utd_mor
+merge inntekt_far utd_far into persondata on fnr_far
+merge inntekt_mor utd_mor into persondata on fnr_mor
+
+// Kjører en enkel lineær regresjon for å teste sammenheng mellom egen og foreldres inntekt
+use persondata
+generate mann = 0
+replace mann = 1 if kjonn == '1'
+destring utd
+generate hoyutd = 0
+replace hoyutd = 1 if utd >= 700000 & utd < 900000
+replace hoyutd = utd if sysmiss(utd)
+destring utd_far
+generate hoyutd_far = 0
+replace hoyutd_far = 1 if utd_far >= 700000 & utd_far < 900000
+replace hoyutd_far = utd_far if sysmiss(utd_far)
+destring utd_mor
+generate hoyutd_mor = 0
+replace hoyutd_mor = 1 if utd_mor >= 700000 & utd_mor < 900000
+replace hoyutd_mor = utd_mor if sysmiss(utd_mor)
+summarize inntekt inntekt_far inntekt_mor
+histogram inntekt_far, percent
+histogram inntekt_mor, percent
+correlate inntekt_far inntekt_mor
+tabulate hoyutd_far hoyutd_mor
+regress inntekt mann inntekt_far inntekt_mor hoyutd hoyutd_far hoyutd_mor

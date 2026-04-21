@@ -1,0 +1,8 @@
+// Eksempel 3.4a: Beregne antall ganger individene har skiftet sivilstand i løpet av 2000-2005
+require no.ssb.fdb:12 as db
+create-dataset sivstforlop
+import-event db/SIVSTANDFDT_SIVSTAND 2000-01-01 to 2005-01-01 as sivstperiode
+collapse (count) sivstperiode, by(PERSONID_1)
+rename sivstperiode antsivstand
+replace antsivstand = antsivstand - 1
+tabulate antsivstand

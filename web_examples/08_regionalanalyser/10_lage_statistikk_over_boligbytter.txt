@@ -1,0 +1,243 @@
+// ===================================================================
+// Example: Lage statistikk over boligbytter
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Regionalanalyser/Lage%20statistikk%20over%20boligbytter/
+// ===================================================================
+// Dette eksempelet demonstrerer hvordan man lager statistikk over boligbytter ved å tilpasse
+// et eksisterende skript som analyserer flyttinger mellom kommuner. I stedet for å spore
+// personer som flytter mellom ulike kommuner, defineres boligbytter gjennom spesifikke
+// boligegenskaper fra BOFORHOLD-variablene.
+//
+// Metoden sammenligner tre sentrale boligegenskaper mellom to måletidspunkter: bygningstype,
+// byggeår og bruksareal. Dersom alle tre egenskapene er identiske mellom de to datoene, antas
+// personen å bo i samme bolig. Ulikheter i noen av disse egenskapene indikerer at et
+// boligbytte har skjedd. En liten andel personer har manglende verdier på en eller flere av
+// disse boligopplysningene og utelates fra analysen.
+//
+// Resultatene omfatter totale tall for boligbyttere, fordeling på fylkesflyttestrømmer, antall
+// som blir innen samme kommune/fylke, samt topp 10-liste over kommuner etter andel
+// boligbyttere.
+// ===================================================================
+
+require no.ssb.fdb:42 as db
+
+create-dataset flytting
+import db/BOFORHOLD_BYGNINGSTYPE 2023-01-01 as bygningstype23
+import db/BOFORHOLD_BYGNINGSTYPE 2024-01-01 as bygningstype24
+import db/BOFORHOLD_BYGGEAAR 2023-01-01 as byggeår23
+import db/BOFORHOLD_BYGGEAAR 2024-01-01 as byggeår24
+import db/BOFORHOLD_BRUKSAREAL 2023-01-01 as bruksareal23
+import db/BOFORHOLD_BRUKSAREAL 2024-01-01 as bruksareal24
+
+tabulate bygningstype23
+summarize byggeår23 bruksareal23
+
+//Beholder kun personer med bare gyldige verdier for boligegenskaper
+keep if rowvalid(bygningstype23,bygningstype24,byggeår23,byggeår24,bruksareal23,bruksareal24) == 6
+
+tabulate bygningstype23
+summarize byggeår23 bruksareal23
+
+//Lager en dummy-variabel som viser om man bytter bolig
+generate samme_bolig = bygningstype23 == bygningstype24 & byggeår23 == byggeår24 & bruksareal23 == bruksareal24
+
+generate flytter = samme_bolig == 0
+
+define-labels flyttelbl 0 'Bor i samme bolig' 1 'Skiftet bolig'
+assign-labels flytter flyttelbl
+
+textblock
+Andelen personer som bytter bolig mellom 1/1 2023 og 1/1 2024:
+endblock
+piechart flytter
+tabulate flytter, cellpct freq
+
+//Fordeler flyttetallene på fylker (må først omkode kommuner pga. kommuneendringer)
+import db/BEFOLKNING_KOMMNR_FORMELL 2023-01-01 as kommune23
+import db/BEFOLKNING_KOMMNR_FORMELL 2024-01-01 as kommune24
+destring kommune23 kommune24
+
+//Omkoder kommunekodene for 2023 for å få dem konsistente med 2024-kodene
+//Generert recode fra Omkodinger av kommunekoder - Kopi av 2024.csv fr. 13. juni 2025 16:02:37
+recode kommune23 \
+  (1833 = 1833 'Rana - Raane') \
+  (1845 = 1845 'Sørfold - Fuolldá') \
+  (3001 = 3101 'Halden') \
+  (3002 = 3103 'Moss') \
+  (3003 = 3105 'Sarpsborg') \
+  (3004 = 3107 'Fredrikstad') \
+  (3005 = 3301 'Drammen') \
+  (3006 = 3303 'Kongsberg') \
+  (3007 = 3305 'Ringerike') \
+  (3011 = 3110 'Hvaler') \
+  (3012 = 3124 'Aremark') \
+  (3013 = 3122 'Marker') \
+  (3014 = 3118 'Indre Østfold') \
+  (3015 = 3116 'Skiptvet') \
+  (3016 = 3120 'Rakkestad') \
+  (3017 = 3112 'Råde') \
+  (3018 = 3114 'Våler (Østfold)') \
+  (3019 = 3216 'Vestby') \
+  (3020 = 3207 'Nordre Follo') \
+  (3021 = 3218 'Ås') \
+  (3022 = 3214 'Frogn') \
+  (3023 = 3212 'Nesodden') \
+  (3024 = 3201 'Bærum') \
+  (3025 = 3203 'Asker') \
+  (3026 = 3226 'Aurskog-Høland') \
+  (3027 = 3224 'Rælingen') \
+  (3028 = 3220 'Enebakk') \
+  (3029 = 3222 'Lørenskog') \
+  (3030 = 3205 'Lillestrøm') \
+  (3031 = 3232 'Nittedal') \
+  (3032 = 3230 'Gjerdrum') \
+  (3033 = 3209 'Ullensaker') \
+  (3034 = 3228 'Nes') \
+  (3035 = 3240 'Eidsvoll') \
+  (3036 = 3238 'Nannestad') \
+  (3037 = 3242 'Hurdal') \
+  (3038 = 3310 'Hole') \
+  (3039 = 3320 'Flå') \
+  (3040 = 3322 'Nesbyen') \
+  (3041 = 3324 'Gol') \
+  (3042 = 3326 'Hemsedal') \
+  (3043 = 3328 'Ål') \
+  (3044 = 3330 'Hol') \
+  (3045 = 3332 'Sigdal') \
+  (3046 = 3318 'Krødsherad') \
+  (3047 = 3316 'Modum') \
+  (3048 = 3314 'Øvre Eiker') \
+  (3049 = 3312 'Lier') \
+  (3050 = 3334 'Flesberg') \
+  (3051 = 3336 'Rollag') \
+  (3052 = 3338 'Nore og Uvdal') \
+  (3053 = 3236 'Jevnaker') \
+  (3054 = 3234 'Lunner') \
+  (3801 = 3901 'Horten') \
+  (3802 = 3903 'Holmestrand') \
+  (3803 = 3905 'Tønsberg') \
+  (3804 = 3907 'Sandefjord') \
+  (3805 = 3909 'Larvik') \
+  (3806 = 4001 'Porsgrunn') \
+  (3807 = 4003 'Skien') \
+  (3808 = 4005 'Notodden') \
+  (3811 = 3911 'Færder') \
+  (3812 = 4010 'Siljan') \
+  (3813 = 4012 'Bamble') \
+  (3814 = 4014 'Kragerø') \
+  (3815 = 4016 'Drangedal') \
+  (3816 = 4018 'Nome') \
+  (3817 = 4020 'Midt-Telemark') \
+  (3818 = 4026 'Tinn') \
+  (3819 = 4024 'Hjartdal') \
+  (3820 = 4022 'Seljord') \
+  (3821 = 4028 'Kviteseid') \
+  (3822 = 4030 'Nissedal') \
+  (3823 = 4032 'Fyresdal') \
+  (3824 = 4034 'Tokke') \
+  (3825 = 4036 'Vinje') \
+  (5037 = 5037 'Levanger - Levangke') \
+  (5401 = 5501 'Tromsø') \
+  (5402 = 5503 'Harstad - Hárstták') \
+  (5403 = 5601 'Alta') \
+  (5404 = 5634 'Vardø') \
+  (5405 = 5607 'Vadsø') \
+  (5406 = 5603 'Hammerfest - Hámmerfeasta') \
+  (5411 = 5510 'Kvæfjord') \
+  (5412 = 5512 'Dielddanuorri - Tjeldsund') \
+  (5413 = 5514 'Ibestad') \
+  (5414 = 5516 'Gratangen - Rivtták') \
+  (5415 = 5518 'Loabák - Lavangen') \
+  (5416 = 5520 'Bardu') \
+  (5417 = 5522 'Salangen') \
+  (5418 = 5524 'Målselv') \
+  (5419 = 5526 'Sørreisa') \
+  (5420 = 5528 'Dyrøy') \
+  (5421 = 5530 'Senja') \
+  (5422 = 5532 'Balsfjord') \
+  (5423 = 5534 'Karlsøy') \
+  (5424 = 5536 'Lyngen') \
+  (5425 = 5538 'Storfjord - Omasvuotna - Omasvuono') \
+  (5426 = 5540 'Gáivuotna - Kåfjord - Kaivuono') \
+  (5427 = 5542 'Skjervøy') \
+  (5428 = 5544 'Nordreisa - Ráisa - Raisi') \
+  (5429 = 5546 'Kvænangen') \
+  (5430 = 5612 'Guovdageaidnu - Kautokeino') \
+  (5432 = 5614 'Loppa') \
+  (5433 = 5616 'Hasvik') \
+  (5434 = 5618 'Måsøy') \
+  (5435 = 5620 'Nordkapp') \
+  (5436 = 5622 'Porsanger - Porsángu - Porsanki') \
+  (5437 = 5610 'Kárášjohka - Karasjok') \
+  (5438 = 5624 'Lebesby') \
+  (5439 = 5626 'Gamvik') \
+  (5440 = 5630 'Berlevåg') \
+  (5441 = 5628 'Deatnu - Tana') \
+  (5442 = 5636 'Unjárga - Nesseby') \
+  (5443 = 5632 'Båtsfjord') \
+  (5444 = 5605 'Sør-Varanger')
+
+//Bytter ut kode for Ålesund i 2023 for de som var bosatt hhv. Ålesund eller Haram i 2024
+//NB! Noen har fortsatt koden 1507 etter omkodingen dette er personer som ikke bodde i Ålesund eller Haram i 2024, så vi vet ikke hva 2023-koden skal være for disse (holder disse utenfor topp 10-kommunestatistikken)
+recode kommune23 (1507 = 1508 'Ålesund') if kommune24 == 1508
+recode kommune23 (1507 = 1580 'Haram') if kommune24 == 1580
+
+//Lager en variabel som viser bostedsfylke (= de to første sifrene i kommunekoden)
+generate fylke23 = int(kommune23/100)
+generate fylke24 = int(kommune24/100)
+
+define-labels fylkelabel 3 Oslo \
+                         11 Rogaland \
+                         15 'Møre og Romsdal' \
+                         18 Nordland \
+                         31 Østfold \
+                         32 Akershus \
+                         33 Buskerud \
+                         34 Innlandet \
+                         39 Vestfold \
+                         40 Telemark \
+                         42 Agder \
+                         46 Vestland \
+                         50 Trøndelag \
+                         55 Troms \
+                         56 Finnmark
+
+assign-labels fylke23 fylkelabel
+assign-labels fylke24 fylkelabel
+
+textblock
+Antall personer som bytter bolig innen samme kommune mellom 1/1 2023 og 1/1 2024:
+endblock
+generate samme_kommune = kommune23 == kommune24
+tabulate samme_kommune if flytter, cellpct freq
+barchart(count) samme_kommune if flytter
+
+textblock
+Antall personer som bytter bolig innen samme fylke mellom 1/1 2023 og 1/1 2024:
+endblock
+generate samme_fylke = fylke23 == fylke24
+tabulate samme_fylke if flytter, cellpct freq
+barchart(count) samme_fylke if flytter
+
+textblock
+Personer som bytter bolig mellom 1/1 2023 og 1/1 2024, fordelt på bostedsfylke før/etter flytting:
+endblock
+tabulate fylke23 fylke24 if flytter
+tabulate fylke23 fylke24 if flytter, rowpct
+sankey fylke23 fylke24 if flytter
+barchart(percent) fylke24 if flytter, over(fylke23) stack
+
+textblock
+Personer som bytter bolig og flytter til Oslo mellom 1/1 2023 og 1/1 2024, fordelt på bostedsfylke før flytting:
+endblock
+sankey fylke23 fylke24 if flytter & kommune24 == 301 & kommune23 != 301
+barchart(count) fylke24 if flytter & kommune24 == 301 & kommune23 != 301, over(fylke23)
+
+textblock
+Topp 10 kommuner rangert etter andel personer som bytter bolig mellom 1/1 2023 og 1/1 2024 (sortert i stigende rekkefølge):
+endblock
+tabulate kommune23 flytter if kommune23 != 1507, rowpct rowsort(1) bottom(10)
+
+textblock
+Topp 10 kommuner (til-kommuner) rangert etter andel personer som bytter bolig mellom 1/1 2023 og 1/1 2024:
+endblock
+tabulate kommune24 flytter, rowpct rowsort(1) bottom(10)

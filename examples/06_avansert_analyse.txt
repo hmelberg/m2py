@@ -1,0 +1,16 @@
+// Eksempel 6: Avansert analyse
+// ANOVA, normalitetstester, overgangstabell (panel).
+
+create-dataset avansert
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+import fd/BOSATT_KOMMUNE as kommune
+
+normaltest inntekt kjonn
+anova inntekt kjonn
+
+import-panel fd/BEFOLKNING_KJOENN fd/INNTEKT_WLONN 2010-01-01 2011-01-01 2012-01-01
+summarize-panel INNTEKT_WLONN, gini iqr
+tabulate-panel BEFOLKNING_KJOENN
+tabulate-panel BEFOLKNING_KJOENN, summarize(INNTEKT_WLONN)
+transitions-panel BEFOLKNING_KJOENN

@@ -1,0 +1,214 @@
+// ===================================================================
+// Example: Vise flyttestrømmer mellom kommuner - 2023-2024
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Regionalanalyser/Vise%20flyttestr%C3%B8mmer%20mellom%20kommuner%20-%202023-2024/
+// ===================================================================
+// Flyttestrømmer mellom kommuner kan vises via BEFOLKNING_KOMMNR_FORMELL (oppdateres årlig
+// 1/1) eller BOSATTEFDT_BOSTED (kontinuerlig oppløsning, kan vise flyttinger på daglig basis).
+//
+// Eksempelet viser alle flyttinger mellom 1/1 2023 og 1/1 2024. Siden deler av regionsreformen
+// ble reversert per 1/1 2024, må kommunekodene fra 2023 justeres for å kunne sammenlignes
+// med 2024. De administrative endringene omfattet reverseringer av fylkessammenslåinger fra
+// 2020-reformen, med nye fylkes- og kommunekoder. I tillegg ble kommunen Ålesund delt i to:
+// Ålesund og Haram.
+//
+// Flyttestrømmene presenteres på fylkesnivå for å unngå uhåndterbare tabeller. Personer som
+// flytter innen samme fylke grupperes sammen; ikke-flyttere er utelatt.
+// ===================================================================
+
+require no.ssb.fdb:41 as db
+
+create-dataset flytting
+import db/BEFOLKNING_KOMMNR_FORMELL 2023-01-01 as kommune23
+import db/BEFOLKNING_KOMMNR_FORMELL 2024-01-01 as kommune24
+destring kommune23 kommune24
+
+//Omkoder kommunekodene for 2023 for å få dem konsistente med 2024-kodene
+//Generert recode fra Omkodinger av kommunekoder - Kopi av 2024.csv fr. 13. juni 2025 16:02:37
+recode kommune23 \
+  (1833 = 1833 'Rana - Raane') \
+  (1845 = 1845 'Sørfold - Fuolldá') \
+  (3001 = 3101 'Halden') \
+  (3002 = 3103 'Moss') \
+  (3003 = 3105 'Sarpsborg') \
+  (3004 = 3107 'Fredrikstad') \
+  (3005 = 3301 'Drammen') \
+  (3006 = 3303 'Kongsberg') \
+  (3007 = 3305 'Ringerike') \
+  (3011 = 3110 'Hvaler') \
+  (3012 = 3124 'Aremark') \
+  (3013 = 3122 'Marker') \
+  (3014 = 3118 'Indre Østfold') \
+  (3015 = 3116 'Skiptvet') \
+  (3016 = 3120 'Rakkestad') \
+  (3017 = 3112 'Råde') \
+  (3018 = 3114 'Våler (Østfold)') \
+  (3019 = 3216 'Vestby') \
+  (3020 = 3207 'Nordre Follo') \
+  (3021 = 3218 'Ås') \
+  (3022 = 3214 'Frogn') \
+  (3023 = 3212 'Nesodden') \
+  (3024 = 3201 'Bærum') \
+  (3025 = 3203 'Asker') \
+  (3026 = 3226 'Aurskog-Høland') \
+  (3027 = 3224 'Rælingen') \
+  (3028 = 3220 'Enebakk') \
+  (3029 = 3222 'Lørenskog') \
+  (3030 = 3205 'Lillestrøm') \
+  (3031 = 3232 'Nittedal') \
+  (3032 = 3230 'Gjerdrum') \
+  (3033 = 3209 'Ullensaker') \
+  (3034 = 3228 'Nes') \
+  (3035 = 3240 'Eidsvoll') \
+  (3036 = 3238 'Nannestad') \
+  (3037 = 3242 'Hurdal') \
+  (3038 = 3310 'Hole') \
+  (3039 = 3320 'Flå') \
+  (3040 = 3322 'Nesbyen') \
+  (3041 = 3324 'Gol') \
+  (3042 = 3326 'Hemsedal') \
+  (3043 = 3328 'Ål') \
+  (3044 = 3330 'Hol') \
+  (3045 = 3332 'Sigdal') \
+  (3046 = 3318 'Krødsherad') \
+  (3047 = 3316 'Modum') \
+  (3048 = 3314 'Øvre Eiker') \
+  (3049 = 3312 'Lier') \
+  (3050 = 3334 'Flesberg') \
+  (3051 = 3336 'Rollag') \
+  (3052 = 3338 'Nore og Uvdal') \
+  (3053 = 3236 'Jevnaker') \
+  (3054 = 3234 'Lunner') \
+  (3801 = 3901 'Horten') \
+  (3802 = 3903 'Holmestrand') \
+  (3803 = 3905 'Tønsberg') \
+  (3804 = 3907 'Sandefjord') \
+  (3805 = 3909 'Larvik') \
+  (3806 = 4001 'Porsgrunn') \
+  (3807 = 4003 'Skien') \
+  (3808 = 4005 'Notodden') \
+  (3811 = 3911 'Færder') \
+  (3812 = 4010 'Siljan') \
+  (3813 = 4012 'Bamble') \
+  (3814 = 4014 'Kragerø') \
+  (3815 = 4016 'Drangedal') \
+  (3816 = 4018 'Nome') \
+  (3817 = 4020 'Midt-Telemark') \
+  (3818 = 4026 'Tinn') \
+  (3819 = 4024 'Hjartdal') \
+  (3820 = 4022 'Seljord') \
+  (3821 = 4028 'Kviteseid') \
+  (3822 = 4030 'Nissedal') \
+  (3823 = 4032 'Fyresdal') \
+  (3824 = 4034 'Tokke') \
+  (3825 = 4036 'Vinje') \
+  (5037 = 5037 'Levanger - Levangke') \
+  (5401 = 5501 'Tromsø') \
+  (5402 = 5503 'Harstad - Hárstták') \
+  (5403 = 5601 'Alta') \
+  (5404 = 5634 'Vardø') \
+  (5405 = 5607 'Vadsø') \
+  (5406 = 5603 'Hammerfest - Hámmerfeasta') \
+  (5411 = 5510 'Kvæfjord') \
+  (5412 = 5512 'Dielddanuorri - Tjeldsund') \
+  (5413 = 5514 'Ibestad') \
+  (5414 = 5516 'Gratangen - Rivtták') \
+  (5415 = 5518 'Loabák - Lavangen') \
+  (5416 = 5520 'Bardu') \
+  (5417 = 5522 'Salangen') \
+  (5418 = 5524 'Målselv') \
+  (5419 = 5526 'Sørreisa') \
+  (5420 = 5528 'Dyrøy') \
+  (5421 = 5530 'Senja') \
+  (5422 = 5532 'Balsfjord') \
+  (5423 = 5534 'Karlsøy') \
+  (5424 = 5536 'Lyngen') \
+  (5425 = 5538 'Storfjord - Omasvuotna - Omasvuono') \
+  (5426 = 5540 'Gáivuotna - Kåfjord - Kaivuono') \
+  (5427 = 5542 'Skjervøy') \
+  (5428 = 5544 'Nordreisa - Ráisa - Raisi') \
+  (5429 = 5546 'Kvænangen') \
+  (5430 = 5612 'Guovdageaidnu - Kautokeino') \
+  (5432 = 5614 'Loppa') \
+  (5433 = 5616 'Hasvik') \
+  (5434 = 5618 'Måsøy') \
+  (5435 = 5620 'Nordkapp') \
+  (5436 = 5622 'Porsanger - Porsángu - Porsanki') \
+  (5437 = 5610 'Kárášjohka - Karasjok') \
+  (5438 = 5624 'Lebesby') \
+  (5439 = 5626 'Gamvik') \
+  (5440 = 5630 'Berlevåg') \
+  (5441 = 5628 'Deatnu - Tana') \
+  (5442 = 5636 'Unjárga - Nesseby') \
+  (5443 = 5632 'Båtsfjord') \
+  (5444 = 5605 'Sør-Varanger')
+
+//I tillegg ble 1507 Ålesund som eneste kommune splittet opp i 1508 Ålesund og 1580 Haram per 1/1 2024. Siden vi ikke kan vite med sikkerhet hvem i Ålesund som etter endringen havnet i Ålesund eller Haram, må kommune23 korrigeres til ny kode basert på hvilken av de to kommunene man bodde i året etter (1/1 2024). Vi antar altså at alle bostedsendringer fra Ålesund til Haram skyldes administrative endringer og ikke reelle flyttinger
+recode kommune23 (1507 = 1508 'Ålesund') if kommune24 == 1508
+recode kommune23 (1507 = 1580 'Haram') if kommune24 == 1580
+
+textblock
+Personer bosatt i Møre og Romsdal begge år, etter korrigering av Ålesund. 687 personer har fortsatt den gamle koden til Ålesund. Dette er personer som ikke bor i Ålesund eller Haram året etter, og som derfor vil regnes som "flyttet" i neste trinn under:
+endblock
+tabulate kommune23 if int(kommune23/100) == 15 & int(kommune24/100) == 15
+
+
+//Lager en dummy-variabel som viser om man flytter fra en kommune
+generate flytter = kommune24 != kommune23 & !sysmiss(kommune24)
+
+define-labels flyttelbl 0 'Bor i samme kommune' 1 'Flyttet til ny kommune'
+assign-labels flytter flyttelbl
+
+textblock
+Andelen personer som flytter til ny kommune mellom 1/1 2023 og 1/1 2024:
+endblock
+piechart flytter
+tabulate flytter, cellpct freq
+
+//Lager en variabel som viser bostedsfylke (= de to første sifrene i kommunekoden)
+generate fylke23 = int(kommune23/100)
+generate fylke24 = int(kommune24/100)
+
+define-labels fylkelabel 3 Oslo \
+                         11 Rogaland \
+                         15 'Møre og Romsdal' \
+                         18 Nordland \
+                         31 Østfold \
+                         32 Akershus \
+                         33 Buskerud \
+                         34 Innlandet \
+                         39 Vestfold \
+                         40 Telemark \
+                         42 Agder \
+                         46 Vestland \
+                         50 Trøndelag \
+                         55 Troms \
+                         56 Finnmark
+
+assign-labels fylke23 fylkelabel
+assign-labels fylke24 fylkelabel
+
+textblock
+Personer som flytter til ny kommune mellom 1/1 2023 og 1/1 2024, fordelt på bostedsfylke før/etter flytting:
+endblock
+tabulate fylke23 fylke24 if flytter
+tabulate fylke23 fylke24 if flytter, rowpct
+sankey fylke23 fylke24 if flytter
+barchart(percent) fylke24 if flytter, over(fylke23) stack
+
+textblock
+Personer som flytter til Oslo mellom 1/1 2023 og 1/1 2024, fordelt på bostedsfylke før flytting:
+endblock
+sankey fylke23 fylke24 if flytter & kommune24 == 301
+barchart(count) fylke24 if flytter & kommune24 == 301, over(fylke23)
+
+textblock
+Personer som flytter fra en kommune i Nord-Norge mellom 1/1 2023 og 1/1 2024, fordelt på bostedsfylke før/etter flytting:
+endblock
+sankey fylke23 fylke24 if flytter & inlist(fylke23,18,55,56)
+barchart(count) fylke24 if flytter & inlist(fylke23,18,55,56), over(fylke23)
+
+textblock
+Personer som flytter fra landsdelen Nord-Norge mellom 1/1 2023 og 1/1 2024, fordelt på bostedsfylke før/etter flytting:
+endblock
+sankey fylke23 fylke24 if flytter & inlist(fylke23,18,55,56) & !inlist(fylke24,18,55,56)
+barchart(count) fylke24 if flytter & inlist(fylke23,18,55,56) & !inlist(fylke24,18,55,56), over(fylke23)

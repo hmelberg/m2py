@@ -1,0 +1,457 @@
+// ===================================================================
+// Example: Praktisk gjennomgang – temakurs om bygging av datasett
+// Source: https://microdata.no/manual/eksempel/Kursmateriale/Praktisk gjennomgang – temakurs om bygging av datasett/
+// ===================================================================
+// Skriptet demonstrerer de ulike typene datasett man kan lage, og hvordan man konverterer
+// fra en datastruktur til en annen. Det dekker også metoder for å aggregere informasjon opp
+// til høyere enhetsnivåer, lage tilfeldige utvalg, og ulike tilnærminger for å rekode
+// variabler. Dette instruksjonsmaterialet ble presentert i et spesialisert kurs som ble
+// kjørt to ganger i 2022.
+// ===================================================================
+
+Temakurs om bygging av datasett
+-------------------------------
+endblock
+
+// Kobler til databank
+require no.ssb.fdb:18 as db
+
+textblock
+A) Hvordan lage ulike typer datasett
+endblock
+
+// Lager et vanlig wide-datasett bestående av et 1% utvalg av alle bosatte per 1/1 2018
+create-dataset widedata
+import db/BEFOLKNING_STATUSKODE 2018-01-01 as regstat18
+keep if regstat18 == '1'
+sample 0.01 333
+import db/BEFOLKNING_STATUSKODE 2019-01-01 as regstat19
+import db/BEFOLKNING_STATUSKODE 2020-01-01 as regstat20
+import db/SIVSTANDFDT_SIVSTAND 2018-01-01 as sivstand18
+import db/SIVSTANDFDT_SIVSTAND 2019-01-01 as sivstand19
+import db/SIVSTANDFDT_SIVSTAND 2020-01-01 as sivstand20
+import db/BEFOLKNING_KJOENN as kjønn
+import db/INNTEKT_WLONN 2018-01-01 as lønn18
+import db/INNTEKT_WLONN 2019-01-01 as lønn19
+import db/INNTEKT_WLONN 2020-01-01 as lønn20
+
+tabulate sivstand18, missing
+tabulate sivstand19, missing
+tabulate sivstand20, missing
+tabulate kjønn, missing
+summarize lønn18 lønn19 lønn20
+
+// Lager et tilsvarende datasett med long-format
+clone-units widedata longdata
+use longdata
+
+import-panel db/BEFOLKNING_STATUSKODE db/SIVSTANDFDT_SIVSTAND db/INNTEKT_WLONN db/BEFOLKNING_KJOENN 2018-01-01 2019-01-01 2020-01-01
+rename BEFOLKNING_STATUSKODE regstat
+rename SIVSTANDFDT_SIVSTAND sivstand
+rename INNTEKT_WLONN lønn
+rename BEFOLKNING_KJOENN kjønn
+
+tabulate-panel sivstand, missing
+tabulate-panel kjønn, missing
+summarize-panel lønn
+
+generate år = year(date@panel)
+tabulate sivstand år, missing
+
+
+
+
+textblock
+B1) Hvordan endre datastruktur fra wide til long
+endblock
+
+use widedata
+
+reshape-to-panel regstat sivstand lønn
+
+// Tester om det er samsvar med opptellingene på wide-datasettet
+tabulate date@panel, missing
+
+tabulate-panel regstat, missing
+tabulate-panel sivstand, missing
+tabulate-panel regstat sivstand, missing
+
+tabulate-panel kjønn, missing
+tabulate-panel regstat kjønn, missing
+tabulate-panel sivstand kjønn, missing
+
+summarize lønn
+summarize-panel lønn
+
+
+textblock
+B2) Hvordan endre datastruktur fra long til wide
+endblock
+
+reshape-from-panel
+drop kjønn20
+rename kjønn19 kjønn
+
+tabulate regstat19, missing
+tabulate regstat20, missing
+tabulate sivstand19, missing
+tabulate sivstand20, missing
+tabulate kjønn, missing
+summarize lønn19 lønn20
+
+// Hvordan man gjør det når man har et longdatasett laget med import-panel
+use longdata
+tabulate-panel regstat, missing
+tabulate-panel sivstand, missing
+tabulate-panel kjønn, missing
+summarize-panel lønn
+
+reshape-from-panel
+drop kjønn18262
+rename kjønn17897 kjønn
+
+rename regstat17897 regstat19
+rename regstat18262 regstat20
+
+rename sivstand17897 sivstand19
+rename sivstand18262 sivstand20
+
+rename lønn17897 lønn19
+rename lønn18262 lønn20
+
+summarize lønn19 lønn20
+
+
+
+
+textblock
+C) Hvordan aggregere data
+endblock
+
+// Eksempel 1: Forløpsnivå -> personnivå
+// Lager en populasjon bestående av alle bosatte i Norge per 2019-01-01
+create-dataset totalpop
+import db/BEFOLKNING_KJOENN as kjønn
+import db/BEFOLKNING_STATUSKODE 2019-01-01 as regstat
+keep if regstat == '1'
+
+// Finner personer med status som skilt i løpet av året før (2018)
+create-dataset forløp
+import-event db/SIVSTANDFDT_SIVSTAND 2018-01-01 to 2018-12-31 as sivilstand
+keep if sivilstand == '4'
+collapse (count) sivilstand, by(PERSONID_1 )
+rename sivilstand ant_ganger_skilt
+tabulate ant_ganger_skilt
+
+// Kobler skilsmisseopplysninger på datasettet med alle bosatte og lager en dummy som angir status = skilt
+merge ant_ganger_skilt into totalpop
+use totalpop
+generate skilt2018 = 0
+replace skilt2018 = 1 if ant_ganger_skilt >= 1
+tabulate skilt2018, cellpct
+piechart skilt2018
+
+
+// Eksempel 2: Personnivå -> familienivå
+// Oppretter først et persondatasett for personer i familier bestående av ektepar med små barn
+create-dataset persondata
+import db/BEFOLKNING_REGSTAT_FAMTYP 2017-01-01 as famtype
+tabulate famtype
+keep if famtype == '2.1.1'
+
+// Legger til diverse demografiske opplysninger
+import db/BEFOLKNING_KJOENN as kjønn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+generate alder = 2017 - int(faarmnd/100)
+
+import db/BEFOLKNING_KOMMNR_FAKTISK 2017-01-01 as bosted
+generate fylke = substr(bosted, 1, 2)
+
+import db/BEFOLKNING_BARN_I_HUSH 2017-01-01 as antbarn
+
+// Oppretter datasett for generering av total yrkesinntekt per familie => enhet = familie
+create-dataset familiedata
+import db/BEFOLKNING_REGSTAT_FAMNR 2017-01-01 as famnr
+import db/INNTEKT_WYRKINNT 2017-01-01 as yrkesinnt
+collapse (sum) yrkesinnt, by(famnr)
+rename yrkesinnt familieinnt
+
+// Kobler familieinntekt på persondatasettet (enhet = personer)
+merge familieinnt into persondata on PERSONID_1
+
+// Lager familiestatistikk. Familienummeret består av person-id til eldste person i familien, så når en fjerner
+// individer med manglende familieinntekt sitter en igjen med et datasett med familie som enhet. Alle personopplysninger
+// vil da gjelde for eldste person i familien
+use persondata
+drop if sysmiss(familieinnt)
+
+rename alder alder_eldst
+rename kjønn kjønn_eldst
+
+define-labels fylketekst \
+	'01' Østfold \
+	'02' Akershus \
+	'03' Oslo \
+	'04' Hedmark \
+	'05' Oppland \
+	'06' Buskerud \
+	'07' Vestfold \
+	'08' Telemark \
+	'09' 'Aust-Agder' \
+	'10' 'Vest-Agder' \
+	'11' Rogaland \
+	'12' Hordaland \
+	'14' 'Sogn og Fjordane' \
+	'15' 'Møre og Romsdal' \
+	'16' 'Sør-Trøndelag' \
+	'17' 'Nord-Trøndelag' \
+	'18' Nordland \
+	'19' Troms \
+	'20' Finnmark \
+	'21' Spitsbergen \
+	'25' 'Studerer i utlandet' \
+	'99' Uoppgitt
+assign-labels fylke fylketekst
+
+tabulate fylke
+
+histogram alder_eldst, discrete
+histogram antbarn, discrete percent
+
+tabulate antbarn
+tabulate antbarn, cellpct
+tabulate antbarn kjønn_eldst
+
+summarize familieinnt
+barchart (mean) familieinnt, by(fylke)
+barchart (mean) familieinnt, by(antbarn)
+histogram familieinnt, freq
+histogram familieinnt, by(antbarn) percent
+
+
+// Eksempel 3: Personnivå -> kommunenivå
+// Lager persondatasett
+create-dataset personer
+import db/BEFOLKNING_KOMMNR_FAKTISK 2019-01-01 as kommune
+import db/BEFOLKNING_KJOENN as kjønn
+import db/INNTEKT_WLONN 2019-01-01 as lønn
+import db/INNTEKT_BER_BRFORM 2019-01-01 as formue
+summarize lønn formue
+histogram lønn, freq
+histogram formue, freq
+
+// Lager tall for snittlønn og snittformue per kommune og kobler på persondatasett
+create-dataset kommunedata_lønn_formue
+import db/BEFOLKNING_KOMMNR_FAKTISK 2019-01-01 as kommune
+import db/INNTEKT_WLONN 2019-01-01 as lønn
+import db/INNTEKT_BER_BRFORM 2019-01-01 as formue
+collapse (mean) lønn formue, by(kommune)
+rename lønn snittlønn_kommune
+rename formue snittformue_kommune
+summarize snittlønn_kommune snittformue_kommune
+merge snittlønn_kommune snittformue_kommune into personer on kommune
+
+// Lager tall for antall arbeidsledige og bosatte per kommune og kobler på persondatasett
+create-dataset kommunedata_ledig_bosatt
+import db/BEFOLKNING_KOMMNR_FAKTISK 2019-01-01 as kommune
+import db/ARBSOEK2001FDT_HOVED 2019-01-01 as as_status
+generate ant_ledig = 1 if as_status == '1'
+generate ant_bosatt = 1
+collapse (sum) ant_ledig ant_bosatt, by(kommune)
+summarize ant_ledig ant_bosatt
+merge ant_ledig ant_bosatt into personer on kommune
+
+// Bruker til slutt persondatasettet til å foreta en enkelt regresjonsanalyse
+use personer
+generate ledig_pst = (ant_ledig / ant_bosatt) * 100
+
+generate mann = 0
+replace mann = 1 if kjønn == '1'
+
+generate oslo = 0
+replace oslo = 1 if kommune == '0301'
+
+generate storkommune = 0
+replace storkommune = 1 if ant_bosatt > 80000
+
+generate rik_kommune = 0
+replace rik_kommune = 1 if snittformue_kommune > 2000000
+
+regress lønn mann oslo formue snittformue_kommune snittlønn_kommune ledig_pst ant_bosatt
+regress lønn mann oslo formue rik_kommune snittlønn_kommune ledig_pst storkommune
+
+
+
+
+textblock
+D) Lage tilfeldige utvalg
+endblock
+
+// Lager datasett med alle bosatte i Norge per 1/1 2019 og trekker så ut et 10% utvalg av disse
+create-dataset totalpop1
+import db/BEFOLKNING_STATUSKODE 2019-01-01 as registerstatus19
+keep if registerstatus19 == '1'
+sample 0.1 999
+
+// Lager datasett med alle bosatte i Norge per 1/1 2019 og trekker så ut et utvalg bestående av 5000 individer
+create-dataset totalpop2
+import db/BEFOLKNING_STATUSKODE 2019-01-01 as registerstatus19
+keep if registerstatus19 == '1'
+sample 5000 888
+
+// Lager datasett med alle bosatte i Norge per 1/1 2019 og trekker så ut et utvalg bestående av 5000 nye individer (forskjellige fra forrige uttrekk)
+create-dataset totalpop3
+import db/BEFOLKNING_STATUSKODE 2019-01-01 as registerstatus19
+keep if registerstatus19 == '1'
+sample 5000 950
+
+
+
+
+textblock
+E) Ulike måter å kode/omkode variabler
+endblock
+
+// Hente ut deler av variabelkode
+create-dataset demografidata1
+import db/BEFOLKNING_KOMMNR_FAKTISK 2017-01-01 as bosted
+
+// Koder om fra kommune- til fylkesnivå
+generate fylke = substr(bosted, 1, 2)
+
+// Legger til verdilabler for å navngi fylker med navn (=> penere deskriptiv output)
+define-labels fylkerstring \
+	'01' Østfold \
+	'02' Akershus \
+	'03' Oslo \
+	'04' Hedmark \
+	'05' Oppland \
+	'06' Buskerud \
+	'07' Vestfold \
+	'08' Telemark \
+	'09' 'Aust-Agder' \
+	'10' 'Vest-Agder' \
+	'11' Rogaland \
+	'12' Hordaland \
+	'14' 'Sogn og Fjordane' \
+	'15' 'Møre og Romsdal' \
+	'16' 'Sør-Trøndelag' \
+	'17' 'Nord-Trøndelag' \
+	'18' Nordland \
+	'19' Troms \
+	'20' Finnmark \
+	'21' Spitsbergen \
+	'25' 'Utdanning i utlandet' \
+	'99' Uoppgitt
+assign-labels fylke fylkerstring
+
+tabulate fylke
+
+// Hente ut deler av numeriske variabelverdier
+create-dataset demografidata2
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+
+// Beregner alder i 2020 ut i fra fødselsår
+generate alder = 2020 - int(faarmnd / 100)
+
+
+// Dummy
+create-dataset demografidata3
+import db/BEFOLKNING_KJOENN as kjønn
+
+// Lager en dummyvariabel som angir mann ut i fra variabelen kjønn
+generate mann = 0
+replace mann = 1 if kjønn == '1'
+
+tabulate mann
+
+
+// Flere kategorier
+create-dataset demografidata4
+import db/INNTEKT_BRUTTOFORM 2019-12-31 as formue
+
+// Gruppere formue i 4 intervaller
+generate formueint = 1
+replace formueint = 2 if formue > 500000
+replace formueint = 3 if formue > 1000000
+replace formueint = 4 if formue > 1500000
+
+tabulate formueint
+
+
+// recode - dummy
+create-dataset demografidata5
+import db/BEFOLKNING_KJOENN as kjønn
+
+destring kjønn
+tabulate kjønn
+recode kjønn (2 = 0)
+rename kjønn mann
+tabulate mann, nolabels
+
+
+// recode - flere kategorier
+create-dataset befolkning
+import db/BEFOLKNING_STATUSKODE 2020-01-01 as statuskode
+keep if statuskode == '1'
+
+import db/BEFOLKNING_FODELAND as fødeland
+tabulate fødeland
+
+// Oppretter kopier av fødelandsvariabel for å kunne demonstrere ulike typer rekodinger, og for å kontrollere omkodingen
+clone-variables fødeland -> fødeland2
+clone-variables fødeland -> fødeland_orig
+
+// Omkoder fødeland til verdensregion - bruker først destring for å gjøre formatet om til numerisk
+destring fødeland
+recode fødeland \
+    (111 120 138 139 140 148 155 156 159/164 = 2) \
+	(101/141 144/158 = 1) \
+	(203/393 = 3) \
+	(143 404/578 = 4) \
+	(612 684 = 5) \
+	(601/775 = 6) \
+	(802/840 = 7) \
+	(980 = 8) \
+	(990 = 9)
+
+
+define-labels vregion \
+	0 'Norge' \
+	1 'EU/EØS' \
+	2 'Europeiske land utenom EU' \
+	3 'Afrika' \
+	4 'Asia med Tyrkia' \
+	5 'Nord-Amerika' \
+	6 'Sør- og Mellom-Amerika' \
+	7 'Oseania' \
+	8 'Statsløse' \
+	9 'Uoppgitt'
+assign-labels fødeland vregion
+
+tabulate fødeland
+tabulate fødeland_orig fødeland
+
+
+// Omkoder fødeland til verdensregion og lager labler i samme uttrykket
+destring fødeland2
+recode fødeland2 \
+    (111 120 138 139 140 148 155 156 159/164 = 2 'Europeiske land utenom EU') \
+	(101/141 144/158 = 1 'EU/EØS') \
+	(203/393 = 3 'Afrika') \
+	(143 404/578 = 4 'Asia med Tyrkia') \
+	(612 684 = 5 'Nord-Amerika') \
+	(601/775 = 6 'Sør- og Mellom-Amerika') \
+	(802/840 = 7 'Oseania') \
+	(980 = 8 'Statsløse') \
+	(990 = 9 'Uoppgitt')
+
+tabulate fødeland2
+
+
+// recode - alfanumeriske variabler
+create-dataset demografidata6
+import db/SIVSTANDFDT_SIVSTAND 2019-01-01 as sivilstand
+tabulate sivilstand
+recode sivilstand ('1' = '1') ('2' = '2') (* = '3' 'Øvrig')
+tabulate sivilstand

@@ -1,0 +1,79 @@
+// ===================================================================
+// Example: Lage statistikk på fullføring av videregående skole
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Utdanningsanalyser/Lage%20statistikk%20p%C3%A5%20fullf%C3%B8ring%20av%20videreg%C3%A5ende%20skole/
+// ===================================================================
+// Dette skriptet er et utgangspunkt for å lage statistikk over fullføring av videregående
+// utdanning. Resultatene krever imidlertid ytterligere kvalitetssikring og databehandling før
+// de kan betraktes som offisiell statistikk.
+//
+// Skriptet forsøker å gjenskape tall fra SSBs statistikkbank for fullføringsrater blant elever
+// som startet videregående skole høsten 2017, og følger dem t.o.m. våren 2023. Analysen
+// benytter fem års måleperiode for studieforberedende og seks år for yrkesfag, og ser på
+// fullføring innenfor normert tid og ulike underkategorier.
+//
+// Den sentrale utfordringen er å definere "normert tid" for yrkesfaglige elever, da dette
+// varierer mye mellom ulike programmer. Normert tid representerer "den tid et
+// videregående-program skal fullføres på ifølge læreplanen for en fulltidselev" - typisk tre
+// år for elever eller fire år for lærlinger (to skoleår pluss to år arbeid). Noen yrkesfag
+// strekker seg til fem år. Skriptet foretar enkelte forenklinger rundt normert tid, slik at
+// resultatene ikke er fullt sammenlignbare med SSBs offisielle tall uten grundigere
+// vurderinger av de enkelte yrkesfaglige programmene.
+// ===================================================================
+
+require no.ssb.fdb:34 as db
+
+create-dataset vgselever
+import db/NUDB_AAR_NY_I_VID_UTD_LOV as første_gang_reg_vgs
+keep if første_gang_reg_vgs == 201708
+
+import db/NUDB_AAR_FORSTE_FULLF_VS_LOV as første_gang_fullført_vgs
+import db/NUDB_SEMESTER_FFF_VS_LOV as antall_semestre_vgs
+
+import db/NUDB_AAR_FORSTE_FULLF_VSA_LOV as første_gang_fullført_allmenn
+import db/NUDB_AAR_FORSTE_FULLF_VSY_LOV as første_gang_fullført_yrkesfag
+import db/NUDB_SEMESTER_FFF_VSA_LOV as antall_semestre_allmenn
+import db/NUDB_SEMESTER_FFF_VSY_LOV as antall_semestre_yrkesfag
+
+tabulate antall_semestre_vgs, missing
+tabulate første_gang_fullført_vgs, missing
+
+tabulate antall_semestre_allmenn, missing
+tabulate første_gang_fullført_allmenn, missing
+
+tabulate antall_semestre_yrkesfag, missing
+tabulate første_gang_fullført_yrkesfag, missing
+
+// Kobler på kursdata for å kontrollere for om noen fortsatt studerer etter endt måleperiode
+create-dataset kursdata
+import db/NUDB_KURS_NUS 2023-09-01 as kurstype
+import db/NUDB_KURS_KOMP 2023-09-01 as vgs_kompetanse
+import db/NUDB_KURS_FNR as personid
+destring kurstype vgs_kompetanse
+collapse(count) kurstype -> ant_kurs (max) kurstype -> høyeste_nivå (max) vgs_kompetanse, by(personid)
+merge ant_kurs høyeste_nivå vgs_kompetanse into vgselever
+
+use vgselever
+generate under_opplæring = ant_kurs > 0
+
+summarize høyeste_nivå
+replace høyeste_nivå = int(høyeste_nivå/100000)
+
+// Lager gjensidig utelukkende statuser for fullføring av VGS
+generate status = 1 if antall_semestre_allmenn <= 6 | antall_semestre_yrkesfag <= 10
+replace status = 2 if antall_semestre_allmenn > 6 | antall_semestre_yrkesfag > 10
+// replace status = 3 if ....  // fullført grunnkompetanse innen tidsrammen på 5-6 år
+replace status = 4 if !inlist(status,1,2) & under_opplæring & inrange(høyeste_nivå,3,5)
+replace status = 5 if !inlist(status,1,2) & under_opplæring & inrange(høyeste_nivå,6,7)
+replace status = 6 if !inlist(status,1,2) & !under_opplæring
+
+define-labels statuslbl \
+	1 'Fullført på normert tid' \
+	2 'Fullført på mer enn normert tid' \
+	3 'Fullført grunnkompetanse innen 5-6 år' \
+	4 'Ikke fullført innen tidsrammen, men fortsatt under opplæring på VGS-nivå' \
+	5 'Ikke fullført innen tidsrammen, men fortsatt under opplæring på UH-nivå' \
+	6 'Ikke fullført, og avbrutt utdanning'
+assign-labels status statuslbl
+
+tabulate status, missing
+tabulate vgs_kompetanse status, missing

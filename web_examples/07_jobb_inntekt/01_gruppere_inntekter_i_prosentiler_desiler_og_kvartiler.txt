@@ -1,0 +1,40 @@
+// ===================================================================
+// Example: Gruppere inntekter i prosentiler, desiler og kvartiler
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Jobb-%20og%20inntektsanalyser/Gruppere%20inntekter%20i%20prosentiler,%20desiler%20og%20kvartiler/
+// ===================================================================
+// Eksempelet under demonstrerer hvordan man konverterer fra inntektsverdier målt i beløp til ulike
+// typer inndelinger som prosentiler, desiler og kvartiler, og hvordan en kan kontrollere at
+// inndelingen har gått riktig for seg.
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:30 as db
+
+// Lager datasett med lønnsvariabel
+create-dataset prosentiltest
+import db/INNTEKT_WLONN 2021-01-01 as lønn21
+
+// Lager statistikk over lønn målt i 2021 (alle individer med positiv inntekt dette året)
+summarize lønn21
+histogram lønn21
+
+// Lager prosentiler og tester inndelingen vha statistikk
+generate lønnprosentil21 = quantile(lønn21, 100)
+histogram lønnprosentil21, discrete
+
+textblock
+NB! Merk at 1. prosentil slås sammen med 2. prosentil pga. 1% bunnkoding. Dette skjer i enkelte tilfeller dersom første
+prosentil bikker under 1% (0.99). Dette gjelder også i prinsippet siste prosentil pga. 1% toppkoding.
+endblock
+
+// Lager kvartiler og tester inndelingen vha statistikk
+generate lønnkvartil21 = quantile(lønn21, 4)
+histogram lønnkvartil21, discrete
+
+// Tester inndelingen i prosentiler og kvartiler opp mot hverandre
+tabulate lønnprosentil21 lønnkvartil21
+
+// Lager desiler og viser hhv. antall og gjennomsnittslønn for hver desil
+generate lønndesil21 = quantile(lønn21, 10)
+tabulate lønndesil21, missing
+tabulate lønndesil21, summarize(lønn21)

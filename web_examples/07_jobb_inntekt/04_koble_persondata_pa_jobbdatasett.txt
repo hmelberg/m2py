@@ -1,0 +1,27 @@
+// ===================================================================
+// Example: Koble persondata på jobbdatasett
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Jobb-%20og%20inntektsanalyser/Koble%20persondata%20p%C3%A5%20jobbdatasett/
+// ===================================================================
+// Skriptet viser hvordan man kan jobbe med jobbdata fra A-ordningen. Eksempelet illustrerer
+// hvordan man kobler persondata på et datasett med arbeidsforhold som enhetstype. Dette er nyttig
+// når man vil lage jobbstatistikk hvor enkeltjobber/arbeidsforhold er analyseenhet.
+//
+// Variabelen ARBEIDSFORHOLD_PERSON fungerer som koblingsvariabel og inneholder personidentifikatoren
+// tilknyttet det aktuelle arbeidsforholdet/jobben.
+// ===================================================================
+
+require no.ssb.fdb:30 as db
+
+create-dataset jobber
+import db/ARBLONN_ARB_YRKE_STYRK08 2021-07-16 as yrke
+import db/ARBLONN_ARB_ARBEIDSTID 2021-07-16 as arbeidstid
+import db/ARBLONN_LONN_EKV_IALT 2021-06-30 as mndlønn_heltidsekv
+import db/ARBEIDSFORHOLD_PERSON as personid
+
+create-dataset personer
+import db/ARBLONN_PERS_KJOENN 2021-07-16 as kjønn
+merge kjønn into jobber on personid
+
+use jobber
+tabulate yrke kjønn, summarize(mndlønn_heltidsekv)
+tabulate yrke kjønn, summarize(arbeidstid)

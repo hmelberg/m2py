@@ -1,0 +1,73 @@
+// ===================================================================
+// Example: Analysere jobber som starter først
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Jobb-%20og%20inntektsanalyser/Analysere%20jobber%20som%20starter%20f%C3%B8rst/
+// ===================================================================
+// Variabler med prefiks ARBLONN_ARB_ og ARBLONN_LONN_ inneholder informasjon om alle
+// arbeidsforhold registrert gjennom A-ordningen. Disse datasettene opererer på jobb-/
+// arbeidsforhold-nivå, ikke personnivå, slik at individer kan ha flere jobber samtidig - med
+// flere observasjoner enn antall unike personer.
+//
+// Når man lager statistikk eller analyser av jobber på individnivå, fokuserer man typisk på
+// spesifikke typer arbeidsforhold per person - som hovedjobben, jobben med høyeste
+// stillingsprosent, jobben med lengst avtalt arbeidstid, eller jobben med høyest månedslønn.
+//
+// Dette eksempelet demonstrerer fremgangsmåten for å analysere jobber som starter først per
+// individ.
+// ===================================================================
+
+require no.ssb.fdb:31 as db
+
+// Lager jobbdatasett av aktive jobber per 16/7 2023, og finner jobben som starter først per individ
+create-dataset jobbdata_først
+import db/ARBLONN_ARB_YRKE_STYRK08 2023-07-16 as yrke
+import db/ARBLONN_ARB_START 2023-07-16 as jobbstart
+import db/ARBLONN_ARB_STILLINGSPST 2023-07-16 as stillingspst
+import db/ARBLONN_ARB_HOVEDARBEID 2023-07-16 as hovedjobb
+import db/ARBLONN_ARB_ANSETTELSESFORM 2023-07-16 as ansettelsesform
+import db/ARBLONN_ARB_ARBEIDSTID 2023-07-16 as arbeidstid
+import db/ARBEIDSFORHOLD_PERSON as personid
+
+textblock
+Stillingsprosent for alle aktive jobber per 16/7 2023 i jobbdatasettet:
+endblock
+summarize stillingspst
+tabulate hovedjobb
+tabulate hovedjobb, summarize(stillingspst)
+
+// Lager en kopi av jobbdatasettet før det aggregeres opp
+clone-dataset jobbdata_først jobbdata
+
+// Aggregerer jobbdatasettet til personnivå, med opplysning om tidspunkt for første jobbstart
+collapse(min) jobbstart -> første_jobbstart, by(personid)
+textblock
+Tidspunkter for første jobbstart per individ. Datoformatet er UnixTime (antall dager målt fra 1/1 1970):
+endblock
+summarize første_jobbstart
+
+// Kobler opplysning om dato for første jobbstart på det komplette jobbdatasettet
+merge første_jobbstart into jobbdata on personid
+
+// Bruker opplysningen til å fjerne jobber i jobbdatasettet som ikke starter først
+use jobbdata
+keep if jobbstart == første_jobbstart
+textblock
+Tidspunkter for første jobbstart per individ. Datoformatet er UnixTime (antall dager målt fra 1/1 1970).
+
+Merk at antallet jobber øker når man selekterer på første jobbstart i jobbdatasettet. Dette skyldes forekomst av
+dubletter siden man kan ha to eller flere jobber som starter først. Men omfanget av disse tilfellene er ikke stort:
+endblock
+summarize jobbstart
+
+// Aggregerer jobbdatasettet opp til personnivå og kobler på persondata for å kunne lage personstatistikk
+collapse(mean) stillingspst arbeidstid, by(personid)
+
+create-dataset personer
+import db/BEFOLKNING_KJOENN as kjønn
+merge kjønn into jobbdata
+
+use jobbdata
+textblock
+Stillingsprosent og avtalt arbeidstid for jobber som starter først, fordelt på kjønn:
+endblock
+tabulate kjønn, missing
+tabulate kjønn, summarize(stillingspst, arbeidstid)

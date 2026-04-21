@@ -1,0 +1,788 @@
+Funksjoner
+Alle funksjoner tar enten verdier eller variabler som input. Beskrivelsen skiller likevel på hvor det er hensiksmessig å gi inn en numerisk variabel heller enn et tall og en en alfanumerisk variabel heller enn en streng (tekstverdi).
+Datobehandling
+date
+Datoverdi fra årstall, måned og dag. Datoer før 1970-01-01 gir negative resultater.
+date(Årstall, Måned, Dag)
+Årstall - Årstall på 4 siffer
+Måned - Måned på 1 - 2 siffer
+Dag - Dag på 1 - 2 siffer
+Resultat
+Tall - Antall dager mellom angitt dato og 1970-01-01
+Eksempler
+date(2015, 12, 31) // => 16800
+date(1970, 01, 01) // => 0
+date(1967, 05, 27) // => -950
+isoformatdate
+Konverterer fra datoverdi til formatet YYYY-MM-DD. Kan brukes på start- og stoppvariabler for å konvertere fra innebygd datoverdi-format (1970-01-01 = 0)
+isoformatdate(Dateringsvariabel)
+Dateringsvariabel - Numerisk antall dager fra 1/1 1970
+Resultat
+Streng - Datering på formatet YYYY-MM-DD (streng)
+Eksempler
+year(16800) // => '2015-12-31'
+year(0) // => '1970-01-01'
+date(-950) // => '1967-05-27'
+day
+Verdi for dag i måneden fra datoverdi. Kan brukes på start- og stoppvariabler for å konvertere fra innebygd datoverdi-format (1970-01-01 = 0)
+day(Dateringsvariabel)
+Dateringsvariabel - Numerisk antall dager fra 1/1 1970
+Resultat
+Tall - Dag i måneden tilsvarende angitt datoverdi (1-31)
+Eksempler
+day(16800) // => 31
+day(0) // => 1
+day(-950) // => 27
+month
+Månedsverdi fra datoverdi. Kan brukes på start- og stoppvariabler for å konvertere fra innebygd datoverdi-format (1970-01-01 = 0)
+month(Dateringsvariabel)
+Dateringsvariabel - Numerisk antall dager fra 1/1 1970
+Resultat
+Tall - Månedsverdi tilsvarende angitt datoverdi (1-12)
+Eksempler
+month(16800) // => 12
+month(0) // => 1
+month(-950) // => 5
+week
+Ukenummer fra datoverdi. Kan brukes på start- og stoppvariabler for å konvertere fra innebygd datoverdi-format (1970-01-01 = 0)
+week(Dateringsvariabel)
+Dateringsvariabel - Numerisk antall dager fra 1/1 1970
+Resultat
+Tall - Ukenummer tilsvarende angitt datoverdi (1-53)
+Eksempler
+week(16800) // => 53
+week(0) // => 1
+week(-950) // => 21
+year
+Årstall fra datoverdi. Kan brukes på start- og stoppvariabler for å konvertere fra innebygd datoverdi-format (1970-01-01 = 0)
+year(Dateringsvariabel)
+Dateringsvariabel - Numerisk antall dager fra 1/1 1970
+Resultat
+Tall - Årstall tilsvarende angitt datoverdi
+Eksempler
+year(16800) // => 2015
+year(0) // => 1970
+year(-950) // => 1967
+halfyear
+Halvårstall fra datoverdi. Kan brukes på start- og stoppvariabler for å konvertere fra innebygd datoverdi-format (1970-01-01 = 0)
+halfyear(Dateringsvariabel)
+Dateringsvariabel - Numerisk antall dager fra 1/1 1970
+Resultat
+Tall - Halvårstall tilsvarende angitt datoverdi (1-2)
+Eksempler
+halfyear(16800) // => 2
+halfyear(0) // => 1
+halfyear(-950) // => 1
+quarter
+Kvartalstall fra datoverdi. Kan brukes på start- og stoppvariabler for å konvertere fra innebygd datoverdi-format (1970-01-01 = 0)
+quarter(Dateringsvariabel)
+Dateringsvariabel - Numerisk antall dager fra 1/1 1970
+Resultat
+Tall - Kvartalstall tilsvarende angitt datoverdi (1-4)
+Eksempler
+quarter(16800) // => 4
+quarter(0) // => 1
+quarter(-950) // => 2
+dow
+Verdi for dag i uken fra datoverdi. Kan brukes på start- og stoppvariabler for å konvertere fra innebygd datoverdi-format (1970-01-01 = 0)
+dow(Dateringsvariabel)
+Dateringsvariabel - Numerisk antall dager fra 1/1 1970
+Resultat
+Tall - Dag i uken tilsvarende angitt datoverdi (1-7) (1 = mandag, 2 = tirsdag etc)
+Eksempler
+dow(16800) // => 4
+dow(0) // => 4
+dow(-950) // => 6
+doy
+Verdi for dag i året fra datoverdi. Kan brukes på start- og stoppvariabler for å konvertere fra innebygd datoverdi-format (1970-01-01 = 0)
+doy(Dateringsvariabel)
+Dateringsvariabel - Numerisk antall dager fra 1/1 1970
+Resultat
+Tall - Dag i året tilsvarende angitt datoverdi (1-366)
+Eksempler
+doy(16800) // => 365
+doy(0) // => 1
+doy(-950) // => 147
+Sansynlighetsberegning
+binomial
+Returnerer sannsynligheten for å observere floor(n) eller færre suksesser i floor(Variabel) forsøk, der sannsynligheten for suksess i ett forsøk er p.
+binomial(Variabel, n, p)
+Variabel - Numerisk variabel
+n - Numerisk mellom 0 og første argument
+p - Numerisk mellom 0 og 1
+Resultat
+Tall
+binomialp
+Returnerer sannsynligheten for å observere floor(n) suksesser i floor(Variabel) forsøk, der sannsynligheten for suksess i ett forsøk er p
+binomialp(Variabel, n, p)
+Variabel - Numerisk variabel
+n - Numerisk mellom 0 og første argument
+p - Numerisk mellom 0 og 1
+Resultat
+Tall
+binomialtail
+Returnerer sannsynligheten for å observere floor(n) eller flere suksesser i floor(Variabel) forsøk, der sannsynligheten for suksess i ett forsøk er p.
+binomialtail(Variabel, n, p)
+Variabel - Numerisk variabel
+n - Numerisk mellom 0 og første argument
+p - Numerisk mellom 0 og 1
+Resultat
+Tall
+normal
+Den kumulative standardiserte normalfordelingen av variabelen
+normal(x)
+x - Numerisk mellom 0 og 1
+Resultat
+Tall
+normalden
+Normalfordelingen av variabelen med forventningsverdi(snittverdi) μ og standardavvik σ. Standardisert normalfordeling med μ = 0 og σ = 1 brukes om disse ikke er satt.
+normalden(Variabel, μ?, σ?)
+Variabel - Numerisk variabel
+μ - Forventningsverdi
+σ - Standardavvik
+Resultat
+Tall
+F
+Den kumulative F-fordelingen av variabelen med v1 og v2 frihetsgrader i henholdsvis teller og nevner. F() = 0 dersom v2 < 0
+F(Variabel, v1, v2, λ)
+Variabel - Numerisk variabel
+v1 - Frihetsgrader teller
+v2 - Frihetsgrader nevner
+λ - Sentreringsparameter
+Resultat
+Tall
+Fden
+Sannsynlighetstettheten til F-fordelingen til variabelen med v1 og v2 frihetsgrader i henholdsvis teller og nevner. Fden() = 0 dersom v2 < 0
+Fden(Variabel, v1, v2)
+Variabel - Numerisk variabel
+v1 - Frihetsgrader teller
+v2 - Frihetsgrader nevner
+Resultat
+Tall
+Ftail
+Den omvendte kumulative F-fordelingen av variabelen med v1 og v2 frihetsgrader i henholdsvis teller og nevner. Ftail() = 1 - F(), Ftail() = 1 dersom v2 < 0
+Ftail(Variabel, v1, v2, λ)
+Variabel - Numerisk variabel
+v1 - Frihetsgrader teller
+v2 - Frihetsgrader nevner
+λ - Sentreringsparameter
+Resultat
+Tall
+invF
+Den inverse kumulative F-fordelingen til variabelen med v1 og v2 frihetsgrader i henholdsvis teller og nevner. F(X, v1, v2) = p → invF(X, v1, p) = v2
+invF(Variabel, v1, v2)
+Variabel - Numerisk variabel
+v1 - Frihetsgrader teller
+v2 - Frihetsgrader nevner
+Resultat
+Tall
+invFtail
+Den inverse omvendte kumulative F-fordelingen til variabelen med v1 og v2 frihetsgrader i henholdsvis teller og nevner. Ftail(X, v1, v2) = p → invFtail(X, v1, p) = v2
+invFtail(Variabel, v1, v2)
+Variabel - Numerisk variabel
+v1 - Frihetsgrader teller
+v2 - Frihetsgrader nevner
+Resultat
+Tall
+invnFtail
+Den inverse omvendte kumulative ikke-sentrerte F-fordelingen av variabelen med v1 og v2 frihetsgrader i henholdsvis teller og nevner, og sentreringsparameter λ. nFtail(X, v1, v2, λ) = p → invnFtail(X, v1, v2, p) = λ
+invnFtail(Variabel, v1, v2, λ)
+Variabel - Numerisk variabel
+v1 - Frihetsgrader teller
+v2 - Frihetsgrader nevner
+λ - Sentreringsparameter
+Resultat
+Tall
+nF
+Den kumulative ikke-sentrerte F-fordelingen med v1 og v2 frihetsgrader i henholdsvis teller og nevner, og sentreringsparameter λ. nF(X, v1, 0, λ) = F(X, v1, λ), nF() = 0 dersom λ < 0
+nF(Variabel, v1, v2, λ)
+Variabel - Numerisk variabel
+v1 - Frihetsgrader teller
+v2 - Frihetsgrader nevner
+λ - Sentreringsparameter
+Resultat
+Tall
+nFden
+Sannsynlighetstettheten av variabelen til den ikke-sentrerte F-fordelingen med v1 og v2 frihetsgrader i henholdsvis teller og nevner, og sentreringsparameter λ. nFden(X, v1, 0, λ) = Fden(X, v1, λ), nFden() = 0 dersom λ < 0
+nFden(Variabel, v1, v2, λ)
+Variabel - Numerisk variabel
+v1 - Frihetsgrader teller
+v2 - Frihetsgrader nevner
+λ - Sentreringsparameter
+Resultat
+Tall
+nFtail
+Den omvendte kumulative ikke-sentrerte F-fordelingen til variabelen med v1 og v2 frihetsgrader i henholdsvis teller og nevner, og sentreringsparameter λ. nFtail() = 1 dersom λ < 0
+nFtail(Variabel, v1, v2, λ)
+Variabel - Numerisk variabel
+v1 - Frihetsgrader teller
+v2 - Frihetsgrader nevner
+λ - Sentreringsparameter
+Resultat
+Tall
+chi2
+Den kumulative kjikvadratfordelingen til variabelen med v frihetsgrader. Er lik 0 dersom v < 0
+chi2(Variabel, v)
+Variabel - Numerisk variabel
+v - Frihetsgrader
+Resultat
+Tall
+chi2den
+Sannsynlighetstettheten til kjikvadratfordelingen til variabelen med v frihetsgrader Er lik 0 dersom v < 0
+chi2den(Variabel, v)
+Variabel - Numerisk variabel
+v - Frihetsgrader
+Resultat
+Tall
+chi2tail
+Den omvendte kumulative kjikvadratfordelingen til variabelen med v frihetsgrader. chi2tail() = 1 − chi2(), chi2tail() = 1 dersom v < 0
+chi2tail(Variabel, v)
+Variabel - Numerisk variabel
+v - Frihetsgrader
+Resultat
+Tall
+invchi2
+Den inverse av den kumulative kjikvadratfordelingen til variabelen med v frihetsgrader. chi2(X, v) = p → invchi2(X, p) = v
+invchi2(Variabel, v)
+Variabel - Numerisk variabel
+v - Frihetsgrader
+Resultat
+Tall
+invchi2tail
+Den inverse av den omvendte kumulative kjikvadratfordelingen til variabelen med v frihetsgrader. chi2tail(X, v) = p → invchi2tail(X, p) = v
+invchi2tail(Variabel, v)
+Variabel - Numerisk variabel
+v - Frihetsgrader
+Resultat
+Tall
+nchi2
+Den kumulative ikke-sentrerte kjikvadratfordelingen til variabelen med v frihetsgrader og sentreringsparameter λ (noncentral parameter). nchi2() = 0 dersom λ < 0
+nchi2(Variabel, v, λ)
+Variabel - Numerisk variabel
+v - Frihetsgrader
+λ - Sentreringsparameter
+Resultat
+Tall
+nchi2den
+Sannsynlighetstettheten til den ikke-sentrerte kjikvadratfordelingentil variabelen med v frihetsgrader og sentreringsparameter λ (noncentral parameter). nchi2den() = 0 dersom λ < 0
+nchi2den(Variabel, v, λ)
+Variabel - Numerisk variabel
+v - Frihetsgrader
+λ - Sentreringsparameter
+Resultat
+Tall
+nchi2tail
+Den omvendte kumulative ikke-sentrerte kjikvadratfordelingen til variabelen med v frihetsgrader og sentreringsparameter λ (noncentral parameter). nchi2tail() = 1 dersom λ < 0
+nchi2tail(Variabel, v, λ)
+Variabel - Numerisk variabel
+v - Frihetsgrader
+λ - Sentreringsparameter
+Resultat
+Tall
+betaden
+Sannsynlighetstettheten til beta-fordelingen til variabelen med formparametrene α og β. betaden() = 0 dersom β < 0 eller β > 1
+betaden(Variabel, α, β)
+Variabel - Numerisk variabel
+α - Formparameter alfa
+β - Formparameter beta
+Resultat
+Tall
+ibeta
+Den kumulative beta-fordelingen med til variabelen formparametrene α og β, også kalt den regulariserte ufullstendige betafunksjonen/betafunksjonsratioen. β < 0 → ibeta() = 0, β > 1 → ibeta() = 1
+ibeta(Variabel, α, β)
+Variabel - Numerisk variabel
+α - Formparameter alfa
+β - Formparameter beta
+Resultat
+Tall
+ibetatail
+Den omvendte kumulative beta-fordelingen til variabelen med formparametrene α og β, også kalt den komplementære ufullstendige betafunksjonen. β < 0 → ibetatail() = 1, β > 1 → ibetatail() = 0
+ibetatail(Variabel, α, β)
+Variabel - Numerisk variabel
+α - Formparameter alfa
+β - Formparameter beta
+Resultat
+Tall
+invibeta
+Den inverse kumulative beta-fordelingen til variabelen med formparametrene α og β
+invibeta(Variabel, α, β)
+Variabel - Numerisk variabel
+α - Formparameter alfa
+β - Formparameter beta
+Resultat
+Tall
+invibetatail
+Den inverse omvendte kumulative beta-fordelingen til variabelen med formparametrene α og β. ibetatail(var, α, β) = p → invibetatail(var, α, p) = β
+invibetatail(Variabel, α, β)
+Variabel - Numerisk variabel
+α - Formparameter alfa
+β - Formparameter beta
+Resultat
+Tall
+invnttail
+Den inverse omvendte kumulative ikke-sentrerte Students t-fordelingen til variabelen med v frihetsgrader og sentreringsparameter λ. nttail(var, f, s) = p → invnttail(var, f, p) = s
+invnttail(Variabel, v, λ)
+Variabel - Numerisk variabel
+v - Antall frihetsgrader
+λ - Sentreringsparameter
+Resultat
+Tall
+invt
+Den inverse kumulative Students t-fordelingen til variabelen med v frihetsgrader. t(var, f) = p → invt(var, p) = f
+invt(Variabel, v)
+Variabel - Numerisk variabel
+v - Antall frihetsgrader
+Resultat
+Tall
+invttail
+Den inverse omvendte kumulative Students t-fordelingen til variabelen med v frihetsgrader. ttail(var, f) = p → invttail(var, p) = f
+invttail(Variabel, v)
+Variabel - Numerisk variabel
+v - Antall frihetsgrader
+Resultat
+Tall
+nt
+Den kumulative ikke-sentrerte Students t-fordelingen til variabelen med v frihetsgrader og sentreringsparameter λ. nt(var, 0, p) = t(var, f)
+nt(Variabel, v, λ)
+Variabel - Numerisk variabel
+v - Antall frihetsgrader
+λ - Sentreringsparameter
+Resultat
+Tall
+ntden
+Den ikke-sentrerte Students t-fordelingen til variabelen med v frihetsgrader og sentreringsparameter λ
+ntden(Variabel, v)
+Variabel - Numerisk variabel
+v - Antall frihetsgrader
+Resultat
+Tall
+nttail
+Den omvente kumulative ikke-sentrerte Students t-fordelingen til variabelen med v frihetsgrader og sentreringsparameter λ
+nttail(Variabel, v, λ)
+Variabel - Numerisk variabel
+v - Antall frihetsgrader
+λ - Sentreringsparameter
+Resultat
+Tall
+t
+Den kumulative Students t-fordelingen til variabelen med v frihetsgrader
+t(Variabel, v)
+Variabel - Numerisk variabel
+v - Antall frihetsgrader
+Resultat
+Tall
+tden
+Students t-fordelingen til variabelen med v frihetsgrader
+tden(Variabel, v)
+Variabel - Numerisk variabel
+v - Antall frihetsgrader
+Resultat
+Tall
+ttail
+Den omvendte kumulative Students t-fordelingen til variabelen med v frihetsgrader
+ttail(Variabel, v)
+Variabel - Numerisk variabel
+v - Antall frihetsgrader
+Resultat
+Tall
+Matematikk
+acos
+Radianverdien av arc-cosinus
+acos(x)
+x - Numerisk mellom -1 og 1
+Resultat
+Tall
+asin
+Radianverdien av arc-sinus
+asin(x)
+x - Numerisk mellom -1 og 1
+Resultat
+Tall
+atan
+Radianverdien av arc-tangens til argumentet
+atan(x)
+x - Numerisk verdi
+Resultat
+Tall
+comb
+Kombinatorisk funksjonsverdi: x!/{y!(x-y)!}
+comb(x, y)
+x - Positiv numerisk verdi
+y - Numerisk heltallsverdi mellom 0 og x
+Resultat
+Tall
+cos
+Cosinus
+cos(x)
+x - Numerisk mellom -1 og 1
+Resultat
+Tall
+sin
+Sinus
+sin(x)
+x - Numerisk mellom -1 og 1
+Resultat
+Tall
+sqrt
+Kvadratrot
+sqrt(x)
+x - Positiv numerisk verdi
+Resultat
+Tall
+tan
+Tangens
+tan(x)
+x - Numerisk verdi
+Resultat
+Tall
+exp
+Eksponentialfunksjonen e^x
+exp(x)
+x - Numerisk verdi
+Resultat
+Tall
+ln
+Den naturlig logaritmen av x
+ln()
+Resultat
+Numerisk verdi mellom -744 og 709
+lnfactorial
+Den naturlige logaritmen av n-fakulitet ln(x!)
+lnfactorial(x)
+x - Numerisk heltall
+Resultat
+Tall
+log10
+Base 10-logaritmen av x
+log10(x)
+x - Positiv numerisk verdi
+Resultat
+Tall
+logit
+Logverdien av oddsratioen til x ln{x(1-x)}
+logit(x)
+x - Numerisk mellom 0 og 1
+Resultat
+Tall
+abs
+Absoluttverdien (dvs. fjerner negative fortegn)
+abs(x)
+x - Positiv numerisk verdi
+Resultat
+Tall
+ceil
+Heltallsavrunding oppover
+ceil(x)
+x - Numerisk verdi
+Resultat
+Tall
+Eksempler
+ceil(8.3) // => 9
+ceil(-17.3) // => -18
+floor
+Heltallsavrunding nedover. Tilsvarer funksjonen int().
+floor(x)
+x - Numerisk verdi
+Resultat
+Tall
+Eksempler
+floor(8.6) // => 8
+floor(-8.6) // => -8
+int
+Heltallsverdien av x (dvs. dropper desimaltall). Tilsvarer funksjonen floor().
+int(x)
+x - Numerisk verdi
+Resultat
+Tall
+Eksempler
+int(7.5) // => 7
+int(-17.6) // => -17
+quantile
+Returnerer en verdi basert på rangeringen av en kontinuerlig verdi over en valgt inndeling med like mange verdier pr gruppe. Mulige inndelinger: 2-100. Om 100 brukes som argument, returneres verdiene 0-99 basert på hvilket prosentil en verdi befinner seg i. Brukes verdien 10, grupperes verdier i desiler 0-9.
+quantile(x, y)
+x - Kontinuerlig variabel
+y - Numerisk heltall mellom 2 og 100
+Resultat
+Tall
+Eksempler
+quantile(inntekt, 100)
+quantile(inntekt, 10)
+quantile(inntekt, 4)
+round
+Avrunder x til nærmeste heltall dersom y utelates eller settes lik 1. y bestemmer hvilket nivå det skal avrundes på.
+round(x, y?)
+x - Numerisk verdi
+y - Numerisk verdi, satt til 1 om ikke oppgitt
+Resultat
+Tall
+Eksempler
+round(7.3) // => 7
+round(-7.6) // => -8
+round(7.321, 0.01) // => 7.32
+pi
+π: forholdet mellom omkretsen og diameteren av en sirkel
+pi()
+Resultat
+Tall
+Behandle flere variabler
+rowmax
+Maksimumsverdien blant variablene
+rowmax(Variabel, [Variabel1, Variabel2, ...])
+Variabel - Numerisk variabel
+Resultat
+Tall
+Eksempler
+rowmax(inntekt14, inntekt15, inntekt16)
+rowmin
+Minimumsverdien blant variablene
+rowmin(Variabel, [Variabel1, Variabel2, ...])
+Variabel - Numerisk variabel
+Resultat
+Tall
+Eksempler
+rowmin(inntekt14, inntekt15, inntekt16)
+rowmean
+Gjennomsnittssverdien blant variablene
+rowmean(Variabel, [Variabel1, Variabel2, ...])
+Variabel - Numerisk variabel
+Resultat
+Tall
+Eksempler
+rowmean(inntekt14, inntekt15, inntekt16)
+rowmedian
+Medianverdien blant variablene
+rowmedian(Variabel, [Variabel1, Variabel2, ...])
+Variabel - Numerisk variabel
+Resultat
+Tall
+Eksempler
+rowmedian(inntekt14, inntekt15, inntekt16)
+rowtotal
+Totalsummen av variablene
+rowtotal(Variabel, [Variabel1, Variabel2, ...])
+Variabel - Numerisk variabel
+Resultat
+Tall
+Eksempler
+rowtotal(inntekt14, inntekt15, inntekt16)
+rowconcat
+Sammenslåing av tekstverdiene til variabelene
+rowconcat(Variabel, [Variabel1, Variabel2, ...])
+Variabel - Alfanumerisk variabel
+Resultat
+Streng
+Eksempler
+rowconcat(fornavn, ' ', etternavn)
+rowconcat('Hr. ', fornavn, ' ', etternavn)
+rowconcat(etternavn, ' ', fornavn)
+rowstd
+Standardavviket for variablene
+rowstd(Variabel, [Variabel1, Variabel2, ...])
+Variabel - Numerisk variabel
+Resultat
+Tall
+Eksempler
+rowstd(inntekt14, inntekt15, inntekt16)
+rowmissing
+Antall med verdier missing blant variabelen(e)
+rowmissing(Variabel, [Variabel1, Variabel2, ...])
+Resultat
+Tall
+Eksempler
+rowmissing(inntekt14, inntekt15, inntekt16)
+rowvalid
+Antall gyldige verdier (uten verdien missing) blant variabelen(e)
+rowvalid(Variabel, [Variabel1, Variabel2, ...])
+Resultat
+Tall
+Eksempler
+rowvalid(inntekt14, inntekt15, inntekt16)
+Strengbehandling
+length
+Gir antall karakterer i tekstverdien
+length(Verdi)
+Verdi - Streng eller alfanumerisk variabel
+Resultat
+Tall
+Eksempler
+length('A1bx12') // => 6
+string
+Konverterer verdien til alfanumerisk format
+string(Verdi)
+Verdi - Tall eller numerisk variabel som kan konverteres til et tall
+Resultat
+Streng
+Eksempler
+string(199812) // => '199812'
+lower
+Konverterer tekst til små bokstaver (ASCII, alt utenfor dette ignoreres)
+lower(Variabel)
+Variabel - Alfanumerisk variabel
+Resultat
+Streng
+Eksempler
+lower('A') // => 'a'
+lower('XYZ') // => 'xyz'
+upper
+Konverterer tekst til store bokstaver (ASCII, alt utenfor dette ignoreres)
+upper(Variabel)
+Variabel - Alfanumerisk variabel
+Resultat
+Streng
+Eksempler
+upper('a') // => 'A'
+upper('xyz') // => 'XYZ'
+endswith
+Logisk funksjon som sjekker om verdien i variabelen slutter med den gitte tegnsekvensen
+endswith(Variabel, Streng)
+Variabel - Den alfanumeriske variabelen du undersøker
+Streng - Slutter med tegnsekvens
+Resultat
+Filter
+Eksempler
+endswith(variabel, '054')
+startswith
+Logisk funksjon som sjekker om verdien i variabelen starter med den gitte tegnsekvensen
+startswith(Variabel, Streng)
+Variabel - Den alfanumeriske variabelen du undersøker
+Streng - Starter med tegnsekvens
+Resultat
+Filter
+Eksempler
+startswith(variabel, '12')
+substr
+Deltekst av en variabel gitt ved starposisjon og lengde. Ved negative verdier regnes posisjon ut fra siste karakter.
+substr(Variabel, Posisjon, Lengde)
+Variabel - Den alfanumeriske variabelen du henter fra
+Posisjon - Startposisjon (negativ for sluttposisjon)
+Lengde - Lengde på deltekst
+Resultat
+Streng - Deltekst av argumentet
+Eksempler
+substr('y32ssx', 2, 3) // => '32s'
+substr('y32ssx', -3, 2) // => 'ss'
+substr('y32ssx', 1, 1) // => 'y'
+ltrim
+Fjerner tomrom fra starten av variabelen
+ltrim(Variabel)
+Variabel - Alfanumerisk variabel
+Resultat
+Streng
+Eksempler
+ltrim(' A1A') // => 'A1A'
+rtrim
+Fjerner tomrom fra slutten av variabelen
+rtrim(Variabel)
+Variabel - Alfanumerisk variabel
+Resultat
+Streng
+Eksempler
+rtrim('A1A ') // => 'A1A'
+trim
+Fjerner tomrom fra starten og slutten av variabelen
+trim(Variabel)
+Variabel - Alfanumerisk variabel
+Resultat
+Variabel
+Eksempler
+trim(' A1A ') // => 'A1A'
+Logikk
+inlist
+Logisk funksjon som returnerer 1 (true) dersom verdien den første variabelen finnes blant de resterende variablene. Nyttig ved koding/omkoding av variabler basert på lange if-betingelser, som kan erstattes av denne funksjonen
+inlist(Variabel, [Variabel1, Variabel2, ...])
+Resultat
+Filter
+Eksempler
+inlist(siv, 1, 3, 5) // => siv er lik 1, 3, eller 5
+inlist('1', reg1, reg2) // => reg1 eller reg2 er lik '1'
+inrange
+Logisk funksjon som returnerer 1 (true) dersom variabelen er høyere enn eller lik min og lavere enn eller lik i max
+inrange(Variabel, min, max)
+Resultat
+Filter
+Eksempler
+inrange(formue, 500, 1000) // => 500 <= formue <= 1000
+sysmiss
+Logisk funksjon som returnerer 1 (true) dersom variabelen har verdien missing. Det vil si ingen observasjoner i underliggende datasett
+sysmiss(Variabel)
+Resultat
+Filter
+Eksempler
+sysmiss(variabel)
+Etiketter
+label_to_code
+Returnerer koden til etiketten fra variabelens kodeliste
+label_to_code(Variabel, Etikett)
+Variabel - Variabelen du henter koden fra
+Etikett - Etiketten som er tilkoblet koden
+Resultat
+Kode
+Eksempler
+label_to_code(kjønn, "Mann") // => '1'
+label_to_code(sivstand_int, "Gift") // => 2
+inlabels
+Filtrerer verdier basert på en eller flere etiketter i variabelens kodeliste. Nyttig når man vet navnet på etikettene (f. eks 'Gift' eller 'Ugift')
+inlabels(Variabel, Etikett, [Etikett1, Etikett2, ...])
+Variabel - Variabelen du henter koden fra
+Etikett - Etiketten som sjekkes om er tilkoblet koden
+Resultat
+Filter
+Eksempler
+inlabels(sivstand, "Gift") // => sivstand filtrert på kodene til etiketten "Gift" ('2')
+inlabels(sivstand, "It's complicated") // => ulovlig siden sivstand ikke inneholder etiketten
+inlabels(sivstand, "Gift", "Ugift", "Separert") // => sivstand filtrert på kodene til etikettene ('1', '2', '5')
+labelcontains
+Filtrerer verdier basert på etiketter i variabelens kodeliste som inneholder argumentet. Nyttig når man vil finne alle verdiene som har en etikett som inneholder en delstreng
+labelcontains(Variabel, Etikett)
+Variabel - Variabelen du henter koden fra
+Etikett - Et subsett av etiketten som sjekkes om er tilkoblet koden
+Resultat
+Filter
+Eksempler
+labelcontains(sivstand, "partner") // => sivstand filtert på kodene til etikettene som inneholder ordet 'partner' ('6', '7', '8', '9')
+Bindinger
+Inne i let kommando, import-dato, eller ++ uttrykk, er det kun disse funksjonene som kan brukes (men de kan brukes i andre uttrykk som vanlig).
+Se help let for mer informasjon om bindinger.
+date_fmt
+Konverterer et årstall på 4 siffer til formatet yyyy-01-01. Tillater et valgfritt andre og tredje argument for å spesifisere måned og dag hhv.
+date_fmt(Årstall, Måned?, Dag?)
+Årstall - Årstall på 4 siffer
+Måned - Måned på 1 - 2 siffer
+Dag - Dag på 1 - 2 siffer
+Resultat
+Dato
+Eksempler
+date_fmt(2020) // => '2020-01-01'
+date_fmt(2000, 2, 11) // => '2000-02-11'
+to_int
+Konverterer en tallformatert streng til et tall
+to_int(Tallformatert streng)
+Resultat
+Tall
+Eksempler
+to_int('100') // => 100
+to_str
+Konverterer et tall eller symbol til en streng
+to_str(Tall eller symbol)
+Resultat
+Streng
+Eksempler
+to_str(100) // => '100'
+to_str(symbol) // => 'symbol'
+to_symbol
+Konverterer en streng til et symbol, gitt at den er et gyldig navn
+to_symbol(Streng)
+Resultat
+Symbol
+Eksempler
+to_symbol('variabel') // => variabel
+to_symbol('123streng') // => Feil
+bind
+Returnerer bindingen gitt i argumentet. Kan brukes til å referere til eksisterende bindinger fra et uttrykk. Dette er nyttig hvis du for eksempel skal iterere over et sett med konstanter med navn som kpi2020, kpi2021, kpi2022 osv.
+bind(Binding)
+Binding - Navnet på en eksisterende binding
+Resultat
+Binding
+Eksempler
+bind(kpi) // => $kpi
+bind(kpi ++ 2020) // => $kpi2020

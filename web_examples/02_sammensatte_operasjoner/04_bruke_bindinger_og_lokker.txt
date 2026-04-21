@@ -1,0 +1,106 @@
+// ===================================================================
+// Example: Bruke bindinger og løkker
+// Source: https://microdata.no/manual/eksempel/Sammensatte%20operasjoner/Bruke%20bindinger%20og%20l%C3%B8kker/
+// ===================================================================
+// Bindings and loops serve to streamline scripts containing repetitive structures. Rather than
+// writing out identical operations multiple times, developers can create loops to execute the same
+// commands repeatedly or use bindings to store reusable values.
+//
+// "Bindinger og løkker kan brukes til å generalisere og komprimere lange skript med gjentakende
+// struktur." Bindings are created through the `let` command, while loops utilize the `for` command.
+//
+// This script offers a detailed introduction ("en detaljert introduksjon til hvordan dette
+// fungerer") — execute it to observe the results and understand how these commands operate in
+// practice.
+// ===================================================================
+
+# Introduksjon til ny funksjonalitet: Bindinger og løkker
+require no.ssb.fdb:26 as f
+create-dataset ds
+
+let string = "foo"
+let totusen = 2000
+
+let approx_pi = 22/7
+
+let pi = pi()
+let en = cos(2 * pi())
+
+let dato = 2000 ++ "-01-01"
+
+let totusen_verdi = $totusen
+let startdato = $totusen ++ "-01-01"
+
+let siv = sivstand
+
+let totusen_symbol = to ++ tusen
+
+import f/SIVSTANDFDT_SIVSTAND $startdato as $siv
+
+for iterator in 1 2 3
+  let double = $iterator * 2
+end
+
+for iterator in 1:3
+  let double = $iterator * 2
+end
+
+for år in 2000 : 2002
+  let siv_dato = $år ++ "-01-01"
+  let siv_år = siv_ ++ $år
+  import f/SIVSTANDFDT_SIVSTAND $siv_dato as $siv_år
+end
+
+let dt1 = date_fmt(2000)
+let dt2 = date_fmt(2000, 10)
+let dt3 = date_fmt(2000, 10, 20)
+
+let år = 2000
+import f/SIVSTANDFDT_SIVSTAND 2000-01-01 as siv_inline ++ $år
+
+import f/SIVSTANDFDT_SIVSTAND date_fmt(2000) as siv_proc ++ $år
+
+generate gift = 1 if siv_ ++ $år + 2 == "1"
+
+for år in 2000 : 2002
+  import f/SIVSTANDFDT_SIVSTAND date_fmt($år) as inline_siv ++ $år
+end
+
+let start_år = 2020
+let start_dato = date_fmt($start_år + 1)
+
+let minalder = 40
+let maxalder = 50
+
+create-dataset totalpop
+import f/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+sample 0.1 12345
+generate alder = $start_år - int(faarmnd/100)
+
+import f/BEFOLKNING_STATUSKODE $start_dato as regstat
+
+keep if regstat == '1' & alder >= $minalder & alder <= $maxalder
+histogram alder, discrete freq
+
+for år in 2016 : 2020
+  let dato = date_fmt($år, 12, 31)
+  let yy = $år - 2000
+  let var = lønn ++ $yy
+  import f/INNTEKT_LONN $dato as $var
+end
+
+for år in 2016 : 2020
+  import f/INNTEKT_LONN date_fmt($år, 12, 31) as lønn ++ $år - 2000 ++ "_2"
+end
+
+for år, sivnavn in 2000 : 2002, første andre tredje
+  import f/SIVSTANDFDT_SIVSTAND date_fmt($år) as $sivnavn
+end
+
+for år in 2000 : 2002; sivnavn in første andre
+  import f/SIVSTANDFDT_SIVSTAND date_fmt($år) as $sivnavn ++ $år ++ nøstet
+end
+
+for år, farge in 2000 : 2002, blå gul grønn; sivnavn in første andre
+  import f/SIVSTANDFDT_SIVSTAND date_fmt($år) as $sivnavn ++ $år ++ $farge
+end

@@ -1,0 +1,48 @@
+// ===================================================================
+// Example: Koble sammen data om arbeidsforhold på persondatasett - numeriske opplysninger
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Jobb-%20og%20inntektsanalyser/Koble%20sammen%20data%20om%20arbeidsforhold%20p%C3%A5%20persondatasett%20-%20numeriske%20opplysninger/
+// ===================================================================
+// Skriptet viser hvordan man kan jobbe med jobbdata fra A-ordningen. Data med prefiks
+// ARBLONN_ARB_ har arbeidsforhold som enhetstype (opptil flere records per person).
+// For å kunne koble slike data sammen med vanlige persondatasett, må en først bruke kommandoen
+// collapse til å summere opplysningene knyttet til hvert enkelt arbeidsforhold per individ.
+// Datasettet får da person som enhetstype (en record per person) og kan kobles på persondatasettet.
+//
+// Variabelen ARBEIDSFORHOLD_PERSON brukes til å lenke/aggregere fra jobb- til personnivå.
+// Fremgangsmåten passer fint for numeriske jobbopplysninger som arbeidstid og stillingsprosent.
+// For kategoriske jobbopplysninger anbefales en alternativ løsning.
+// ===================================================================
+
+require no.ssb.fdb:30 as db
+
+// Lager datasett for sysselsatte (persondata)
+create-dataset sysselsatte
+import db/ARBLONN_PERS_KJOENN 2021-07-16 as kjønn
+import db/ARBLONN_PERS_ALDER 2021-07-16 as alder
+
+// Lager datasett for arbeidsforhold (jobbdata)
+create-dataset arbeidsforhold
+import db/ARBLONN_ARB_ARBEIDSTID 2021-07-16 as arbtid
+import db/ARBLONN_ARB_STILLINGSPST 2021-07-16 as stillingspst
+import db/ARBEIDSFORHOLD_PERSON as personid
+
+// Aggregerer fra jobbdata- til persondatanivå ved å summere arbeidstid og stillingsprosent per person.
+// Kobler deretter jobbopplysningene på persondatasettet sysselsatte
+collapse (sum) arbtid stillingspst, by(personid)
+merge arbtid stillingspst into sysselsatte
+
+// Lager jobbstatistikk
+use sysselsatte
+
+summarize arbtid stillingspst
+tabulate kjønn, summarize(arbtid)
+tabulate kjønn, summarize(stillingspst)
+
+generate aldersgr = 1
+replace aldersgr = 2 if alder > 25
+replace aldersgr = 3 if alder > 40
+replace aldersgr = 4 if alder > 60
+define-labels alderslabel 1 '0-25' 2 '26-40' 3 '41-60' 4 '61->'
+assign-labels aldersgr alderslabel
+tabulate aldersgr kjønn, summarize(arbtid)
+tabulate aldersgr kjønn, summarize(stillingspst)

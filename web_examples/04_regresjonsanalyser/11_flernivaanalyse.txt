@@ -1,0 +1,121 @@
+// ===================================================================
+// Example: Flernivåanalyse
+// Source: https://microdata.no/manual/eksempel/Regresjonsanalyser/Flernivåanalyse/
+// ===================================================================
+// Skriptet viser et eksempel på hvordan man kan tilrettelegge data for og kjøre
+// flernivåanalyser. To tilfeller demonstreres: geografiske flernivåstrukturer, og nivåer
+// knyttet til utdanning og yrke. Begge tilfellene bruker samme populasjon og variabler, med
+// lønn som avhengig variabel.
+//
+// Merk at variansestimatene for grupperingsvariablene region og fylke blir like i eksempelet
+// under. Dette skyldes trolig at variansen for disse to variablene er omtrent lik og at de
+// fanger opp svært lik informasjon om lønnsvariansen. Det anbefales å bruke boxplot og
+// histogram for å undersøke gruppevise fordelinger av den avhengige variabelen, og tabulate
+// med standardavvikopsjon for å sammenlikne variasjon på tvers av grupperingsvariabler. Det
+// viktigste skillet mellom casene er at geografiske grupperingsvariabler viser lignende
+// variansmønstre, mens grupperingsvariabler for utdanning og yrke viser tydeligere
+// variansforskjeller.
+// ===================================================================
+
+require no.ssb.fdb:30 as db
+
+// Importerer og tilrettelegger data for flernivåanalyse
+create-dataset mldata
+import db/BOSATTEFDT_BOSTED 2022-12-31 as kommune
+import db/BEFOLKNING_FOEDSELS_AAR_MND as fdato
+generate alder = 2022 - int(fdato/100)
+keep if inrange(alder,20,60)
+
+import db/BEFOLKNING_KJOENN as kjønn
+import db/INNTEKT_LONN 2022-12-31 as lønn
+import db/SIVSTANDFDT_SIVSTAND 2022-12-31 as sivstand
+import db/BEFOLKNING_BARN_I_REGSTAT_FAMNR 2022-01-01 as ant_barn
+import db/NUDB_SOSBAK as sos_bakgrunn
+import db/NUDB_BU 2022-09-01 as utd
+import db/REGSYS_ARB_YRKE_STYRK08 2022-11-16 as yrke
+
+generate mann = kjønn == '1'
+generate gift = sivstand == '2'
+generate utdnivå = substr(utd,1,1)
+generate yrkesgr = substr(yrke,1,1)
+generate fylke = substr(kommune,1,2)
+generate sos_bakgrunn_høy = inlist(sos_bakgrunn,'1','2')
+
+generate region = 1 if inlist(fylke,'03','30','34','38') // Østlandet
+replace region = 2 if inlist(fylke,'11','42') //Sørlandet og Rogaland
+replace region = 3 if inlist(fylke,'46') // Vestlandet
+replace region = 4 if inlist(fylke,'15','50') // Midtnorge
+replace region = 5 if inlist(fylke,'18','54') // Nordnorge
+
+generate landsdel = 1 if inlist(region,1,2,3)
+replace landsdel = 2 if inlist(region,4,5)
+
+define-labels landsdeltxt 1 "Sør-Norge" 2 "Midt-/Nord-Norge"
+assign-labels landsdel landsdeltxt
+
+destring fylke utdnivå yrke yrkesgr
+
+define-labels fylketext \
+	3 "Oslo" \
+	11 "Rogaland" \
+	15 "Møre og Romsdal" \
+	18 "Nordland" \
+	30 "Viken" \
+	34 "Innlandet" \
+	38 "Vestfold og Telemark" \
+	42 "Agder" \
+	46 "Vestland" \
+	50 "Trøndelag" \
+	54 "Troms og Finnmark"
+assign-labels fylke fylketext
+
+generate utdgruppe = 1 if inrange(utdnivå,0,4)
+replace utdgruppe = 2 if inrange(utdnivå,5,6)
+replace utdgruppe = 3 if inrange(utdnivå,7,8)
+
+define-labels utdgrtxt 1 "Lav utd" 2 "Middels utd" 3 "Høy utd"
+assign-labels utdgruppe utdgrtxt
+
+
+//  --------- Case 1: Lønn vs landsdel og fylke -------------
+tabulate fylke landsdel
+
+boxplot lønn, over(fylke)
+boxplot lønn, over(landsdel)
+
+tabulate fylke, summarize(lønn) std
+tabulate landsdel, summarize(lønn) std
+
+// Ettnivåanalyse (OLS)
+regress lønn mann gift ant_barn sos_bakgrunn_høy alder i.utdgruppe
+
+// Tonivåanalyse
+regress-mml lønn mann gift ant_barn sos_bakgrunn_høy alder i.utdgruppe by landsdel
+regress-mml lønn mann gift ant_barn sos_bakgrunn_høy alder i.utdgruppe by fylke
+
+// Trenivåanalyse
+regress-mml lønn mann gift ant_barn sos_bakgrunn_høy alder i.utdgruppe by landsdel fylke
+
+
+//  ---------- Case 2: Lønn vs utdanningsnivå og yrkeshierarki ---------
+tabulate utdnivå, missing
+tabulate utdgruppe, missing
+tabulate yrkesgr, missing
+
+boxplot lønn, over(utdnivå)
+boxplot lønn, over(utdgruppe)
+boxplot lønn, over(yrkesgr)
+
+tabulate utdnivå, summarize(lønn) std
+tabulate utdgruppe, summarize(lønn) std
+tabulate yrkesgr, summarize(lønn) std
+
+// Ettnivåanalyse (OLS)
+regress lønn mann gift ant_barn sos_bakgrunn_høy alder i.fylke
+
+// Tonivåanalyse
+regress-mml lønn mann gift ant_barn sos_bakgrunn_høy alder i.fylke by utdnivå
+regress-mml lønn mann gift ant_barn sos_bakgrunn_høy alder i.fylke by yrkesgr
+
+// Trenivåanalyse
+regress-mml lønn mann gift ant_barn sos_bakgrunn_høy alder i.fylke by utdnivå yrkesgr

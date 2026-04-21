@@ -1,0 +1,221 @@
+// ===================================================================
+// Example: Hvordan tilrettelegge data for overlevelsesanalyse
+// Source: https://microdata.no/manual/eksempel/Regresjonsanalyser/Hvordan tilrettelegge data for overlevelsesanalyse/
+// ===================================================================
+// Det er flere måter å beregne «tid» (antall tidsenheter fra start på måleperiode frem til en
+// spesifikk hendelse skjer) i overlevelsesanalyse. Veiledningen presenterer to distinkte
+// metodiske tilnærminger:
+//
+// Metode A bruker hendelsesimporter med startdatovariabler, hvor forskere sporer når
+// spesifikke hendelser inntreffer og trekker ut første forekomst før dataene aggregeres til
+// individnivå.
+//
+// Metode B bruker tverrsnittsdatasett med ferdige datovariabler som har faste verdier for
+// hver enhet eller individ, noe som krever konvertering av datoformater og beregning av
+// hendelser basert på etablerte datoer (som dødsdato).
+//
+// Skriptet demonstrerer felles steg for begge metodene - beregning av tidsvarighet, etablering
+// av hendelsesindikatorer og håndtering av sensurerte tilfeller (individer som ikke opplever
+// hendelsen i måleperioden) - samtidig som det erkjenner forskjellene i datastruktur og
+// tilrettelegging.
+// ===================================================================
+
+require no.ssb.fdb:45 as ds
+
+textblock
+A) Bruk av hendelsesvariabler og collapse(min)
+----------------------------------------------
+endblock
+
+// Lager datasett med relevant hendelsesvariabel og definerer måleperiode
+create-dataset arbeidsledige
+import-event ds/ARBSOEK2001FDT_HOVED 2010-01-01 to 2019-12-15 as astatus
+
+// Beholder alle hendelser hvor arbeidssøkerstatus = helt arbeidsledig og dato >= 2010
+keep if astatus == '1' & START@astatus > date(2010,01,01)
+
+// Trekker ut første forekomst av hendelse og aggregerer opp til individnivå
+collapse (min) START@astatus, by(PERSONID_1)
+
+// Kjører analysen på et lite tilfeldig utvalg (valgfritt)
+sample 10000 3245
+
+// Beregner antall dager fra start på måleperiode til første gang hendelse skjer
+generate dager = START@astatus - date(2010,01,01)
+replace dager = 0 if dager < 0
+summarize dager
+histogram dager
+
+textblock
+Lager variabelen hendelse som tar verdien 1 for alle med verdi på antall dager. De som ikke har
+verdi for antall dager eller som har hendelsesdato etter at måleperioden er passert,
+får verdien 0 (personer med verdien 0 kalles sensurerte tilfeller på fagspråket).
+endblock
+
+generate hendelse = 1 if sysmiss(dager) == 0
+replace hendelse = 0 if sysmiss(dager) | START@astatus > date(2019,12,15)
+
+textblock
+Setter antall dager til maksverdi for personer der hendelsen ikke har skjedd i løpet av
+måleperioden. Dette er altså personer som har gått gjennom hele måleperioden uten at hendelsen
+har skjedd. Disse får dessuten hendelse = 0 satt gjennom steget over.
+endblock
+
+replace dager = date(2019,12,15) - date(2010,01,01) if sysmiss(dager)
+
+tabulate hendelse, summarize(dager) mean freq
+
+// Lager en årsvariabel for å kunne bruke antall år i stedet for antall dager
+generate år = int(dager/365.24)
+tabulate år, missing
+histogram år, discrete
+summarize år hendelse
+histogram dager
+
+textblock
+Henter diverse tilleggsvariabler for å kunne sammenlikne overlevelsesrater mellom grupper
+av befolkningen
+endblock
+
+import ds/BEFOLKNING_KJOENN as kjønn
+import ds/BEFOLKNING_INVKAT as invkat
+import ds/BEFOLKNING_FOEDSELS_AAR_MND as fdato
+
+generate alder2010 = 2010 - int(fdato/100)
+generate aldersgruppe = 1
+replace aldersgruppe = 2 if alder2010 > 30
+replace aldersgruppe = 3 if alder2010 > 50
+define-labels alderslabel 1 "Alder 0-30 år" 2 "Alder 31-50 år" 3 "Alder 51 år ->"
+assign-labels aldersgruppe alderslabel
+
+generate norsk = 0
+replace norsk = 1 if invkat == 'A'
+
+
+//Kaplan-Meier-analyse
+kaplan-meier hendelse år
+kaplan-meier hendelse dager
+
+kaplan-meier hendelse år, by(kjønn)
+kaplan-meier hendelse dager, by(kjønn)
+
+kaplan-meier hendelse år, by(aldersgruppe)
+kaplan-meier hendelse dager, by(aldersgruppe)
+
+
+//Weibull-analyse
+weibull hendelse år
+weibull hendelse dager
+
+weibull hendelse år, by(kjønn)
+weibull hendelse dager, by(kjønn)
+
+weibull hendelse år, by(aldersgruppe)
+weibull hendelse dager, by(aldersgruppe)
+
+
+summarize norsk
+tabulate hendelse norsk
+tabulate år norsk
+
+define-labels norsklabel 0 "Utenlandsk opprinnelse" 1 "Norsk opprinnelse"
+assign-labels norsk norsklabel
+
+
+//Kaplan-Meier-analyse
+kaplan-meier hendelse år, by(norsk)
+kaplan-meier hendelse dager, by(norsk)
+
+kaplan-meier hendelse år, by(invkat)
+kaplan-meier hendelse dager, by(invkat)
+tabulate år invkat
+
+
+//Weibull-analyse
+weibull hendelse år, by(norsk)
+weibull hendelse dager, by(norsk)
+
+weibull hendelse år, by(invkat)
+weibull hendelse dager, by(invkat)
+
+
+//Cox-analyse
+cox hendelse år norsk alder2010 i.kjønn
+cox hendelse år norsk alder2010 i.kjønn, hazard
+cox hendelse dager norsk alder2010 i.kjønn
+cox hendelse dager norsk alder2010 i.kjønn, hazard
+
+
+textblock
+B) Tverrsnittsdatasett med dateringer som faste variabler
+---------------------------------------------------------
+endblock
+
+// Lager datasett bestående av personer over 70 år som er bosatt i Norge per 2010-01-01
+create-dataset eldre
+import ds/BEFOLKNING_FOEDSELS_AAR_MND as fdato
+import ds/BEFOLKNING_STATUSKODE 2010-01-01 as regstat
+generate alder = 2010 - int(fdato/100)
+keep if alder > 70 & regstat == '1'
+
+textblock
+Henter en ferdig dateringsvariabel (fast opplysning): Dødsdato. Gjør noen operasjoner for
+å kunne lage standard UnixTime-format på datoer gjennom funksjonen date()
+endblock
+
+import ds/BEFOLKNING_DOEDS_DATO as dødsdato
+summarize dødsdato
+replace dødsdato = string(dødsdato)
+generate yyyy = substr(dødsdato,1,4)
+generate mm = substr(dødsdato,5,2)
+generate dd = substr(dødsdato,7,2)
+destring yyyy
+destring mm
+destring dd
+generate dødsdato2 = date(yyyy,mm,dd)
+summarize dødsdato2
+
+// Regner ut antall dager frem til dødsdato målt fra 2010-01-01
+generate dager = dødsdato2 - date(2010,01,01)
+replace dager = 0 if dager < 0
+
+textblock
+Setter hendelse = 1 dersom dødsdato har en verdi som er større enn 2010-01-01.
+Bruker 2023-01-01 som max måledato. Andre får hendelse = 0.
+endblock
+
+generate hendelse = 0
+replace hendelse = 1 if sysmiss(dødsdato) == 0 & dødsdato2 >= date(2010,01,01) & dødsdato2 <= date(2023,01,01)
+
+textblock
+Setter antall dager til maksverdi dersom ingen dødsdato eller dødsdato skjer etter siste måletidspunkt
+endblock
+
+replace dager = date(2023,01,01) - date(2010,01,01) if sysmiss(dager) | dødsdato2 > date(2023,01,01)
+
+tabulate hendelse, summarize(dager) mean freq
+
+// Lager en årsvariant til måling av antall år
+generate år = int(dager/365.24)
+tabulate år
+
+kaplan-meier hendelse år
+kaplan-meier hendelse dager
+
+weibull hendelse år
+weibull hendelse dager
+
+
+// Henter kjønn for å kunne sammenlikne overlevelsesrate mellom kjønn
+import ds/BEFOLKNING_KJOENN as kjønn
+
+kaplan-meier hendelse år, by(kjønn)
+kaplan-meier hendelse dager, by(kjønn)
+
+weibull hendelse år, by(kjønn)
+weibull hendelse dager, by(kjønn)
+
+cox hendelse år alder i.kjønn
+cox hendelse år alder i.kjønn, hazard
+cox hendelse dager alder i.kjønn
+cox hendelse dager alder i.kjønn, hazard

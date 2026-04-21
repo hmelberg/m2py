@@ -1,0 +1,49 @@
+// ===================================================================
+// Example: Jobbpendling
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Jobb-%20og%20inntektsanalyser/Jobbpendling/
+// ===================================================================
+// Dette eksempelet demonstrerer hvordan man kan lage statistikk om pendlemønstre ved bruk av
+// informasjon om bostedskommune og arbeidsstedskommune. Personer som jobber i en annen kommune
+// enn bostedskommunen, defineres som jobbpendlere.
+//
+// Det er viktig at man benytter samme måletidspunkt for de to variablene.
+// ===================================================================
+
+require no.ssb.fdb:31 as db
+
+create-dataset pendling
+import db/BOSATTEFDT_BOSTED 2022-11-16 as bosted
+import db/REGSYS_ARB_ARBKOMM 2022-11-16 as arbeidssted
+drop if sysmiss(arbeidssted)
+
+generate pendler = bosted != arbeidssted
+
+textblock
+Andelen jobbpendlere (personer som jobber i en annen kommune enn bosted) per 16/11 2022:
+endblock
+tabulate pendler, cellpct freq
+
+generate bostedsfylke = substr(bosted,1,2)
+generate arbeidsfylke = substr(arbeidssted,1,2)
+
+define-labels fylkelabel \
+	'03' Oslo \
+	'11' Rogaland \
+	'15' 'Møre og Romsdal' \
+	'18' Nordland \
+	'30' Viken \
+	'34' Innlandet \
+	'38' 'Vestfold og Telemark' \
+	'42' Agder \
+	'46' Vestland \
+	'50' Trøndelag \
+	'54' 'Troms og Finnmark'
+
+assign-labels bostedsfylke fylkelabel
+assign-labels arbeidsfylke fylkelabel
+
+textblock
+Jobbpendlere fordelt på bostedsfylke og arbeidsfylke:
+endblock
+tabulate bostedsfylke arbeidsfylke if pendler
+tabulate bostedsfylke arbeidsfylke if pendler, rowpct

@@ -1,0 +1,105 @@
+// ===================================================================
+// Example: Flytdiagram - sankey med flere overganger
+// Source: https://microdata.no/manual/eksempel/Deskriptiv%20statistikk/Flytdiagram%20-%20sankey%20med%20flere%20overganger/
+// ===================================================================
+// "Skriptet under demonstrerer hvordan man kan lage flytdiagrammer som viser overganger mellom mer
+// enn to tilstander. Dette gjør deg i stand til å følge individuelle bevegelser over lengre
+// tidsperioder og med hyppigere målinger."
+//
+// The script demonstrates how to create flow diagrams showing transitions between more than two
+// states. This enables tracking of individual movements across extended time periods with more
+// frequent measurements.
+// ===================================================================
+
+require no.ssb.fdb:30 as db
+
+create-dataset sankeydata
+import db/BEFOLKNING_FOEDSELS_AAR_MND as fdato
+generate alder = 1992 - int(fdato/100)
+keep if inrange(alder,18,20)
+import db/BOSATTEFDT_BOSTED 1992-01-01 as kommune92
+import db/BOSATTEFDT_BOSTED 2002-01-01 as kommune02
+import db/BOSATTEFDT_BOSTED 2012-01-01 as kommune12
+import db/BOSATTEFDT_BOSTED 2022-01-01 as kommune22
+
+generate fylke92 = substr(kommune92,1,2)
+generate fylke02 = substr(kommune02,1,2)
+generate fylke12 = substr(kommune12,1,2)
+generate fylke22 = substr(kommune22,1,2)
+
+sankey fylke92 fylke02 fylke12 fylke22
+
+// Merk at kommunekodene endret seg veldig mye fra 2020, derfor de store
+// endringene for fylke22. Man kan enten kode om fylkeskodene så de matcher, eller
+// man kan lage grovere inndelinger slik som under (regioner).
+
+generate region22 = 1 if inlist(fylke22,'03') //Oslo
+replace region22 = 2 if inlist(fylke22,'30','34','38') //Østlandet
+replace region22 = 3 if inlist(fylke22,'11','42') //Sørlandet og Rogaland
+replace region22 = 4 if inlist(fylke22,'46') //Vestlandet
+replace region22 = 5 if inlist(fylke22,'15','50') //Midtnorge
+replace region22 = 6 if inlist(fylke22,'18','54') //Nordnorge
+
+generate region12 = 1 if inlist(fylke12,'03') //Oslo
+replace region12 = 2 if inlist(fylke12,'01','02','04','05','06','07','08') //Østlandet
+replace region12 = 3 if inlist(fylke12,'09','10','11') //Sørlandet og Rogaland
+replace region12 = 4 if inlist(fylke12,'12','14') //Vestlandet
+replace region12 = 5 if inlist(fylke12,'15','16','17') //Midtnorge
+replace region12 = 6 if inlist(fylke12,'18','19','20') //Nordnorge
+
+generate region02 = 1 if inlist(fylke02,'03') //Oslo
+replace region02 = 2 if inlist(fylke02,'01','02','04','05','06','07','08') //Østlandet
+replace region02 = 3 if inlist(fylke02,'09','10','11') //Sørlandet og Rogaland
+replace region02 = 4 if inlist(fylke02,'12','14') //Vestlandet
+replace region02 = 5 if inlist(fylke02,'15','16','17') //Midtnorge
+replace region02 = 6 if inlist(fylke02,'18','19','20') //Nordnorge
+
+generate region92 = 1 if inlist(fylke92,'03') //Oslo
+replace region92 = 2 if inlist(fylke92,'01','02','04','05','06','07','08') //Østlandet
+replace region92 = 3 if inlist(fylke92,'09','10','11') //Sørlandet og Rogaland
+replace region92 = 4 if inlist(fylke92,'12','14') //Vestlandet
+replace region92 = 5 if inlist(fylke92,'15','16','17') //Midtnorge
+replace region92 = 6 if inlist(fylke92,'18','19','20') //Nordnorge
+
+define-labels regiontxt 1 Oslo 2 Østlandet 3 "Sørlandet og Rogaland" 4 Vestlandet 5 "Midt-Norge" 6 "Nord-Norge"
+assign-labels region92 regiontxt
+assign-labels region02 regiontxt
+assign-labels region12 regiontxt
+assign-labels region22 regiontxt
+
+sankey region92 region02 region12 region22
+
+
+create-dataset sankeydata2
+import db/BEFOLKNING_FOEDSELS_AAR_MND as fdato
+generate alder = 2015 - int(fdato/100)
+keep if inrange(alder,18,67)
+import db/REGSYS_ARB_ARBMARK_STATUS 2015-11-16 as arbstatus15
+import db/REGSYS_ARB_ARBMARK_STATUS 2019-11-16 as arbstatus19
+import db/REGSYS_ARB_ARBMARK_STATUS 2023-11-16 as arbstatus23
+
+recode arbstatus15 arbstatus19 arbstatus23 ("2" = "1")
+define-labels arbstatustxt "0" "Utenfor arbeidsstyrken" "1" "I jobb" "3" "Helt ledig"
+assign-labels arbstatus15 arbstatustxt
+assign-labels arbstatus19 arbstatustxt
+assign-labels arbstatus23 arbstatustxt
+
+sankey arbstatus15 arbstatus19 arbstatus23
+sankey arbstatus15 arbstatus19 arbstatus23 if inrange(alder,18,25)
+sankey arbstatus15 arbstatus19 arbstatus23 if inrange(alder,26,50)
+sankey arbstatus15 arbstatus19 arbstatus23 if inrange(alder,60,67)
+
+
+create-dataset sankeydata3
+import db/BEFOLKNING_FOEDSELS_AAR_MND as fdato
+generate alder = 1992 - int(fdato/100)
+keep if inrange(alder,18,67)
+import db/SIVSTANDFDT_SIVSTAND 1992-01-01 as sivstand92
+import db/SIVSTANDFDT_SIVSTAND 2002-01-01 as sivstand02
+import db/SIVSTANDFDT_SIVSTAND 2012-01-01 as sivstand12
+import db/SIVSTANDFDT_SIVSTAND 2022-01-01 as sivstand22
+drop if inlist("0",sivstand92,sivstand02,sivstand12,sivstand22)
+
+recode sivstand92 sivstand02 sivstand12 sivstand22 ("5" "7" "8" = "4" "Skilt/separert") ("6" = "2" "Gift/partner") ("9" = "3")
+
+sankey sivstand92 sivstand02 sivstand12 sivstand22

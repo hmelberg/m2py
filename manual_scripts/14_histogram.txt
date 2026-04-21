@@ -1,0 +1,26 @@
+// Eksempel 4.8.3: Histogram og barchart
+require no.ssb.fdb:12 as db
+create-dataset demografidata
+import db/INNTEKT_WYRKINNT 2015-01-01 as innt
+import db/INNTEKT_BRUTTOFORM 2015-01-01 as formue
+import db/BEFOLKNING_KJOENN as kjonn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+// Lager alder per 2015
+generate alder = 2015 - int(faarmnd/100)
+// Histogram (frekvensfordelinger)
+histogram innt
+histogram innt, freq
+histogram innt, fraction
+histogram innt, percent
+histogram innt, normal
+histogram innt, bin(6) freq
+histogram innt, width(100000) freq
+histogram innt, by(kjonn)
+histogram innt if innt > 100000
+
+// Ved bruk av discrete-option kan en også lage histogrammer for diskrete variabler
+histogram alder, discrete
+
+// Søylediagram
+barchart (mean) innt, over(kjonn)
+barchart (mean) innt formue, over(kjonn)

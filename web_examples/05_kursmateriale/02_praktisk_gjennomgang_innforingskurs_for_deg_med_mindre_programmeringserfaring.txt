@@ -1,0 +1,125 @@
+// ===================================================================
+// Example: Praktisk gjennomgang – innføringskurs for deg med mindre programmeringserfaring
+// Source: https://microdata.no/manual/eksempel/Kursmateriale/Praktisk gjennomgang – innføringskurs for deg med mindre programmeringserfaring/
+// ===================================================================
+// Skriptet nedenfor viser hvordan man løser oppgavene i oppgavesettet som benyttes for
+// innføringskurset for deg med mindre programmeringserfaring, som Sikt og SSB kjører med
+// jevne mellomrom. Materialet er en del av kurstilbudet fra Sikt og Statistisk sentralbyrå,
+// med mer informasjon tilgjengelig via deres kursportal.
+// ===================================================================
+
+// Bygge opp et datasett
+
+require no.ssb.fdb:23 as ds
+
+create-dataset totalpop
+
+import ds/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+generate alder = 2020 - int(faarmnd/100)
+histogram alder, discrete
+
+import ds/BEFOLKNING_STATUSKODE 2020-01-01 as regstat
+keep if regstat == '1'
+
+histogram alder, discrete
+summarize alder
+
+keep if alder > 30 & alder < 50
+
+import ds/BEFOLKNING_KJOENN as kjønn
+import ds/BEFOLKNING_FODELAND as land
+import ds/NUDB_BU 2020-08-31 as utd
+import ds/BEFOLKNING_KOMMNR_FAKTISK 2020-01-01 as bosted
+import ds/INNTEKT_WLONN 2015-12-31 as lønn15
+import ds/INNTEKT_WLONN 2016-12-31 as lønn16
+import ds/INNTEKT_WLONN 2017-12-31 as lønn17
+import ds/INNTEKT_WLONN 2018-12-31 as lønn18
+import ds/INNTEKT_WLONN 2019-12-31 as lønn19
+
+// Kjøre deskriptiv statistikk
+
+// Endimensjonalt
+tabulate kjønn, cellpct
+
+summarize lønn15 lønn16 lønn17 lønn18 lønn19
+summarize lønn15 lønn16 lønn17 lønn18 lønn19, gini
+
+barchart (mean) lønn15 lønn16 lønn17 lønn18 lønn19
+barchart (count) lønn15 lønn16 lønn17 lønn18 lønn19
+barchart (median) lønn15 lønn16 lønn17 lønn18 lønn19
+
+histogram lønn19, freq
+histogram lønn19, freq normal
+histogram lønn19, bin(10)
+histogram lønn19, bin(4)
+
+// Todimensjonalt
+
+generate norsk = 0
+replace norsk = 1 if land == '000'
+tabulate norsk
+tabulate norsk, cellpct
+piechart norsk
+
+generate utdnivå = substr(utd,1,1)
+tabulate utdnivå, cellpct
+
+tabulate norsk kjønn, rowpct
+tabulate utdnivå kjønn, rowpct
+tabulate utdnivå norsk, rowpct
+
+destring utdnivå
+summarize lønn15 lønn16 lønn17 lønn18 lønn19 if utdnivå < 2
+summarize lønn15 lønn16 lønn17 lønn18 lønn19 if utdnivå > 6
+
+tabulate kjønn, summarize(lønn19)
+tabulate norsk, summarize(lønn19)
+tabulate utdnivå, summarize(lønn19)
+tabulate utdnivå kjønn, summarize(lønn19)
+
+barchart (mean) lønn15 lønn16 lønn17 lønn18 lønn19, over(kjønn)
+barchart (mean) lønn15 lønn16 lønn17 lønn18 lønn19, over(norsk)
+barchart (mean) lønn15 lønn16 lønn17 lønn18 lønn19, over(utdnivå)
+
+histogram lønn19, by(kjønn)
+histogram lønn19, by(norsk)
+
+// Bruke labler i tabeller
+
+define-labels utdlabel \
+	0 'Ingen utdanning' \
+	1 Barneskole \
+	2 Ungdomsskole \
+	3 Videregående \
+	4 'Videregående - avsluttende' \
+	5 'Påbygging til videregående' \
+	6 'UH-utdanning - lavere nivå' \
+	7 'UH-utdanning - høyere nivå' \
+	8 Forskerutdanning \
+	9 Uoppgitt
+assign-labels utdnivå utdlabel
+tabulate utdnivå kjønn
+
+// Lage egne inndelinger
+generate utdgr = 1 if utdnivå >= 0
+replace utdgr = 2 if utdnivå >= 6
+replace utdgr = 3 if utdnivå >= 7
+replace utdgr = 9 if utdnivå == 9
+
+define-labels utdlabel2 1 Lav 2 Middels 3 Høy 9 Uoppgitt
+assign-labels utdgr utdlabel2
+tabulate utdgr kjønn, rowpct freq
+tabulate utdgr kjønn, rowpct freq missing
+
+// Til slutt kjøres en enkel regresjon
+generate mann = 0
+replace mann = 1 if kjønn == '1'
+
+generate oslo = 1 if bosted == '0301'
+replace oslo = 0 if bosted != '0301'
+tabulate oslo, cellpct
+
+generate høy_utd = 1 if utdnivå >= 7
+replace høy_utd = 0 if utdnivå >= 0 & utdnivå < 7
+
+regress lønn19 alder norsk oslo mann høy_utd

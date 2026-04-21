@@ -1,0 +1,79 @@
+// ===================================================================
+// Example: Beregne antall barn uavhengig av hvor barna bor
+// Source: https://microdata.no/manual/eksempel/Tema - Familieanalyser/Beregne antall barn uavhengig av hvor barna bor/
+// ===================================================================
+// I microdata.no finnes det ferdige variabler som viser antall barn i familien eller
+// husholdningen, men dette inkluderer bare de barna som faktisk bor sammen med de
+// respektive foreldrene. Noen ganger trenger analytikere å telle barn uavhengig av deres
+// bostedsstatus, inkludert de som bor med bare én forelder når foreldrene er separert,
+// eller som bor andre steder.
+//
+// Skriptet demonstrerer hvordan man identifiserer foreldre med barn under 18 år, og tar
+// hensyn til situasjoner der barn kan bo i andre husholdninger enn sine mødre og/eller
+// fedre. Eksempelet begrenser videre analysen til foreldre bosatt i Oslo og beregner
+// antall barn per forelder.
+// ===================================================================
+
+require no.ssb.fdb:30 as db
+
+// Lager datasett av barn under 18
+create-dataset barn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as fdato
+generate alder = 2022 - int(fdato/100)
+keep if alder < 18
+import db/BEFOLKNING_FAR_FNR as farid
+import db/BEFOLKNING_MOR_FNR as morid
+
+// Lager datasett av foreldre bosatt i Oslo
+create-dataset osloforeldre
+import db/BOSATTEFDT_BOSTED 2022-12-31 as kommune_far
+keep if kommune_far == '0301'
+clone-variables kommune_far -> kommune_mor
+merge kommune_far into barn on farid
+merge kommune_mor into barn on morid
+
+// Lager dummyvariabler for barn som angir om man har hhv. en far eller mor bosatt i Oslo,
+// og fjerner de som ikke har noen foreldre bosatt i Oslo
+use barn
+generate oslofar = kommune_far == '0301'
+generate oslomor = kommune_mor == '0301'
+drop if !oslofar & !oslomor
+tabulate oslofar oslomor
+
+// Lager en kopi av barnedatasettet for å kunne koble sammen både mor og far med barnet
+clone-dataset barn barn2
+
+// Aggregerer barnedatasettet ved å telle opp antall barn per far bosatt i Oslo, og kobler på foreldredatasettet
+collapse(count) oslofar -> ant_barn_far, by(farid)
+merge ant_barn_far into osloforeldre
+
+// Bruker det kopierte datasettet for å gjøre det samme med mødre bosatt i Oslo
+use barn2
+collapse(count) oslomor -> ant_barn_mor, by(morid)
+merge ant_barn_mor into osloforeldre
+
+// Bruker foreldredatasettet til å lage statistikk over antall barn.
+// Fjerner foreldre som ikke har barn fra populasjonen
+use osloforeldre
+keep if ant_barn_far > 0 | ant_barn_mor > 0
+
+textblock
+Lager kontrolltabell som viser antall barn for mor og far bosatt i Oslo. Menn vil ha missing på variabelen ant_barn_mor,
+og kvinner vil ha missing på variabelen ant_barn_far. Dette ser man av rekken/kolonnen som viser SYSMISS. Noen få
+individer har verdi både på ant_barn_far og ant_barn_mor. Dette kan skyldes at personer har skiftet kjønn, eller det kan
+være snakk om feilkoding:
+endblock
+tabulate ant_barn_far ant_barn_mor, missing
+
+// Erstatter missingverdier med null slik at man kan summere antall barn over ant_barn_far og ant_barn_mor. Med noen få
+// unntak har alle verdi bare på en av variablene. Variabelen ant_barn skal da i praksis vise antall barn per forelder
+// bosatt i Oslo (uavhengig av hvor barnet bor). Merk at man teller opp antall barn per forelder og ikke per familie.
+
+replace ant_barn_far = 0 if sysmiss(ant_barn_far)
+replace ant_barn_mor = 0 if sysmiss(ant_barn_mor)
+generate ant_barn = ant_barn_far + ant_barn_mor
+
+textblock
+Antall foreldre bosatt i Oslo fordelt på antall barn under 18:
+endblock
+tabulate ant_barn

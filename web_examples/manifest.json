@@ -1,0 +1,432 @@
+{
+  "categories": [
+    {
+      "folder": "01_grunnleggende_operasjoner",
+      "label": "01 — Grunnleggende operasjoner",
+      "scripts": [
+        {
+          "file": "01_opprette_flere_datasett_og_flytte_seg_mellom_dem.txt",
+          "label": "Opprette flere datasett og flytte seg mellom dem"
+        },
+        {
+          "file": "02_opprette_og_endre_et_datasett.txt",
+          "label": "Opprette og endre et datasett"
+        },
+        {
+          "file": "03_hvordan_lage_populasjoner.txt",
+          "label": "Hvordan lage populasjoner"
+        },
+        {
+          "file": "04_fjerning_av_enheter_fra_et_datasett.txt",
+          "label": "Fjerning av enheter fra et datasett"
+        },
+        {
+          "file": "05_trekke_tilfeldige_utvalg_fra_en_totalpopulasjon.txt",
+          "label": "Trekke tilfeldige utvalg fra en totalpopulasjon"
+        },
+        {
+          "file": "06_lage_dummyvariabel.txt",
+          "label": "Lage dummyvariabel"
+        },
+        {
+          "file": "07_lage_dummyvariabel_ved_a_bruke_kommandoen_recode.txt",
+          "label": "Lage dummyvariabel ved å bruke kommandoen recode"
+        },
+        {
+          "file": "08_ulike_mater_a_lage_flerkategorivariabler.txt",
+          "label": "Ulike måter å lage flerkategorivariabler"
+        },
+        {
+          "file": "09_trekke_ut_deler_av_alfanumeriske_verdier.txt",
+          "label": "Trekke ut deler av alfanumeriske verdier"
+        },
+        {
+          "file": "10_trekke_ut_deler_av_numeriske_verdier.txt",
+          "label": "Trekke ut deler av numeriske verdier"
+        },
+        {
+          "file": "11_konvertere_fra_alfanumerisk_til_numerisk_verdiformat.txt",
+          "label": "Konvertere fra alfanumerisk til numerisk verdiformat"
+        },
+        {
+          "file": "12_tilrettelegge_variabler_dummy_og_flerkategorivariabler_funksjoner_labler.txt",
+          "label": "Tilrettelegge variabler - dummy- og flerkategorivariabler - funksjoner - labler"
+        }
+      ]
+    },
+    {
+      "folder": "02_sammensatte_operasjoner",
+      "label": "02 — Sammensatte operasjoner",
+      "scripts": [
+        {
+          "file": "01_bruke_funksjoner_for_variabelberegninger.txt",
+          "label": "Bruke funksjoner for variabelberegninger"
+        },
+        {
+          "file": "02_restrukturere_datasett_fra_wide_til_long_format.txt",
+          "label": "Restrukturere datasett fra wide- til long-format"
+        },
+        {
+          "file": "03_restrukturere_datasett_fra_long_til_wide_format.txt",
+          "label": "Restrukturere datasett fra long- til wide-format"
+        },
+        {
+          "file": "04_bruke_bindinger_og_lokker.txt",
+          "label": "Bruke bindinger og løkker"
+        },
+        {
+          "file": "05_trekke_ut_deler_av_en_hierarkisk_kode_og_lage_verdilabler.txt",
+          "label": "Trekke ut deler av en hierarkisk kode og lage verdilabler"
+        }
+      ]
+    },
+    {
+      "folder": "03_deskriptiv_statistikk",
+      "label": "03 — Deskriptiv statistikk",
+      "scripts": [
+        {
+          "file": "01_tabeller_tabulate.txt",
+          "label": "Tabeller - tabulate"
+        },
+        {
+          "file": "02_nokkeltall_summarize_boxplot.txt",
+          "label": "Nøkkeltall - summarize og boxplot"
+        },
+        {
+          "file": "03_soylediagrammer_histogram_barchart.txt",
+          "label": "Søylediagrammer - histogram og barchart"
+        },
+        {
+          "file": "04_kakediagram_spredningsdiagram_piechart_hexbin.txt",
+          "label": "Kakediagram og spredningsdiagram - piechart og hexbin"
+        },
+        {
+          "file": "05_flytdiagram_sankey.txt",
+          "label": "Flytdiagram - sankey"
+        },
+        {
+          "file": "06_flytdiagram_sankey_med_flere_overganger.txt",
+          "label": "Flytdiagram - sankey med flere overganger"
+        }
+      ]
+    },
+    {
+      "folder": "04_regresjonsanalyser",
+      "label": "04 — Regresjonsanalyser",
+      "scripts": [
+        {
+          "file": "01_linear_regresjonsanalyse.txt",
+          "label": "Lineær regresjonsanalyse"
+        },
+        {
+          "file": "02_bruk_av_instrumentvariabel_i_regresjonsanalyse.txt",
+          "label": "Bruk av instrumentvariabel i regresjonsanalyse"
+        },
+        {
+          "file": "03_logistisk_regresjonsanalyse.txt",
+          "label": "Logistisk regresjonsanalyse"
+        },
+        {
+          "file": "04_avansert_logistisk_regresjonsanalyse.txt",
+          "label": "Avansert logistisk regresjonsanalyse"
+        },
+        {
+          "file": "05_analyse_av_prediksjons_og_residualverdier.txt",
+          "label": "Analyse av prediksjons- og residualverdier"
+        },
+        {
+          "file": "06_finne_predikert_verdi_for_responsvariabel.txt",
+          "label": "Finne predikert verdi for responsvariabel"
+        },
+        {
+          "file": "07_paneldata_analyse.txt",
+          "label": "Paneldata-analyse"
+        },
+        {
+          "file": "08_diff_in_diff_analyse.txt",
+          "label": "Diff-in-diff-analyse"
+        },
+        {
+          "file": "09_hvordan_tilrettelegge_data_for_overlevelsesanalyse.txt",
+          "label": "Hvordan tilrettelegge data for overlevelsesanalyse"
+        },
+        {
+          "file": "10_rdd_analyse.txt",
+          "label": "RDD-analyse"
+        },
+        {
+          "file": "11_flernivaanalyse.txt",
+          "label": "Flernivåanalyse"
+        }
+      ]
+    },
+    {
+      "folder": "05_kursmateriale",
+      "label": "05 — Kursmateriale",
+      "scripts": [
+        {
+          "file": "01_praktisk_gjennomgang_innforingskurs.txt",
+          "label": "Praktisk gjennomgang – innføringskurs"
+        },
+        {
+          "file": "02_praktisk_gjennomgang_innforingskurs_for_deg_med_mindre_programmeringserfaring.txt",
+          "label": "Praktisk gjennomgang – innføringskurs for deg med mindre programmeringserfaring"
+        },
+        {
+          "file": "03_praktisk_gjennomgang_temakurs_om_kontekstuelle_data_del_1_familiedata.txt",
+          "label": "Praktisk gjennomgang – temakurs om kontekstuelle data del 1 - familiedata"
+        },
+        {
+          "file": "04_praktisk_gjennomgang_temakurs_om_jobbdata_fra_a_ordningen.txt",
+          "label": "Praktisk gjennomgang – temakurs om jobbdata fra A-ordningen"
+        },
+        {
+          "file": "05_praktisk_gjennomgang_temakurs_om_inntekt_skatt_trygd.txt",
+          "label": "Praktisk gjennomgang – temakurs om inntekt - skatt - trygd"
+        },
+        {
+          "file": "06_praktisk_gjennomgang_temakurs_om_bygging_av_datasett.txt",
+          "label": "Praktisk gjennomgang – temakurs om bygging av datasett"
+        }
+      ]
+    },
+    {
+      "folder": "06_familieanalyser",
+      "label": "06 — Familieanalyser",
+      "scripts": [
+        {
+          "file": "01_bruke_forlopsdata_til_a_finne_personer_som_har_skilt_seg_i_lopet_av_et_ar.txt",
+          "label": "Bruke forløpsdata til å finne personer som har skilt seg i løpet av et år"
+        },
+        {
+          "file": "02_aggregere_data_til_familieniva.txt",
+          "label": "Aggregere data til familienivå"
+        },
+        {
+          "file": "03_hvordan_bruke_foreldreopplysninger_i_analyser.txt",
+          "label": "Hvordan bruke foreldreopplysninger i analyser"
+        },
+        {
+          "file": "04_hvordan_bruke_foreldre_og_besteforeldreopplysninger_i_analyser.txt",
+          "label": "Hvordan bruke foreldre- og besteforeldreopplysninger i analyser"
+        },
+        {
+          "file": "05_lage_datasett_bestaende_av_ektefeller_og_samboere.txt",
+          "label": "Lage datasett bestående av ektefeller og samboere"
+        },
+        {
+          "file": "06_lage_analyse_av_sosken.txt",
+          "label": "Lage analyse av søsken"
+        },
+        {
+          "file": "07_finne_andelen_modre_og_alder_ved_forste_fodsel.txt",
+          "label": "Finne andelen mødre og alder ved første fødsel"
+        },
+        {
+          "file": "08_beregne_antall_barn_uavhengig_av_hvor_barna_bor.txt",
+          "label": "Beregne antall barn uavhengig av hvor barna bor"
+        },
+        {
+          "file": "09_finne_flyktningebarn_som_kom_til_norge_med_eller_uten_foreldre.txt",
+          "label": "Finne flyktningebarn som kom til Norge med eller uten foreldre"
+        }
+      ]
+    },
+    {
+      "folder": "07_jobb_inntekt",
+      "label": "07 — Jobb inntekt",
+      "scripts": [
+        {
+          "file": "01_gruppere_inntekter_i_prosentiler_desiler_og_kvartiler.txt",
+          "label": "Gruppere inntekter i prosentiler, desiler og kvartiler"
+        },
+        {
+          "file": "02_koble_sammen_data_om_arbeidsforhold_pa_persondatasett_-_numeriske_opplysninger.txt",
+          "label": "Koble sammen data om arbeidsforhold på persondatasett - numeriske opplysninger"
+        },
+        {
+          "file": "03_koble_sammen_data_om_arbeidsforhold_pa_persondatasett_-_kategoriske_opplysninger.txt",
+          "label": "Koble sammen data om arbeidsforhold på persondatasett - kategoriske opplysninger"
+        },
+        {
+          "file": "04_koble_persondata_pa_jobbdatasett.txt",
+          "label": "Koble persondata på jobbdatasett"
+        },
+        {
+          "file": "05_analysere_hovedjobber.txt",
+          "label": "Analysere hovedjobber"
+        },
+        {
+          "file": "06_analysere_jobber_med_hoyeste_stillingsprosent.txt",
+          "label": "Analysere jobber med høyeste stillingsprosent"
+        },
+        {
+          "file": "07_analysere_jobber_som_starter_forst.txt",
+          "label": "Analysere jobber som starter først"
+        },
+        {
+          "file": "08_analysere_turnusordninger.txt",
+          "label": "Analysere turnusordninger"
+        },
+        {
+          "file": "09_bruke_outer_join_til_a_fange_opp_personer_som_kommer_i_jobb_i_lopet_av_observasjonsperioden.txt",
+          "label": "Bruke outer join til å fange opp personer som kommer i jobb i løpet av observasjonsperioden"
+        },
+        {
+          "file": "10_jobbpendling.txt",
+          "label": "Jobbpendling"
+        },
+        {
+          "file": "11_lage_statistikk_over_ansatte_og_utdanningsniva_innen_yrker_og_naeringer.txt",
+          "label": "Lage statistikk over ansatte og utdanningsnivå innen yrker og næringer"
+        }
+      ]
+    },
+    {
+      "folder": "08_regionalanalyser",
+      "label": "08 — Regionalanalyser",
+      "scripts": [
+        {
+          "file": "01_omkode_fra_land_til_verdensregion.txt",
+          "label": "Omkode fra land til verdensregion"
+        },
+        {
+          "file": "02_omkode_fra_2019-_til_2020-kommuneinndeling.txt",
+          "label": "Omkode fra 2019- til 2020-kommuneinndeling"
+        },
+        {
+          "file": "03_hvordan_aggregere_og_lage_kontekstuelle_data_pa_kommuneniva.txt",
+          "label": "Hvordan aggregere og lage kontekstuelle data på kommunenivå"
+        },
+        {
+          "file": "04_vise_flyttestrommer_mellom_kommuner_-_2024-2025.txt",
+          "label": "Vise flyttestrømmer mellom kommuner - 2024-2025"
+        },
+        {
+          "file": "05_vise_flyttestrommer_mellom_kommuner_-_2023-2024.txt",
+          "label": "Vise flyttestrømmer mellom kommuner - 2023-2024"
+        },
+        {
+          "file": "06_vise_flyttestrommer_mellom_kommuner_-_2019-2020.txt",
+          "label": "Vise flyttestrømmer mellom kommuner - 2019-2020"
+        },
+        {
+          "file": "07_vise_flyttestrommer_mellom_kommuner_-_2018-2019.txt",
+          "label": "Vise flyttestrømmer mellom kommuner - 2018-2019"
+        },
+        {
+          "file": "08_vise_flyttestrommer_mellom_kommuner_-_2017-2018.txt",
+          "label": "Vise flyttestrømmer mellom kommuner - 2017-2018"
+        },
+        {
+          "file": "09_vise_flyttestrommer_mellom_kommuner_-_2016-2017.txt",
+          "label": "Vise flyttestrømmer mellom kommuner - 2016-2017"
+        },
+        {
+          "file": "10_lage_statistikk_over_boligbytter.txt",
+          "label": "Lage statistikk over boligbytter"
+        }
+      ]
+    },
+    {
+      "folder": "09_utdanningsanalyser",
+      "label": "09 — Utdanningsanalyser",
+      "scripts": [
+        {
+          "file": "01_hente_ut_informasjon_om_pagaende_utdanning_i_lopet_av_et_ar.txt",
+          "label": "Hente ut informasjon om pågående utdanning i løpet av et år"
+        },
+        {
+          "file": "02_hente_ut_informasjon_om_pagaende_utdanning_for_et_gitt_tidspunkt.txt",
+          "label": "Hente ut informasjon om pågående utdanning for et gitt tidspunkt"
+        },
+        {
+          "file": "03_skoleelever_-_karakterer_i_grunnskolen_og_status_for_videregaende_utdanning.txt",
+          "label": "Skoleelever - karakterer i grunnskolen og status for videregående utdanning"
+        },
+        {
+          "file": "04_analysere_voksne_under_utdanning.txt",
+          "label": "Analysere voksne under utdanning"
+        },
+        {
+          "file": "05_lage_statistikk_pa_fullforing_av_videregaende_skole.txt",
+          "label": "Lage statistikk på fullføring av videregående skole"
+        },
+        {
+          "file": "06_folge_personer_innen_utdanningsforlopet_og_status_etter_endt_utdanning.txt",
+          "label": "Følge personer innen utdanningsforløpet og status etter endt utdanning"
+        },
+        {
+          "file": "07_finne_studiekoder_for_personer_som_starter_videregaende_utdanning_et_gitt_ar.txt",
+          "label": "Finne studiekoder for personer som starter videregående utdanning et gitt år"
+        },
+        {
+          "file": "08_lage_statistikk_over_laererutdanninger.txt",
+          "label": "Lage statistikk over lærerutdanninger"
+        }
+      ]
+    },
+    {
+      "folder": "10_sosial_ulikhet",
+      "label": "10 — Sosial ulikhet",
+      "scripts": [
+        {
+          "file": "01_analysere_neet-status_for_unge_individer.txt",
+          "label": "Analysere NEET-status for unge individer"
+        },
+        {
+          "file": "02_analysere_arbeidsmarkedsstatus_for_ulike_norskopplaeringskohorter.txt",
+          "label": "Analysere arbeidsmarkedsstatus for ulike norskopplæringskohorter"
+        }
+      ]
+    },
+    {
+      "folder": "11_kjoretoy",
+      "label": "11 — Kjoretoy",
+      "scripts": [
+        {
+          "file": "01_finne_antall_personbiler_per_individ.txt",
+          "label": "Finne antall personbiler per individ"
+        },
+        {
+          "file": "02_finne_antall_personbiler_per_familie.txt",
+          "label": "Finne antall personbiler per familie"
+        },
+        {
+          "file": "03_lage_kjoretoystatistikk.txt",
+          "label": "Lage kjøretøystatistikk"
+        },
+        {
+          "file": "04_analysere_personbiltrender.txt",
+          "label": "Analysere personbiltrender"
+        },
+        {
+          "file": "05_finne_antall_fossil-_hybrid-_og_elbiler_per_familie.txt",
+          "label": "Finne antall fossil-, hybrid-, og elbiler per familie"
+        },
+        {
+          "file": "06_lage_statistikk_over_eierskifte.txt",
+          "label": "Lage statistikk over eierskifte"
+        }
+      ]
+    },
+    {
+      "folder": "12_stromdata",
+      "label": "12 — Stromdata",
+      "scripts": [
+        {
+          "file": "01_hvordan_lage_statistikk_over_nasjonalt_og_regionalt_stromforbruk_og_stromproduksjon.txt",
+          "label": "Hvordan lage statistikk over nasjonalt og regionalt strømforbruk og strømproduksjon"
+        },
+        {
+          "file": "02_analysere_sammenheng_mellom_stromforbruk_og_boligtyper.txt",
+          "label": "Analysere sammenheng mellom strømforbruk og boligtyper"
+        },
+        {
+          "file": "03_analysere_stromforbruk_for_primaerboliger.txt",
+          "label": "Analysere strømforbruk for primærboliger"
+        }
+      ]
+    }
+  ]
+}

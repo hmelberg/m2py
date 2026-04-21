@@ -1,0 +1,32 @@
+// Eksempel 2.11c: Hente ut informasjon om pågående utdanning (kurs)
+// Kobler til databank
+require no.ssb.fdb:12 as db
+
+// Oppretter persondatasett for bosatte per 2019-01-01
+create-dataset bosatte
+import db/BEFOLKNING_KJOENN as kjonn
+import db/BEFOLKNING_STATUSKODE 2019-01-01 as regstatus
+keep if regstatus == '1'
+
+// Henter personer som tar høyere utdanning i løpet av 2019
+create-dataset kursdata
+import-event db/NUDB_KURS_NUS 2019-01-01 to 2019-12-31 as kurstype
+destring kurstype
+keep if kurstype >= 700000 & kurstype < 900000
+
+// Kobler på lenke mellom kurs-id og fødselsnumre
+create-dataset lenke_kurs_person
+import db/NUDB_KURS_FNR as fnr
+merge fnr into kursdata
+
+// Lager statistikk over antall hendelser med høy utdanning per individ
+use kursdata
+collapse (count) kurstype, by(fnr)
+rename kurstype ant_kurs
+merge ant_kurs into bosatte
+
+// Lager tabell over antall personer som tok høy utdanning i løpet av 2019
+use bosatte
+generate utdanning_hoy = 0
+replace utdanning_hoy = 1 if ant_kurs >= 1
+tabulate utdanning_hoy kjonn

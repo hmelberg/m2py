@@ -1,0 +1,60 @@
+// ===================================================================
+// Example: Flytdiagram - sankey
+// Source: https://microdata.no/manual/eksempel/Deskriptiv%20statistikk/Flytdiagram%20-%20sankey/
+// ===================================================================
+// The `sankey` command creates transition or flow diagrams for categorical variables, visualizing
+// movements between values at the unit level. The most common use case displays status changes
+// over time, such as residential location in 2016 versus 2019. "Bevegelser mellom statuser
+// representeres med piler som er bredere jo flere enheter som befinner seg i den aktuelle
+// overgangen" (movements between statuses are represented with arrows that are wider as more units
+// move through that particular transition).
+//
+// The command can also examine transitions between different types of states, such as job-seeker
+// status in one year compared to employment status in another year.
+// ===================================================================
+
+// Overgangs-/flytdiagram (Sankey)
+
+require no.ssb.fdb:23 as db
+
+create-dataset demografidata
+import db/SIVSTANDFDT_SIVSTAND 2016-01-01 as sivstand16
+import db/SIVSTANDFDT_SIVSTAND 2019-01-01 as sivstand19
+import db/BOSATTEFDT_BOSTED 2016-01-01 as bosted16
+import db/BOSATTEFDT_BOSTED 2019-01-01 as bosted19
+
+// Koder om fra kommune- til fylkesnivå
+generate fylke16 = substr(bosted16,1,2)
+generate fylke19 = substr(bosted19,1,2)
+
+define-labels fylkerstring \
+	'01' 'Østfold' \
+	'02' 'Akershus' \
+	'03' 'Oslo' \
+	'04' 'Hedmark' \
+	'05' 'Oppland' \
+	'06' 'Buskerud' \
+	'07' 'Vestfold' \
+	'08' 'Telemark' \
+	'09' 'Aust-Agder' \
+	'10' 'Vest-Agder' \
+	'11' 'Rogaland' \
+	'12' 'Hordaland' \
+	'14' 'Sogn og Fjordane' \
+	'15' 'Møre og Romsdal' \
+	'16' 'Sør-Trøndelag' \
+	'17' 'Nord-Trøndelag' \
+	'18' 'Nordland' \
+	'19' 'Troms' \
+	'20' 'Finnmark' \
+	'99' 'Uoppgitt'
+
+assign-labels fylke16 fylkerstring
+assign-labels fylke19 fylkerstring
+
+sankey fylke16 fylke19 if fylke16 == '12'
+sankey fylke16 fylke19 if fylke19 == '03'
+sankey fylke16 fylke19 if fylke19 == '03' & fylke16 != '03'
+
+sankey sivstand16 sivstand19
+sankey sivstand16 sivstand19 if sivstand16 == '2'

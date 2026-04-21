@@ -1,0 +1,41 @@
+// ===================================================================
+// Example: Bruk av instrumentvariabel i regresjonsanalyse
+// Source: https://microdata.no/manual/eksempel/Regresjonsanalyser/Bruk av instrumentvariabel i regresjonsanalyse/
+// ===================================================================
+// Kommandoen ivregress brukes når forskere mistenker multikollinearitet – korrelasjon mellom
+// to eller flere uavhengige variabler. Instrumentvariabler defineres innenfor parentesuttrykk.
+// I eksempelet under er "formuehøy" instrumentvariabelen, med "alder" som instrument, men
+// flere instrumenter kan spesifiseres ved behov. Hvis man f.eks. tror bosted (Oslo) også
+// påvirker "formuehøy", kan uttrykket utvides til (formuehøy = alder oslo). Kommandoen
+// ivregress behandler alle uavhengige variabler som instrumenter bortsett fra selve
+// instrumentvariabelen.
+// ===================================================================
+
+require no.ssb.fdb:33 as db
+
+create-dataset ivanalyse
+import db/INNTEKT_WLONN 2021-12-31 as lønn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+
+generate alder = 2020 - int(faarmnd /100)
+keep if inrange(alder,18,60)
+
+import db/BEFOLKNING_KJOENN as kjønn
+generate mann = kjønn == '1'
+
+import db/INNTEKT_BRUTTOFORM 2020-12-31 as formue
+generate formuehøy = formue > 1500000
+
+// Foretar først vanlig lineær regresjon
+regress lønn alder mann formuehøy
+
+// Mistenker en sammenheng mellom alder og formue. Bruker derfor en modell med instrumentvariabel (formuehøy)
+ivregress lønn mann (formuehøy = alder)
+
+// I tillegg til å sammenlikne output fra regresjonene, sjekkes det for multikollinearitet og normalfordelte restledd
+correlate formuehøy alder
+regress-predict lønn alder mann formuehøy, residuals(res1)
+ivregress-predict lønn mann (formuehøy = alder), residuals(res2)
+
+histogram res1
+histogram res2

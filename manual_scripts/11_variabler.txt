@@ -1,0 +1,36 @@
+// Eksempel 3.8: Tilrettelegging av variabler
+// Kobler til databank
+require no.ssb.fdb:12 as db
+
+// Henter variablene en trenger
+create-dataset demografidata
+import db/BEFOLKNING_KJOENN as kjonn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+import db/INNTEKT_BRUTTOFORM 2015-01-01 as formue
+import db/BOSATTEFDT_BOSTED 2015-01-01 as bosted
+
+// Beregner alder i 2015 ut i fra fødselsår
+generate alder = 2015 - int( faarmnd / 100 )
+
+// Lager en dummyvariabel som angir mann ut i fra kjønn
+generate mann = 0
+replace mann = 1 if kjonn == '1'
+
+// Gruppere formue i 4 intervaller
+generate formueint = 1
+replace formueint = 2 if formue > 150000
+replace formueint = 3 if formue > 250000
+replace formueint = 4 if formue > 400000
+
+// Angi formue i 1000 kr
+generate formue1000 = formue / 1000
+
+// Koder om fra kommune- til fylkesnivå
+generate fylke = substr(bosted,1,2)
+
+// Legger til verdilabler for å navngi fylker med navn
+define-labels fylkerstring '01' 'Ostfold' '02' 'Akershus' '03' 'Oslo' '04' 'Hedmark' '05' 'Oppland' '06' 'Buskerud' '07' 'Vestfold' '08' 'Telemark' '09' 'Aust-Agder' '10' 'Vest-Agder' '11' 'Rogaland' '12' 'Hordaland' '14' 'Sogn og Fjordane' '15' 'More og Romsdal' '16' 'Sor-Trondelag' '17' 'Nord-Trondelag' '18' 'Nordland' '19' 'Troms' '20' 'Finnmark' '99' 'Uoppgitt'
+
+assign-labels fylke fylkerstring
+
+tabulate fylke

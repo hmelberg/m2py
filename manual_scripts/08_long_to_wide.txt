@@ -1,0 +1,61 @@
+// Eksempel 2.13: Restrukturere fra paneldata- til tverrsnitts-format (long til wide)
+require no.ssb.fdb:17 as db
+
+// Lager et wide-datasett bestående av 1% av alle bosatte per 1/1 2019
+create-dataset wide
+import db/BEFOLKNING_STATUSKODE 2019-01-01 as regstat19
+keep if regstat19 == '1'
+sample 0.01 333
+import db/BEFOLKNING_STATUSKODE 2020-01-01 as regstat20
+import db/SIVSTANDFDT_SIVSTAND 2019-01-01 as sivstand19
+import db/SIVSTANDFDT_SIVSTAND 2020-01-01 as sivstand20
+import db/BEFOLKNING_KJOENN as kjonn
+import db/INNTEKT_WLONN 2019-01-01 as lonn19
+import db/INNTEKT_WLONN 2020-01-01 as lonn20
+
+tabulate regstat19, missing
+tabulate regstat20, missing
+tabulate sivstand19, missing
+tabulate sivstand20, missing
+tabulate kjonn, missing
+
+summarize lonn19 lonn20
+
+// Restrukturerer til panel-/long-format
+reshape-to-panel regstat sivstand lonn
+
+tabulate-panel regstat, missing
+tabulate-panel sivstand, missing
+tabulate-panel kjonn, missing
+summarize-panel lonn
+
+// Restrukturerer tilbake til wide-format
+reshape-from-panel
+drop kjonn20
+rename kjonn19 kjonn
+
+tabulate regstat19, missing
+tabulate regstat20, missing
+tabulate sivstand19, missing
+tabulate sivstand20, missing
+tabulate kjonn, missing
+summarize lonn19 lonn20
+
+// Lager et nytt paneldatasett for samme populasjon vha. import-panel
+clone-units wide paneltest
+use paneltest
+import-panel db/BEFOLKNING_STATUSKODE db/SIVSTANDFDT_SIVSTAND db/INNTEKT_WLONN db/BEFOLKNING_KJOENN 2019-01-01 2020-01-01
+rename BEFOLKNING_STATUSKODE regstat
+rename SIVSTANDFDT_SIVSTAND sivstand
+rename INNTEKT_WLONN lonn
+rename BEFOLKNING_KJOENN kjonn
+
+tabulate-panel regstat, missing
+tabulate-panel sivstand, missing
+tabulate-panel kjonn, missing
+summarize-panel lonn
+
+// Restrukturerer til wide-format
+reshape-from-panel
+drop kjonn2020
+rename kjonn2019 kjonn

@@ -1,0 +1,21 @@
+// ===================================================================
+// Example: Trekke ut deler av numeriske verdier
+// Source: https://microdata.no/manual/eksempel/Grunnleggende%20operasjoner/Trekke%20ut%20deler%20av%20numeriske%20verdier/
+// ===================================================================
+// For variables with numerical values, one can extract parts of the values using the `int()`
+// function ("For variabler med numeriske verdier kan en trekke ut deler av verdiene ved hjelp av
+// funksjonen `int()`"). This function rounds down to the nearest whole number, with `floor()`
+// offered as an alternative.
+//
+// The example demonstrates calculating age based on a birth date variable in YYYYMM format by
+// dividing the numeric value by 100 and rounding down, then subtracting from a reference year.
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:23 as db
+
+create-dataset demografidata
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+
+// Beregner alder i 2021 ut i fra fødselsår
+generate alder = 2021 - int(faarmnd / 100)

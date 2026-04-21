@@ -1,0 +1,30 @@
+// ===================================================================
+// Example: Lage dummyvariabel ved å bruke kommandoen recode
+// Source: https://microdata.no/manual/eksempel/Grunnleggende%20operasjoner/Lage%20dummyvariabel%20ved%20%C3%A5%20bruke%20kommandoen%20recode/
+// ===================================================================
+// En kan lage dummyvariabler på ulike måter, f.eks. ved bruk av kommandoene `generate` og `replace`
+// (se ett av de andre eksemplene).
+//
+// En alternativ måte å lage dummyvariabler er gjennom bruk av `destring` og `recode`.
+//
+// Dette demonstreres i eksempelet nedenfor. Variabelen kjønn har først verdiene "1" og "2" for hhv.
+// "Mann" og "Kvinne". Etter at kommandoene er kjørt, er verdiene endret til 1 og 0 for hhv. mann og
+// kvinne (= ikke mann).
+//
+// Siden variabelen kjønn har alfanumerisk format, må en først konvertere til numerisk format
+// gjennom `destring`.
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:23 as db
+
+create-dataset demografidata
+import db/BEFOLKNING_KJOENN as kjønn
+
+destring kjønn
+tabulate kjønn
+recode kjønn (2 = 0)
+rename kjønn mann
+
+// Sjekk for om omkodingen har gått som forventet
+tabulate mann, nolabels

@@ -1,0 +1,22 @@
+// ===================================================================
+// Example: Fjerning av enheter fra et datasett
+// Source: https://microdata.no/manual/eksempel/Grunnleggende%20operasjoner/Fjerning%20av%20enheter%20fra%20et%20datasett/
+// ===================================================================
+// Before conducting analyses on a dataset, it is typically desirable to refine the data by removing
+// individuals who should not be included. This can be accomplished using the `drop` and `keep`
+// commands in conjunction with standard conditional statements.
+//
+// The example demonstrates how to narrow down a sample to include only individuals between the ages
+// of 16 and 66.
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:23 as db
+
+create-dataset demografidata
+import db/BEFOLKNING_KJOENN as kjønn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+
+generate alder = 2021 - int(faarmnd / 100)
+
+keep if alder >= 16 & alder < 67

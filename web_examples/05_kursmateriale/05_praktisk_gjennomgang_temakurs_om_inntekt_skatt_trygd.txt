@@ -1,0 +1,473 @@
+// ===================================================================
+// Example: Praktisk gjennomgang – temakurs om inntekt - skatt - trygd
+// Source: https://microdata.no/manual/eksempel/Kursmateriale/Praktisk gjennomgang – temakurs om inntekt - skatt - trygd/
+// ===================================================================
+// Denne praktiske gjennomgangen viser hvordan man bruker ulike typer inntekts- og trygdedata
+// til å kartlegge arbeidsmarkedsstatusen til individer. Kursmaterialet ble presentert i et
+// temakurs i 2022 og dekker to hovedtilnærminger for å analysere sysselsettings- og
+// ytelsesmottakermønstre.
+//
+// Første del undersøker inntektsdata fra to kilder: SSBs inntektsstatistikk (INNTEKT_
+// -variabler) og A-ordningen for arbeidsforhold (ARBLONN_-variabler). Disse datasettene gjør
+// det mulig å analysere lønnsmønstre, yrkesinntekter og pensjonsgivende inntekter på tvers
+// av ulike tidsperioder og demografiske grupper.
+//
+// Andre del introduserer trygdedata og forklarer hvordan årlige inntektsdata knyttet til
+// arbeid, ytelser og støtteordninger kan tjene som indikatorer på tilknytning til
+// arbeidsmarkedet. I tillegg demonstreres bruk av FD-Trygd-data sammen med kursdata fra NUDB
+// og jobbstatus fra sysselsettingsregistre for å vurdere økonomisk og sosial deltakelse.
+// ===================================================================
+
+require no.ssb.fdb:23 as db
+
+textblock
+Inntektsdata
+------------
+endblock
+
+textblock
+To typer lønnsdata: SSBs inntektsstatistikk (INNTEKT_), og A-ordningen (ARBLONN_LONN_)
+endblock
+
+create-dataset lønnsinnt1
+import db/INNTEKT_LONN 2020-12-31 as lønn
+import db/INNTEKT_WLONN 2020-12-31 as wlønn, outer_join
+import db/INNTEKT_YRKINNT 2020-12-31 as yrkinnt, outer_join
+import db/INNTEKT_WYRKINNT 2020-12-31 as wyrkinnt, outer_join
+import db/INNTEKT_PGIVINNT 2020-12-31 as pensjgiv_innt, outer_join
+
+textblock
+Lønns- og yrkesinntekter fra SSBs inntektsstatistikk (yrkesinntekt inkluderer netto næringsinntekter):
+endblock
+summarize
+barchart (mean) lønn wlønn yrkinnt wyrkinnt pensjgiv_innt
+
+create-dataset lønnsinnt2
+import db/ARBLONN_LONN_TIME 2022-04-30 as arblonn_timelønn2204
+import db/ARBLONN_LONN_TIME 2022-03-30 as arblonn_timelønn2203, outer_join
+import db/ARBLONN_LONN_TIME 2022-02-28 as arblonn_timelønn2202, outer_join
+import db/ARBLONN_LONN_TIME 2022-01-30 as arblonn_timelønn2201, outer_join
+import db/ARBLONN_LONN_TIME 2021-12-30 as arblonn_timelønn2112, outer_join
+
+textblock
+Lønnsstatistikk fra A-ordningen (enhet = jobber, populasjon = arbeidstakere):
+Månedslønn for personer med avtalt timelønn
+endblock
+summarize
+
+create-dataset lønnsinnt3
+import db/ARBLONN_LONN_TIME_INNRAPP 2022-04-30 as arblonn_timelønn2204
+import db/ARBLONN_LONN_TIME_INNRAPP 2022-03-30 as arblonn_timelønn2203, outer_join
+import db/ARBLONN_LONN_TIME_INNRAPP 2022-02-28 as arblonn_timelønn2202, outer_join
+import db/ARBLONN_LONN_TIME_INNRAPP 2022-01-30 as arblonn_timelønn2201, outer_join
+import db/ARBLONN_LONN_TIME_INNRAPP 2021-12-30 as arblonn_timelønn2112, outer_join
+
+textblock
+Lønnsstatistikk fra A-ordningen (enhet = jobber, populasjon = arbeidstakere):
+Månedslønn for personer med avtalt timelønn, innrapportert/ubearbeidet
+endblock
+summarize
+
+create-dataset lønnsinnt4
+import db/ARBLONN_LONN_FAST 2022-04-30 as arblonn_fastlønn2204
+import db/ARBLONN_LONN_FAST 2022-03-30 as arblonn_fastlønn2203, outer_join
+import db/ARBLONN_LONN_FAST 2022-02-28 as arblonn_fastlønn2202, outer_join
+import db/ARBLONN_LONN_FAST 2022-01-30 as arblonn_fastlønn2201, outer_join
+import db/ARBLONN_LONN_FAST 2021-12-30 as arblonn_fastlønn2112, outer_join
+
+textblock
+Lønnsstatistikk fra A-ordningen (enhet = jobber, populasjon = arbeidstakere):
+Fastlønn (avtalt fastlønn inkl. honorar, akkord, prosent og provisjon)
+endblock
+summarize
+
+import db/ARBEIDSFORHOLD_PERSON as personid
+create-dataset personer4
+import db/ARBLONN_PERS_KJOENN 2022-03-16 as kjønn
+merge kjønn into lønnsinnt4 on personid
+use lønnsinnt4
+
+textblock
+Kjønnsforskjeller: Kvinner har i gjennomsnitt 19% lavere lønn (21% uten SDC)
+endblock
+tabulate kjønn, summarize(arblonn_fastlønn2203)
+barchart (mean) arblonn_fastlønn2203, over(kjønn)
+
+create-dataset lønnsinnt5
+import db/ARBLONN_LONN_FAST_INNRAPP 2022-04-30 as arblonn_fastlønn2204
+import db/ARBLONN_LONN_FAST_INNRAPP 2022-03-30 as arblonn_fastlønn2203, outer_join
+import db/ARBLONN_LONN_FAST_INNRAPP 2022-02-28 as arblonn_fastlønn2202, outer_join
+import db/ARBLONN_LONN_FAST_INNRAPP 2022-01-30 as arblonn_fastlønn2201, outer_join
+import db/ARBLONN_LONN_FAST_INNRAPP 2021-12-30 as arblonn_fastlønn2112, outer_join
+
+textblock
+Lønnsstatistikk fra A-ordningen (enhet = jobber, populasjon = arbeidstakere):
+Fastlønn, innrapportert/ubearbeidet
+endblock
+summarize
+
+import db/ARBEIDSFORHOLD_PERSON as personid
+create-dataset personer5
+import db/ARBLONN_PERS_KJOENN 2022-03-16 as kjønn
+merge kjønn into lønnsinnt5 on personid
+use lønnsinnt5
+
+textblock
+Kjønnsforskjeller: Kvinner har i gjennomsnitt 20% lavere lønn (21% uten SDC)
+endblock
+tabulate kjønn, summarize(arblonn_fastlønn2203)
+barchart (mean) arblonn_fastlønn2203, over(kjønn)
+
+create-dataset lønnsinnt6
+import db/ARBLONN_LONN_EKV_IALT 2022-03-30 as arblonn_hekv_lønn2203
+import db/ARBLONN_LONN_EKV_IALT 2022-02-28 as arblonn_hekv_lønn2202, outer_join
+import db/ARBLONN_LONN_EKV_IALT 2022-01-30 as arblonn_hekv_lønn2201, outer_join
+import db/ARBLONN_LONN_EKV_IALT 2021-12-30 as arblonn_hekv_lønn2112, outer_join
+
+textblock
+Lønnsstatistikk fra A-ordningen (enhet = jobber, populasjon = arbeidstakere):
+Heltidsekvivalent totallønn (inkl. tillegg og bonuser, men ikke overtidsgodtgjørelse)
+endblock
+summarize
+
+import db/ARBEIDSFORHOLD_PERSON as personid
+create-dataset personer6
+import db/ARBLONN_PERS_KJOENN 2022-03-16 as kjønn
+merge kjønn into lønnsinnt6 on personid
+use lønnsinnt6
+
+textblock
+Kjønnsforskjeller: Kvinner har i gjennomsnitt 12% lavere lønn (13% uten SDC)
+endblock
+tabulate kjønn, summarize(arblonn_hekv_lønn2203)
+barchart (mean) arblonn_hekv_lønn2203, over(kjønn)
+
+create-dataset lønnsinnt7
+import db/ARBLONN_LONN_EKV_FMLONN 2022-03-30 as arblonn_hekv_avtlønn2203
+import db/ARBLONN_LONN_EKV_FMLONN 2022-02-28 as arblonn_hekv_avtlønn2202, outer_join
+import db/ARBLONN_LONN_EKV_FMLONN 2022-01-30 as arblonn_hekv_avtlønn2201, outer_join
+import db/ARBLONN_LONN_EKV_FMLONN 2021-12-30 as arblonn_hekv_avtlønn2112, outer_join
+
+textblock
+Lønnsstatistikk fra A-ordningen (enhet = jobber, populasjon = arbeidstakere): Heltidsekvivalent avtalt lønn
+endblock
+summarize
+
+import db/ARBEIDSFORHOLD_PERSON as personid
+create-dataset personer7
+import db/ARBLONN_PERS_KJOENN 2022-03-16 as kjønn
+merge kjønn into lønnsinnt7 on personid
+use lønnsinnt7
+
+textblock
+Kjønnsforskjeller: Kvinner har i gjennomsnitt 12% lavere lønn (12% uten SDC)
+endblock
+tabulate kjønn, summarize(arblonn_hekv_avtlønn2203)
+barchart (mean) arblonn_hekv_avtlønn2203, over(kjønn)
+
+create-dataset lønnsinnt8
+import db/ARBLONN_LONN_KONTANT_IMP 2022-04-30 as arblonn_kontantlønn2204
+import db/ARBLONN_LONN_KONTANT_IMP 2022-03-30 as arblonn_kontantlønn2203, outer_join
+import db/ARBLONN_LONN_KONTANT_IMP 2022-02-28 as arblonn_kontantlønn2202, outer_join
+import db/ARBLONN_LONN_KONTANT_IMP 2022-01-30 as arblonn_kontantlønn2201, outer_join
+import db/ARBLONN_LONN_KONTANT_IMP 2021-12-30 as arblonn_kontantlønn2112, outer_join
+
+textblock
+Lønnsstatistikk fra A-ordningen (enhet = jobber, populasjon = arbeidstakere):
+Kontantlønn (lønn inkl. tillegg, bonuser, overtidsgodtgjørelser, sluttvederlag)
+endblock
+summarize
+
+import db/ARBEIDSFORHOLD_PERSON as personid
+create-dataset personer8
+import db/ARBLONN_PERS_KJOENN 2022-03-16 as kjønn
+merge kjønn into lønnsinnt8 on personid
+use lønnsinnt8
+
+textblock
+Kjønnsforskjeller: Kvinner har i gjennomsnitt 25% lavere lønn (28% uten SDC)
+endblock
+tabulate kjønn, summarize(arblonn_kontantlønn2203)
+barchart (mean) arblonn_kontantlønn2203, over(kjønn)
+
+
+textblock
+To typer data om totalinntekter: SSBs inntektsstatistikk (INNTEKT_) og SSBs skattestatistikk (SKATT_)
+endblock
+
+create-dataset totinnt
+import db/INNTEKT_WSAMINNT 2020-12-31 as samlet_inntekt
+import db/INNTEKT_WIES 2020-12-31 as innt_etter_skatt, outer_join
+import db/INNTEKT_UTSKATT 2020-12-31 as skatt, outer_join
+import db/INNTEKT_WSKATOVF 2020-12-31 as skatt_og_overføringer, outer_join
+generate utregnet_skatt = samlet_inntekt - innt_etter_skatt
+import db/SKATT_ALMINNELIG_INNTEKT 2020-12-31 as alminnelig_inntekt, outer_join
+import db/SKATT_BRUTTOINNTEKT 2020-12-31 as bruttoinntekt, outer_join
+generate utregnet_skatt2 = bruttoinntekt - alminnelig_inntekt
+
+textblock
+Totale inntekter, brutto og netto:
+endblock
+summarize
+
+textblock
+Det finnes også data på trygdeinntekter fra SSBs inntektsstatistikk som kan brukes til å kartlegge trygdemottakere
+endblock
+
+create-dataset trygdeinntekter
+import db/INNTEKT_BARNETRYGD 2020-12-31 as barnetrygd
+import db/INNTEKT_KONTANTSTOTTE 2020-12-31 as kontantstøtte, outer_join
+import db/INNTEKT_FORELDREPENGER 2020-12-31 as foreldrepenger, outer_join
+import db/INNTEKT_SYKEPENGER 2020-12-31 as sykepenger, outer_join
+import db/INNTEKT_ARBLED 2020-12-31 as dagpenger, outer_join
+import db/INNTEKT_SUM_ARBAVKL 2020-12-31 as arbeidsavklpenger, outer_join
+import db/INNTEKT_KODE218 2020-12-31 as uføretrygd, outer_join
+import db/INNTEKT_GRUNN_HJELP 2020-12-31 as grunn_og_hjelpestønad, outer_join
+import db/INNTEKT_BOSTOTTE 2020-12-31 as bostøtte, outer_join
+import db/INNTEKT_SOSIAL 2020-12-31 as sosialhjelp, outer_join
+import db/INNTEKT_STUDIESTIPEND 2020-12-31 as studiestipend, outer_join
+import db/INNTEKT_OVERFOR 2020-12-31 as overføringer, outer_join
+import db/INNTEKT_WOVERFOR 2020-12-31 as woverføringer, outer_join
+
+textblock
+Trygdeinntekter fra SSBs inntektsstatistikk (holder pensjoner utenom):
+endblock
+summarize
+barchart (mean) barnetrygd kontantstøtte foreldrepenger sykepenger dagpenger arbeidsavklpenger uføretrygd \
+    grunn_og_hjelpestønad bostøtte sosialhjelp studiestipend overføringer woverføringer
+barchart (count) barnetrygd kontantstøtte foreldrepenger sykepenger dagpenger arbeidsavklpenger uføretrygd \
+    grunn_og_hjelpestønad bostøtte sosialhjelp studiestipend overføringer woverføringer
+
+textblock
+SDC-effekt på gjennomsnittstall:
+
+Gjennomsnittstall blir gjennomgående lavere pga. at ekstremverdier toppkodes.
+Effekten varierer etter hvordan verdifordelingene ser ut:
+
+- Høyrevridd fordeling => større effekt
+- Normalfordelt eller venstrevridd fordeling => mindre effekt
+
+- Lønn og yrkesinntekter (årsbeløp): -1,7 - -2,2%
+- Lønn og yrkesinntekter (månedsbeløp): -0,5 - -1,8%
+   -- unntak: kontantlønn: -1,5 - -4,1%
+- Samlet inntekt og skatt (årsbeløp): -2,9 - -6,6%
+- Trygd (årsbeløp): -0,1 - -1,2%
+- Husholdningsinntekt etter skatt (årsbeløp): -2,1 - -2,2%
+
+Månedsbeløp og trygd har mindre spredning => mindre avvik
+
+Totalinntekter har større spredning => større avvik
+
+Kjønnsforskjeller blir noe lavere pga. menn i større grad har ekstremverdier som toppkodes
+endblock
+
+textblock
+Også netto totalinntekt for husholdninger er tilgjengelig
+endblock
+create-dataset husholdningsinntekter
+import db/INNTEKT_HUSH_IES 2020-12-31 as hushinnt_etter_skatt
+import db/INNTEKT_HUSH_IES_EU 2020-12-31 as hushinnt_etter_skatt_per_forbruksenhet, outer_join
+textblock
+Husholdningsinntekter fra SSBs inntektsstatistikk:
+endblock
+summarize
+
+textblock
+Trygdedata
+------------
+
+Det er flere måter å kartlegge jobb-, utdanning og trygdestatus på:
+
+a) Årlige inntektsdata knyttet til jobb, trygd eller andre støtteordninger
+
+b) Trygdestatus m.m. fra FD-Trygd, kursdata fra NUDB, samt jobbstatus fra REGSYS eller ARBLONN
+
+Nedenfor demonstrerer vi de ulike fremgangsmåtene
+endblock
+
+textblock
+a) Inntektsdata som indikatorer for arbeidsmarkeds- og trygdestatus
+endblock
+create-dataset overganger
+import db/BEFOLKNING_STATUSKODE 2016-01-01 as regstat1
+import db/BEFOLKNING_STATUSKODE 2021-01-01 as regstat2
+import db/BEFOLKNING_FOEDSELS_AAR_MND as fdato
+generate alder = 2015 - int(fdato/100)
+keep if regstat1 == '1' & alder > 25
+
+import db/NUDB_AAR_FORSTE_FULLF_HOV as fullført_master
+generate master = 0
+replace master = 1 if int(fullført_master/100) == 2015
+
+import db/INNTEKT_WYRKINNT 2015-12-31 as wyrkinnt15
+import db/INNTEKT_ARBLED 2015-12-31 as dagpenger15
+import db/INNTEKT_SUM_ARBAVKL 2015-12-31 as arbeidsavklpenger15
+import db/INNTEKT_KODE218 2015-12-31 as uføretrygd15
+import db/INNTEKT_BOSTOTTE 2015-12-31 as bostøtte15
+import db/INNTEKT_SOSIAL 2015-12-31 as sosialhjelp15
+import db/INNTEKT_STUDIESTIPEND 2015-12-31 as stipend15
+
+import db/INNTEKT_WYRKINNT 2020-12-31 as wyrkinnt20
+import db/INNTEKT_ARBLED 2020-12-31 as dagpenger20
+import db/INNTEKT_SUM_ARBAVKL 2020-12-31 as arbeidsavklpenger20
+import db/INNTEKT_KODE218 2020-12-31 as uføretrygd20
+import db/INNTEKT_BOSTOTTE 2020-12-31 as bostøtte20
+import db/INNTEKT_SOSIAL 2020-12-31 as sosialhjelp20
+import db/INNTEKT_STUDIESTIPEND 2020-12-31 as stipend20
+
+summarize
+histogram wyrkinnt15
+histogram wyrkinnt20
+
+generate status15 = 99
+replace status15 = 1 if wyrkinnt15 > 500000
+replace status15 = 2 if wyrkinnt15 > 200000 & wyrkinnt15 <= 500000
+replace status15 = 3 if wyrkinnt15 > 40000 & wyrkinnt15 <= 200000
+replace status15 = 4 if dagpenger15 > 20000
+replace status15 = 5 if arbeidsavklpenger15 > 20000
+replace status15 = 6 if uføretrygd15 > 20000
+replace status15 = 7 if bostøtte15+sosialhjelp15 > 50000
+replace status15 = 8 if stipend15 > 20000
+
+generate status20 = 99
+replace status20 = 9 if regstat2 != '1'
+replace status20 = 1 if wyrkinnt20 > 600000
+replace status20 = 2 if wyrkinnt20 > 300000 & wyrkinnt20 <= 600000
+replace status20 = 3 if wyrkinnt20 > 50000 & wyrkinnt20 <= 300000
+replace status20 = 4 if dagpenger20 > 20000
+replace status20 = 5 if arbeidsavklpenger20 > 20000
+replace status20 = 6 if uføretrygd20 > 20000
+replace status20 = 7 if bostøtte20+sosialhjelp20 > 50000
+replace status20 = 8 if stipend20 > 20000
+
+define-labels statuskoder \
+	1 "Høy inntekt" \
+	2 "Middels inntekt" \
+	3 "Lav inntekt" \
+	4 Dagpenger \
+	5 Arbeidsavklaring \
+	6 Ufør \
+	7 Sosial \
+	8 Student \
+	9 "Død eller emigrert" \
+	99 Annet
+assign-labels status15 statuskoder
+assign-labels status20 statuskoder
+
+textblock
+Bosatte personer > 25 år i 2015 og status 5 år senere. Kilde: SSBs inntektsstatistikk og NUDB
+endblock
+tabulate status20 master, colpct
+
+textblock
+Bosatte personer > 25 år med fullført masterutdanning i 2015 og status 5 år senere.
+Kilde: SSBs inntektsstatistikk og NUDB
+endblock
+sankey master status20 if master
+
+textblock
+Bosatte personer > 25 år uten fullført masterutdanning i 2015 og status 5 år senere.
+Kilde: SSBs inntektsstatistikk og NUDB
+endblock
+sankey master status20 if master == 0
+
+textblock
+Status for bosatte personer > 25 år i 2015 og 5 år senere. Kilde: SSBs inntektsstatistikk og NUDB
+endblock
+tabulate status15 status20, rowpct
+sankey status15 status20
+
+textblock
+b) FD-Trygddata m.m. som indikatorer for arbeidsmarkeds- og trygdestatus
+endblock
+
+create-dataset bosatte
+import db/BEFOLKNING_STATUSKODE 2019-01-01 as regstat
+keep if regstat == '1'
+
+create-dataset arbeidstaker
+import db/ARBLONN_PERS_SUM_ARBEIDSTID 2018-01-16 as arbtid01
+import db/ARBLONN_PERS_SUM_ARBEIDSTID 2018-02-16 as arbtid02, outer_join
+import db/ARBLONN_PERS_SUM_ARBEIDSTID 2018-03-16 as arbtid03, outer_join
+import db/ARBLONN_PERS_SUM_ARBEIDSTID 2018-04-16 as arbtid04, outer_join
+import db/ARBLONN_PERS_SUM_ARBEIDSTID 2018-05-16 as arbtid05, outer_join
+import db/ARBLONN_PERS_SUM_ARBEIDSTID 2018-06-16 as arbtid06, outer_join
+import db/ARBLONN_PERS_SUM_ARBEIDSTID 2018-07-16 as arbtid07, outer_join
+import db/ARBLONN_PERS_SUM_ARBEIDSTID 2018-08-16 as arbtid08, outer_join
+import db/ARBLONN_PERS_SUM_ARBEIDSTID 2018-09-16 as arbtid09, outer_join
+import db/ARBLONN_PERS_SUM_ARBEIDSTID 2018-10-16 as arbtid10, outer_join
+import db/ARBLONN_PERS_SUM_ARBEIDSTID 2018-11-16 as arbtid11, outer_join
+import db/ARBLONN_PERS_SUM_ARBEIDSTID 2018-12-16 as arbtid12, outer_join
+generate antmnd = rowvalid(arbtid01, arbtid02, arbtid03, arbtid04, arbtid05, arbtid06, \
+    arbtid07, arbtid08, arbtid09, arbtid10, arbtid11, arbtid12)
+generate snitt_per_mnd = rowmean(arbtid01, arbtid02, arbtid03, arbtid04, arbtid05, arbtid06, \
+    arbtid07, arbtid08, arbtid09, arbtid10, arbtid11, arbtid12)
+summarize antmnd snitt_per_mnd
+rename antmnd ant_mnd_jobb
+rename snitt_per_mnd snitt_arbt_per_mnd
+merge ant_mnd_jobb snitt_arbt_per_mnd into bosatte
+
+create-dataset ledighet
+import-event db/ARBSOEK2001FDT_HOVED 2018-01-01 to 2018-12-31 as arbsøk
+replace STOP@arbsøk = date(2018,12,31) if STOP@arbsøk > date(2018,12,31)
+replace START@arbsøk = date(2018,01,01) if START@arbsøk < date(2018,01,01)
+generate dager = STOP@arbsøk - START@arbsøk + 1
+collapse(sum) dager, by(PERSONID_1)
+boxplot dager
+summarize dager
+histogram dager, width(30)
+rename dager as_dager
+merge as_dager into bosatte
+
+create-dataset uførhet
+import-event db/UFOERP2011FDT_GRAD 2018-01-01 to 2018-12-31 as ufør
+replace STOP@ufør = date(2018,12,31) if STOP@ufør > date(2018,12,31)
+replace START@ufør = date(2018,01,01) if START@ufør < date(2018,01,01)
+generate dager = STOP@ufør - START@ufør + 1
+collapse(sum) dager, by(PERSONID_1)
+boxplot dager
+summarize dager
+histogram dager
+rename dager ufør_dager
+merge ufør_dager into bosatte
+
+create-dataset sosialhjelp
+import-event db/SOSHJLPFDT_MOTTAK 2018-01-01 to 2018-12-31 as sosial
+replace STOP@sosial = date(2018,12,31) if STOP@sosial > date(2018,12,31)
+replace START@sosial = date(2018,01,01) if START@sosial < date(2018,01,01)
+generate dager = STOP@sosial - START@sosial + 1
+collapse(sum) dager, by(PERSONID_1)
+boxplot dager
+summarize dager
+histogram dager, width(30)
+rename dager sos_dager
+merge sos_dager into bosatte
+
+create-dataset utdanning
+import-event db/NUDB_KURS_NUS 2018-01-01 to 2018-12-31 as studier
+
+create-dataset personid_utd
+import db/NUDB_KURS_FNR as personid
+merge personid into utdanning
+
+use utdanning
+collapse(min) START@studier (max) STOP@studier, by(personid)
+replace STOP@studier = date(2018,12,31) if STOP@studier > date(2018,12,31)
+replace START@studier = date(2018,01,01) if START@studier < date(2018,01,01)
+generate dager = STOP@studier - START@studier + 1
+boxplot dager
+summarize dager
+histogram dager, width(30)
+rename dager utd_dager
+merge utd_dager into bosatte
+
+use bosatte
+
+textblock
+Status i arbeidsmarkedet i løpet av et år. Kilde: FD-Trygd/NAV og NUDB
+
+Permanent bosatte ved utgangen av 2018 fordelt på arbeidsmarkedsstatus. Antall dager i løpet av året. Jobb: Antall
+måneder og gjennomsnittlig antall timer per uke per mnd. Antallet individer er akkumulert over hele året og vil være mye
+høyere sammenliknet med status ved en gitt dato
+endblock
+summarize

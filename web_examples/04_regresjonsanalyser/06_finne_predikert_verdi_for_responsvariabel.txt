@@ -1,0 +1,112 @@
+// ===================================================================
+// Example: Finne predikert verdi for responsvariabel
+// Source: https://microdata.no/manual/eksempel/Regresjonsanalyser/Finne predikert verdi for responsvariabel/
+// ===================================================================
+// Skriptet demonstrerer hvordan man bruker opsjonen margins() til automatisk å hente ut
+// predikerte verdier for responsvariabelen i lineære eller binære regresjonsmodeller.
+// Prediksjonen beregnes ved å sette inn gjennomsnittsverdier for de respektive
+// forklaringsvariablene i modellen. Disse verdiene multipliseres med tilhørende
+// koeffisientestimater og summeres sammen med konstantleddet. For binære modeller generert
+// via logit og probit påføres en transformasjon slik at den predikerte verdien kan tolkes
+// tilsvarende som for regress. Skriptet viser også hvordan man manuelt beregner den
+// predikerte responsvariabelverdien med denne metoden.
+// ===================================================================
+
+require no.ssb.fdb:34 as db
+
+create-dataset regresjonsdata
+import db/INNTEKT_WLONN 2022-12-31 as lønn
+import db/INNTEKT_BER_BRFORM 2022-12-31 as formue
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+import db/BEFOLKNING_KJOENN as kjønn
+import db/BEFOLKNING_STATUSKODE 2022-01-01 as bosattstatus
+
+keep if bosattstatus == '1'
+
+generate alder = 2022 - int(faarmnd/100)
+generate mann = kjønn == '1'
+generate høylønn = lønn > 800000
+generate høyformue = formue > 4000000
+
+
+// ------------------- regress ---------------------
+
+// Henter ut predikert verdi for hele analysepopulasjonen
+regress lønn alder mann formue, margins()
+
+// Henter ut predikert verdi for gruppene menn vs. kvinner gjennom å bruke dummyvariabelen mann
+regress lønn alder mann formue, margins(mann)
+
+// Henter ut alternative individuelle prediksjonsverdier gitt de individuelle verdiene på forklaringsvariablene
+regress-predict lønn alder mann formue, predicted(pred1)
+
+// Finner gjennomsnittsverdier - viktig at populasjonen er nøyaktig den samme som for regresjonsmodellen
+summarize lønn alder mann formue pred1 if !sysmiss(lønn) & !sysmiss(alder) & !sysmiss(mann) & !sysmiss(formue)
+
+// Manuell utregning av marginsestimater (predikerte Y-verdier) - bruker verdiene som genereres av summarize over
+generate konst = 232295.022774
+generate b_alder = 5311.799072
+generate b_mann = 140398.92883
+generate b_formue = 0.001129
+generate snitt_alder = 42.155463260696
+generate snitt_mann = 0.521736587496133
+generate snitt_formue = 2862060.6319129
+
+generate ypred_reg = konst + b_alder*snitt_alder + b_mann*snitt_mann + b_formue*snitt_formue
+generate ypred_reg0 = konst + b_alder*snitt_alder + b_formue*snitt_formue
+generate ypred_reg1 = konst + b_alder*snitt_alder + b_mann + b_formue*snitt_formue
+
+// Manuelt beregnede prediksjonsverdier totalt og for gruppene menn vs kvinner
+summarize ypred_reg ypred_reg0 ypred_reg1
+
+
+// ------------------- logit -----------------------
+logit høylønn alder mann høyformue, margins()
+logit høylønn alder mann høyformue, margins(mann)
+logit-predict høylønn alder mann høyformue, predicted(pred2)
+
+summarize høylønn alder mann høyformue pred2 if !sysmiss(høylønn) & !sysmiss(alder) & !sysmiss(mann) & !sysmiss(høyformue)
+
+replace konst = -3.412074
+replace b_alder = 0.013134
+replace b_mann = 1.022665
+generate b_høyformue = 1.748605
+replace snitt_alder = 41.6484
+replace snitt_mann = 0.5215
+generate snitt_høyformue = 0.241
+
+generate ypred_log = konst + b_alder*snitt_alder + b_mann*snitt_mann + b_høyformue*snitt_høyformue
+generate ypred_log0 = konst + b_alder*snitt_alder + b_høyformue*snitt_høyformue
+generate ypred_log1 = konst + b_alder*snitt_alder + b_mann + b_høyformue*snitt_høyformue
+
+replace ypred_log = 1 / (1 + exp(0-ypred_log))
+replace ypred_log0 = 1 / (1 + exp(0-ypred_log0))
+replace ypred_log1 = 1 / (1 + exp(0-ypred_log1))
+
+summarize ypred_log ypred_log0 ypred_log1
+
+
+// ------------------- probit ----------------------
+probit høylønn alder mann høyformue, margins()
+probit høylønn alder mann høyformue, margins(mann)
+probit-predict høylønn alder mann høyformue, predicted(pred3)
+
+summarize høylønn alder mann høyformue pred3 if !sysmiss(høylønn) & !sysmiss(alder) & !sysmiss(mann) & !sysmiss(høyformue)
+
+replace konst = -2.008393
+replace b_alder = 0.008738
+replace b_mann = 0.563674
+replace b_høyformue = 0.993583
+replace snitt_alder = 41.6484
+replace snitt_mann = 0.5215
+replace snitt_høyformue = 0.241
+
+generate ypred_prob = konst + b_alder*snitt_alder + b_mann*snitt_mann + b_høyformue*snitt_høyformue
+generate ypred_prob0 = konst + b_alder*snitt_alder + b_høyformue*snitt_høyformue
+generate ypred_prob1 = konst + b_alder*snitt_alder + b_mann + b_høyformue*snitt_høyformue
+
+replace ypred_prob = normal(ypred_prob)
+replace ypred_prob0 = normal(ypred_prob0)
+replace ypred_prob1 = normal(ypred_prob1)
+
+summarize ypred_prob ypred_prob0 ypred_prob1

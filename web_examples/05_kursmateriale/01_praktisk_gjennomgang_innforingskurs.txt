@@ -1,0 +1,195 @@
+// ===================================================================
+// Example: Praktisk gjennomgang – innføringskurs
+// Source: https://microdata.no/manual/eksempel/Kursmateriale/Praktisk gjennomgang – innføringskurs/
+// ===================================================================
+// Skriptet nedenfor viser hvordan man løser oppgavene i oppgavesettet som benyttes for det
+// ordinære innføringskurset som Sikt og SSB kjører med jevne mellomrom. Se microdata.no/kurs
+// for mer informasjon om kursene.
+// ===================================================================
+
+// Bygge opp et datasett
+
+require no.ssb.fdb:25 as ds
+
+create-dataset totalpop
+
+import ds/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+generate alder = 2021 - int(faarmnd/100)
+histogram alder, discrete
+
+import ds/BEFOLKNING_STATUSKODE 2021-01-01 as regstat
+keep if regstat == '1'
+
+histogram alder, discrete
+summarize alder
+
+keep if alder > 30 & alder < 50
+
+import ds/BEFOLKNING_KJOENN as kjønn
+import ds/BEFOLKNING_FODELAND as land
+import ds/NUDB_BU 2021-07-31 as utd
+import ds/BEFOLKNING_KOMMNR_FAKTISK 2021-01-01 as bosted
+import ds/INNTEKT_LONN 2017-12-31 as lønn17
+import ds/INNTEKT_LONN 2018-12-31 as lønn18
+import ds/INNTEKT_LONN 2019-12-31 as lønn19
+import ds/INNTEKT_LONN 2020-12-31 as lønn20
+import ds/INNTEKT_LONN 2021-12-31 as lønn21
+
+// Kjøre deskriptiv statistikk
+
+// Endimensjonalt
+summarize lønn17 lønn18 lønn19 lønn20 lønn21
+summarize lønn17 lønn18 lønn19 lønn20 lønn21, gini
+
+barchart (mean) lønn17 lønn18 lønn19 lønn20 lønn21
+barchart (count) lønn17 lønn18 lønn19 lønn20 lønn21
+barchart (median) lønn17 lønn18 lønn19 lønn20 lønn21
+
+histogram lønn21, freq
+histogram lønn21, freq normal
+histogram lønn21, bin(10)
+histogram lønn21, bin(4)
+
+// Todimensjonalt
+
+generate norsk = 0
+replace norsk = 1 if land == '000'
+tabulate norsk
+tabulate norsk, cellpct
+piechart norsk
+
+generate utdnivå = substr(utd,1,1)
+tabulate utdnivå, cellpct
+destring utdnivå
+
+summarize lønn17 lønn18 lønn19 lønn20 lønn21 if utdnivå < 2
+summarize lønn17 lønn18 lønn19 lønn20 lønn21 if utdnivå > 6
+
+tabulate kjønn, summarize(lønn21)
+tabulate norsk, summarize(lønn21)
+tabulate utdnivå, summarize(lønn21)
+tabulate utdnivå kjønn, summarize(lønn21)
+
+barchart (mean) lønn17 lønn18 lønn19 lønn20 lønn21, over(kjønn)
+barchart (mean) lønn17 lønn18 lønn19 lønn20 lønn21, over(norsk)
+barchart (mean) lønn17 lønn18 lønn19 lønn20 lønn21, over(utdnivå)
+
+
+// Demonstrere kategorisering av yrker og labels
+
+import ds/REGSYS_ARB_YRKE_STYRK08 2021-11-16 as yrke
+
+generate yrkesgr = 9
+replace yrkesgr = 1 if substr(yrke,1,1) == '1'
+replace yrkesgr = 2 if yrke == '2211'
+replace yrkesgr = 3 if yrke == '2212'
+replace yrkesgr = 4 if yrke == '2223'
+replace yrkesgr = 5 if substr(yrke,1,2) == '23'
+replace yrkesgr = 6 if substr(yrke,1,2) == '25'
+replace yrkesgr = 7 if substr(yrke,1,2) == '61'
+replace yrkesgr = 999 if sysmiss(yrke)
+
+define-labels yrkelabel \
+	1 Ledere \
+	2 Allmennleger \
+	3 Legespesialister \
+	4 Sykepleiere \
+	5 Lærere \
+	6 'IT-utviklere' \
+	7 Landbruk \
+	9 Annet \
+	999 'Uten jobb'
+assign-labels yrkesgr yrkelabel
+
+tabulate yrkesgr
+tabulate yrkesgr, cellpct
+tabulate yrkesgr, summarize(lønn21)
+barchart (mean) lønn21, over(yrkesgr)
+barchart (mean) lønn17 lønn18 lønn19 lønn20 lønn21, over(yrkesgr)
+
+
+// Kjør familiekoblinger
+
+import ds/BEFOLKNING_FAR_FNR as far_fnr
+import ds/BEFOLKNING_MOR_FNR as mor_fnr
+
+create-dataset foreldre
+import ds/INNTEKT_LONN 2021-12-31 as lønn21_far
+import ds/REGSYS_ARB_YRKE_STYRK08 2021-11-16 as yrke_far
+import ds/NUDB_BU 2021-07-31 as utd_far
+generate utdnivå_far = substr(utd_far,1,1)
+destring utdnivå_far, force
+
+clone-variables lønn21_far -> lønn21_mor
+clone-variables yrke_far -> yrke_mor
+clone-variables utdnivå_far -> utdnivå_mor
+
+merge lønn21_far yrke_far utdnivå_far into totalpop on far_fnr
+merge lønn21_mor yrke_mor utdnivå_mor into totalpop on mor_fnr
+
+use totalpop
+summarize lønn21 lønn21_far lønn21_mor
+correlate lønn21 lønn21_far
+correlate lønn21 lønn21_mor
+correlate lønn21_far lønn21_mor
+correlate utdnivå utdnivå_far
+correlate utdnivå utdnivå_mor
+correlate utdnivå_far utdnivå_mor
+
+correlate lønn21 lønn21_far if kjønn == '1'
+correlate lønn21 lønn21_mor if kjønn == '2'
+correlate utdnivå utdnivå_far if kjønn == '1'
+correlate utdnivå utdnivå_mor if kjønn == '2'
+
+generate yrkesgr_far = 9
+replace yrkesgr_far = 1 if substr(yrke_far,1,1) == '1'
+replace yrkesgr_far = 2 if yrke_far == '2211'
+replace yrkesgr_far = 3 if yrke_far == '2212'
+replace yrkesgr_far = 4 if yrke_far == '2223'
+replace yrkesgr_far = 5 if substr(yrke_far,1,2) == '23'
+replace yrkesgr_far = 6 if substr(yrke_far,1,2) == '25'
+replace yrkesgr_far = 7 if substr(yrke_far,1,2) == '61'
+replace yrkesgr_far = 999 if sysmiss(yrke_far)
+
+assign-labels yrkesgr_far yrkelabel
+tabulate yrkesgr_far yrkesgr if yrkesgr_far < 9, rowpct
+tabulate yrkesgr_far yrkesgr if yrkesgr_far < 9 & kjønn == '1', rowpct
+
+
+// Til slutt kjøres noen enkle regresjoner: regress og logit
+
+generate oslo = 1 if bosted == '0301'
+replace oslo = 0 if bosted != '0301'
+tabulate oslo, cellpct
+
+generate høy_utd = 1 if utdnivå >= 7
+replace høy_utd = 0 if utdnivå >= 0 & utdnivå < 7
+
+regress lønn21 alder norsk oslo i.kjønn høy_utd lønn21_far
+coefplot regress lønn21 alder norsk oslo i.kjønn høy_utd lønn21_far
+regress-predict lønn21 alder norsk oslo i.kjønn høy_utd lønn21_far, residuals(res)
+histogram res
+histogram res, normal
+
+generate høy_lønn = 0
+replace høy_lønn = 1 if lønn21 > 800000
+
+generate høy_lønn_far = 0
+replace høy_lønn_far = 1 if lønn21_far > 800000
+
+logit høy_lønn alder norsk oslo i.kjønn høy_utd høy_lønn_far
+coefplot logit høy_lønn alder norsk oslo i.kjønn høy_utd høy_lønn_far
+
+
+// Forløpsuttrekk: Identifisere personer med status som skilt i løpet av 2021
+create-dataset forløp
+import-event ds/SIVSTANDFDT_SIVSTAND 2021-01-01 to 2021-12-31 as sivforløp
+keep if sivforløp == '4'
+collapse (count) sivforløp -> ant_ganger_skilt, by(PERSONID_1 )
+tabulate ant_ganger_skilt
+merge ant_ganger_skilt into totalpop
+
+use totalpop
+generate skilt2021 = 0
+replace skilt2021 = 1 if ant_ganger_skilt >= 1
+tabulate skilt2021, cellpct freq

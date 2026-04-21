@@ -1,0 +1,54 @@
+// Eksempel 2.11b: Aggregere opplysninger til familienivå
+// Kobler til databank
+require no.ssb.fdb:12 as db
+
+// Oppretter først et persondatasett for personer i familier bestående av ektepar med små barn
+create-dataset persondata
+import db/BEFOLKNING_REGSTAT_FAMTYP 2017-01-01 as famtype
+tabulate famtype
+keep if famtype == '2.1.1'
+
+// Legger til diverse demografiske opplysninger
+import db/BEFOLKNING_KJOENN as kjonn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+generate alder = 2017 - int(faarmnd/100)
+
+import db/BEFOLKNING_KOMMNR_FAKTISK 2017-01-01 as bosted
+generate fylke = substr(bosted, 1, 2)
+
+import db/BEFOLKNING_BARN_I_HUSH 2017-01-01 as antbarn
+
+// Oppretter datasett for generering av total yrkesinntekt per familie => enhet = familie
+create-dataset familiedata
+import db/BEFOLKNING_REGSTAT_FAMNR 2017-01-01 as famnr
+import db/INNTEKT_WYRKINNT 2017-01-01 as yrkesinnt
+collapse (sum) yrkesinnt, by(famnr)
+rename yrkesinnt familieinnt
+
+// Kobler familieinntekt på persondatasettet (enhet = personer)
+merge familieinnt into persondata on PERSONID_1
+
+// Lager familiestatistikk
+use persondata
+drop if sysmiss(familieinnt)
+
+rename alder alder_eldst
+rename kjonn kjonn_eldst
+
+define-labels fylketekst '01' Ostfold '02' Akershus '03' Oslo '04' Hedmark '05' Oppland '06' Buskerud '07' Vestfold '08' Telemark '09' 'Aust-Agder' '10' 'Vest-Agder' '11' Rogaland '12' Hordaland '14' 'Sogn og Fjordane' '15' 'More og Romsdal' '16' 'Sor-Trondelag' '17' 'Nord-Trondelag' '18' Nordland '19' Troms '20' Finnmark '21' Spitsbergen '25' 'Studerer i utlandet' '99' Uoppgitt
+assign-labels fylke fylketekst
+
+tabulate fylke
+
+histogram alder_eldst, discrete
+histogram antbarn, discrete percent
+
+tabulate antbarn
+tabulate antbarn, cellpct
+tabulate antbarn kjonn_eldst
+
+summarize familieinnt
+barchart (mean) familieinnt, by(fylke)
+barchart (mean) familieinnt, by(antbarn)
+histogram familieinnt, freq
+histogram familieinnt, by(antbarn) percent

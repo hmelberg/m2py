@@ -1,0 +1,36 @@
+// ===================================================================
+// Example: Bruke forløpsdata til å finne personer som har skilt seg i løpet av et år
+// Source: https://microdata.no/manual/eksempel/Tema - Familieanalyser/Bruke forløpsdata til å finne personer som har skilt seg i løpet av et år/
+// ===================================================================
+// Eksempelet under demonstrerer hvordan man kan bruke kommandoen import-event til å lage et
+// forløpsdatasett, som kan brukes til å finne individer som har skilt seg (observasjoner/
+// records med sivilstatus = "4") i løpet av et gitt år.
+//
+// Fremgangsmåten kan brukes i alle tilfeller der en ønsker å finne personer med en bestemt
+// verdi i løpet av et tidsspenn.
+// ===================================================================
+
+// Koble til databasen
+require no.ssb.fdb:30 as ds
+
+// Lager en populasjon bestående av alle bosatte i Norge per 2021-01-01
+create-dataset totalpop
+import ds/BEFOLKNING_KJOENN as kjønn
+import ds/BEFOLKNING_STATUSKODE 2021-01-01 as regstat
+keep if regstat == '1'
+
+// Finner personer med status som skilt i løpet av året før (2020)
+create-dataset forløp
+import-event ds/SIVSTANDFDT_SIVSTAND 2020-01-01 to 2020-12-31 as sivforløp
+keep if sivforløp == '4'
+collapse (count) sivforløp , by(PERSONID_1 )
+rename sivforløp ant_ganger_skilt
+tabulate ant_ganger_skilt
+
+// Kobler skilsmisseopplysninger på datasettet med alle bosatte og lager en dummy som angir status = skilt
+merge ant_ganger_skilt into totalpop
+use totalpop
+generate skilt2020 = 0
+replace skilt2020 = 1 if ant_ganger_skilt >= 1
+tabulate skilt2020, cellpct
+piechart skilt2020

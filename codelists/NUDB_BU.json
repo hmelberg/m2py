@@ -1,0 +1,269 @@
+{
+  "type": "register",
+  "data_type": "string",
+  "microdata_datatype": "Alfanumerisk",
+  "description": "Utdanningens art (NUS2000), utdanningsnivå Enhetstype: Person. Temporalitet: Forløp. Gyldighetsperiode: 1970-11-01 – 2024-08-01.",
+  "short_title": "Utdanningens art (NUS2000), utdanningsnivå",
+  "temporalitet": "Forløp",
+  "enhetstype": "Person",
+  "updated_at": "2025-09-24",
+  "databank": "no.ssb.fdb",
+  "topics": [
+    "Utdanning → Utdanningsnivå"
+  ],
+  "keywords": [
+    "art",
+    "nus2000",
+    "utdanningens",
+    "utdanningsnivå"
+  ],
+  "labels": {
+    "099901": "Ingen utdanning",
+    "099902": "Førskoleutdanning, UTGÅTT KODE, SE 099903 og 099904",
+    "099903": "Barnehage-/førskoleutdanning, 0-2 år",
+    "099904": "Barnehage-/førskoleutdanning, 3-5 år",
+    "099999": "Ingen utdanning og barnehage-/førskoleutdanning, uspesifisert fagfelt",
+    "101101": "Grunnskoleutdanning på barneskolenivå",
+    "101999": "Allmenne fag, andre, uspesifiserte, barneskoleutdanning",
+    "119999": "Humanistiske og estetiske fag, andre, uspesifiserte, barneskoleutdanning",
+    "129999": "Lærerutdanning og utdanning i pedagogikk, annen, uspesifisert, barneskoleutdanning",
+    "139999": "Samfunnsfag og juridiske fag, andre, uspesifiserte, barneskoleutdanning",
+    "149999": "Økonomiske og administrative fag, andre, uspesifiserte, barneskoleutdanning",
+    "159999": "Naturvitenskapelige fag, håndverksfag og tekniske fag, andre, uspesifiserte, barneskoleutdanning",
+    "169999": "Helse-, sosial- og idrettsfag, andre, uspesifiserte, barneskoleutdanning",
+    "179999": "Primærnæringsfag, andre, uspesifiserte, barneskoleutdanning",
+    "189999": "Samferdsels- og sikkerhetsfag og andre servicefag, andre, uspesifiserte, barneskoleutdanning",
+    "199999": "Barneskoleutdanning, uspesifisert fagfelt",
+
+    "201101": "Framhaldsskoleutdanning",
+    "201102": "Folkeskoleutdanning",
+    "201103": "Grunnskoleutdanning på ungdomsskoletrinnet",
+    "201104": "Innføringskurs, fremmedspråklige elever",
+    "201105": "Spesialutdanning for elever med særskilte behov",
+    "201106": "Voksenopplæring, grunnskole",
+    "201199": "Grunnskoleutdanning på ungdomsskoletrinnet, uspesifisert, ungdomsskoleutdanning",
+    "201999": "Allmenne fag, andre, uspesifisert, ungdomsskoleutdanning",
+    "219999": "Humanistiske og estetiske fag, andre, uspesifiserte, ungdomsskoleutdanning",
+    "229999": "Lærerutdanning og utdanning i pedagogikk, annen, uspesifisert, ungdomsskoleutdanning",
+    "239999": "Samfunnsfag og juridiske fag, andre, uspesifiserte, ungdomsskoleutdanning",
+    "249999": "Økonomiske og administrative fag, andre, uspesifiserte, ungdomsskoleutdanning",
+    "259999": "Naturvitenskapelige fag, håndverksfag og tekniske fag, andre, uspesifiserte, ungdomsskoleutdanning",
+    "269999": "Helse-, sosial- og idrettsfag, andre, uspesifiserte, ungdomsskoleutdanning",
+    "279999": "Primærnæringsfag, andre, uspesifiserte, ungdomsskoleutdanning",
+    "289999": "Samferdsels- og sikkerhetsfag og andre servicefag, andre, uspesifiserte, ungdomsskoleutdanning",
+    "299999": "Ungdomsskoleutdanning, uspesifisert fagfelt",
+
+    "301101": "Allmenne, økonomiske og administrative fag, grunnkurs",
+    "301102": "Allmenne fag, VK I",
+    "301103": "Den reisende høgskolen, solidaritetsarbeid",
+    "301104": "Folkehøgskoleutdanning, ettårig",
+    "301105": "Folkehøgskoleutdanning, halvårig",
+    "301106": "Folkehøgskoleutdanning, toårig/videregående kurs",
+    "301107": "Forkurs for fremmedspråklige",
+    "301108": "Forkurs for yrkes- og fagopplæringen",
+    "301109": "Gymnasutdanning, deleksamener",
+    "301110": "Realskoleutdanning",
+    "301111": "Studiespesialisering, Vg1",
+    "301112": "Formgivingsfag, Vg2",
+    "301113": "Realfag, Vg2",
+    "301114": "Samfunnsfag og økonomi, Vg2",
+    "301115": "Språkfag, Vg2",
+    "301116": "International Baccalaureate, Vg2, FEIL KODE, SE 401104",
+    "301117": "Språk, samfunnsfag og økonomi, Vg2",
+    "301118": "Studiespesialisering, Vg2",
+    "301119": "Studiespesialisering med formgivingsfag, Vg1",
+    "301120": "Studiespesialisering, Vg1, grunnkompetanse",
+    "301121": "Formgivingsfag, Vg2, grunnkompetanse",
+    "301122": "Realfag, Vg2, grunnkompetanse",
+    "301123": "Språk, samfunnsfag og økonomi, Vg2, grunnkompetanse",
+    "301199": "Generelle programmer, uspesifiserte, videregående, grunnutdanning",
+    "301999": "Allmenne fag, andre, uspesifiserte, videregående, grunnutdanning",
+
+    "311199": "Utdanning i germanske og romanske språk, uspesifisert, videregående, grunnutdanning",
+    "311299": "Utdanning i slaviske, baltiske og finsk-ugriske språk, uspesifisert, videregående, grunnutdanning",
+    "311399": "Utdanning i tyrkiske, indoiranske, keltiske, semittiske og asiatiske språk, uspesifisert, videregående, grunnutdanning",
+    "311499": "Utdanning i afrikanske språk, uspesifisert, videregående, grunnutdanning",
+    "311599": "Utdanning i klassiske språk, uspesifisert, videregående, grunnutdanning",
+    "311699": "Translatørutdanning, uspesifisert, videregående, grunnutdanning",
+    "311799": "Språkvitenskapelig utdanning, uspesifisert, videregående, grunnutdanning",
+    "311999": "Språkutdanning, annen, uspesifisert, videregående, grunnutdanning",
+    "312199": "Litteraturutdanning, uspesifisert, videregående, grunnutdanning",
+    "312201": "Bok- og bibliotekutdanning, toårig grunnkurs",
+    "312299": "Bibliotekutdanning, uspesifisert, videregående, grunnutdanning",
+    "312399": "Forfatterutdanning, uspesifisert, videregående, grunnutdanning",
+    "312999": "Litteratur- og bibliotekutdanning, annen, uspesifisert, videregående, grunnutdanning",
+    "313199": "Historieutdanning, uspesifisert, videregående, grunnutdanning",
+    "313299": "Kunsthistorie, uspesifisert, videregående, grunnutdanning",
+    "313399": "Arkeologi, uspesifisert, videregående, grunnutdanning",
+    "313499": "Kulturutdanning, uspesifisert, videregående, grunnutdanning",
+    "313599": "Filosofi og etikk, uspesifisert, videregående, grunnutdanning",
+    "313999": "Historisk-filosofisk utdanning, annen, uspesifisert, videregående, grunnutdanning",
+    "314101": "Bibelskoleutdanning, videregående, grunnutdanning",
+    "314102": "Frelsesarmeens offisersskole",
+    "314199": "Bibel-, misjonær- og menighetsarbeid, uspesifisert, videregående, grunnutdanning",
+    "314299": "Kristendom og annen religionsutdanning, uspesifisert, videregående, grunnutdanning",
+    "314999": "Religionsutdanning, annen, uspesifisert, videregående, grunnutdanning",
+    "315101": "Folkemusikk, toårig grunnkurs",
+    "315102": "Bibelskole, sang og musikk, videregående, grunnutdanning",
+    "315103": "Musikk, Vg2",
+    "315104": "Musikk, Vg2, grunnkompetanse",
+
+    "399999": "Videregående, grunnutdanning, uspesifisert fagfelt",
+    "401101": "Allmennlærerutdanning, 3-årig",
+    "401102": "Allmennlærerutdanning, 4-årig",
+    "401199": "Lærerutdanning, uspesifisert, lavere nivå",
+    "401201": "Grunnskolelærerutdanning, 1.–7. trinn",
+    "401202": "Grunnskolelærerutdanning, 5.–10. trinn",
+    "401299": "Grunnskolelærerutdanning, uspesifisert",
+
+    "411101": "Sykepleierutdanning, bachelor",
+    "411102": "Vernepleierutdanning, bachelor",
+    "411103": "Barnevernspedagogutdanning, bachelor",
+    "411199": "Helse- og sosialfaglig bachelorutdanning, uspesifisert",
+
+    "421101": "Ingeniørutdanning, bygg, bachelor",
+    "421102": "Ingeniørutdanning, maskin, bachelor",
+    "421103": "Ingeniørutdanning, elektro, bachelor",
+    "421104": "Ingeniørutdanning, data, bachelor",
+    "421199": "Ingeniørutdanning, bachelor, uspesifisert",
+
+    "431101": "Økonomi og administrasjon, bachelor",
+    "431102": "Revisjon, bachelor",
+    "431199": "Økonomisk-administrative fag, bachelor, uspesifisert",
+
+    "441101": "Jus, master",
+    "441199": "Juridiske fag, master, uspesifisert",
+
+    "451101": "Sivilingeniør, master, teknologi",
+    "451199": "Sivilingeniørutdanning, master, uspesifisert",
+
+    "461101": "Samfunnsøkonomi, master",
+    "461199": "Samfunnsvitenskapelige fag, master, uspesifisert",
+
+    "471101": "Medisin, profesjonsstudium",
+    "471102": "Odontologi, profesjonsstudium",
+    "471103": "Veterinærmedisin, profesjonsstudium",
+    "471199": "Medisin og helsefag, profesjonsstudium, uspesifisert",
+
+    "481101": "Lærerutdanning, master",
+    "481199": "Lærerutdanning, master, uspesifisert",
+
+    "499999": "Universitets- og høgskoleutdanning, uspesifisert fagfelt, høyere nivå",
+
+    "599999": "Påbygging til videregående utdanning, uspesifisert fagfelt",
+    "699999": "Universitets- og høgskoleutdanning, lavere nivå, uspesifisert fagfelt",
+    "799999": "Universitets- og høgskoleutdanning, høyere nivå, uspesifisert fagfelt",
+    "899999": "Forskerutdanning, uspesifisert fagfelt",
+    "999999": "Uoppgitt"
+  },
+  "distribution": {
+    "099901": 0.01,
+    "099903": 0.02,
+    "099904": 0.03,
+    "099999": 0.01,
+
+    "101101": 0.10,
+    "101999": 0.02,
+
+    "201103": 0.20,
+    "201199": 0.03,
+    "201999": 0.02,
+
+    "301111": 0.15,
+    "301118": 0.08,
+    "301120": 0.02,
+    "301121": 0.01,
+    "301122": 0.01,
+    "301123": 0.01,
+    "301199": 0.03,
+    "301999": 0.02,
+
+    "311199": 0.02,
+    "312201": 0.01,
+    "313199": 0.01,
+    "314101": 0.01,
+
+    "315103": 0.02,
+    "315104": 0.01,
+
+    "401201": 0.02,
+    "401202": 0.02,
+    "411101": 0.03,
+    "421101": 0.02,
+    "431101": 0.02,
+    "451101": 0.01,
+    "471101": 0.01,
+
+    "399999": 0.01,
+    "499999": 0.01,
+    "599999": 0.005,
+    "699999": 0.005,
+    "799999": 0.005,
+    "899999": 0.005,
+    "999999": 0.005
+  },
+  "age_distribution": {
+    "0-5": {
+      "099901": 0.40, "099903": 0.25, "099904": 0.35
+    },
+    "6-12": {
+      "101101": 0.88, "101999": 0.05, "099904": 0.05, "099901": 0.02
+    },
+    "13-15": {
+      "201103": 0.78, "201199": 0.05, "101101": 0.15, "099901": 0.02
+    },
+    "16-19": {
+      "301111": 0.30, "301118": 0.12, "301199": 0.08, "301999": 0.05,
+      "201103": 0.32, "201199": 0.05, "101101": 0.03, "999999": 0.05
+    },
+    "20-24": {
+      "301111": 0.12, "301118": 0.06, "301199": 0.04,
+      "201103": 0.08, "201199": 0.02,
+      "411101": 0.06, "421101": 0.04, "431101": 0.04,
+      "401201": 0.03, "401202": 0.03,
+      "451101": 0.02, "471101": 0.01,
+      "499999": 0.03, "599999": 0.02, "699999": 0.02,
+      "399999": 0.02, "999999": 0.04
+    },
+    "25-34": {
+      "201103": 0.06, "201199": 0.02,
+      "301111": 0.08, "301118": 0.05, "301199": 0.03,
+      "411101": 0.07, "421101": 0.05, "431101": 0.05,
+      "401201": 0.04, "401202": 0.04,
+      "451101": 0.04, "471101": 0.02,
+      "499999": 0.04, "599999": 0.02, "699999": 0.03,
+      "799999": 0.04, "899999": 0.02, "999999": 0.03
+    },
+    "35-54": {
+      "099901": 0.01,
+      "201103": 0.10, "201199": 0.03,
+      "301111": 0.12, "301118": 0.07, "301199": 0.04, "301999": 0.02,
+      "411101": 0.06, "421101": 0.04, "431101": 0.04,
+      "401201": 0.03, "401202": 0.03,
+      "451101": 0.03, "471101": 0.02,
+      "499999": 0.03, "599999": 0.02, "699999": 0.03,
+      "799999": 0.03, "899999": 0.02, "999999": 0.02
+    },
+    "55-66": {
+      "099901": 0.02, "101101": 0.03,
+      "201103": 0.14, "201199": 0.04,
+      "301111": 0.14, "301118": 0.08, "301199": 0.04, "301999": 0.03,
+      "411101": 0.05, "421101": 0.03, "431101": 0.03,
+      "401201": 0.02, "401202": 0.02,
+      "451101": 0.02, "471101": 0.01,
+      "499999": 0.02, "599999": 0.01, "699999": 0.02,
+      "799999": 0.02, "899999": 0.01, "999999": 0.03
+    },
+    "67-110": {
+      "099901": 0.03, "101101": 0.05,
+      "201103": 0.18, "201199": 0.05, "201999": 0.02,
+      "301111": 0.13, "301118": 0.07, "301199": 0.04, "301999": 0.03,
+      "411101": 0.04, "421101": 0.02, "431101": 0.02,
+      "401201": 0.02, "401202": 0.02,
+      "451101": 0.01, "471101": 0.01,
+      "499999": 0.02, "599999": 0.01, "699999": 0.02,
+      "799999": 0.01, "899999": 0.01, "999999": 0.04
+    }
+  }
+}
+

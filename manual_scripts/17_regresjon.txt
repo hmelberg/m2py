@@ -1,0 +1,89 @@
+// Eksempel 5.10: Regresjonsanalyser og prediksjons-/residualverdier
+require no.ssb.fdb:12 as db
+create-dataset regresjonsdata
+import db/INNTEKT_WLONN 2019-12-31 as lonn
+import db/INNTEKT_BER_BRFORM 2019-12-31 as formue
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+import db/BEFOLKNING_KJOENN as kjonn
+import db/BEFOLKNING_STATUSKODE 2020-01-01 as bosattstatus
+keep if bosattstatus == '1'
+
+generate alder = 2019 - int(faarmnd/100)
+
+generate mann = 0
+replace mann = 1 if kjonn == '1'
+
+//regress
+regress lonn alder mann formue
+regress-predict lonn alder mann formue
+histogram predicted
+hexbin predicted lonn
+regress-predict lonn alder mann formue, residuals(res) predicted(pred) cooksd(cook)
+regress-predict lonn alder mann, residuals(res2) predicted(pred2) cooksd(cook2)
+histogram pred
+histogram res
+histogram cook
+histogram res2
+
+//ivregress
+ivregress lonn mann (formue = alder)
+ivregress-predict lonn mann (formue = alder), residuals(res3) predicted(pred3)
+histogram pred3
+histogram res3
+
+//logit
+summarize lonn formue
+histogram lonn
+histogram formue
+generate hoylonn = 0
+replace hoylonn = 1 if lonn > 800000
+generate hoyformue = 0
+replace hoyformue = 1 if formue > 4000000
+
+logit hoylonn alder mann hoyformue
+logit-predict hoylonn alder mann hoyformue, residuals(res4) predicted(pred4) probabilities(prob4)
+histogram pred4
+histogram res4
+histogram prob4
+
+//probit
+probit hoylonn alder mann hoyformue
+probit-predict hoylonn alder mann hoyformue, predicted(pred5) probabilities(prob5)
+histogram pred5
+histogram prob5
+
+//mlogit
+generate lonnkat = 0
+replace lonnkat = 1 if lonn > 0
+replace lonnkat = 2 if lonn > 800000
+
+mlogit lonnkat alder mann hoyformue
+mlogit-predict lonnkat alder mann hoyformue, predicted(pred6) probabilities(prob6)
+summarize pred6_1
+histogram pred6_2
+histogram prob6_1
+histogram prob6_2
+
+//regress-panel
+sample 0.05 54321
+
+clone-units regresjonsdata paneldata
+use paneldata
+import-panel db/INNTEKT_WLONN db/BEFOLKNING_FOEDSELS_AAR_MND db/BEFOLKNING_KJOENN db/INNTEKT_BER_BRFORM 2017-12-31 2018-12-31 2019-12-31
+rename INNTEKT_WLONN lonn
+rename INNTEKT_BER_BRFORM formue
+generate alder = 2019 - int(BEFOLKNING_FOEDSELS_AAR_MND/100)
+generate mann = 0
+replace mann = 1 if BEFOLKNING_KJOENN == '1'
+
+regress-panel lonn mann alder formue
+regress-panel lonn mann alder formue, re
+regress-panel-predict lonn mann alder formue, predicted(ppred1) residuals(pres1) effects(peff1)
+regress-panel-predict lonn mann alder formue, re predicted(ppred2) residuals(pres2) effects(peff2)
+histogram ppred1
+histogram pres1
+histogram peff1
+histogram ppred2
+histogram pres2
+histogram peff2
+hausman lonn mann alder formue

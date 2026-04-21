@@ -1,0 +1,63 @@
+// ===================================================================
+// Example: Kakediagram og spredningsdiagram - piechart og hexbin
+// Source: https://microdata.no/manual/eksempel/Deskriptiv%20statistikk/Kakediagram%20og%20spredningsdiagram%20-%20piechart%20og%20hexbin/
+// ===================================================================
+// Two visualization commands for descriptive statistics.
+//
+// "Kommandoen `piechart` brukes til å lage kakediagram for diskrete variabler." This tool presents
+// categorical data in a visually intuitive format that shows proportional relationships.
+//
+// "Kommandoen `hexbin` lager et anonymiserende plotdiagram der plotarealet er delt inn i
+// sekskanter som fargelegges ut i fra hvor mange plot det er i hvert areal." This approach is
+// particularly useful for displaying continuous or metric variables while maintaining data
+// confidentiality through hexagonal binning that reveals distribution patterns between two
+// variables.
+// ===================================================================
+
+require no.ssb.fdb:30 as db
+
+create-dataset demografidata
+import db/INNTEKT_LONN 2020-01-01 as lønn20
+import db/INNTEKT_LONN 2015-01-01 as lønn15
+import db/BEFOLKNING_KJOENN as kjønn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+import db/BOSATTEFDT_BOSTED 2020-01-01 as bosted
+
+// Koder om fra kommune- til fylkesnivå
+generate fylke = substr(bosted,1,2)
+
+define-labels fylkerstring \
+	'03' Oslo \
+	'11' Rogaland \
+	'15' 'Møre og Romsdal' \
+	'18' Nordland \
+	'30' Viken \
+	'34' Innlandet \
+	'38' 'Vestfold og Telemark' \
+	'42' Agder \
+	'46' Vestland \
+	'50' Trøndelag \
+	'54' 'Troms og Finnmark' \
+	'21' Spitsbergen \
+	'25' 'Utdanning i utlandet' \
+	'99' Uoppgitt
+assign-labels fylke fylkerstring
+
+// Genererer alder per 2020
+generate alder = 2020 - int(faarmnd/100)
+
+// Kakediagram
+// Dette er en fin måte å vise den prosentvise fordelingen for diskrete variabler på en grafisk måte
+
+drop if alder < 16
+
+piechart kjønn
+piechart fylke
+
+// Hexbinplot
+// Dette er en anonymiserende måte å fremstille plotdiagrammer (egner seg best for kontinuerlige/metriske variabler),
+// der tettheten i plottene fargelegges på en systematisk måte for å avdekke mønstre i fordelingen mellom to variabler
+
+hexbin lønn20 lønn15
+hexbin lønn20 lønn15 if inrange(alder,30,50)
+hexbin lønn20 lønn15 if inrange(alder,20,30)

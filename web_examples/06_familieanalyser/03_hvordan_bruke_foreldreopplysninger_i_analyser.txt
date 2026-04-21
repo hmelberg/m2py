@@ -1,0 +1,58 @@
+// ===================================================================
+// Example: Hvordan bruke foreldreopplysninger i analyser
+// Source: https://microdata.no/manual/eksempel/Tema - Familieanalyser/Hvordan bruke foreldreopplysninger i analyser/
+// ===================================================================
+// Databasen inneholder variabler for fars og mors identifikasjonsnummer, noe som gjør det
+// mulig for forskere å koble foreldreopplysninger til persondatasett.
+//
+// Kommandoen merge brukes til å kombinere datasett. Som standard brukes hovedidentifikator-
+// variabelen i måldatasettet som koblingsnøkkel, men dette kan overstyres via en on-opsjon.
+//
+// Eksempelet demonstrerer hvordan man oppretter et eget foreldredatasett som deretter
+// fusjoneres med et persondatasett ved bruk av koblingsnøklene fnr_far (fars ID) og fnr_mor
+// (mors ID).
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:43 as db
+
+// Lager et persondatasett med lenker til far og mor
+create-dataset persondata
+import db/INNTEKT_WYRKINNT 2021-01-01 as inntekt
+import db/BEFOLKNING_KJOENN as kjønn
+import db/NUDB_BU 2021-01-01 as utd
+import db/BEFOLKNING_FAR_FNR as fnr_far
+import db/BEFOLKNING_MOR_FNR as fnr_mor
+
+// Henter opplysninger om foreldre og kobler på persondatasett
+create-dataset foreldredata
+import db/INNTEKT_WYRKINNT 2021-01-01 as inntekt_far
+import db/NUDB_BU 2021-01-01 as utd_far, outer_join
+clone-variables inntekt_far -> inntekt_mor
+clone-variables utd_far -> utd_mor
+merge inntekt_far utd_far into persondata on fnr_far
+merge inntekt_mor utd_mor into persondata on fnr_mor
+
+// Kjører en enkel lineær regresjon for å teste sammenheng mellom egen og foreldres inntekt
+use persondata
+generate mann = kjønn == '1'
+
+destring utd
+generate høyutd = (utd >= 700000 & utd < 900000)
+replace høyutd = utd if sysmiss(utd)
+
+destring utd_far
+generate høyutd_far = (utd_far >= 700000 & utd_far < 900000)
+replace høyutd_far = utd_far if sysmiss(utd_far)
+
+destring utd_mor
+generate høyutd_mor = (utd_mor >= 700000 & utd_mor < 900000)
+replace høyutd_mor = utd_mor if sysmiss(utd_mor)
+
+summarize inntekt inntekt_far inntekt_mor
+histogram inntekt_far, percent
+histogram inntekt_mor, percent
+correlate inntekt_far inntekt_mor
+tabulate høyutd_far høyutd_mor
+
+regress inntekt mann inntekt_far inntekt_mor høyutd høyutd_far høyutd_mor

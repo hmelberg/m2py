@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Microdata Script Runner – Dokumentasjon</title>
+<style>
+  :root {
+    --accent: #2563eb;
+    --accent-light: #eff6ff;
+    --accent-dark: #1d4ed8;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --bg: #f8fafc;
+    --bg-card: #ffffff;
+    --bg-code: #f1f5f9;
+    --border: #e2e8f0;
+    --radius: 10px;
+    --shadow: 0 1px 4px rgba(15,23,42,0.08), 0 4px 16px rgba(15,23,42,0.05);
+    --tag-micro: #0ea5e9;
+    --tag-py: #7c3aed;
+    --tag-r: #059669;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --accent: #3b82f6;
+      --accent-light: #1e3a5f;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --bg: #0f172a;
+      --bg-card: #1e293b;
+      --bg-code: #0f172a;
+      --border: #334155;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.65;
+  }
+
+  /* ── Layout ── */
+  .page { display: flex; min-height: 100vh; }
+  nav {
+    width: 220px; flex-shrink: 0; position: sticky; top: 0; height: 100vh;
+    overflow-y: auto; border-right: 1px solid var(--border);
+    background: var(--bg-card); padding: 24px 0 32px;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  nav::-webkit-scrollbar { width: 4px; }
+  nav::-webkit-scrollbar-track { background: transparent; }
+  nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  .nav-logo {
+    padding: 0 18px 20px; font-size: 13px; font-weight: 700;
+    color: var(--accent); letter-spacing: 0.02em; text-transform: uppercase;
+  }
+  .nav-section { padding: 6px 18px 2px; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+  nav a {
+    display: block; padding: 5px 18px; font-size: 13.5px; color: var(--text-muted);
+    text-decoration: none; border-radius: 0; transition: color .15s, background .15s;
+  }
+  nav a:hover, nav a.active { color: var(--accent); background: var(--accent-light); }
+  main { flex: 1; min-width: 0; max-width: 860px; padding: 48px 40px 80px; margin: 0 auto; }
+
+  @media (max-width: 700px) {
+    nav { display: none; }
+    main { padding: 28px 18px 60px; }
+  }
+
+  /* ── Typography ── */
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+  h2 { font-size: 20px; font-weight: 700; margin: 48px 0 14px; padding-top: 8px;
+       border-top: 1px solid var(--border); color: var(--text); }
+  h3 { font-size: 15px; font-weight: 700; margin: 24px 0 8px; color: var(--text); }
+  p { margin-bottom: 12px; }
+  ul, ol { padding-left: 20px; margin-bottom: 12px; }
+  li { margin-bottom: 4px; }
+  a { color: var(--accent); }
+  a:hover { color: var(--accent-dark); }
+  .lead { font-size: 16px; color: var(--text-muted); margin-bottom: 32px; line-height: 1.7; }
+
+  /* ── Code ── */
+  code {
+    font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+    font-size: 13px; background: var(--bg-code); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1px 5px; color: var(--accent);
+  }
+  pre {
+    background: var(--bg-code); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 16px; overflow-x: auto; margin: 10px 0 16px;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  pre::-webkit-scrollbar { height: 5px; }
+  pre::-webkit-scrollbar-track { background: transparent; }
+  pre::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  pre code {
+    background: none; border: none; padding: 0; font-size: 13px;
+    color: var(--text); line-height: 1.6; display: block;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px 20px; margin-bottom: 14px;
+    box-shadow: var(--shadow);
+  }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .card-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+  .card-body { font-size: 13px; color: var(--text-muted); line-height: 1.55; }
+
+  /* ── Mode badges ── */
+  .badge {
+    display: inline-block; font-size: 11px; font-weight: 700; border-radius: 4px;
+    padding: 2px 7px; letter-spacing: 0.03em; vertical-align: middle; margin-right: 4px;
+    text-transform: uppercase;
+  }
+  .badge-micro { background: #e0f2fe; color: #0369a1; }
+  .badge-py    { background: #ede9fe; color: #6d28d9; }
+  .badge-r     { background: #d1fae5; color: #065f46; }
+  @media (prefers-color-scheme: dark) {
+    .badge-micro { background: #0c3347; color: #7dd3fc; }
+    .badge-py    { background: #2d1b69; color: #c4b5fd; }
+    .badge-r     { background: #064e3b; color: #6ee7b7; }
+  }
+
+  /* ── Table ── */
+  .doc-table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 13.5px; }
+  .doc-table th { text-align: left; padding: 8px 12px; background: var(--bg-code);
+    border-bottom: 2px solid var(--border); font-weight: 600; color: var(--text-muted);
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .doc-table td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .doc-table tr:last-child td { border-bottom: none; }
+  .doc-table tr:hover td { background: var(--bg-code); }
+
+  /* ── Callout ── */
+  .callout {
+    border-left: 3px solid var(--accent); background: var(--accent-light);
+    padding: 12px 16px; border-radius: 0 var(--radius) var(--radius) 0;
+    margin: 14px 0; font-size: 13.5px; color: var(--text);
+  }
+  .callout.tip { border-color: #059669; background: #f0fdf4; }
+  @media (prefers-color-scheme: dark) {
+    .callout.tip { background: #052e16; }
+  }
+
+  /* ── Header strip ── */
+  .doc-header {
+    background: linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%);
+    color: #fff; border-radius: var(--radius); padding: 28px 32px; margin-bottom: 36px;
+    box-shadow: 0 4px 24px rgba(37,99,235,0.18);
+  }
+  .doc-header h1 { color: #fff; margin-bottom: 6px; }
+  .doc-header .lead { color: rgba(255,255,255,0.85); margin-bottom: 0; font-size: 15px; }
+
+  /* ── kbd ── */
+  kbd {
+    font-family: inherit; font-size: 12px; background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: 4px;
+    box-shadow: 0 1px 0 var(--border); padding: 2px 6px;
+    color: var(--text);
+  }
+
+  /* ── Section anchor offset ── */
+  section { scroll-margin-top: 20px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<nav>
+  <div class="nav-logo">Script Runner</div>
+  <div class="nav-section">Kom i gang</div>
+  <a href="#intro">Hva er dette?</a>
+  <a href="#running">Kjøre og oversette</a>
+  <a href="#microdata">Microdata-kommandoer</a>
+  <div class="nav-section">Editoren</div>
+  <a href="#editor">Editor og snarveier</a>
+  <a href="#tab-intro">Tab-autocomplete</a>
+  <a href="#sidebar">Datasett-panel</a>
+  <div class="nav-section">Forklaring og presentasjon</div>
+  <a href="#forklar">Kjør skrittvis</a>
+  <a href="#widgets">Widgets</a>
+  <div class="nav-section">Andre moduser</div>
+  <a href="#modes">Moduser</a>
+  <a href="#python">Python (Pyodide)</a>
+  <a href="#r">R (WebR)</a>
+  <a href="#hybrid">Hybrid-skript</a>
+  <div class="nav-section">Referanse</div>
+  <a href="#tab-full">Tab-autocomplete (detalj)</a>
+</nav>
+
+<main>
+
+  <div class="doc-header">
+    <h1>Microdata Script Runner</h1>
+    <p class="lead">Skriv og kjør microdata.no-kode, Python og R direkte i nettleseren — uten installasjon.</p>
+  </div>
+
+  <!-- ── INTRO ── -->
+  <section id="intro">
+    <h2>Hva er dette?</h2>
+    <p>Script Runner er et verktøy for å skrive og kjøre kode mot norske registerdata fra <strong>microdata.no</strong>. Du kan skrive microdata-kommandoer og se resultater umiddelbart, oversette mellom Python/R og microdata-syntaks, og kjøre hybridskript der ulike språk samarbeider.</p>
+
+    <div class="callout">
+      <strong>NB:</strong> Dette er et hobbyprosjekt og er ikke laget av microdata.no selv. Siden inneholder ikke ekte tall, og det gis ingen garantier for at analysene er korrekt implementert.
+    </div>
+
+    <p>Alt skjer i nettleseren — ingen data forlater maskinen din.</p>
+
+    <div class="callout tip">
+      <strong>Hurtigstart:</strong> Skriv microdata-kommandoer i tekstfeltet, trykk <kbd>Ctrl</kbd>+<kbd>Enter</kbd> eller knappen <strong>Kjør</strong>. Bruk <kbd>Tab</kbd> for forslag til kommandoer og variabler.
+    </div>
+  </section>
+
+  <!-- ── RUNNING ── -->
+  <section id="running">
+    <h2>Kjøre og oversette</h2>
+
+    <h3>Kjøre direkte</h3>
+    <p>Trykk <kbd>Ctrl</kbd>+<kbd>Enter</kbd> eller knappen <strong>Kjør</strong>. Resultater vises i outputfeltet. Tabeller, diagrammer og tekst vises automatisk.</p>
+
+    <h3>Oversette</h3>
+    <p>Knappen <strong>Oversett</strong> (pil-ikon) konverterer Python- eller R-kode til microdata-syntaks. Oversatt kode kan kjøres direkte med <strong>Kjør</strong>.</p>
+
+    <h3>Stoppe / avbryte</h3>
+    <p>Trykk <strong>Kjør</strong>-knappen igjen under kjøring for å avbryte.</p>
+  </section>
+
+  <!-- ── MICRODATA ── -->
+  <section id="microdata">
+    <h2>Microdata-kommandoer</h2>
+    <p>Microdata-syntaksen ligner på Stata. Her er de viktigste kommandoene:</p>
+
+    <h3>Datainnlasting</h3>
+    <table class="doc-table">
+      <thead><tr><th>Kommando</th><th>Beskrivelse</th></tr></thead>
+      <tbody>
+        <tr><td><code>require no.ssb.fdb:51 as db</code></td><td>Koble til en datakilde og gi den et navn</td></tr>
+        <tr><td><code>create-dataset navn</code></td><td>Opprett tomt datasett</td></tr>
+        <tr><td><code>import db/VARIABEL [dato] as alias</code></td><td>Importer variabel fra registerdata</td></tr>
+        <tr><td><code>import-event db/VARIABEL dato1 to dato2 as alias</code></td><td>Importer hendelsesdata</td></tr>
+        <tr><td><code>use datasett</code></td><td>Bytt aktivt datasett</td></tr>
+        <tr><td><code>merge datasett, by(var)</code></td><td>Slå sammen to datasett</td></tr>
+        <tr><td><code>clone-dataset nytt [fra]</code></td><td>Kopier datasett</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Transformasjoner</h3>
+    <table class="doc-table">
+      <thead><tr><th>Kommando</th><th>Beskrivelse</th></tr></thead>
+      <tbody>
+        <tr><td><code>generate ny = uttrykk</code></td><td>Lag ny variabel</td></tr>
+        <tr><td><code>rename gammel ny</code></td><td>Gi variabel nytt navn</td></tr>
+        <tr><td><code>replace var = uttrykk [if betingelse]</code></td><td>Erstatt verdier</td></tr>
+        <tr><td><code>recode var (gammelt=nytt) ...</code></td><td>Rekode kategorier</td></tr>
+        <tr><td><code>keep var1 var2 ...</code></td><td>Behold kun disse variablene</td></tr>
+        <tr><td><code>drop var1 var2 ...</code></td><td>Fjern variabler</td></tr>
+        <tr><td><code>destring var</code></td><td>Konverter tekst til tall</td></tr>
+        <tr><td><code>collapse (stat) var [-> navn] ..., by(gruppevar)</code></td><td>Aggreger til gruppenivå</td></tr>
+        <tr><td><code>aggregate (stat) var -> nyvar, by(gruppevar)</code></td><td>Legg til aggregert kolonne (beholder alle rader)</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Statistikk og visualisering</h3>
+    <table class="doc-table">
+      <thead><tr><th>Kommando</th><th>Beskrivelse</th></tr></thead>
+      <tbody>
+        <tr><td><code>summarize [variabler]</code></td><td>Deskriptiv statistikk</td></tr>
+        <tr><td><code>tabulate var [var2]</code></td><td>Frekvens- / krysstabell</td></tr>
+        <tr><td><code>correlate [variabler]</code></td><td>Korrelasjonsmatrise</td></tr>
+        <tr><td><code>regress y x1 x2 ...</code></td><td>OLS-regresjon</td></tr>
+        <tr><td><code>logit / probit y x1 x2</code></td><td>Logistisk / probit regresjon</td></tr>
+        <tr><td><code>ci var</code></td><td>Konfidensintervall</td></tr>
+        <tr><td><code>anova y x</code></td><td>Variansanalyse</td></tr>
+        <tr><td><code>barchart / histogram / scatter / boxplot var, by(gruppevar)</code></td><td>Diagrammer</td></tr>
+        <tr><td><code>kaplan-meier / cox / weibull</code></td><td>Overlevelsesanalyse</td></tr>
+      </tbody>
+    </table>
+
+    <h3>collapse-statistikk</h3>
+    <p>Tilgjengelige statistikkmål for <code>collapse</code> og <code>aggregate</code>:</p>
+    <p><code>mean</code> · <code>min</code> · <code>max</code> · <code>median</code> · <code>sum</code> · <code>count</code> · <code>sd</code> · <code>semean</code> · <code>sebinomial</code> · <code>percent</code> · <code>iqr</code> · <code>gini</code></p>
+
+    <h3>Kontrollflyt</h3>
+    <pre><code>for i in 2018 2019 2020
+  import db/INNTEKT_WLONN &i-01-01 as inntekt_&i
+end
+
+let maks = 200000
+generate hoy = (inntekt > maks)</code></pre>
+  </section>
+
+  <!-- ── EDITOR ── -->
+  <section id="editor">
+    <h2>Editor og tastatursnarveier</h2>
+
+    <table class="doc-table">
+      <thead><tr><th>Snarvei</th><th>Handling</th></tr></thead>
+      <tbody>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>Kjør scriptet</td></tr>
+        <tr><td><kbd>Tab</kbd></td><td>Autofullfør (kommando, variabel, metode)</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Lukk autocomplete-liste</td></tr>
+        <tr><td>Klikk linjenummer</td><td>Sett / fjern stoppunkt (rød prikk) for Forklar</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Stoppunkter</h3>
+    <p>Klikk på et linjenummer for å sette et rød stoppunkt. Under <strong>Forklar</strong> vil kjøringen pause ved stoppunktet og vente på at du trykker videre.</p>
+  </section>
+
+  <!-- ── TAB INTRO ── -->
+  <section id="tab-intro">
+    <h2>Tab-autocomplete</h2>
+    <p>Trykk <kbd>Tab</kbd> i editoren for kontekstbevisste forslag: kommandoer, variabelnavn, DataFrame-metoder og mer. Etter <code>/</code> (f.eks. <code>import db/</code>) foreslås microdata-variabler fra katalogen. På tom linje foreslås kommandoer.</p>
+
+    <div class="callout tip">
+      <strong>Tips:</strong> Trykk <kbd>Tab</kbd> midt i et ord for å filtrere listen etter det du allerede har skrevet. Se <a href="#tab-full">fullstendig referanse</a> for alle kontekstregler.
+    </div>
+  </section>
+
+  <!-- ── SIDEBAR ── -->
+  <section id="sidebar">
+    <h2>Datasett-panel (høyre sidemeny)</h2>
+    <p>Sidemenyen til høyre viser alle datasett som er lastet inn i gjeldende kjøring.</p>
+    <ul>
+      <li><strong>Antall variabler og rader</strong> per datasett</li>
+      <li><strong>Variabelliste</strong> med type-ikon: <code>ABC</code> tekst, <code>123</code> numerisk, skjold-ikon for pseudonymisert ID</li>
+      <li>Klikk på en variabel for <strong>detaljvisning</strong>: navn, type, beskrivelse og lenke til microdata-katalogen</li>
+    </ul>
+    <p>Sidemenyen oppdateres automatisk etter hver kjøring og etter hvert blokk i Forklar-modus.</p>
+  </section>
+
+  <!-- ── FORKLAR ── -->
+  <section id="forklar">
+    <h2>Kjør skrittvis — steg-for-steg forklaring</h2>
+    <p><strong>Kjør skrittvis</strong>-knappen kjører scriptet ett <em>blokk</em> om gangen, leser opp kommentarer og lar deg følge med på hva som skjer. Det er nyttig for presentasjoner og undervisning.</p>
+
+    <h3>Blokker</h3>
+    <p>En blokk er en gruppe sammenhengende linjer uten tomlinjer imellom. To eller flere tomlinjer separerer blokker.</p>
+    <pre><code>// Denne kommentaren leses OPP før koden kjøres
+create-dataset df
+import db/BEFOLKNING_KJOENN as kjonn
+
+// Dette er neste blokk
+summarize kjonn
+// Denne kommentaren leses etter at resultatet vises</code></pre>
+
+    <h3>Kommentarsyntaks</h3>
+    <table class="doc-table">
+      <thead><tr><th>Syntaks</th><th>Modus</th><th>Effekt</th></tr></thead>
+      <tbody>
+        <tr><td><code>// tekst</code></td><td><span class="badge badge-micro">Microdata</span></td><td>Leses som tale; foranstilt kommentar leses FØR koden, etterhengt leses ETTER</td></tr>
+        <tr><td><code># tekst</code></td><td><span class="badge badge-py">Python</span> <span class="badge badge-r">R</span></td><td>Samme som ovenfor</td></tr>
+        <tr><td><code>//-</code> eller <code>#-</code></td><td>Alle</td><td>Stille kommentar — første kodeord leses <em>ikke</em> høyt, og tekst etter <code>-</code> leses heller ikke</td></tr>
+        <tr><td><code>//(lang=nb-NO,rate=1.2) tekst</code></td><td>Alle</td><td>Tale med tilpassede parametere (språk, hastighet, stemme, toneleie)</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Pause, navigasjon og stoppunkter</h3>
+    <ul>
+      <li>Trykk <strong>Forklar</strong> igjen for å pause/fortsette</li>
+      <li>Pil-knappene hopper til forrige/neste blokk</li>
+      <li>Stoppunkter (klikk på linjenummer) gjør at Forklar pauser automatisk</li>
+    </ul>
+  </section>
+
+  <!-- ── WIDGETS ── -->
+  <section id="widgets">
+    <h2>Forklar-widgets</h2>
+    <p>Widgets er interaktive kort som vises i Forklar-modusen. De settes inn som spesielle kommentarlinjer og er tilgjengelig i alle moduser.</p>
+
+    <h3>Syntaks</h3>
+    <pre><code>// microdata:
+//widget NAVN { ...json... }
+
+# python eller R:
+#widget NAVN { ...json... }</code></pre>
+
+    <h3>Blokk-syntaks for lengre innhold</h3>
+    <p>For HTML, SVG og markdown med flere linjer kan du bruke blokk-syntaks i stedet for JSON:</p>
+    <pre><code>//start_widget:html(title="Eksempel", speak="Her ser du HTML-innhold.")
+&lt;div style="text-align:center"&gt;
+  &lt;h2&gt;Hei fra HTML&lt;/h2&gt;
+  &lt;p&gt;Flere linjer uten escaping.&lt;/p&gt;
+&lt;/div&gt;
+//end_widget</code></pre>
+
+    <h3>Tilgjengelige widgets</h3>
+    <table class="doc-table">
+      <thead><tr><th>Widget</th><th>Eksempel</th><th>Beskrivelse</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>title</code></td>
+          <td><code>//widget title {"text":"Kapittel 1","size":"full"}</code></td>
+          <td>Stor tittelkort med animasjon. <code>size</code>: <code>"full"</code>, <code>"medium"</code>, <code>"small"</code></td>
+        </tr>
+        <tr>
+          <td><code>markdown</code></td>
+          <td><code>//widget markdown {"text":"# Hei\nDette er **fet** tekst"}</code></td>
+          <td>Rendret Markdown-innhold</td>
+        </tr>
+        <tr>
+          <td><code>question</code></td>
+          <td><code>//widget question {"q":"Hva er p-verdien?","options":["&lt;0.05","&gt;0.05"],"answer":0}</code></td>
+          <td>Flervalgsspørsmål med tilbakemelding. <code>"require_correct": true</code> gir prøv-igjen-modus</td>
+        </tr>
+        <tr>
+          <td><code>image</code></td>
+          <td><code>//widget image {"src":"bilde.png","caption":"Figur 1"}</code></td>
+          <td>Bildevisning med valgfri bildetekst</td>
+        </tr>
+        <tr>
+          <td><code>html</code></td>
+          <td><code>//start_widget:html</code> ... <code>//end_widget</code></td>
+          <td>Rå HTML-innhold i en modal</td>
+        </tr>
+        <tr>
+          <td><code>svg</code></td>
+          <td><code>//start_widget:svg(title="Figur")</code> ... <code>//end_widget</code></td>
+          <td>SVG-grafikk med valgfri tittel og bildetekst</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      Alle widgets støtter <code>speak="tekst"</code> for parallell taleopplesning mens widgeten vises, og <code>auto_advance_ms=3000</code> for automatisk lukking etter angitt tid.
+    </div>
+  </section>
+
+  <!-- ── MODES ── -->
+  <section id="modes">
+    <h2>Moduser</h2>
+    <p>Velg modus fra dropdown-menyen i bunnbaren, eller bruk modusveksler-linjer i scriptet for å veksle underveis (se <a href="#hybrid">Hybrid-skript</a>).</p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-title"><span class="badge badge-micro">Microdata</span> Standard</div>
+        <div class="card-body">Microdata.no-syntaks. Laster registerdata, oppretter datasett, kjører statistikk og diagrammer.</div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="badge badge-py">Python</span> Pyodide</div>
+        <div class="card-body">Komplett Python i nettleseren. Pandas, NumPy, Matplotlib, Scikit-learn, SciPy osv. er tilgjengelig.</div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="badge badge-r">R</span> WebR</div>
+        <div class="card-body">Komplett R i nettleseren. Tidyverse, ggplot2, dplyr, survival m.m. installeres automatisk ved bruk.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PYTHON ── -->
+  <section id="python">
+    <h2>Python (Pyodide)</h2>
+    <p>Python kjøres i nettleseren via <a href="https://pyodide.org" target="_blank" rel="noopener">Pyodide</a> (WebAssembly). Ingen installasjon nødvendig. Tilgjengelige pakker inkluderer:</p>
+    <ul>
+      <li><strong>pandas</strong>, <strong>NumPy</strong>, <strong>SciPy</strong></li>
+      <li><strong>Matplotlib</strong>, <strong>Seaborn</strong>, <strong>Plotly</strong></li>
+      <li><strong>Scikit-learn</strong>, <strong>statsmodels</strong>, <strong>lifelines</strong></li>
+    </ul>
+
+    <h3>Spesielle funksjoner</h3>
+    <table class="doc-table">
+      <thead><tr><th>Funksjon</th><th>Beskrivelse</th></tr></thead>
+      <tbody>
+        <tr><td><code>show(objekt)</code></td><td>Vis DataFrame, plot eller verdi i outputfeltet</td></tr>
+        <tr><td><code>to_microdata(df, "navn")</code></td><td>Send en pandas DataFrame tilbake til microdata-tolken som et navngitt datasett</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Oversettelse til microdata</h3>
+    <p>Følgende Python-mønstre oversettes godt av <em>py2m</em>:</p>
+    <ul>
+      <li><code>df = pd.read_csv(...)</code> → <code>import</code>-kommandoer</li>
+      <li><code>df.groupby("x")["y"].mean()</code> → <code>collapse (mean) y, by(x)</code></li>
+      <li><code>df[df["x"] &gt; 0]</code> → <code>keep if x &gt; 0</code></li>
+      <li><code>df["ny"] = df["x"] + df["y"]</code> → <code>generate ny = x + y</code></li>
+      <li><code>df.rename(columns={"a": "b"})</code> → <code>rename a b</code></li>
+      <li><code>df.merge(df2, on="id")</code> → <code>merge</code></li>
+    </ul>
+    <p>Kode som bruker egendefinerte klasser, list comprehensions, rekursjon, asynkron logikk eller komplekse lambda-uttrykk oversettes ikke og må skrives om.</p>
+  </section>
+
+  <!-- ── R ── -->
+  <section id="r">
+    <h2>R (WebR)</h2>
+    <p>R kjøres via <a href="https://docs.r-wasm.org/webr/latest/" target="_blank" rel="noopener">WebR</a> (WebAssembly). Pakker installeres automatisk første gang de brukes (<code>library(dplyr)</code> osv.).</p>
+
+    <h3>Oversettelse til microdata</h3>
+    <p>Følgende R-mønstre oversettes godt av <em>r2m</em>:</p>
+    <ul>
+      <li><code>df %&gt;% filter(x &gt; 0)</code> → <code>keep if x &gt; 0</code></li>
+      <li><code>df %&gt;% select(x, y)</code> → <code>keep x y</code></li>
+      <li><code>df %&gt;% mutate(ny = x + y)</code> → <code>generate ny = x + y</code></li>
+      <li><code>df %&gt;% group_by(g) %&gt;% summarise(m = mean(x))</code> → <code>collapse (mean) x -> m, by(g)</code></li>
+      <li><code>df %&gt;% rename(ny = gammel)</code> → <code>rename gammel ny</code></li>
+      <li><code>left_join(df, df2, by = "id")</code> → <code>merge</code></li>
+    </ul>
+    <p>Kode som bruker <code>purrr</code>, egendefinerte R6-klasser, Shiny, miljømanipulasjon eller komplekse NSE-uttrykk oversettes ikke automatisk.</p>
+  </section>
+
+  <!-- ── HYBRID ── -->
+  <section id="hybrid">
+    <h2>Hybrid-skript</h2>
+    <p>Du kan blande microdata, Python og R i samme script ved å bruke <strong>modusveksler-linjer</strong>.</p>
+
+    <h3>Vekslerlinjer</h3>
+    <table class="doc-table">
+      <thead><tr><th>Linje</th><th>Effekt</th></tr></thead>
+      <tbody>
+        <tr><td><code>## microdata</code> / <code>#micro</code> / <code>// microdata</code></td><td>Bytt til microdata-modus</td></tr>
+        <tr><td><code>## python</code> / <code>#py</code></td><td>Bytt til Python-modus</td></tr>
+        <tr><td><code>## r</code> / <code>#r</code></td><td>Bytt til R-modus</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Eksempel: microdata + Python</h3>
+    <pre><code>## microdata
+require no.ssb.fdb:51 as db
+create-dataset df
+import db/ALDER as alder
+import db/INNTEKT_WLONN 2022-01-01 as inntekt
+
+## python
+import seaborn as sns
+import matplotlib.pyplot as plt
+sns.scatterplot(data=df, x="alder", y="inntekt")
+plt.tight_layout()
+show(plt.gcf())</code></pre>
+
+    <h3>Eksempel: microdata + R</h3>
+    <pre><code># microdata
+require no.ssb.fdb:51 as db
+create-dataset df
+import db/BEFOLKNING_KJOENN as kjonn
+import db/INNTEKT_WLONN 2022-01-01 as inntekt
+
+#r
+library(dplyr)
+df %>% group_by(kjonn) %>%
+  summarise(snitt = mean(inntekt, na.rm = TRUE))</code></pre>
+
+    <p>Datasettene fra microdata-seksjonen overføres automatisk til Python som pandas DataFrames og til R som data frames.</p>
+  </section>
+
+  <!-- ── TAB FULL ── -->
+  <section id="tab-full">
+    <h2>Tab-autocomplete — fullstendig referanse</h2>
+    <p>Trykk <kbd>Tab</kbd> i editoren for kontekstbevisste forslag. Reglene er de samme i alle moduser:</p>
+
+    <table class="doc-table">
+      <thead><tr><th>Kontekst</th><th>Forslag</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Etter <code>/</code> (f.eks. <code>import db/</code>)</td>
+          <td>Microdata-variabelnavn fra katalogen</td>
+        </tr>
+        <tr>
+          <td>Tomt linjebegynnelse</td>
+          <td>
+            <span class="badge badge-micro">Microdata</span> kommandoer<br>
+            <span class="badge badge-py">Python</span> nøkkelord + innebygde funksjoner<br>
+            <span class="badge badge-r">R</span> base R- og tidyverse-funksjoner
+          </td>
+        </tr>
+        <tr>
+          <td>Bare mellomrom til venstre</td>
+          <td>Setter inn 2 ekstra mellomrom (innrykk)</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-py">Python</span> <code>df.</code></td>
+          <td>Kolonner i <code>df</code> (om kjent), ellers pandas DataFrame-metoder</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-r">R</span> <code>df$</code></td>
+          <td>Kolonner i <code>df</code></td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-py">Python</span> <code>import </code></td>
+          <td>Vanlige data science-bibliotek (pandas, numpy, sklearn ...)</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-r">R</span> <code>library(</code></td>
+          <td>Vanlige R-pakker; pakkenavnet settes inn med parenteser</td>
+        </tr>
+        <tr>
+          <td>Ingen treff ellers</td>
+          <td>Alle kjente kolonnenavn fra innlastede datasett</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Variabelinformasjon</h3>
+    <p>Når du velger et microdata-variabelnavn fra autocomplete-listen, vises en liten popup med navn, type og beskrivelse fra katalogen. Klikk <strong>Mer info</strong> for å åpne full dokumentasjon på microdata.no.</p>
+  </section>
+
+</main>
+</div>
+
+<script>
+  // Highlight nav link matching current scroll position
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('nav a');
+  function updateNav() {
+    let current = '';
+    sections.forEach(s => {
+      if (window.scrollY >= s.offsetTop - 60) current = s.id;
+    });
+    navLinks.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+    });
+  }
+  window.addEventListener('scroll', updateNav, { passive: true });
+  updateNav();
+</script>
+</body>
+</html>

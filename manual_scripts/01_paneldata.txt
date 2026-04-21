@@ -1,0 +1,14 @@
+// Eksempel 2.4: Lage populasjon, duplisere enheter, importere paneldata
+// Populasjon = bosatte i Oslo per 1/1 2010 i alderen 18-39 år
+require no.ssb.fdb:12 as db
+
+create-dataset populasjon
+import db/BOSATTEFDT_BOSTED 2010-01-01 as bosted
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+generate alder = 2010 - int(faarmnd/100)
+keep if alder >= 18 & alder < 40 & bosted == '0301'
+
+clone-units populasjon paneldata
+
+use paneldata
+import-panel db/INNTEKT_WLONN db/SIVSTANDFDT_SIVSTAND db/BOSATTEFDT_BOSTED 2011-12-31 2012-12-31 2013-12-31 2014-12-31

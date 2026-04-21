@@ -1,0 +1,319 @@
+// ===================================================================
+// Example: Følge personer innen utdanningsforløpet og status etter endt utdanning
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Utdanningsanalyser/F%C3%B8lge%20personer%20innen%20utdanningsforl%C3%B8pet%20og%20status%20etter%20endt%20utdanning/
+// ===================================================================
+// Dette analyseeksempelet viser hvordan man kan plukke ut personer som fullførte og avsluttet
+// sin utdanning på ulike nivåer i 2012, og lage detaljert statistikk over hvordan det går med
+// disse henholdsvis 5 og 10 år etterpå. Skriptet studerer jobbstatus, trygdestatuser,
+// videreutdanning m.m.
+//
+// Eksempelet demonstrerer en longitudinell metode for å følge individers utdanningsforløp og
+// påfølgende livsutfall. Analysen fanger personer som avsluttet studier på ulike
+// utdanningsnivåer i løpet av 2012, og undersøker deres sosioøkonomiske situasjon på to
+// senere målepunkter - fem og ti år etter fullføring. Undersøkelsen omfatter
+// arbeidsforhold, trygdeytelser og videreutdanningsdeltakelse.
+// ===================================================================
+
+require no.ssb.fdb:40 as db
+
+// Trinn 1: Lager en populasjon av personer som fullfører og avslutter sin utdanning i 2012
+
+// Trinn 1a: Finner først personer som fullfører sin utdanning på ulike nivå i 2012, og grupperer dem etter utdanningsnivå
+
+create-dataset ferdig_utdannete
+import db/NUDB_AAR_FORSTE_FULLF_GS as fullført_år_gs
+import db/NUDB_AAR_FORSTE_FULLF_VS as fullført_år_vgs
+import db/NUDB_AAR_FORSTE_FULLF_VS_LOV as fullført_år_vgs_lov
+import db/NUDB_AAR_FORSTE_FULLF_HOY as fullført_år_høyskole
+import db/NUDB_AAR_FORSTE_FULLF_CMG as fullført_år_candmag
+import db/NUDB_AAR_FORSTE_FULLF_BACH as fullført_år_bachelor
+import db/NUDB_AAR_FORSTE_FULLF_HOV as fullført_år_master
+import db/NUDB_AAR_FORSTE_FULLF_DOK as fullført_år_doktor
+
+replace fullført_år_vgs = int(fullført_år_vgs/100)
+replace fullført_år_vgs_lov = int(fullført_år_vgs_lov/100)
+replace fullført_år_høyskole = int(fullført_år_høyskole/100)
+replace fullført_år_candmag = int(fullført_år_candmag/100)
+replace fullført_år_bachelor = int(fullført_år_bachelor/100)
+replace fullført_år_master = int(fullført_år_master/100)
+replace fullført_år_doktor = int(fullført_år_doktor/100)
+
+summarize
+
+generate fullført_nivå12 = 1 if fullført_år_gs == 2012
+replace fullført_nivå12 = 2 if fullført_år_vgs == 2012 | fullført_år_vgs_lov == 2012
+replace fullført_nivå12 = 3 if fullført_år_høyskole == 2012
+replace fullført_nivå12 = 4 if fullført_år_candmag == 2012 | fullført_år_bachelor == 2012
+replace fullført_nivå12 = 5 if fullført_år_master == 2012
+replace fullført_nivå12 = 6 if fullført_år_doktor == 2012
+
+define-labels nivålbl 1 Grunnskole 2 Videregående 3 Høyskolekandidat 4 Bachelor 5 Master 6 Doktorgrad
+assign-labels fullført_nivå12 nivålbl
+
+barchart(count) fullført_nivå12
+tabulate fullført_nivå12
+
+
+// Trinn 1b: Finner personer som fortsetter å studere i løpet av de neste 4 årene
+// (disse skal ikke være med siden de ikke avslutter studiene sine i 2012)
+
+create-dataset utdanning
+import-event db/NUDB_KURS_NUS 2013-01-01 to 2016-12-31 as utdanningsforløp
+
+create-dataset kurs_person
+import db/NUDB_KURS_FNR as personid
+merge personid into utdanning
+
+use utdanning
+collapse(count) utdanningsforløp -> ant_studier13_16, by(personid)
+merge ant_studier13_16 into ferdig_utdannete
+
+
+// Trinn 1c: Lager populasjonen ved å fjerne personer som ikke fullfører en utdanning i 2012
+// eller som fortsetter å studere de neste 4 årene
+
+use ferdig_utdannete
+drop if sysmiss(fullført_nivå12) | ant_studier13_16 > 0
+drop ant_studier13_16
+
+barchart(count) fullført_nivå12
+tabulate fullført_nivå12
+
+
+// Trinn 2: Kobler på bakgrunnsvariabler/demografi/levekår samt sosioøkonomisk status etter fullført utdanning
+
+// Bakgrunn
+import db/BEFOLKNING_KJOENN as kjønn
+import db/BEFOLKNING_FOEDSELS_AAR_MND as fdato
+import db/BEFOLKNING_LANDBAK3GEN as landbakgrunn
+import db/NUDB_SOSBAK as sosial_bakgrunn
+import db/NUDB_GS_STP_NOH as stp_karakter_gs_norsk_hoved_skriftlig
+
+//Sosioøkonomisk status 0, 5 og 10 år etter
+for år in 2012 2017 2022
+  import db/INNTEKT_WLONN date_fmt($år) as lønn++$år
+  import db/INNTEKT_BER_BRFORM date_fmt($år) as bruttoformue++$år
+  // Andre inntektsopplysninger som yrkesinntekt, gjeld, bruttoinntekt
+  import db/BOSATTEFDT_BOSTED date_fmt($år) as kommune++$år
+  generate fylke++$år = substr(kommune++$år,1,2)
+end
+
+for år in 2017 2022
+  import db/REGSYS_ARB_ARBEIDSTID date_fmt($år,11,16) as arbeidstid++$år
+  import db/REGSYS_ARB_YRKE_STYRK08 date_fmt($år,11,16) as yrke++$år
+  import db/INNTEKT_KODE218 date_fmt($år) as uføretrygd++$år
+  import db/INNTEKT_SOSIAL date_fmt($år) as sosialhjelp++$år
+  import db/BOFORHOLD_TRANGBODD date_fmt($år) as trangbodd++$år
+  import db/BOFORHOLD_BRUKSAREAL date_fmt($år) as bruksareal++$år
+
+  // Finner personer registrert hos NAV som arbeidssøker i løpet av det aktuelle året (måler fra 1/1 til 31/12)
+  let forløpvar = arbsøkforløp++$år
+  let opptellingsvar = ant_arbsøkforhold++$år
+
+  create-dataset nav++$år
+  import-event db/ARBSOEK2001FDT_HOVED date_fmt($år,1,1) to date_fmt($år,12,31) as $forløpvar
+  collapse(count) $forløpvar -> $opptellingsvar, by(PERSONID_1)
+  merge $opptellingsvar into ferdig_utdannete
+
+  use ferdig_utdannete
+  generate arbeidssøker++$år = $opptellingsvar > 0
+  drop $opptellingsvar
+  delete-dataset nav++$år
+
+  // Finner personer som tar videreutdanning i løpet av det aktuelle året (måler fra 1/1 til 31/12)
+  let forløpvar = utdforløp++$år
+  let opptellingsvar = ant_kurs++$år
+
+  create-dataset utdanning++$år
+  import-event db/NUDB_KURS_NUS date_fmt($år, 1, 1) to date_fmt($år, 12, 31) as $forløpvar
+
+  use kurs_person
+  merge personid into utdanning++$år
+
+  use utdanning++$år
+  collapse(count) $forløpvar -> $opptellingsvar, by(personid)
+  merge $opptellingsvar into ferdig_utdannete
+
+  use ferdig_utdannete
+  generate student++$år = $opptellingsvar > 0
+  drop $opptellingsvar
+
+  delete-dataset utdanning++$år
+end
+
+
+// Større endring i kommunekodene i 2020 => må kode fylker og storbyer på forskjellige måter før/etter
+// (benytter 2020-standard og koder om bakover i tid)
+for år in 2012 2017
+  let fylke = fylke++$år
+  recode $fylke \
+      ('03' = '03' 'Oslo') \
+	  ('11' = '11' 'Rogaland') \
+	  ('15' = '15' 'Møre og Romsdal') \
+	  ('18' = '18' 'Nordland') \
+	  ('01' '02' '06' = '30' 'Viken') \
+	  ('04' '05' = '34' 'Innlandet') \
+	  ('07' '08' = '38' 'Vestfold og Telemark') \
+	  ('09' '10' = '42' 'Agder') \
+	  ('12' '14' ='46' 'Vestland') \
+	  ('16' '17' = '50' 'Trøndelag') \
+	  ('19' '20' = '54' 'Troms og Finnmark')
+
+  generate storby++$år = inlist(kommune++$år, '0301', '1201', '1601', '1103', '0602', '0106', '1001')
+  //Storbyer: Oslo, Bergen, Trondheim, Stavanger, Drammen, Fredrikstad, Kristiansand
+end
+
+define-labels fylke20lbl \
+	'03' Oslo \
+	'11' Rogaland \
+	'15' 'Møre og Romsdal' \
+	'18' Nordland \
+	'30' Viken \
+	'34' Innlandet \
+	'38' 'Vestfold og Telemark' \
+	'42' Agder \
+	'46' Vestland \
+	'50' Trøndelag \
+	'54' 'Troms og Finnmark'
+assign-labels fylke2022 fylke20lbl
+
+generate storby2022 = inlist(kommune2022, '0301', '4601', '5001', '1103', '3005', '3004', '4204')
+
+define-labels storbylbl 0 'Ikke-storby' 1 'Storby'
+assign-labels storby2012 storbylbl
+assign-labels storby2017 storbylbl
+assign-labels storby2022 storbylbl
+
+
+// Trinn 3: Lager deskriptiv statistikk over årene 2012, 2017 og 2022 (år 0, 5, 10)
+
+// Demografi/bakgrunn
+piechart kjønn
+
+generate alder = 2012 - int(fdato/100)
+barchart(count) alder
+
+recode alder (min/20 = 1 'Under 21') (21/27 = 2 '21-27 år') (28/max = 3 'Over 27 år')
+barchart(count) alder
+
+generate norsk = landbakgrunn == '000'
+generate nordisk = inlist(landbakgrunn, '000', '101', '103', '104', '105', '106')
+
+define-labels norsklbl 0 'Annet' 1 'Norsk'
+assign-labels norsk norsklbl
+
+define-labels nordisklbl 0 'Annet' 1 'Nordisk'
+assign-labels nordisk nordisklbl
+
+piechart norsk
+piechart nordisk
+
+barchart(count) sosial_bakgrunn
+barchart(count) stp_karakter_gs_norsk_hoved_skriftlig
+tabulate stp_karakter_gs_norsk_hoved_skriftlig, missing
+
+// Bosetting
+barchart(percent) fylke2012
+barchart(percent) storby2012
+
+sankey fylke2012 fylke2017 fylke2022
+sankey storby2012 storby2017 storby2022
+
+
+// Gjør om datasettet til et paneldatasett for å lage statistikk over tid
+reshape-to-panel kommune fylke storby lønn bruttoformue arbeidstid yrke arbeidssøker student uføretrygd sosialhjelp trangbodd bruksareal
+
+barchart(percent) fylke, over(date@panel) stack
+barchart(percent) storby, over(date@panel) stack
+
+
+//Sosioøkonomisk status
+
+barchart(percent) trangbodd, over(date@panel) stack
+barchart(mean) bruksareal, over(date@panel)
+
+barchart(mean) lønn, over(date@panel)
+barchart(mean) bruttoformue, over(date@panel)
+
+barchart(mean) arbeidstid, over(date@panel)
+
+generate yrkekat = substr(yrke,1,1)
+
+textblock
+Yrkeskategoriene: Hierarkisk gruppering 0-9 der 9 er laveste nivå (yrker med lave krav til utdanning)
+Kategori 0 er en blandet gruppe av personer ikke i jobb, selvstendig næringsdrivende og militært personell.
+Kategori 1 består av lederyrker og politikere. Kategori 2 består av akademiske yrker. Etc
+endblock
+barchart(percent) yrkekat, over(date@panel) stack
+
+replace arbeidstid = round(arbeidstid)
+recode arbeidstid (. 0/10 = 0 'Jobber ikke')(11/34 = 1 'Deltid')(35/max = 2 'Heltid')
+
+barchart(percent) arbeidstid, over(date@panel) stack
+
+generate ufør = uføretrygd > 10000
+generate sosialhjelpsmottaker = sosialhjelp > 10000
+
+generate status = 9
+replace status = 6 if sosialhjelpsmottaker
+replace status = 5 if ufør
+replace status = 4 if arbeidssøker
+replace status = 3 if student | date@panel == 2012
+replace status = 2 if arbeidstid == 1
+replace status = 1 if arbeidstid == 2
+
+define-labels statuslbl 1 Heltidsarbeid 2 Deltidsarbeid 3 Utdanning 4 Arbeidssøker 5 Ufør 6 Sosialhjelpsmottaker 9 Annet
+assign-labels status statuslbl
+
+textblock
+Sosioøkonomisk status ved år 0, 5 og 10
+endblock
+barchart(percent) status, over(date@panel) stack
+
+
+// Trinn 4: Lager litt mer detaljert statistikk der vi ser nærmere på forskjeller mht. bakgrunn/demografi/levekår og utdanningsnivå
+
+textblock
+Sosioøkonomisk status 10 år etter fullført utdanning, fordelt på bakgrunns-/demografivariabler
+endblock
+barchart(percent) status if date@panel == 2022, over(sosial_bakgrunn) stack
+barchart(percent) status if date@panel == 2022, over(kjønn) stack
+barchart(percent) status if date@panel == 2022, over(alder) stack
+barchart(percent) status if date@panel == 2022, over(norsk) stack
+barchart(percent) status if date@panel == 2022, over(nordisk) stack
+
+textblock
+Sosioøkonomisk status 10 år etter fullført utdanning, fordelt på utdanningsnivå og kjønn
+endblock
+barchart(count) status if date@panel == 2022, over(fullført_nivå12) stack
+barchart(count) status if date@panel == 2022 & kjønn == '1', over(fullført_nivå12) stack
+barchart(count) status if date@panel == 2022 & kjønn == '2', over(fullført_nivå12) stack
+
+textblock
+Andel som tar videreutdanning 10 år etter fullført utdanning, fordelt på utdanningsnivå
+endblock
+define-labels studentlbl 0 'Annet' 1 'Student'
+assign-labels student studentlbl
+
+barchart(percent) student if date@panel == 2022, over(fullført_nivå12) stack
+
+textblock
+Sosioøkonomisk status 10 år etter fullført utdanning, fordelt på standpunktkarakter i norsk hovedfag fra grunnskole
+(også karakterer fra VGS kan brukes, men de strekker seg ikke så langt bakover i tid)
+endblock
+barchart(percent) status if date@panel == 2022, over(stp_karakter_gs_norsk_hoved_skriftlig) stack
+
+textblock
+Sosioøkonomisk status 10 år etter fullført utdanning, fordelt på bosetting
+endblock
+barchart(percent) status if date@panel == 2022, over(fylke) stack
+barchart(percent) status if date@panel == 2022, over(storby) stack
+
+textblock
+Yrkeskategori 10 år etter fullført utdanning for personer i jobb, fordelt på utdanningsnivå
+
+Yrkeskategoriene: Hierarkisk gruppering 0-9 der 9 er laveste nivå (yrker med lave krav til utdanning)
+Kategori 0 er en blandet gruppe av personer ikke i jobb, selvstendig næringsdrivende og militært personell.
+Kategori 1 består av lederyrker og politikere. Kategori 2 består av akademiske yrker. Etc
+endblock
+barchart(percent) yrkekat if date@panel == 2022 & inlist(status,1,2), over(fullført_nivå12) stack

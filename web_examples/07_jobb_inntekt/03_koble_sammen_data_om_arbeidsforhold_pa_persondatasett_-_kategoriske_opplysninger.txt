@@ -1,0 +1,55 @@
+// ===================================================================
+// Example: Koble sammen data om arbeidsforhold på persondatasett - kategoriske opplysninger
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Jobb-%20og%20inntektsanalyser/Koble%20sammen%20data%20om%20arbeidsforhold%20p%C3%A5%20persondatasett%20-%20kategoriske%20opplysninger/
+// ===================================================================
+// Dette eksempelet demonstrerer hvordan man kobler data med arbeidsforhold som enhetstype sammen
+// med et annet datasett med person som enhetstype. Dette er nyttig når man vil lage jobbstatistikk
+// på personnivå.
+//
+// Data fra A-ordningen med prefiks ARBLONN_ARB_ har arbeidsforhold som enhetstype (opptil flere
+// records per person). For å kunne koble slike data sammen med vanlige persondatasett, må en
+// først bruke kommandoen collapse til å summere opplysningene per individ. Variabelen
+// ARBEIDSFORHOLD_PERSON brukes til å lenke fra jobb- til personnivå.
+//
+// Fremgangsmåten passer fint på kategoriske jobbopplysninger som f.eks. heltid/deltid. Det er
+// mulig å kombinere kategoriske og numeriske opplysninger med denne fremgangsmåten.
+// ===================================================================
+
+require no.ssb.fdb:30 as db
+
+create-dataset vestland
+import db/ARBLONN_PERS_KOMMNR 2021-07-31 as bosted
+keep if substr(bosted,1,2) == '46'
+import db/ARBLONN_PERS_KJOENN 2021-07-16 as kjønn
+
+create-dataset heltid
+import db/ARBLONN_ARB_H3LDELTID 2021-07-16 as heldel
+import db/ARBLONN_ARB_ARBEIDSTID 2021-07-16 as arbtid
+import db/ARBEIDSFORHOLD_PERSON as personid
+tabulate heldel
+keep if heldel == '1'
+destring heldel
+collapse(sum) heldel arbtid, by(personid)
+rename heldel hel
+rename arbtid arbtid_hel
+merge hel arbtid_hel into vestland
+
+create-dataset deltid
+import db/ARBLONN_ARB_H3LDELTID 2021-07-16 as heldel
+import db/ARBLONN_ARB_ARBEIDSTID 2021-07-16 as arbtid
+import db/ARBEIDSFORHOLD_PERSON as personid
+keep if heldel == '2'
+destring heldel
+replace heldel = heldel/2
+collapse(sum) heldel arbtid, by(personid)
+rename heldel del
+rename arbtid arbtid_del
+merge del arbtid_del into vestland
+
+use vestland
+tabulate hel
+tabulate del
+tabulate del kjønn, rowpct freq
+tabulate del, summarize(arbtid_del)
+tabulate kjønn, summarize(arbtid_del)
+tabulate kjønn, summarize(arbtid_hel)

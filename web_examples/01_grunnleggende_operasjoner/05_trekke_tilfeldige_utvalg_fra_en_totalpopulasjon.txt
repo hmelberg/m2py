@@ -1,0 +1,35 @@
+// ===================================================================
+// Example: Trekke tilfeldige utvalg fra en totalpopulasjon
+// Source: https://microdata.no/manual/eksempel/Grunnleggende%20operasjoner/Trekke%20tilfeldige%20utvalg%20fra%20en%20totalpopulasjon/
+// ===================================================================
+// The page demonstrates how to draw random samples from a total/larger population ("hvordan en kan
+// trekke ut tilfeldige utvalg fra en totalpopulasjon/større populasjon") using the `sample` command.
+//
+// Key concepts: The first parameter specifies sample size — decimal values (0.0-1.0) represent
+// proportions, while integers above 1000 represent specific individual counts. The final parameter
+// is a user-defined positive integer (seed number) that ensures reproducible results across
+// subsequent runs. Researchers can use different seed values to generate entirely new samples with
+// different individuals in each iteration.
+// ===================================================================
+
+//Kobler til databank
+require no.ssb.fdb:23 as db
+
+// Lager datasett med alle bosatte i Norge per 1/1 2021 og trekker så ut et 10% utvalg av disse
+create-dataset totalpop
+import db/BEFOLKNING_STATUSKODE 2021-01-01 as registerstatus21
+keep if registerstatus21 == '1'
+sample 0.1 999
+
+// Lager datasett med alle bosatte i Norge per 1/1 2021 og trekker så ut et utvalg bestående av 5000 individer
+create-dataset totalpop2
+import db/BEFOLKNING_STATUSKODE 2021-01-01 as registerstatus21
+keep if registerstatus21 == '1'
+sample 5000 888
+
+// Lager datasett med alle bosatte i Norge per 1/1 2021 og trekker så ut et utvalg bestående av 5000 nye individer
+// (forskjellige fra forrige uttrekk)
+create-dataset totalpop3
+import db/BEFOLKNING_STATUSKODE 2021-01-01 as registerstatus21
+keep if registerstatus21 == '1'
+sample 5000 950

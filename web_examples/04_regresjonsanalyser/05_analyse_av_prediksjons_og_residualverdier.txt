@@ -1,0 +1,101 @@
+// ===================================================================
+// Example: Analyse av prediksjons- og residualverdier
+// Source: https://microdata.no/manual/eksempel/Regresjonsanalyser/Analyse av prediksjons- og residualverdier/
+// ===================================================================
+// Siden introduserer metoder for å hente ut prediksjons- og residualverdier på tvers av ulike
+// typer regresjonsanalyser. Kommandoene histogram og hexbin demonstreres for å analysere
+// resultater; histogram er spesielt nyttig for å visuelt undersøke om residualene følger en
+// normalfordeling. Brukere kan anvende alle tilgjengelige og relevante kommandoer for videre
+// analyse av de uttrukne verdiene.
+// ===================================================================
+
+require no.ssb.fdb:23 as db
+
+create-dataset regresjonsdata
+import db/INNTEKT_WLONN 2019-12-31 as lønn
+import db/INNTEKT_BER_BRFORM 2019-12-31 as formue
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+import db/BEFOLKNING_KJOENN as kjønn
+import db/BEFOLKNING_STATUSKODE 2020-01-01 as bosattstatus
+
+keep if bosattstatus == '1'
+
+generate alder = 2019 - int(faarmnd/100)
+
+generate mann = 0
+replace mann = 1 if kjønn == '1'
+
+// regress
+regress lønn alder mann formue
+regress-predict lønn alder mann formue
+histogram predicted
+hexbin predicted lønn
+regress-predict lønn alder mann formue, residuals(res) predicted(pred) cooksd(cook)
+regress-predict lønn alder mann, residuals(res2) predicted(pred2) cooksd(cook2)
+histogram pred
+histogram res
+histogram cook
+histogram res2
+
+// ivregress
+ivregress lønn mann (formue = alder)
+ivregress-predict lønn mann (formue = alder), residuals(res3) predicted(pred3)
+histogram pred3
+histogram res3
+
+// logit
+summarize lønn formue
+histogram lønn
+histogram formue
+generate høylønn = 0
+replace høylønn = 1 if lønn > 800000
+generate høyformue = 0
+replace høyformue = 1 if formue > 4000000
+
+logit høylønn alder mann høyformue
+logit-predict høylønn alder mann høyformue, residuals(res4) predicted(pred4) probabilities(prob4)
+histogram pred4
+histogram res4
+histogram prob4
+
+// probit
+probit høylønn alder mann høyformue
+probit-predict høylønn alder mann høyformue, predicted(pred5) probabilities(prob5)
+histogram pred5
+histogram prob5
+
+// mlogit
+generate lønnkat = 0
+replace lønnkat = 1 if lønn > 0
+replace lønnkat = 2 if lønn > 800000
+
+mlogit lønnkat alder mann høyformue
+mlogit-predict lønnkat alder mann høyformue, predicted(pred6) probabilities(prob6)
+summarize pred6_1
+histogram pred6_2
+histogram prob6_1
+histogram prob6_2
+
+// regress-panel
+sample 0.05 54321
+
+clone-units regresjonsdata paneldata
+use paneldata
+import-panel db/INNTEKT_WLONN db/BEFOLKNING_FOEDSELS_AAR_MND db/BEFOLKNING_KJOENN db/INNTEKT_BER_BRFORM 2017-12-31 2018-12-31 2019-12-31
+rename INNTEKT_WLONN lønn
+rename INNTEKT_BER_BRFORM formue
+generate alder = 2019 - int(BEFOLKNING_FOEDSELS_AAR_MND/100)
+generate mann = 0
+replace mann = 1 if BEFOLKNING_KJOENN == '1'
+
+regress-panel lønn mann alder formue
+regress-panel lønn mann alder formue, re
+regress-panel-predict lønn mann alder formue, predicted(ppred1) residuals(pres1) effects(peff1)
+regress-panel-predict lønn mann alder formue, re predicted(ppred2) residuals(pres2) effects(peff2)
+histogram ppred1
+histogram pres1
+histogram peff1
+histogram ppred2
+histogram pres2
+histogram peff2
+hausman lønn mann alder formue

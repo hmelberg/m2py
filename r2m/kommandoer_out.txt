@@ -1,0 +1,1205 @@
+Kommandoer
+Analyse
+anova
+anova var-name var-list [if] [, options]
+Analyse av varians og kovarians. Gjelder variansanalyse- (ANOVA) og kovariansanalyse- (ANCOVA) modeller for balanserte og ubalanserte design. Det er påkrevd med en variabelliste der den første variablen er kontinuerlig. I anova-analyse skal de uavhengige variablene være faktorvariabler, mens ancova-analyse inkluderer en metrisk variabel
+Opsjoner
+noconstant Undertrykker modellens konstantledd (der linja krysser y-aksen)
+posthoc Kjører en mer detaljert toveis TukeyHSD-analyse med sammenlikninger mellom alle kategorier i de(n) uavhengige kategoriske variabelen(e)
+Eksempler
+anova inntekt kjønn utdanning
+Toveis faktoriell anovaanalyse av inntekt over kjønn og utdanning
+anova inntekt kjønn utdanning kjønn#utdanning
+Toveis faktoriell anovaanalyse av inntekt over kjønn og utdanning med interaksjonsledd
+anova inntekt kjønn##utdanning
+Toveis faktoriell anovaanalyse av inntekt over kjønn og utdanning med interaksjonsledd
+anova inntekt kjønn utdanning if kjønn == 'kvinne'
+Toveis faktoriell anovaanalyse med modifiserende uttrykk
+ci
+ci var-list [, options]
+Vis konfidensintervaller og standardfeil for hver enkelt variabel i variabellisten
+Opsjoner
+level() Spesifiserer konfidensnivået i prosent for konfidensintervallene. Standarden er 95, altså 95%
+Eksempler
+ci inntekt2004
+Vis konfidensintervaller (standardnivå: 95%) og standardfeil for variabelen inntekt2004
+ci inntekt2004 inntekt2003, level(90)
+Vis konfidensintervaller sett til 90% og standardfeil for variablene inntekt2004 og inntekt2003
+correlate
+correlate var-list [if] [, options]
+Vis korrelasjonsmatrisen for de inkluderte variablene. Dersom en skriver correlate uten variabelliste, vises korrelasjonsmål for alle variablene i datasettet. Dette gjelder også ved bruk av alternativene under options
+Opsjoner
+covariance Vis kovariansen for de forskjellige variablene istedet for korrelasjonsverdiene
+pairwise Manglende verdier blir slettet parvis istedetfor standardmåten (listevis sletting)
+obs Matrisen inkluderer antall observasjoner som har blitt brukt til å kalkulere hver korrelasjonskoeffisient
+sig Vis signifikansverdien til hver gruppe
+Eksempler
+correlate kjonn alder inntekt
+Treveis korrelasjonsmatrise
+correlate alder inntekt if kjonn == 'kvinne'
+Toveis korrelasjonsmatrise med modifiserende uttrykk
+normaltest
+normaltest var-list [if]
+Normaltest-kommandoen kjører et utvalg tester for normalfordeling for valgte variabler, eller hele datasett dersom ingen variabler er oppgitt. For hver test er måltall og p-verdi oppgitt.
+Testene som kjøres er skewness, kurtosis, s-k (ikke justert), Jarque-Bera og Shapiro-Wilk
+Opsjoner
+Eksempler
+normaltest var1 var2
+Kjør testene på var1 og var2
+normaltest
+Kjør testene på alle variabler i datasettet
+transitions-panel
+transitions-panel var-name var-list [if]
+Vis to-veis frekvens/sannsynlighet for overganger mellom alle kombinasjoner av kategoriske verdier over tid (overgangssannsynligheter), for en gitt variabel. Forspalten representerer utgangsverdiene, mens tabellhodet representerer overgangsverdien. Spesifiseres flere variabler, vises toveis overgangstabeller for hver variabel i respektive tabeller.
+Overganger representeres som standard gjennom frekvenser og prosenter (rekkevis). Overganger enten fra eller til manglende verdi (sysmiss) holdes utenfor tabuleringen. Overgangsratene gjelder alle overganger fra ett tidspunkt til et annet, målt over alle måletidspunkter. Kommandoen er kompatibel med kategoriske variabler
+Opsjoner
+Eksempler
+transitions-panel var1 var2
+Vis overgangssannsynligheter for to variabler (i separate tabeller)
+Bindinger
+let
+let name = expression
+Generer ny binding. Denne blir definert ved et uttrykk etter =. En binding lagrer en konkret verdi i motsetning til variabler som lagrer en mengde data.
+Bindinger defineres i klienten og har ingen sammenheng med de konfidensielle verdiene i variablene. De er ment til å representere repetitive informasjon som en dato, årstall eller lignende.
+Du kan derfor se den lagrede verdien av bindingene når du kjører let-kommandoen, i sidepanelet, eller ved å klikke på verdiene etter at de er generert. Bindinger kan lagre et tall, en streng, eller et navn og skiller seg fra variabler ved at man refererer til de med et $ foran navnet på bindingen.
+Operatoren ++ er spesiell, da den slår sammen to verdier eller bindinger (men altså ikke variabler). Typsik bruk for denne er inne i en løkke (help for) for å opprette en eller flere navngitte variabler pr iterasjon. Ellers kan et begrenset antall funksjoner kan brukes inne i en let-commando. Disse er markert i documentation til funksjoner, se help-function.
+Se eksempelet "Bruke bindinger og løkker" for mer informasjon om bindinger.
+Opsjoner
+Eksempler
+let årstall = '2011-11-12'
+Genererer en binding til årstall med årstallet 2011-11-12 i en streng
+let årstall = date_fmt(2011, 11, 12)
+Genererer en binding til årstall ved hjelp av funksjonen date_fmt
+let siv = sivstand_ ++ $år
+Genererer en binding til navnet siv. Om f.eks den eksisterende bindingen år har verdien 12, blir $siv = sivstand_12
+import fdb/SIVSTANDFDT_SIVSTAND $årstall as $siv
+Importerer variabelen SIVSTANDFDT_SIVSTAND ved å bruke årstallet lagret i årstall og navnet lagret i $siv. Dette er ekvivalent med å kjøre import fdb/SIVSTANDFDT_SIVSTAND 2011-11-12 as sivstand_12
+import fdb/SIVSTANDFDT_SIVSTAND date_fmt(2011, 11, 12) as sivstand_ ++ $år
+Importerer variabelen SIVSTANDFDT_SIVSTAND med å bruke verdier generert i bindings-uttrykk. Dette uttrykket er ekvivalent med eksempelet over. Når datoer forventes kan man gi inn en prosedyre direkte for å få datoverdien. og operatoren ++ slår sammen symbolet og verdien lagret i bindinen $år til verdien sivstand_12
+for
+for i [, j] in (iter0, iter1, ..., iterN | range-from : range-to) [, iters...] [; g in ..]
+Start en løkke over alle iterator-verdiene etter in. Dette kan enten en liste av verdier, eller et numerisk verdiområde gitt med n : m (inklusiv).
+Alle etterfølgende kommandoer frem til løkken er lukket med end vil bli kjørt med iteratoren bundet til den første verdien gitt, i = iter0.
+Når end eksekveres vil så alle kommandoene inne i løkken bli kjørt med de etterfølgende iteratorverdiene, i = iter1, ... i = iterN. Alle bindinger som skapes inne i løkken er lokale for den løkke-iterasjonen, men variabler som skapes, eller endringer på eksisterende variabler vil være tilgjengelige etter løkken.
+Itererasjon over flere verdier samtidig støttes ved en form for løkke-'comprehension'. For å iterere over tupler, tripler. osv av verdier oppgis et sett med flere iteratorer separert med komma før in. Like mange lister med verdier, eller verdiområder, også separert av komma, må oppgis etter in.
+Nøstede løkker oppnås med å følge løkken med en ; og så et nytt sett med iteratorer og verdier. Den siste løkken vil så kjøres for hver av de forestående iteasjonene.
+Opsjoner
+Eksempler
+for forelder in mor, far
+Starter en løkke med iteratoren forelder over symbolene mor og far
+for år in 0 : 5
+Starter en løkke på år over heltallene fra 0 til og med 5
+for år, verdi in 0 : 2, første andre tredje
+Starter en løkke på år og verdi over verdiene 0 første, 1 andre og 2 tredje
+for år, verdi in 0 : 2, første andre tredje; sted in 'indre' 'ytre'
+Starter en løkke på år, verdi og sted over verdiene 0 første indre, 1 andre indre, 2 tredje indre, 0 første ytre, 1 andre ytre og 2 tredje ytre
+end
+end
+Avslutt løkken og kjører kommandoene i løkken for de resterende iteasjonene. Se help for.
+Opsjoner
+Datasett
+require
+require datastore as local-ds-alias
+Opprett kobling fra en versjonert datakilde til et lokalt alias. Må brukes før import av data kan gjennomføres.
+Merk at denne kommandoen gjelder globalt, altså på tvers av dine datasett. Det lokale aliaset brukes som prefix sammen med et /-tegn i forbindelse med import av variabler
+Opsjoner
+Eksempler
+require no.ssb.fdb:9 as ds
+Lager en kobling fra versjon 9 av SSB sin registerdatabase til det lokale navnet ds
+create-dataset
+create-dataset new-dataset
+Opprett et tomt datasett med det oppgitte navnet. Datasettet aktiveres automatisk når kommandoen kjøres.
+Opsjoner
+Eksempler
+create-dataset newdata
+Oppretter et tomt datasett med navn newdata
+delete-dataset
+delete-dataset dataset
+Slett hele det spesifiserte datasettet og alle de inkluderte variablene
+Opsjoner
+Eksempler
+delete-dataset PERSON
+Sletter hele datasettet PERSON
+use
+use dataset
+Aktiver et eksisterende datasett. Dersom to eller flere datasett er opprettet gjennom kommandoen create-dataset, må denne kommandoen brukes for å forflytte seg fra ett datasett til et annet.
+Opsjoner
+Eksempler
+use trygdedatasett
+Aktiverer datasettet trygdedatasett
+clone-dataset
+clone-dataset dataset new-dataset
+Kopier et datasett
+Opsjoner
+Eksempler
+clone-dataset set1 set2
+Lag en kopi av datasettet set1 og gi det navnet set2
+clone-units
+clone-units dataset new-dataset
+Oppretter et nytt tomt datasett som består av populasjonen/enhetene fra et angitt datasett. Bruk kommandoen use for å aktivere det nye datasettet
+Opsjoner
+Eksempler
+clone-units set1 set2
+Lager et nytt tomt datasett, set2, som består av populasjonen fra set1
+rename-dataset
+rename-dataset dataset new-dataset
+Gir nytt navn til et eksisterende datasett
+Opsjoner
+Eksempler
+rename-dataset navn nyttnavn
+Datasettet endrer navn fra navn til nyttnavn. All annen informasjon forblir som før
+reshape-from-panel
+reshape-from-panel
+Kommandoen endrer datastrukturen fra panel-/long-format til wide-format der opplysningene struktureres horisontalt på variabelnivå med én record per enhet.
+Datasett med panel-/long-format lages enten gjennom kommandoen import-panel eller reshape-to-panel. Alle variabler i datasettet du står i restruktureres til wide-format etter at kommandoen er kjørt. Variablene får suffiks basert på undernivået gitt ved variabelen date@panel.
+Opsjoner
+reshape-to-panel
+reshape-to-panel variable-prefixes
+Datasett som er laget ved bruk av import-kommandoen er av typen 'wide' (opplysninger om hver enhet struktureres på variabelnivå). Kommandoen endrer datastrukturen slik at den blir på panel-/long-format, og opplysninger om hver enhet struktureres da vertikalt på observasjons-/record-nivå.
+Kommandoen tar et sett med prefiks til eksisterende variabler. Disse bestemmer hvilke variabler som omgjøres til panelvariabler i det nye formatet og suffiksene til hver variabel bestemmer innholdet i datokolonnen (typisk brukes alle bokstaver frem til siffer/suffiks som angir årstall, dato, nummer eller liknende). Kun sifre og spesialtegn som ikke er bokstaver godtas som suffiks. Øvrige variabler i datasettet regnes som faste opplysninger og repeteres for alle observasjoner per enhet i det nye panel-datasettet
+Opsjoner
+Eksempler
+reshape-to-panel sivilstand kommune
+Gjør om datasettet til long-format med de to variablene sivilstand og kommune. Det opprinnelige datasettet har variablene sivilstand19, sivilstand20, sivilstand21, kommune19, kommune20 og kommune21. Opplysningene legges da nedover med tre observasjoner per enhet, sortert i stigende rekkefølge etter suffiks-sifrene 19, 20 og 21. Hjelpevariabelen panel@date opprettes automatisk, og inneholder suffiks-verdiene 19, 20 og 21.
+reshape-to-panel arbeidstid heltid_deltid
+Gjør om datasettet til long_format med de to variablene arbeidstid og heltid_deltid. Det opprinnelige datasettet har variablene arbeidstid2021_01_01, arbeidstid2021_02_01, arbeidstid2021_03_01, heltid_deltid2021_01_01, heltid_deltid2021_02_01 og heltid_deltid2021_03_01. Opplysningene legges da nedover med tre observasjoner per enhet, sortert i stigende rekkefølge etter ISO-datoene 2021_01_01, 2021_02_01 og 2021_03_01.
+Tilrettelegging
+import
+import register-var [time] [as name] [, options]
+Generer en ny tverrsnittsvariabel i det gjeldende datasettet basert på en registervariabel i en tilkoblet datakilde med et spesifisert måletidspunkt. Dersom ingen datasett finnes, må man opprette et først. Dersom et nytt navn ikke spesifiseres får variabelen et standardnavn. Merk at dato skal utelates for konstante variabler.
+Se kommandoen create-dataset for å opprette datasett og require for å koble til datakilder
+Opsjoner
+outer_join Spesifiser at 'outer join' skal brukes ved import av datasettet.
+Dette vil inkludere rader fra både det eksisterende datasettet, samt alle rader fra datasettet til variabelen som importeres. Altså gjøres en (full) outer join. Dette er i motsetning til en vanlig import som fungerer på (outer) left join prinsippet. Det vil si at alle radene i det eksisterende datasettet og kun radene til import-variabelen som eksisterer i dette vil bli importert.
+Eksempler
+import fd/F_REHAB_INNV_GRAD 2011-11-12 as rehab2011
+Tverrsnittsvariabelen rehab2011 blir skapt fra registervariabelen fd/F_REHAB_INNV_GRAD, med måletidspunkt 12. november 2011 og lagt til i det gjeldende datasettet
+import fd/INNTEKT_WLONN 2011-11-12
+En tverrsnittsvariabel blir skapt fra registervariabelen fd/INNTEKT_WLONN, med måletidspunkt 12. november 2011 og lagt til i det gjeldende datasettet. Siden navn ikke er spesifisert får den et standardnavn basert på registervariabelnavnet
+import fd/BEFOLKNING_FOEDSELS_AAR_MND as fødselsdato
+En tverrsnittsvariabel med fast opplysning blir skapt fra registervariabelen fd/BEFOLKNING_FOEDSELS_AAR_MND og lagt til i det gjeldende datasettet. Siden fd/BEFOLKNING_FOEDSELS_AAR_MND er en konstant variabel skal man ikke oppgi noe måletidspunkt
+import-event
+import-event register-var time to time [as name] [, options]
+Generer en ny hendelsesvariabel/forløpsvariabel i det gjeldende datasettet basert på en registervariabel i en tilkoblet datakilde i det spesifiserte tidsrommet. Dersom et nytt navn ikke spesifiseres får variabelen et standardnavn.
+Dersom ingen datasett eksisterer, må man opprette et først. Hendelsesvariabler/forløpsvariabler kan ikke importeres inn i et datasett med tverrsnittsdata (og vice versa). Det er heller ikke mulig å importere flere hendelsesvariabler/forløpsvariabler inn i ett og samme datasett (en må da opprette et eget datasett for hver variabel).
+Se kommandoen create-dataset for å opprette datasett og require for å koble til datakilder
+Opsjoner
+Eksempler
+import-event fd/F_REHAB_INNV_GRAD 2011-11-12 to 2012-11-12 as rehab2011to2012
+Forløpsvariablelen rehab2011to2012 blir skapt fra registervariabelen fd/F_REHAB_INNV_GRAD for perioden 12. november 2011 til 12. november 2012 og lagt til i det gjeldende datasettet
+import-panel
+import-panel register-var register-var-list time [time ...]
+Importerer de valgte variablene i 'langt' format med repeterte enheter fra variabler i en tilkoblet datakilde. Dette muliggjør analyse via panelmetoder. Kan kun brukes i et tomt datasett.
+Se kommandoen create-dataset for å opprette datasett og require for å koble til datakilder
+Opsjoner
+Eksempler
+import-panel ds/BEFOLKNING_KJONN ds/INNTEKT_WLONN 2001-01-01 2002-02-02 2003-01-01
+Importerer to variabler på tre tidspunkt
+generate
+generate name = expression [if]
+Skap ny variabel. Denne blir definert ved et uttrykk etter =. Generelle aritmetiske funksjoner er støttet. Funksjonsuttrykk støttes også (oversikt over funksjoner vises ved å bruke kommandoen help-function)
+Opsjoner
+Eksempler
+generate nyvariabel = inntekt/2
+genererer en variabel som heter nyvariabel. Verdien for hver enhet vil være halvparten av inntekstverdien
+generate nyvariabel = inntekt/2 if fodear < 1985
+Skaper en variabel ved navn nyvariabel der verdien for hver enhet er lik inntekten delt på to dersom de er født før 1985. Alle andre får manglende verdier
+rename
+rename old-name new-name
+Gir nye navn til eksisterende variabler
+Opsjoner
+Eksempler
+rename loonn lonn
+Variabelen endrer navn fra loonn til lonn. Verdiene og all annen informasjon forblir som før
+clone-variables
+clone-variables var-name [-> new-name] [var-name [-> new-name] ...] [, options]
+Lag kopier av en eller flere variabler. Kopiene kan få eksplisitte navn eller originalens navn med et prefiks og/eller et suffiks
+Opsjoner
+prefix() Angi prefiks som skal brukes sammen med originalvariablenes navn til å navngi kopiene
+suffix() Bruk originalvariablenes navn og angitt suffiks til å navngi kopiene
+Eksempler
+clone-variables var1 -> new1 var2 -> new2
+Lager kopier av var1 og var2 med navn new1 og new2
+clone-variables var1 var2, prefix('new_')
+Oppretter variablene new_var1 og new_var2
+drop
+drop (var-list | if)
+Fjern variabler, enheter eller observasjoner fra datasettet dersom en betingelse blir oppfylt. En kan fjerne enten en variabelliste, drop var-list, eller gitte observasjoner (for eksempel drop if var-name > x), men ikke begge deler samtidig.
+Når var-list er spesifisert vil variabelkolonnen bli fjernet. Når if er spesifisert, vil de gjeldende observasjonene bli slettet.
+Opsjoner
+Eksempler
+drop alder
+fjerner variabelen alder fra datasettet
+drop if inntekt < 500000
+Sletter alle observasjoner på alle variabler der enheten har en verdi på under 500000 for variabelen inntekt
+drop if kjønn == "1"
+Fjerner alle observasjoner som har verdien "1" (Mann) på variabelen kjønn fra datasettet
+drop if inrange(alder, 0, 18)
+Fjerner alle observasjoner for personer mellom 0 og 18 år
+keep
+keep (var-list | if)
+Sletter alle observasjoner og enheter i datasettet som ikke oppfyller de spesifiserte kriteriene og beholder de som gjør det. En kan beholde enten en variabelliste, keep var-list, eller gitte observasjoner (for eksempel keep if var-name > x).
+Når var-list er spesifisert vil variabelkolonnen bli beholdt. Når if er spesifisert, vil de gjeldende observasjonene bli beholdt.
+Opsjoner
+Eksempler
+keep alder
+Beholder variabelen alder i datasettet, og sletter alle andre
+keep if alder < 20
+Beholder alle observasjoner for enheter der alder er under 20 og sletter alle andre
+keep if kjønn == "2"
+Beholder alle observasjoner som har verdien "2" (Kvinne) på variabelen kjønn. Alle andre fjernes fra datasettet
+keep if substr(kommune, 1, 2) == "46"
+Beholder alle observasjoner der kommunenummeret starter med "46" (alle kommuner i Vestland fylke). Alle andre fjernes
+aggregate
+aggregate (statistic) var-name -> new-name [[(statistic)] var-name -> new-name...] [, options]
+Kjører en oppsummerende utregning av en variabel der man grupperer etter en grupperingsvariabel oppgitt i by()-parameteret. Datasettet vil etter utregningen bestå av en ny variabel med de utregnede verdiene. Denne spesifiseres etter ->-tegnet. Man kan lage flere utregninger samtidig, også med forskjellige statistic-spesifiseringer. For at utregningene skal fungere må verdiene være på numerisk format (bortsett fra måletypen count).
+Kommandoen har likheter med collapse. Forskjellen er at aggregate beholder datastrukturen og legger bare til de utregnede verdiene på variabelnivå, mens collapse gjør en aggregering av hele datasettet der den nye enhetstypen blir bestemt av by-variabelen. Et slikt aggregert datasett vil dessuten kun inneholde de aggregerte variablene. Ved bruk av aggregate beholder man alle de andre variablene.
+statistic kan være følgende: mean, min, max, median, count (antall enheter med gyldig verdi), sum, semean (standardfeil av gjennomsnitt), sebinomial (binominal standardfeil av gjennomsnitt), sd (standardavvik), percent (prosentandel gyldige verdier), iqr (interkvartilbredde), gini (gini-koeffisient). Alle aggregeringsvariantene krever at variabelen er numerisk bortsett fra count.
+Opsjoner
+by() Grupperingsvariabelen utregningen skal grupperes over
+Eksempler
+aggregate (mean) lønn -> snittlønn, by(kommune)
+Regner ut gjennomsnittet av variabelen lønn gruppert etter variabelen kommune. Alle enheter med samme bostedskommune får samme gjennomsnittsverdi. Resultatet legges i den nye variabelen snittlønn.
+aggregate (mean) lønn -> snittlønn (min) lønn -> minimumslønn (max) lønn -> maksimumslønn, by(kjønn)
+Regner ut hhv. gjennomsnitt, minimums- og maksimumsverdi av variabelen lønn, gruppert etter variabelen kjønn. Alle enheter med samme kjønn får tilegnet samme verdi for gjennomsnitt, minimums- og maksimumsverdi. De utregnede verdiene legges i de nye variablene snittlønn, minimumslønn og maksimumslønn
+aggregate (mean) lønn -> snittlønn formue -> snittformue strømforbruk -> snittforbruk (max) strømforbruk -> maksforbruk, by(kommune)
+Regner ut gjennomsnitt av hhv. variablene lønn, formue og strømforbruk, og maksverdi for strømforbruk, gruppert etter variabelen kommune. Alle enheter med samme bostedskommune får tilegnet samme verdi for snittlønn, snittformue, snittforbruk og maksforbruk.
+aggregate (sum) inntekt -> familieinntekt, by(familienummer)
+Summerer inntekt over alle familiemedlemmer gitt ved variabelen familienummer. Alle medlemmer av den samme familien får samme verdi for summert familieinntekt. Den summerte verdien legges i den nye variabelen familieinntekt.
+collapse
+collapse (statistic) var-name [-> new-name] [((statistic) var-name [-> new-name])...] [, options]
+Aggreger variabler etter grupperingsvariabel oppgitt i by()-parameteret. Datasettet vil etter aggregering bestå av de spesifiserte aggregeringsvariablene (opprinnelige verdier erstattes med aggregert verdi) samt grupperingsvariabelen, og enhetstype defineres av grupperingsvariablen. Man kan aggregere mange numeriske variabler samtidig, også med forskjellige statistic-spesifiseringer.
+statistic kan være følgende: mean, min, max, median, count (antall enheter med gyldig verdi), sum, semean (standardfeil av gjennomsnitt), sebinomial (binominal standardfeil av gjennomsnitt), sd (standardavvik), percent (prosentandel gyldige verdier), iqr (interkvartilbredde), gini (gini-koeffisient). Alle aggregeringsvariantene krever at variabelen er numerisk bortsett fra count.
+Opsjoner
+by() Grupperingsvariabelen det aggregeres opp til
+Eksempler
+collapse (mean) lønn, by(bosted)
+Kollapser variabelen lønn og lager en ny variabel som viser snittverdien for lønn for hver enhet i bostedsvariablen (grupperingsvariablen).
+collapse (mean) lønn (min) Start@lønn (max) Stop@lønn, by(kjønn)
+Aggregering av variablene lønn, Start@lønn og Stop@lønn. lønn blir skapt om til en aggregert variabel som gir snittverdien per kjønn, mens Start@lønn blir skapt om til å vise tidligste startverdi for Start@lønn. Stop@lønn blir på samme måte skapt om til å vise siste stoppverdi for Stop@lønn
+collapse (sum) inntekt -> familieinntekt, by(familienummer)
+Aggregerer opp fra personnivå til familienivå (summerer familiemedlemmers inntekter og lager familieinntekt) og kobler familiedataene på et persondatasett. Gir også et nytt navn til den aggregerte variabelen inntekt som blir familieinntekt for å gjenspeile dette
+merge
+merge var-list into dataset [on variable]
+Koble variabler inn i et annet datasett på samme eller lavere enhetsnivå. Den kan f.eks. brukes til å koble faste opplysninger inn i et forløpsdatasett eller til å koble aggregert informasjon på kommunenivå inn i et persondatasett med bostedskommune som koblingsvariabel
+Opsjoner
+Eksempler
+merge kjønn inntekt10 into datasett1
+Kobler variablene kjønn og inntekt10 inn i datasett1. Enhetsidentifikatoren i datasett1 blir brukt for kobling siden ingen koblingsvariabel er eksplisitt oppgitt
+merge antallinnbyggere into persondatasett on bostedskommune16
+Kobler en aggregert variabel (antall innbyggere aggregert til kommunenivå) inn som en kontekstuell variabel i et persondatasett. Koblingsvariablen er bostedskommune16
+recode
+recode var-list (rule) [(rule)...] [if] [, options]
+Endre verdiene til en eller flere variabler i henhold til et sett med regler. Verdier som ikke berøres av noen regler forblir uendret. De opprinnelige variablene skrives over. En regel består av en venstreside og en høyreside separert av =.
+Regler omkoder enten et sett med tallverdier, eller et sett med strenger.
+Venstresiden spesifiserer verdier som skal omkodes og er enten en liste av diskrete verdier og/eller lukkede intervaller; eller en av kodene missing, nonmissing eller * der sistnevnte betyr enhver verdi. Intervaller kan kun benyttes for omkoding av tallverdier. Her kan også også verdiene min og max brukes for den hhv. minste og største koden i kodelisten.
+Høyresiden spesifiserer erstatterverdien. Reglene kjøres i den rekkefølgen de er oppgitt. Verdier som allerede er omkodet påvirkes ikke av påfølgende regler. Regler som følger etter en med venstreside lik * får dermed ingen virkning.
+Opsjoner
+prefix() Opprett ny(e) variabel/-ler med de omkodete verdier, som tar originalnavnet med det spesifiserte prefikset foran
+generate() Opprett nye variabler for de de omkodete verdier, med agnitt prefiks
+Eksempler
+recode var1 (1 2 3 = 0)
+Endrer verdiene 1, 2 og 3 til 0 i variabelen var1.
+recode var1 var2 ('1' '2' '3' = '0') ('4' = '1')
+Endrer verdiene '1', '2', '3' til '0' og verdien '4' til '1' i variablene var1 og var2 av alfanumerisk datatype.
+recode var1 var2 (1/7 = 0)
+Endrer verdiene fra 1 til 7 til 0 i variablene var1 og var2. Dette er kun mulig for omkoding av tall.
+recode var1 var2 (1/7 = 0) (nonmissing = 1) (missing = 99 "vet ikke" missing)
+Endrer verdiene fra 1 til 7 til 0, andre gyldige verdier til 1, samt alle missing-verdier til 99 i variablene var1 og var2. Verdien 99 får i tillegg merkelappen "vet ikke" og flagges som missing.
+recode var1 var2 (1/7 = 0) (* = 99)
+Endrer verdiene fra 1 til 7 til 0, alle andre verdier til 99 i variablene var1 og var2
+recode var1 var2 (min/5 = 0) (10/max = 99)
+Endrer verdiene i intervallet mellom den minste i kodelisten og 5 til 0 og verdiene i intervallet mellom 10 og den største koden til 99 i variablene var1 og var2.
+recode var1 var2 (1/7 = 0), prefix('new_')
+Oppretter variablene new_var1 og new_var2 som inneholder omkodete verdier fra hhv. var1 og var2.
+recode regstat ('3' '5' = '0' 'ikke-bosatt')
+Endrer verdiene '3' og '5' til '0' for variabelen regstat, og lager en verdi-label med navnet 'ikke-bosatt' som knyttes til denne verdien.
+replace
+replace var-name = expression [if]
+Endr verdier for enheter i en variabel dersom de dekkes av det definerte uttrykket. Om ikke forblir de som de var.
+Generelle aritmetiske funksjoner er støttet. Funksjonsuttrykk støttes også (en oversikt over funksjoner kan vises ved å bruke kommandoen help-function)
+Opsjoner
+Eksempler
+replace inntekt = inntekt/10
+Erstatter verdiene for inntekt med inntekt delt på ti.
+replace inntekt = inntekt/10 if kjonn==1
+Som over, men kun for de enheter som har verdien 1 for kjønn
+destring
+destring var-list [, options]
+Konverter alfanumeriske verdier til numeriske verdier. Dette kan bare gjøres for variabler med alfanumerisk dataformat.
+Etter at kommandoen er kjørt, vil spesifisert(e) variabel/variabler endre format til numerisk. Inneholder verdikodene bokstaver eller andre ikke-numeriske tegn, vil du få en feilmelding.
+Opsjoner
+prefix() Opprett ny(e) variabel(er) med de omkodete verdiene, som tar originalnavnet med det spesifiserte prefikset foran.
+ignore() Fjern spesifiserte ikke-numeriske karakterer før konvertering. Slik kan du konvertere ellers delvis gyldige verdier til numeriske verdier.
+force Koder med bokstaver (og andre ikke-tall) settes til missing. Er spesielt nyttig om dette gjelder noen få koder.
+dpcomma Alfanumeriske kommategn konverteres til desimaltegn og erstattes med punktum
+Eksempler
+destring var1
+Konverterer verdiene i variabelen var1 fra alfanumerisk til numerisk format. Om noen verdier inneholder ikke-numeriske karakterer, vil operasjonen ikke gjennomføres og en får feilmelding.
+destring var1 var2, prefix(ny)
+Konverterer verdiene i variablene var1 og var2 fra alfanumerisk til numerisk format, og gir dem navnene nyvar1 og nyvar2
+destring var1, force
+Konverterer verdiene i variabelen var1 fra alfanumerisk til numerisk format. Verdier som inneholder ikke-numeriske karakterer konverteres til missingverdi
+destring var1, ignore('.,-') force
+Konverterer verdiene til variabelen var1 fra alfanumerisk til numerisk format. Karakterene ., , og - ignoreres. Verdier som inneholder øvrige ikke-numeriske karakterer konverteres til missingverdi
+assign-labels
+assign-labels var-name codelist-name
+Tar som parameter et variabelnavn og navn på en kodeliste definert ved hjelp av define-labels
+Opsjoner
+Eksempler
+assign-labels var1 enig_uenig
+Kodelisten ved navn enig_uenig kobles til variabelen var1
+define-labels
+define-labels codelist-name value label [value label ...]
+Definer en ny, navngitt kodeliste som kan brukes av kategoriske variabler. Verdiene må være unike. Bruk av fnutter eller enkeltfnutter er valgfritt, men kreves dersom labelen inneholder spesialtegn (inkludert mellomrom).
+En ferdig kodeliste må knyttes til en variabel gjennom kommandoen assign-labels for at lablene skal kunne vises ved statistisk output
+Opsjoner
+Eksempler
+define-labels kjønnlabel 1 Mann 2 Kvinne 3 Annet
+Lager en kodeliste med navn kjønnlabel for verdiene 1 - 3
+define-labels enig_uenig A 'helt uenig' B 'litt uenig' C 'litt enig' D 'helt enig'
+Lager en kodeliste med navn enig_uenig for verdiene A - D. Fnutter eller enkeltfnutter er nødvendig når etikettene inneholder mellomrom (eller spesialtegn)
+drop-labels
+drop-labels codelist-name [codelist-name ...]
+Slett kodelistene oppgitt som parametre
+Opsjoner
+Eksempler
+drop-labels codelist1 codelist2
+Fjerner kodelistene codelist1 og codelist2
+list-labels
+list-labels (codelist-name | register-var [time])
+Skriver ut en liste over den oppgitte kodelisten. Dette kan enten være en kodeliste som er definert med define-labels, eller kodelisten knyttet til en registervariabel oppgitt ved den fulle navn. Om registervariabelen tar et måletidspunkt, må dette også spesifiseres og kodelisten som er knyttet til registervariabelen på dette tidspunktet vises.
+Opsjoner
+sample
+sample count|fraction seed
+Ta et tilfeldig uttrekk av observasjoner på datasettet. Første argument spesifiserer hvor mange observasjoner som skal beholdes. Dette kan være et heltall > 1000 eller en andel (desimaltall mellom 0 og 1). Andre argument angir en seed, der en kan bruke positive heltall >= 1.
+Ved bruk av samme seed og størrelse på sample vil det tilfeldige uttrekket være det samme hver gang kommandoen kjøres. For et nytt tilfeldig sample av samme størrelse, bruk en ny seed-verdi.
+Opsjoner
+Eksempler
+sample 10000 342343
+Beholder 10000 tilfeldige observasjoner basert på seed-verdien 342343
+sample 10000 351333
+Beholder 10000 tilfeldige observasjoner basert på seed-verdien 351333 (et annet uttrekk)
+sample 0.2 422323
+Beholder 20% av observasjonene i datasettet, tilfeldig trukket, basert på seed-verdien 422323
+Grafikk
+barchart
+barchart (statistic) var-list [if] [, options]
+Lager søylediagram som viser statistikk for de inkluderte variablene.
+statistic kan være følgende: count (frekvens/antall enheter), percent (prosentandeler for frekvenser). Dette viser antall og prosentandeler for kategoriske variabler presentert som søyler, og er i praksis en grafisk fremstilling av tall generert gjennom kommandoen tabulate. Man bør kun angi én variabel dersom man bruker disse to måletypene. I tillegg kan man benytte måletypene mean, min, max, median, sum, sd (standardavvik). Disse viser gjennomsnitt, median etc for alle variablene som brukes som input, og krever at variabelen(e) er numerisk(e). Dette er i praksis en grafisk måte å vise tilsvarende verdier gjennom kommandoen summarize.
+Opsjonen over() er veldig nyttig å bruke til å lage fordelinger over ulike kategoriske inndelinger. Kombinert med opsjonen stack vil man kunne lage ganske avanserte søylediagrammer. Diagrammet blir da mer komprimert og oversiktlig (spesielt nyttig dersom man har mange kategorier).
+Opsjoner
+over() Én søyle per kategori i variabelen(e) gitt som parameter til over()
+by() Én graf per kategori i variabelen(e) gitt som parameter til by()
+stack Stable frekvensverdier eller prosentverdier i stedet for å vise separate søyler ved siden av hverandre. Kan brukes sammen med måletypene count og percent.
+horizontal Vis søylediagrammet med liggende søyler
+Eksempler
+barchart (count) fylke
+Søylediagram som viser antallet personer bosatt i hvert fylke, der hver søyle representerer et fylke
+barchart (percent) fylke
+Søylediagram som viser prosentandelen personer bosatt i hvert fylke, der hver søyle representerer et fylke
+barchart (percent) fylke, over(kjønn)
+Søylediagram som viser prosentandelen personer bosatt i hvert fylke, der hver søyle representerer et fylke. Søylene gruppes etter kjønn.
+barchart (percent) fylke, over(kjønn) stack
+Søylediagram som viser prosentandelen personer bosatt i hvert fylke. Søylene gruppes etter kjønn. I stedet for separate søyler for hvert fylke innenfor hvert kjønn, stables i stedet fylkesverdiene i en og samme søyle for hver verdi av kjønn. Man viser da kun to søyler, en for menn og en for kvinner, der hver søyle fargelegges med ulike farger basert på fylkesandelen innenfor det aktuelle kjønnet. Hver søyle har samme høyde (= 100%), men ulike fargeinndelinger.
+barchart (count) fylke, over(kjønn) stack
+Søylediagram som viser antallet personer bosatt i hvert fylke. Søylene gruppes etter kjønn. I stedet for separate søyler for hvert fylke innenfor hvert kjønn, stables i stedet fylkesverdiene i en og samme søyle for hver verdi av kjønn. Man viser da kun to søyler, en for menn og en for kvinner, der hver søyle fargelegges med ulike farger basert på antallet bosatte i de ulike fylker innenfor det aktuelle kjønnet. Søylenes høyde er forskjellige og lik totalverdi for det aktuelle kjønnet.
+barchart (count) fylke, over(kjønn, sivilstand) stack horizontal
+Søylediagram som viser antallet personer bosatt i hvert fylke. Søylene gruppes etter kjønn og sivilstand. I stedet for separate søyler for hvert fylke innenfor hver kombinasjon av kjønn og sivilstand, stables i stedet fylkesverdiene i en og samme søyle for hver kombinasjon av kjønn og sivilstand. Man viser da et antall søyler som tilsvarer antallet kombinasjoner av kjønn og sivilstand, der hver søyle fargelegges med ulike farger basert på antallet bosatte i de ulike fylker innenfor den aktuelle kombinasjonen.
+barchart (mean) lønn, over(bosted)
+Søylediagram som viser snittverdien for den metriske variabelen lønn fordelt på den kategoriske variabelen bosted
+barchart (mean) lønn fødselsår, over(landbakgrunn)
+Søylediagram som viser snittverdiene for lønn og fødselsår fordelt over landbakgrunn
+barchart (mean) lønn fødselsår if lønn > 500000, over(landbakgrunn, kjønn)
+Søylediagram som viser snittverdiene for lønn og fødselsår dersom lønn har verdier høyere enn 500000, fordelt over landbakgrunn og kjønn
+boxplot
+boxplot var-list [if] [, options]
+Lag et boksplott for hver enkelt variabel sortert etter de gitte spesifikasjonene. Du kan bare ha én by-variabel av gangen, men flere over-variabler
+Opsjoner
+over() Lager ett boksplott per kategori for de(n) kategoriske variabelen/-lene spesifisert i opsjonen over()
+horizontal Vis boksplottet med liggende søyler
+Eksempler
+boxplot inntekt2004
+Lager et boksplott for variabelen inntekt2004
+boxplot inntekt2004 inntekt2005
+Lager et boksplott for variabelen inntekt2004 og inntekt2005 i samme tabell
+boxplot inntekt2004, over(kjønn)
+Lager ett boksplott for variabelen inntekt2004 for hver av kategoriene i kjønn-variabelen og setter dem ved siden av hverandre i samme tabell
+boxplot inntekt2004 if bosted == 3
+Lager et boksplott for variabelen inntekt2004 for de enheter som har verdien 3 på bostedsvariabelen
+coefplot
+coefplot regress-type var-name var-list [if] [, options]
+Lag et grafisk plot som viser koeffisientverdiene og tilhørende konfidensintervall.
+Tar som argument en regresjonskommando i sin helhet, med samme syntax som kommandoen har for seg selv. Se hjelpetekstene for de individuelle regresjonene for mer informasjon om dette ved f.eks help regress
+Opsjoner
+Eksempler
+coefplot regress lønn alder mann gift formue, standardize
+Lager grafisk fremvisning av standardiserte koeffisientverdier for vanlig OLS-regresjon
+coefplot logit jobb høy_utd mann oslo
+Lager grafisk fremvisning av koeffisientverdier for en logit-regresjon
+hexbin
+hexbin var-name var-list [if], [, options]
+Vis fordelingen av enhetsverdiene for to angitte variabler i sekskanter. Fargen på sekskantene avhenger av hvor mange enheter som er representerte i hver. En kodenøkkel blir vist ved siden av diagrammet
+Opsjoner
+gridsize() Antall hexagon på x- og y- aksen. Hvis ikke oppgitt, er standardvalget satt til verdien 20 (maksverdi = 25)
+groups() Antall grupper/farger i hexbinplottet. Hvis ikke oppgitt, er standardvalget satt til maksverdien 10
+Eksempler
+hexbin lonn alder
+Vis fordelingen av lonn over alder
+hexbin lonn kjonn
+Vis den metriske variabelen lonn over den kategoriske variabelen kjonn
+hexbin lonn alder if alder >= 18
+Vis lonn for alder dersom alderen er høyere eller lik 18
+histogram
+histogram var-name [if] [, options]
+Histogram-kommandoen lager et histogram over den spesifiserte, kontinuerlige variabelen. For kategoriske numeriske variabler må discrete opsjonen brukes
+Opsjoner
+by() Lager flere histogram som viser fordelingen for hver av underkategoriene i den spesifiserte by-variabelen
+density Vis tetthetsverdier. Standardmålet for histogram. Summen av søylearealet er lik 1
+freq Vis antall enheter (frekvens) i stedet for tetthet
+fraction Vis brøkdelsverdier. Summen av søylehøydene er lik 1
+percent Vis prosentverdier. Summen av alle søylehøydene er lik 100
+bin() Definerer hvor mange grupper dataene skal grupperes til. Kan ikke brukes sammen med opsjonen discrete.
+width() Spesifiser hvor brede søylene skal være
+normal Vis normalfordelingskurven for histogrammet
+discrete Spesifiser at variabelen skal behandles diskret, noe som vil si at du får én søyle per verdi. Med denne kan man lage histogram over kategoriske numeriske variabler (f.eks. alder). Kan ikke brukes sammen med opsjonen bin().
+Eksempler
+histogram lønn2002
+Lager et histogram av den kontinuerlige variabelen lønn2002
+histogram lønn2002 if kjønn == 2
+Lager et histogram av den kontinuerlige variabelen lønn2002 for de enheter som har verdien 2 på kjønn
+histogram lønn2002, bin(12)
+Lager histogram av variabelen lønn2002, der verdiene er fordelt i 12 like vide grupper som gir 12 søyler
+histogram lønn2002, width(10000)
+Lager et histogram av den kontinuerlige variabelen lønn2002, der hver søyle har en bredde på 10000 enheter (her: kroner)
+histogram hdi, discrete
+Lager et histogram av hdi-skalaen der hver verdi blir gitt sin egen søyle
+piechart
+piechart var-name [if]
+Lag et kakediagram av den spesifiserte variabelen
+Opsjoner
+Eksempler
+piechart utdanningsniva
+Lager kakediagram av variabelen utdanningsniva
+piechart utdanningsniva if kjønn == 2
+Lager kakediagram av variabelen utdanningsniva for de enheter som har verdien 2 på kjønn
+sankey
+sankey var-list [if]
+Sankeydiagrammet viser strømninger fra en kategori til en annen for det gitte enhetsnivå (f.eks. individer). Kommandoen er kun kompatibel med kategoriske variabler
+Opsjoner
+Eksempler
+sankey bosted10 bosted11
+Lager sankeydiagram som viser hvilke kommuner personer flytter fra/til mellom årene 2010 og 2011
+Regresjon
+hausman
+hausman var-name var-list [if] [, options]
+Kjør to regress-panel modeller - én med fixed effects (FE) og én med random effects (RE) - og sammenligner dem ved bruk av Hausmantesten. Variabler og opsjoner spesifiseres slik som i regress-panel.
+Outputen viser regresjonsresultat for hhv. FE og RE, differanse mellom koeffisientestimater, samt test-parametrene chi2 og P. P-verdi < 0.05 betyr at FE bør benyttes. P-verdi >= 0.05 betyr at RE bør brukes.
+Opsjoner
+noconstant Undertrykk konstantleddet (krysningspunktet for y-aksen) i regresjonsmodellene
+level() Spesifiserer konfidensnivået i prosent. Standarden er 95%
+sigmamore Baser begge kovariansmatrisene på estimat for forstyrrelsesvarians (sigma) fra effisient estimator
+sigmaless Baser begge kovariansmatrisene på estimat for forstyrrelsesvarians (sigma) fra konsistent estimator
+include_constant Inkluder konstantleddet i Hausmantesten
+Eksempler
+hausman inntekt gjeld
+Hausmantest av en regress-panel med fixed effects og en med random effects
+ivregress
+ivregress var-name var-list [( var-list = var-list )] var-list [if] [, options]
+Lineær regresjon med instrumentvariabler for å kontrollere for korrelasjon mellom restleddet og én eller flere uavhengige variabler.
+Instrumentvariabel/-ler angis på venstre side av = i et uttrykk inni en parentes. Variablene på høyresiden av = angir variablene en mistenker å korrelere med instrumentvariabelen/-lene
+Opsjoner
+tsls Bruk estimatoren "two-stage least squares" (standard hvis ingen modelltype er oppgitt)
+liml Bruk estimatoren "limited-information maximum likelihood"
+gmm Bruk estimatoren "generalized method of moments"
+noconstant Undertrykk konstantleddet (krysningspunktet for y-aksen)
+endog Rapporterer test for endogenitet. Hvis standardfeil er utilpasset rapporteres Durbins test og Wu-Hausman test. Hvis standardfeil er robuste rapporteres Wooldridges regression test og Wooldridges score test. Hvis standardfeil er clustered rapporteres Wooldridges regression test. Kun tilgjengelig for modeller med "tsls" estimator
+firststage Rapporterer statistikk fra første steg av regresjonen.
+overid Rapporterer tester for overidentifiserte restriksjoner. Hvis standardfeil er utilpasset og estimatoren er "tsls" rapporteres Sargan test og Basmanns test. Hvis standardfeil er robuste eller clustered og estimatoren er "tsls" rapporteres Wooldridges score test. Hvis estimatoren er "liml" rapporteres Anderson-Rubin test og Basmanns F test. Ikke tilgengelig for modeller med gmm estimator.
+level() Spesifiser konfidensnivået i prosent. Standarden er 95%
+robust Beregn robuste standardfeil. Kan ikke brukes sammen med cluster
+cluster() Bruk en cluster-variabel for beregning av standardfeil. Kan ikke brukes sammen med robust. Variabelen må være numerisk, og kan ikke inngå i selve regresjonsuttrykket.
+Eksempler
+ivregress innt05 mann gift ( formuehøy = alder )
+En lineær regresjonsmodell med innt05 som avhengig variabel, og mann, gift og formuehøy som uavhengige variabler, hvor alder (samt mann og gift) fungerer som intrument på formuehøy.
+ivregress innt05 mann gift ( formuehøy = alder ), tsls
+Samme som over, med standardestimatoren "two-stage least squares" eksplisitt angitt
+ivregress innt05 mann gift ( formuehøy = alder ), liml
+Samme som over med estimatoren "limited-information maximum likelihood"
+ivregress innt05 mann gift ( formuehøy = alder ), gmm
+Samme som over med estimatoren "generalized method of moments"
+ivregress innt05 mann gift ( formuehøy = alder utdanningsnivå)
+En lineær regresjonsmodell med innt05 som avhengig variabel, og mann, gift og formuehøy som uavhengige variabler, hvor alder og utdanningsnivå (samt mann og gift) fungerer som intrument på formuehøy.
+ivregress innt05 mann gift ( utdanningsnivå formuehøy = alder )
+En lineær regresjonsmodell med innt05 som avhengig variabel, og mann, gift og formuehøy som uavhengige variabler, hvor alder (samt mann og gift) fungerer som intrument på formuehøy og utdanningsnivå.
+ivregress innt05 mann gift ( formuehøy = alder ), robust
+En modell med robuste standardfeil
+ivregress innt05 mann gift ( formuehøy = alder ), cluster(utdanningsnivå)
+En modell med utdanningsnivå som cluster-variabel for beregning av standardfeil
+ivregress-predict
+ivregress-predict var-name var-list [( var-list = var-list )] var-list [if] [, options]
+Gjennomfør en lineær regresjon med instrumentvariabler for de inkluderte variablene, og genererer variabler med predikerte verdier (standard) og/eller residualverdier, med angitte navn.
+Opsjoner
+predicted() Generer variabel med predikerte verdier, med angitt navn. Standarden er predicted
+residuals() Generer variabel med residualer, med angitt navn
+noconstant Undertrykk konstantleddet i regresjonsmodellen
+tsls Bruk estimatoren "two-stage least squares" (standard hvis ingen modelltype er oppgitt)
+liml Bruk estimatoren "limited-information maximum likelihood" i regresjonsmodellen
+gmm Bruk estimatoren "generalized method of moments" i regresjonsmodellen
+Eksempler
+ivregress-predict inntekt2004 kjonn inntekt2003 ( formuehøy = alder ), predicted(pred)
+Generer variabelen pred, med de predikerte verdiene fra en lineær regresjon med instrumentvariabler
+ivregress-predict inntekt2004 kjonn inntekt2003 ( formuehøy = alder )
+Samme som over
+ivregress-predict inntekt2004 kjonn inntekt2003 ( formuehøy = alder ), residuals(res)
+Generer variabelen res, med residualverdiene fra en lineær regresjon med instrumentvariabler
+ivregress-predict inntekt2004 kjonn inntekt2003 ( formuehøy = alder ), predicted(pred) residuals(res)
+Generer variablene pred og res med de predikerte verdiene og residualverdiene fra en lineær regresjon med instrumentvariabler
+logit
+logit var-name var-list [if] [, options]
+Gjennomfør en logistisk regresjonsanalyse (logit) for de inkluderte variablene via sannsynlighetsmaksimering. Den avhengige variabelen er den første i variabellisten, og denne må være binær. For de uavhengige er dette ikke nødvendig.
+Denne regresjonen finner sannsynligheten for positive utfall (verdien 1). Avhengig variabel lik 0 indikerer et negativt utfall
+Opsjoner
+mfx() Kalkuler marginaleffekter og elastisitetsverdier i tillegg til logistiske koeffisienter. Ønsket effekttype må oppgis som en av følgende: dydx (marginaleffekt = d(y)/d(x)), eyex (elastisitetsverdi = d(ln(y))/d(ln(x))), dyex (semielastisitet = d(y)/d(ln(x))), eydx (semielastisitet = d(ln(y))/d(x)). Om målevariant ikke angis via mfx_at() brukes 'overall', dvs. gjennomsnittlig marginaleffekt.
+mfx_at() Spesifiser for hvilke verdier av x marginaleffekter og elastisitetsverdier skal måles. Disse variantene kan brukes: overall (snittverdien av marginaleffektene målt over alle verdier av x), mean (marginaleffekt målt ved snittet av x), median (marginaleffekt målt ved median av x), zero (marginaleffekt målt ved 0-verdien for x). overall brukes som standard dersom opsjonen utelates. Om effekttype ikke er angitt via mfx() brukes dydx.
+noconstant Undertrykk konstantleddet (krysningspunktet for y-aksen)
+level() Spesifiser konfidensintervallnivået. Skrives i prosenttall. Om ingenting annet er forespurt, blir det satt til standarden på 95%
+or Vis oddsratio istedet for koeffisientverdier
+robust Beregner robuste standardfeil (HC1). Kan ikke brukes sammen med cluster
+cluster() Bruk en cluster-variabel for beregning av standardfeil. Kan ikke brukes sammen med robust. Variabelen må være numerisk, og kan ikke inngå i selve regresjonsuttrykket.
+control() Spesifiser variabler som skal inngå i regresjonsanalysen, men som det ikke skal vises koeffisientestimater for. Se help regress.
+margins() Beregn predikert verdi for den avhengige variabelen målt ved gjennomsnittsverdien for alle forklaringsvariablene i modellen. Ved å angi en dummyvariabel inni parentesen (denne må også inngå som en forklaringsvariabel i modellen), vil man i stedet beregne predikert verdi for hver verdi av dummyvariabelen (0/1) målt ved gjennomsnittet for de resterende forklaringsvariablene. Dette kan brukes til å sammenlikne predikerte verdier mellom to grupper.
+Eksempler
+logit universitetsutdannet2003 inntekt2003 mann
+En logit-analyse der den binære variabelen universitetsutdannet2003 er avhengig, og mann og inntekt2003 er uavhengige
+logit universitetsutdannet2003 inntekt2003 mann, level(90)
+Samme som over, men med konfidensnivået satt til 90% heller enn standarden som er 95%
+logit universitetsutdannet2003 inntekt2003 mann, or
+Samme som over, men med oddsratioen heller en koeffisienten
+logit universitetsutdannet2003 inntekt2003 inntekt2002 mann c.inntekt2003#c.inntekt2002
+Kjør en logit-analyse med universitetsutdannet2003 som avhengig variabel. Leddet c.inntekt2003#c.inntekt2002 gir en interaksjonsvariabel for de to metriske variablene inntekt2002 og inntekt2003
+logit universitetsutdannet2003 mann#innvandrerbakgrunn
+Kjør en logit-analyse med universitetsutdannet2003 som avhengig variabel. Leddet mann#innvandrerbakgrunn gir en estimering for hver av underkategoriene av de to mot hveranre. Mann og innvandrerbakgrunn er kategoriske variabler
+logit høyinntekt2002 c.inntekt2000#c.inntekt2001
+Analyse av den binære avhengige variabelen høyinntekt2002 med et interaksjonsledd mellom de to metriske variablene inntekt2000 og inntekt2001 som uavhengig variabel
+logit høyinntekt2004 i.kjønn
+Gjør en analyse av høyinntekt2004 for hver av kjønnskategoriene
+logit høyinntekt2004 mann utdanningsnivå i.mann#i.utdanningsnivå
+Logit-analyse med høyinntekt2004 som avhengig variabel. Estimeringen bruker mann og utdanningsnivå, samt krysser alle underkategorier av de uavhengige variablene mot hverandre
+logit høyinntekt2004 mann c.klassetrinn
+Logit-analyse der den kategoriske variabelen klassetrinn blir behandlet som om den var kontinuerlig
+logit høyinntekt2004 mann if inntekt > 500000
+Logit-analyse med modifiserende uttrykk
+logit høyinntekt2004 mann, robust
+En logit-modell med robuste standardfeil
+logit høyinntekt2004 mann, cluster(utdanningsnivå)
+En logit-modell med utdanningsnivå som cluster-variabel for beregning av standardfeil
+logit-predict
+logit-predict var-name var-list [if] [, options]
+Gjennomfør en logistisk regresjon (logit)for de inkluderte variablene, og genererer variabler med sannsynlighetsverdi (standard), predikerte verdier, og/eller residualverdier, med angitte navn.
+Opsjoner
+probabilities() Generer variabel med sannsynlighetsverdi for positivt utfall, med angitt navn. Standarden er probabilities
+predicted() Generer variabel med lineære prediksjonsverdier, med angitt navn
+residuals() Generer variabel med residualer, med angitt navn
+noconstant Undertrykk konstantleddet i regresjonsmodellen
+Eksempler
+logit-predict universitetsutdannet2003 inntekt2003 kjonn, probabilities(prob)
+Generer variabelen prob med sannsynlighetsverdier fra en logit-regresjon
+logit-predict universitetsutdannet2003 inntekt2003 kjonn
+Samme som over
+logit-predict universitetsutdannet2003 inntekt2003 kjonn, predicted(pred)
+Generer variabelen pred med lineære prediksjonsverdier fra en logit-regresjonsmodell
+logit-predict universitetsutdannet2003 inntekt2003 kjonn, residuals(res)
+Generer variabelen res med residualer fra en logit-regresjonsmodell
+logit-predict universitetsutdannet2003 inntekt2003 kjonn, residuals(res) noconstant
+Generer variabelen res med residualer fra en logit-regresjonsmodell uten konstantledd
+logit-predict universitetsutdannet2003 inntekt2003 kjonn, probabilities(prob) predicted(pred) residuals(res)
+Generer variablene prob, pred, res med henholdsvis sannsynlighetsverdier, lineære prediksjonsverdier, og residualer fra en logit-regresjonsmodell
+mlogit
+mlogit var-name var-list [if] [, options]
+Gjennomfør en multinomisk logit-regresjonsanalyse. Til forskjell fra ordinær logit, kreves det at avhengig variabel opererer med flere enn to verdikategorier.
+En kan definere begrensninger (constraints) i analysen. Kommandoen støtter faktorvariabler
+Opsjoner
+mfx() Kalkuler marginaleffekter og elastisitetsverdier i tillegg til logistiske koeffisienter. Ønsket effekttype må oppgis: dydx (marginaleffekt = d(y)/d(x)), eyex (elastisitetsverdi = d(ln(y))/d(ln(x))), dyex (semielastisitet = d(y)/d(ln(x))), eydx (semielastisitet = d(ln(y))/d(x)). Om målevariant ikke angis via mfx_at() brukes 'overall', dvs. gjennomsnittlig marginaleffekt.
+mfx_at() Spesifiser for hvilke verdier av x marginaleffekter og elastisitetsverdier skal måles. Disse variantene kan brukes: overall (snittverdien av marginaleffektene målt over alle verdier av x), mean (marginaleffekt målt ved snittet av x), median (marginaleffekt målt ved median av x), zero (marginaleffekt målt ved 0-verdien for x). 'overall' brukes som standard dersom opsjonen utelates. Om effekttype ikke er angitt via mfx() brukes 'dydx'.
+noconstant Undertrykk konstantleddet (der y-aksen krysses) i modellen
+level() Spesifiser konfidensintervallnivået. Om ingenting er spesifisert benyttes normalen på 95%
+robust Beregner robuste standardfeil (HC1). Kan ikke brukes sammen med cluster
+cluster() Bruk en cluster-variabel for beregning av standardfeil. Kan ikke brukes sammen med robust. Variabelen må være numerisk, og kan ikke inngå i selve regresjonsuttrykket.
+control() Spesifiser variabler som skal inngå i regresjonsanalysen, men som det ikke skal vises koeffisientestimater for. Se help regress.
+Eksempler
+mlogit utdanningsnivå inntekt mann
+Utfører en multinomisk logitanalyse der den avhengige variabelen utdanningsnivå er en kategorisk variabel med flere enn to verdier
+mlogit utdanningsnivå inntekt mann, level(90)
+Samme som over, men med konfidensintervallnivået satt til 90% heller enn standarden på 95%
+mlogit inntektsnivå2002 utdanningsnivå mann utdanningsnivå#mann ELLER mlogit inntektsnivå2002 utdanningsnivå##mann
+Begge disse kommandoene gir samme regresjonstabell. Dette gir en multinomisk logitanalyse med den kategoriske variabelen innteksniva2002 som avhengig variabel og de kategoriske variablene utdanningsnivå og mann som uavhengige. Vi analyserer først utdanningsnivå og mann for seg, og deretter hver underkategori mot hverandre
+mlogit inntektsnivå2002 c.inntekt2000#c.inntekt2001
+Analyse av den kategoriske avhengige variabelen inntektsnivå2002 med et interaksjonsledd mellom de to metriske variablene inntekt2000 og inntekt2001 som uavhengig variabel
+mlogit inntekt2004 i.kjønn
+Analyse av inntekt2004 for hver av kjønnskategoriene
+mlogit inntektsnivå2004 mann utdanningsnivå i.mann#i.utdanningsnivå
+Mlogit-analyse med inntektsnivå2004 som avhengig variabel. Analysen bruker mann og utdanningsnivå, samt krysser alle underkategorier av de uavhengige variablene mot hverandre
+mlogit inntektsnivå2004 mann c.klassetrinn
+Regresjonsanalyse der den kategoriske variabelen klassetrinn blir behandlet som om den var kontinuerlig
+mlogit inntektsnivå2004 mann if inntekt > 500000
+Regresjonsanalyse med modifiserende uttrykk
+mlogit inntektsnivå2004 mann, robust
+En modell med robuste standardfeil
+mlogit inntektsnivå2004 mann, cluster(utdanningsnivå)
+En modell med utdanningsnivå som cluster-variabel for beregning av standardfeil
+mlogit-predict
+mlogit-predict var-name var-list [if] [, options]
+Gjennomfør en multinomisk logit-analyse for de inkluderte variablene, og genererer variabler med sannsynlighetsverdi (standard), og/eller predikerte verdier, med angitte navn som prefix, for hver verdi på avhengig variabel.
+Opsjoner
+probabilities() Generer variabel med sannsynlighetsverdi for positivt utfall, med angitt navn. Standarden er probabilities
+predicted() Generer variabel med lineære prediksjonsverdier, med angitt navn
+noconstant Undertrykk konstantleddet i regresjonsmodellen
+Eksempler
+mlogit-predict utdanningsniva inntekt kjonn, probabilities(prob)
+Generer variablene prob_[n] med sannsynlighetsverdier fra en mlogit-regresjon
+mlogit-predict utdanningsniva inntekt kjonn
+Samme som over
+mlogit-predict utdanningsniva inntekt kjonn, predicted(pred)
+Generer variablene pred_[n] med lineære prediksjonsverdier fra en mlogit-regresjon
+mlogit-predict utdanningsniva inntekt kjonn, probabilities(prob) predicted(pred)
+Generer variablene prob_[n] og pred_[n] med sannsynlighetsverdier og lineære prediksjonsverdier fra en logistisk regresjonsmodell
+negative-binomial
+negative-binomial var-name var-list [if] [, options]
+Kjører en negativ binomial telleregresjon. Regresjonsmodellen er en generalisering av poissonmodellen, jfr. kommandoen poisson, og passer på data der den avhengige variabelen er en tellevariabel (positive heltall). Negativ binomial-regresjon bør velges dersom forventet verdi for den avhengige variabelen er større enn variansen (overdispersjon). Ellers (dersom variansen er lik forventet verdi) bør poisson brukes.
+Den første variabelen i lista er den avhengige variabelen (tellevariabel som teller opp forekomster av en gitt hendelse). Etterfølgende variabler er de uavhengige. Både metriske og faktorvariabler støttes.
+Denne modellen legger til en ekstra parameter, alpha, som skal fange opp (absorbere) ekstra varians. Estimatet av denne vises nederst i resultatet under de ordinære koeffisientparametrene
+Opsjoner
+noconstant Undertrykk konstantleddet (krysningspunktet for y-aksen)
+level() Spesifiser konfidensnivået i prosent. Standarden er 95%
+robust Beregner robuste standardfeil (HC1). Kan ikke brukes sammen med cluster
+cluster() Bruk en cluster-variabel for beregning av standardfeil. Kan ikke brukes sammen med robust. Variabelen må være numerisk, og kan ikke inngå i selve regresjonsuttrykket.
+control() Spesifiser variabler som skal inngå i poissonanalysen, men som det ikke skal vises koeffisientestimater for. Se help regress.
+irr Rapporterer incidence rate ratio-verdier i stedet for koeffisientverdier (verdiene transformeres gjennom den naturlige eksponensialfunksjonen). Verdien 1 betyr ingen effekt. Verdier over 1 betyr positiv effekt, mens verdier under 1 betyr negativ effekt. Transformasjonen påvirker også standardfeilene og konfidensintervallene.
+exposure() Inkluderer eksponeringsvariabel. Denne representerer mengden av eksponering for den prosessen som genererer tellinger. Variabelen som angis inni parentesen er vanligvis kontinuerlig og må ikke inneholde 0-verdier.For eksempel, hvis du modellerer antallet bilulykker i forskjellige byer, kan antallet innbyggere i hver by være en eksponeringsvariabel. Typisk bruker man en variabel som kan benyttes til å regne ut rater for den aktuelle tellingen. Eksponeringsvariabelen blir automatisk log-transformert (naturlig logaritme) og inkludert som en offset i modellen, noe som betyr at den vil justere tellingsresponsen for mengden av eksponering. De andre estimatene blir da korrigert basert på denne variabelen, slik at de blir mer riktige.Merk at exposure-variabelen ikke skal angis som forklaringsvariabel i modellen.
+Eksempler
+negative-binomial ant_sykemeldinger i.kjønn i.utdanningsnivå i.fylke alder lønn
+Kjører en negativ binomialregresjon der ant_sykemeldinger er den avhengige variabelen. Faktorvariablene kjønn, utdanningsnivå og fylke, samt alder og lønn er uavhengige variabler (forklaringsvariabler). Standardkonfidensintervallet er 95%
+negative-binomial ant_sykemeldinger i.kjønn i.utdanningsnivå i.fylke alder lønn, level(90)
+Samme som over, men med 90% konfidensintervall
+negative-binomial ant_sykemeldinger i.kjønn i.utdanningsnivå i.fylke alder lønn if lønn > 500000
+Negativ binomialanalyse med modifiserende uttrykk
+negative-binomial ant_sykemeldinger i.kjønn i.utdanningsnivå i.fylke alder lønn, robust
+En modell med robuste standardfeil
+negative-binomial ant_sykemeldinger i.kjønn i.utdanningsnivå i.fylke alder lønn, cluster(yrkesgruppe)
+En modell med yrkesgruppe som cluster-variabel for beregning av standardfeil
+negative-binomial-predict
+negative-binomial-predict var-name var-list [if] [, options]
+Gjennomfør en negativ binomialregresjon (negative-binomial) for de inkluderte variablene, og genererer variabler med predikerte verdier (standard), og/eller residualverdier, med angitte navn.
+Opsjoner
+predicted() Generer variabel med faktiske prediksjonsverdier, med angitt navn. Standardvalg = predicted()
+residuals() Generer variabel med residualer, med angitt navn
+noconstant Undertrykk konstantleddet i regresjonsmodellen
+exposure() Inkluder eksponeringsvariabel, jamfør dokumentasjon av negative-binomial
+Eksempler
+negative-binomial-predict sykedager lønn i.kjønn alder i.ant_barn, predicted(pred)
+Generer variabelen pred med faktiske prediksjonsverdier fra en negativ binomialregresjonsmodell
+negative-binomial-predict sykedager lønn i.kjønn alder i.ant_barn
+Samme som over
+negative-binomial-predict sykedager lønn i.kjønn alder i.ant_barn, residuals(res)
+Generer variabelen res med residualer fra en negativ binomialregresjonsmodell
+negative-binomial-predict sykedager lønn i.kjønn alder i.ant_barn, residuals(res) noconstant
+Generer variabelen res med residualer fra en negativ binomialregresjonsmodell uten konstantledd
+negative-binomial-predict sykedager lønn i.kjønn alder i.ant_barn, predicted(pred) residuals(res)
+Generer variablene pred, res med henholdsvis faktiske prediksjonsverdier og residualer fra en negativ binomialregresjonsmodell
+oaxaca
+oaxaca var-name var-list by var-name [if] [, options]
+Blinder-Oaxaca dekomponering brukes til å forklare forskjeller i den avhengige variabelens gjennomsnittverdi for to grupper ved å dekomponere til to komponenter: Forklart differanse ('between group') og uforklart effekt (koeffisienteffekt).
+Som for regress, brukes kontinuerlige avhengige variabler, som f.eks. lønn. Man spesifiserer de to gruppene gjennom by-variabelen.
+Opsjoner
+robust Robuste standardavvik vises i stedet for standard
+noconstant Undertrykk konstantleddet
+pool Benytter 'pooled two-fold'-variant i stedet for standard 'three-fold'. Ved 'pooled two-fold' brukes koeffisientene fra en 'pooled' modell over begge grupper som referansekoeffisienter
+Eksempler
+oaxaca ln_lønn utd_høy alder oslo by kvinne
+Vanlig oaxaca-uttrykk der man bruker ln_lønn som avhengig variabel, og grupperer på kjønn
+oaxaca ln_lønn utd_høy alder oslo by kvinne, pool
+oaxaca-uttrykk der man bruker ln_lønn som avhengig variabel, og grupperer på kjønn. Opsjonen pool bruker en 'pooled two-fold' variant
+poisson
+poisson var-name var-list [if] [, options]
+Kjører en poissonregresjon. Dette er en regresjonsvariant som tilhører kategorien telleregresjoner, og passer på data der den avhengige variabelen er en tellevariabel (positive heltall). Slike data følger ofte en poissonfordeling (ikke normalfordeling). Se også alternativ telleregresjon gitt ved kommandoen negative-binomial.
+Poisson bør velges dersom forventet verdi for den avhengige variabelen er lik variansen. Ellers (dersom variansen er større) bør negative-binomial brukes. Den første variabelen i lista er den avhengige variabelen (tellevariabel som teller opp forekomster av en gitt hendelse). Etterfølgende variabler er de uavhengige. Både metriske og faktorvariabler støttes
+Opsjoner
+noconstant Undertrykk konstantleddet (krysningspunktet for y-aksen)
+level() Spesifiser konfidensnivået i prosent. Standarden er 95%
+robust Beregner robuste standardfeil (HC1). Kan ikke brukes sammen med cluster
+cluster() Bruk en cluster-variabel for beregning av standardfeil. Kan ikke brukes sammen med robust. Variabelen må være numerisk, og kan ikke inngå i selve regresjonsuttrykket.
+control() Spesifiser variabler som skal inngå i poissonanalysen, men som det ikke skal vises koeffisientestimater for. Se help regress.
+irr Rapporterer incidence rate ratio-verdier i stedet for koeffisientverdier (verdiene transformeres gjennom den naturlige eksponensialfunksjonen). Verdien 1 betyr ingen effekt. Verdier over 1 betyr positiv effekt, mens verdier under 1 betyr negativ effekt. Transformasjonen påvirker også standardfeilene og konfidensintervallene.
+exposure() Inkluderer exposure-variabel (kategorisk variabel). Dette er en eksponeringsvariabel som representerer 'mengden' av eksponering for den prosessen som genererer tellinger. Variabelen som angis inni parentesen må være kategorisk og må ikke inneholde 0-verdier.
+For eksempel, hvis du modellerer antallet bilulykker i forskjellige byer, kan tilknytning til by være en eksponeringsvariabel. Eksponeringsvariabelen blir automatisk log-transformert (naturlig logaritme) og inkludert som en offset i modellen, noe som betyr at den vil justere tellingsresponsen for mengden av eksponering. De andre estimatene blir da korrigert basert på denne variabelen, slik at de blir mer riktige.
+Merk at exposure-variabelen ikke skal angis som forklaringsvariabel i modellen
+Eksempler
+poisson ant_sykemeldinger i.kjønn i.utdanningsnivå i.fylke alder lønn
+Kjører en poissonregresjon der ant_sykemeldinger er den avhengige variabelen. Faktorvariablene kjønn, utdanningsnivå og fylke, samt alder og lønn er uavhengige variabler (forklaringsvariabler). Standardkonfidensintervallet er 95%
+poisson ant_sykemeldinger i.kjønn i.utdanningsnivå i.fylke alder lønn, level(90)
+Samme som over, men med 90% konfidensintervall
+poisson ant_sykemeldinger i.kjønn i.utdanningsnivå i.fylke alder lønn if lønn > 500000
+Poissonanalyse med modifiserende uttrykk
+poisson ant_sykemeldinger i.kjønn i.utdanningsnivå i.fylke alder lønn, robust
+En modell med robuste standardfeil
+poisson ant_sykemeldinger i.kjønn i.utdanningsnivå i.fylke alder lønn, cluster(yrkesgruppe)
+En modell med yrkesgruppe som cluster-variabel for beregning av standardfeil
+poisson-predict
+poisson-predict var-name var-list [if] [, options]
+Gjennomfør en poissonregresjon (poisson) for de inkluderte variablene, og genererer variabler med predikerte verdier (standard), og/eller residualverdier, med angitte navn.
+Opsjoner
+predicted() Generer variabel med faktiske prediksjonsverdier, med angitt navn. Standardvalg = predicted()
+residuals() Generer variabel med residualer, med angitt navn
+noconstant Undertrykk konstantleddet i regresjonsmodellen
+exposure() Inkluder eksponeringsvariabel, jamfør dokumentasjon av poisson
+Eksempler
+poisson-predict sykedager lønn i.kjønn alder i.ant_barn, predicted(pred)
+Generer variabelen pred med faktiske prediksjonsverdier fra en poissonregresjonsmodell
+poisson-predict sykedager lønn i.kjønn alder i.ant_barn
+Samme som over
+poisson-predict sykedager lønn i.kjønn alder i.ant_barn, residuals(res)
+Generer variabelen res med residualer fra en poissonregresjonsmodell
+poisson-predict sykedager lønn i.kjønn alder i.ant_barn, residuals(res) noconstant
+Generer variabelen res med residualer fra en poissonregresjonsmodell uten konstantledd
+poisson-predict sykedager lønn i.kjønn alder i.ant_barn, predicted(pred) residuals(res)
+Generer variablene pred, res med henholdsvis faktiske prediksjonsverdier og residualer fra en poissonregresjonsmodell
+probit
+probit var-name var-list [if] [, options]
+Gjennomfør en sannsynlighetsmaksimerende probitanalyse av de spesifiserte variablene. Den avhengige variabelen må være binær. Faktorvariabler er støttet
+Opsjoner
+mfx() Kalkuler marginaleffekter og elastisitetsverdier i tillegg til logistiske koeffisienter. Ønsket effekttype må oppgis som en av følgende: dydx (marginaleffekt = d(y)/d(x)), eyex (elastisitetsverdi = d(ln(y))/d(ln(x))), dyex (semielastisitet = d(y)/d(ln(x))), eydx (semielastisitet = d(ln(y))/d(x)). Om målevariant ikke angis via mfx_at() brukes 'overall', dvs. gjennomsnittlig marginaleffekt.
+mfx_at() Spesifiser for hvilke verdier av x marginaleffekter og elastisitetsverdier skal måles. Disse variantene kan brukes: overall (snittverdien av marginaleffektene målt over alle verdier av x), mean (marginaleffekt målt ved snittet av x), median (marginaleffekt målt ved median av x), zero (marginaleffekt målt ved 0-verdien for x). overall brukes som standard dersom opsjonen utelates. Om effekttype ikke er angitt via mfx() brukes dydx.
+noconstant Undertrykk konstantleddet (der y-aksen krysses) i modellen
+level() Spesifiser konfidensintervallnivået. Om ingenting er spesifisert benyttes normalen på 95%
+robust Beregner robuste standardfeil. Kan ikke brukes sammen med cluster
+cluster() Bruk en cluster-variabel for beregning av standardfeil. Kan ikke brukes sammen med robust. Variabelen må være numerisk, og kan ikke inngå i selve regresjonsuttrykket.
+control() Spesifiser variabler som skal inngå i regresjonsanalysen, men som det ikke skal vises koeffisientestimater for. Se help regress.
+margins() Beregn predikert verdi for den avhengige variabelen målt ved gjennomsnittsverdien for alle forklaringsvariablene i modellen. Ved å angi en dummyvariabel inni parentesen (denne må også inngå som en forklaringsvariabel i modellen), vil man i stedet beregne predikert verdi for hver verdi av dummyvariabelen (0/1) målt ved gjennomsnittet for de resterende forklaringsvariablene. Dette kan brukes til å sammenlikne predikerte verdier mellom to grupper.
+Eksempler
+probit utdanningsnivå inntekt mann
+Kjør en probitanalyse med den binære variabelen utdanningsnivå som avhengig variabel. De kategoriske og metriske variablene inntekt og mann er de uavhengige variablene
+probit utdanningsnivå inntekt mann, level(90)
+Samme som over, men med konfidensintervallet på 90% heller enn standarden som er 95%
+probit høyinntekt2002 utdanningsnivå mann utdanningsnivå#mann ELLER probit høyinntekt2002 utdanningsnivå##mann
+Begge disse kommandoene gir samme regresjonstabell. Dette gir en probitanalyse med den binære variabelen høyinntekt2002 som avhengig variabel og de kategoriske variablene utdanningsnivå og mann som uavhengige. Vi analyserer først utdanningsnivå og mann for seg, og deretter hver underkategori mot hverandre
+probit høyinntekt2002 c.inntekt2000#c.inntekt2001
+Analyse av den binære avhengige variabelen høyinntekt2002 med et interaksjonsledd mellom de to metriske variablene inntekt2000 og inntekt2001 som uavhengig variabel
+probit høyinntekt2004 i.kjønn
+Kjør en analyse av høyinntekt2004 for hver av kjønnskategoriene
+probit høyinntekt2004 mann utdanningsnivå i.mann#i.utdanningsnivå
+Probit-analyse med høyinntekt2004 som avhengig variabel. Analysen estimerer for mann og utdanningsnivå, samt krysser alle underkategorier av de uavhengige variablene mot hverandre
+probit høyinntekt2004 mann c.klassetrinn
+Probit-analyse der den kategoriske variabelen klassetrinn blir behandlet som om den var kontinuerlig
+probit høyinntekt2004 mann c.utdanningsnivå if inntekt > 500000
+Probit-analyse med modifiserende uttrykk
+probit høyinntekt2004 mann, robust
+En modell med robuste standardfeil
+probit høyinntekt2004 mann, cluster(utdanningsnivå)
+En modell med utdanningsnivå som cluster-variabel for beregning av standardfeil
+probit-predict
+probit-predict var-name var-list [if] [, options]
+Gjennomfør en probit-regresjon for de inkluderte variablene, og genererer variabler med sannsynlighetsverdi (standard) og/eller predikerte verdier, med angitte navn.
+Opsjoner
+probabilities() Generer variabel med sannsynlighetsverdi for positivt utfall (verdien 1), med angitt navn. Standard er 'probabilities'
+predicted() Generer variabel med linære prediksjonsverdier, med angitt navn
+noconstant Undertrykk konstantleddet i regresjonsmodellen
+Eksempler
+probit-predict utdanningsniva inntekt kjonn, probabilities(prob)
+Generer variabelen prob med sannsynlighetsverdier fra en probit-regresjonsmodell
+probit-predict utdanningsniva inntekt kjonn
+Samme som over
+probit-predict utdanningsniva inntekt kjonn, predicted(pred)
+Generer variabelen pred med linære prediksjonsverdier fra en probit-regresjonsmodell
+probit-predict utdanningsniva inntekt kjonn, probabilities(prob) predicted(pred)
+Generer variablene prob og pred med henholdsvis sannsynlighetsverdier og linære prediksjonsverdier fra en probit-regresjonsmodell
+rdd
+rdd depvar depvar runvar var-list [if] [, options]
+Regression Discontinuity Design (RDD) kjører en regresjonsanalyse der en behandling eller intervensjon er tildelt basert på en bestemt terskel eller kutt-punkt i en kontinuerlig variabel.
+Modellen krever at man oppgir minst to variabler: Den første variabelen (avhengig variabel) kan være av valgfritt numerisk format, mens variabel nr. 2 (cutoff-variabel / running variable) må være enten kontinuerlig eller rangerbar. Øvrige forklaringsvariabler angis som variabel nr. 3 og utover. Cutoff-punktet er satt til verdien 0 som standard, gitt ved variabel nr. 2.
+Dette kan justeres gjennom opsjonen cutoff(). Gjennom opsjonen fuzzy() kan man gjøre en fuzzy rdd. Denne varianten passer når det ikke er en deterministisk sammenheng, men en gitt sannsynlighet for behandling/intervensjon etter cutoff-punktet. Dette krever at man lager en såkalt treatment-dummy som tar verdien 1 dersom behandling/intervensjon, og 0 ellers.
+Opsjoner
+cutoff() Cutoff-verdi, standard = 0
+polynomial() Orden på den lokale polynomial-likningen som brukes til å konstruere punkt-estimatoren, standard er p(1) (lokal lineær regresjon)
+fuzzy() Kjør alternativ fuzzy-modell. Forutsetter at man har laget en treatment-dummy som man angir i opsjonen
+derivate() Deriveringsorden som skal brukes på regresjonslikningen, 0, 1, 2 er vanligst, 0 er standard
+level() Spesifiserer konfidensnivået i prosent. Standard er 95%
+cluster() Bruk en cluster-variabel for beregning av standardfeil. Variabelen må være numerisk og kategorisk, og kan ikke inngå i selve regresjonsuttrykket.
+Eksempler
+rdd vote margin
+Kjør rdd-analyse over effekt av å vinne valget (seiersmargin (margin) > 0) på valgresultatet i neste valg (vote). Cutoff = 0 og ingen ekstra forklaringsvariabler
+rdd var1 var2 i.kjønn gift, cutoff(600000) cluster(fylke)
+Kjør rdd-analyse over effekt av å nå verdien 600000 for var2 på den avhengige variabelen var1. Cutoff = 600000 og man bruker forklaringsvariablene kjønn og gift samt fylke som clustervariabel
+regress
+regress var-name var-list [if] [, options]
+Gjennomfør en ordinær lineær minste kvadratsums metode-regresjon. Den første variabelen i lista er den avhengige variabelen, de(n) etter er de(n) uavhengige. Både metriske og faktorvariabler støttes
+Opsjoner
+noconstant Undertrykk konstantleddet (krysningspunktet for y-aksen)
+level() Spesifiser konfidensnivået i prosent. Standarden er 95%
+robust Beregner robuste standardfeil (HC1). Kan ikke brukes sammen med cluster
+cluster() Bruk en cluster-variabel for beregning av standardfeil. Kan ikke brukes sammen med robust. Variabelen må være numerisk, og kan ikke inngå i selve regresjonsuttrykket.
+control() Spesifiser variabler som skal inngå i regresjonsanalysen, men som det ikke skal vises koeffisientestimater for. Se help regress.
+ov Rapporterer Ramseys RESET test for utelatte variabler
+vif Rapporterer variance inflation factor test for multikollinearitet
+het_bp Rapporterer Breusch-Pagan test for heteroskedastisitet
+het_iid Rapporterer studentisert Breusch-Pagan test for heteroskedastisitet
+het_fstat Rapporterer f-statistikk fra Breusch-Pagan test for heteroskedastisitet
+standardize Vis regresjonsresultat der modellen kjøres på standardiserte verdier
+margins() Beregn predikert verdi for den avhengige variabelen målt ved gjennomsnittsverdien for alle forklaringsvariablene i modellen. Ved å angi en dummyvariabel inni parentesen (denne må også inngå som en forklaringsvariabel i modellen), vil man i stedet beregne predikert verdi for hver verdi av dummyvariabelen (0/1) målt ved gjennomsnittet for de resterende forklaringsvariablene. Dette kan brukes til å sammenlikne predikerte verdier mellom to grupper.
+Eksempler
+regress inntekt2004 mann inntekt2003
+Kjør en lineær regresjonsestimering der inntekt2004 er den avhengige variabelen. Mann og inntekt2003 er to uavhengige variabler. Standardkonfidensintervallet er 95%
+regress inntekt2004 mann inntekt2003, level(90)
+Samme som over, men med 90% konfidensintervall
+regress inntekt2002 utdanningsnivå mann utdanningsnivå#mann
+Kjør en lineær regresjonsanalyse med inntekt2002 som den avhengige variabelen. De uavhengige variablene er utdanningsnivå, mann og alle undergrupper av utdanningsnivå krysset med begge kjønnsgrupper. (det ene kjønnet brukes som referansegruppe, dvs. mann == 0)
+regress inntekt2002 utdanningsnivå##mann
+Samme som over
+regress inntekt2004 i.kjønn
+Kjør en lineær regresjonsanalyse av inntekt2004 for hver av kjønnskategoriene
+regress inntekt2004 mann utdanningsnivå i.mann#i.utdanningsnivå
+Regresjonsanalyse med inntekt2004 som avhengig variabel. Analysen benytter mann og utdanningsnivå som forklaringsvariabler, inkludert alle underkategorier av disse som krysses mot hverandre
+regress inntekt2004 mann c.klassetrinn
+Regresjonsanalyse der den kategoriske variabelen klassetrinn blir behandlet som om den var kontinuerlig
+regress inntekt2004 mann i.utdanningsnivå if inntekt > 500000
+Regresjonsanalyse med modifiserende uttrykk
+regress inntekt2004 mann inntekt2003, ov vif het_bp
+Regresjonsanalyse med tester for utelatte variabler, multikollinearitet og heteroskedastisitet
+regress inntekt2004 mann, robust
+En modell med robuste standardfeil
+regress inntekt2004 mann, cluster(utdanningsnivå)
+En modell med utdanningsnivå som cluster-variabel for beregning av standardfeil
+regress lønn høy_utd gift, control(i.bosted, i.næring)
+Kjør en lineær regresjon med lønn som avhengig variabel, og høy_utd, gift, bosted og næring som forklaringsvariabler. De kategoriske variablene bosted og næring gjøres om til faktorledd og estimatene for disse skjules i regresjonsresultatet.
+regress-mml
+regress-mml response-var var-list by group-var-1 [group-var-2] [if] [, options]
+Kjører en lineær flernivåanalyse med inntil tre nivåer (MML = Mixed Multilevel Model). Variabelkonvensjonene er de samme som for regress. I tillegg spesifiseres gruppevariablene etterfulgt av et by-ledd.
+Ved tonivåanalyse oppgis navnet på den relevante gruppevariabelen (kategorisk) etter by-leddet. Trenivåanalyse kjøres ved å angi to gruppevariabler etter by-leddet, adskilt med mellomrom. Gruppevariabel for høyeste hierarkinivå skal angis først.
+Modellen er utviklet med utgangspunkt i regresjonsklassen mixedlm i Python-pakken statsmodels. Standardestimering = REML (Residual/Restricted Maximum Likelihood)
+Opsjoner
+control() Spesifiser variabler som skal inngå i regresjonsanalysen, men som det ikke skal vises koeffisientestimater for. Se help regress.
+noconstant Undertrykk konstantleddet (krysningspunktet for y-aksen)
+level() Spesifiser konfidensnivået i prosent. Standarden er 95%
+Eksempler
+regress-mml lønn mann gift i.utdnivå by region
+Kjører en tonivåanalyse med nivå to representert ved variabelen region
+regress-mml lønn mann gift i.utdnivå by region fylke
+Kjører en trenivåanalyse der høyeste nivå er representert ved variabelen region, og undernivået er gitt ved variabelen fylke
+regress-mml lønn mann gift i.utdnivå by region fylke, level(90)
+Samme som over, men med 90% konfidensintervall
+regress-mml-predict
+regress-mml-predict response-var var-list by group-var-1 [group-var-2] [if] [, options]
+Henter ut prediksjons- og residualverdier fra regress-mml-modell og genererer automatisk en variabel som inneholder verdiene. Modelluttrykket må være identisk med det som angis for regress-mml.
+Opsjoner
+predicted() Generer variabel med predikerte verdier, med angitt navn. Standarden er 'predicted'
+residuals() Generer variabel med residualer, med angitt navn
+noconstant Undertrykk konstantleddet i regresjonsmodellen
+Eksempler
+regress-mml-predict lønn mann gift i.utdnivå by region fylke, residuals(res)
+Kjører en trenivå-analyse og henter ut residualverdier som kan finnes i variabelen res
+regress-panel
+regress-panel var-name var-list [if] [, options]
+Lineær minste kvadratsums metode-regresjon for paneldata.
+Den første variabelen i lista er den avhengige variabelen, de(n) etter er de(n) uavhengige. Både metriske og faktorvariabler støttes.
+Kommandoen hausman kan brukes til spesifikasjonstest fixed vs. random effects
+Opsjoner
+noconstant Undertrykk konstantleddet (krysningspunktet for y-aksen)
+level() Spesifiser konfidensnivået i prosent. Standarden er 95%
+fe 'Fixed effects' (standard hvis ingen modelltype er oppgitt)
+re 'Random effects'
+be 'Between effects'
+robust Beregner robuste standardfeil. Tilsvarer å bruke panel-id variabelen som cluster-variabel. Kan ikke brukes sammen med cluster
+pooled Pooled panelregresjon ser bort i fra tidsdimensjonen og betrakter alle observasjoner som separate enheter
+tilsvarer kjøring av kommandoen regress på paneldata
+cluster() Bruk en cluster-variabel for beregning av standardfeil. Kan ikke brukes sammen med robust. Variabelen må være numerisk, og kan ikke inngå i selve regresjonsuttrykket.
+Eksempler
+regress-panel inntekt mann, re
+'Random effects' regresjonsmodell der inntekt er den avhengige variabelen. Mann er uavhengig variabel. Standardkonfidensintervallet er 95%
+regress-panel inntekt mann, level(90)
+Samme som over, men med 90% konfidensintervall
+regress-panel inntekt utdanningsnivå utdanningsnivå#mann
+Lineær regresjonsanalyse med inntekt som den avhengige variabelen. Den uavhengige variabelen er utdanningsnivå, mann og alle undergrupper av utdanningsnivå krysset med begge kjønnsgrupper (det ene kjønnet mann == 0 brukes som referansegruppe)
+regress-panel inntekt utdanningsnivå##mann
+Samme som over
+regress-panel inntekt i.kjønn
+Lineær regresjonsanalyse av inntekt for hver av kjønnskategoriene
+regress-panel inntekt mann c.klassetrinn
+Regresjonsanalyse der den kategoriske variabelen klassetrinn blir behandlet som om den var kontinuerlig
+regress-panel inntekt utdanningsnivå if mann
+Regresjonsanalyse med modifiserende uttrykk
+regress-panel inntekt mann, robust
+En modell med robuste standardfeil
+regress-panel inntekt mann, cluster(utdanningsnivå)
+En modell med utdanningsnivå som cluster-variabel for beregning av standardfeil
+regress-panel-diff
+regress-panel-diff var-name group-var treated-var var-list [if] [, options]
+Kjør en diff-in-diff-regresjon som estimerer gjennomsnittlig differanse i den avhengige variabelen før/etter behandlingstidspunkt for behandlingsgruppen vs kontrollgruppen.
+Den avhengige variabelen listes først, etterfulgt av to dummyvariabler, altså med verdien 1 eller 0, som spesifiserer hhv. gruppe og behandling. Øvrige uavhengige variabler listes til slutt.
+Variabel 2 (group-var, gruppevariabel) skal ha verdien 1 for enheter i behandlingsgruppen, og 0 for enheter i kontrollgruppen.
+Variabel 3 (treated-var, behandlingsvariabel) skal ha verdien 1 fra og med tidspunktet for behandling, og 0 ellers. Dette er en forutsetning for at resultatet skal bli riktig.
+Diff-in-diff-verdien (ATET-verdi) tilsvarer koeffisientverdien til interaksjonsleddet for de to dummyvariablene gruppe og behandling.
+Opsjoner
+level() Spesifiser konfidensnivået i prosent. Standarden er 95%
+robust Beregner robuste standardfeil. Tilsvarer å bruke panel-id variabelen som cluster-variabel. Kan ikke brukes sammen med cluster
+cluster() Bruk en cluster-variabel for beregning av standardfeil. Kan ikke brukes sammen med robust. Variabelen må være numerisk, og kan ikke inngå i selve regresjonsuttrykket.
+Eksempler
+regress-panel-diff lønn gruppe behandling i.kjønn høy_utd formue
+Kjør en diff-in-diff-analyse med lønn som avhengig variabel, og kjønn, høy_utd og formue som uavhengige variabler.
+Variablene gruppe og behandling er dummyvariabler som definerer hhv. behandlingsgruppe/kontrollgruppe (1/0) og tidspunkt før/etter behandling (0/1).
+Man får samme resultat ved å kjøre en pooled panel-OLS der gruppe- og behandlingsdummyene inngår og brukes som interaksjonsledd: regress-panel lønn gruppe##behandling i.kjønn høy_utd formue, pooled
+regress-panel-predict
+regress-panel-predict var-name var-list [if] [, options]
+Gjennomfør en lineær panelregresjon for de inkluderte variablene, og genererer variabler med predikerte verdier (standard), residualverdier og/eller enhetseffekter, med angitte navn.
+Opsjoner
+predicted() Generer variabel med predikerte verdier, med angitt navn. Standarden er 'predicted'
+residuals() Generer variabel med residualer, med angitt navn
+effects() Generer variabel med enhetseffekter, med angitt navn
+pooled Pooled panelregresjon ser bort i fra tidsdimensjonen og betrakter alle observasjoner som separate enheter
+tilsvarer kjøring av kommandoen regress på paneldata
+noconstant Undertrykk konstantleddet i regresjonsmodellen
+fe 'Fixed effects' (standard hvis ingen modelltype er oppgitt)
+re 'Random effects'
+be 'Between effects'
+Eksempler
+regress-panel-predict inntekt kjonn, fe predicted(pred)
+Generer variabelen pred, med de predikerte verdiene fra en panelregresjon med 'fixed effects'
+regress-panel-predict inntekt kjonn, re residuals(res)
+Generer variabelen res, med residualverdiene fra en panelregresjon med 'random effects'
+regress-panel-predict inntekt kjonn, re effects(effs)
+Generer variabelen effs, med enhetseffekter fra en panelregresjon med 'random effects'
+regress-panel-predict inntekt kjonn, re
+Generer variabelen predicted, med de predikerte verdiene fra en panelregresjon med 'random effects'
+regress-panel-predict inntekt kjonn, re noconstant predicted(pred) residuals(res)
+Generer variablene pred (med de predikerte verdiene) og res (med residualverdiene) fra en panelregresjon med 'random effects' uten konstantledd
+regress-predict
+regress-predict var-name var-list [if] [, options]
+Gjennomfør en ordinær lineær regresjon for de inkluderte variablene, og genererer variabler med predikerte verdier (standard), residualverdier og/eller "Cook's distance", med angitte navn.
+Opsjoner
+predicted() Generer variabel med predikerte verdier, med angitt navn. Standarden er 'predicted'.
+residuals() Generer variabel med residualer, med angitt navn.
+cooksd() Generer variabel med "Cook's distance", med angitt navn.
+noconstant Skjuler konstantleddet i regresjonsmodellen
+Eksempler
+regress-predict inntekt2004 kjonn inntekt2003, predicted(pred)
+Generer variabelen pred, med de predikerte verdiene fra en lineær regresjon
+regress-predict inntekt2004 kjonn inntekt2003
+Samme som over
+regress-predict inntekt2004 kjonn inntekt2003, residuals(res)
+Generer variabelen res, med residualverdiene fra en lineær regresjon
+regress-predict inntekt2004 kjonn inntekt2003, cooksd(cooks)
+Generer variabelen cooks, med "Cook's distance" verdiene fra en lineær regresjon
+regress-predict inntekt2004 kjonn inntekt2003, predicted(pred) residuals(res) cooksd(cooks)
+Generer variablene pred, res, og cooks med henholdsvis de predikerte verdiene, residualverdiene, og "Cook's distance" verdiene fra en lineær regresjon
+Statistikk
+summarize
+summarize var-list [if] [, options]
+Vis en sammendragstabell med univariat variabelinformasjon. Dersom ingen variabler er spesifiserte vises informasjon om alle i datasettet. Kommandoen er kun kompatibel med numeriske variabler
+Opsjoner
+gini Vis gini-koeffisient i tillegg til standard visning. Brukes vanligvis til å måle inntekts- eller formuesforskjeller i en befolkning. Tar verdiene 0-1. 0 indikerer at alle har akkurat like stor inntekt eller formue, mens 1 indikerer at én person eier all inntekt eller formue
+iqr Vis interkvartilavstand (interquartile range (IQR)) i tillegg til standard visning. Dette er det samme som avstanden mellom 75. og 25. prosentil, og kalles også mellomspredning
+Eksempler
+summarize kjonn inntekt2002
+Vis univariat informasjon om de to variablene kjonn og inntekt2002
+summarize kjonn inntekt2002 if inntekt2002 > 500000
+Samme som over, men bare i de tilfeller inntektsverdiene er over 500000
+summarize-panel
+summarize-panel var-list [if] [, options]
+Vis en sammendragstabell med variabelinformasjon som fordeles etter måletidspunkter. Kommandoen kan bare brukes på paneldata importert ved kommandoen import-panel. Kommandoen er kun kompatibel med numeriske variabler
+Opsjoner
+gini Vis gini-koeffisient i tillegg til standard visning. Brukes vanligvis til å måle inntekts- eller formuesforskjeller i en befolkning. Tar verdiene 0-1. 0 indikerer at alle har akkurat like stor inntekt eller formue, mens 1 indikerer at én person eier all inntekt eller formue
+iqr Vis interkvartilavstand (interquartile range (IQR)) i tillegg til standard visning. Dette er det samme som avstanden mellom 75. og 25. prosentil, og kalles også mellomspredning
+Eksempler
+summarize-panel inntekt
+Vis nøkkelstatistikk om variabelen inntekt fordelt rekkevis etter måletidspunkter
+summarize-panel inntekt if inntekt > 500000
+Vis nøkkelstatistikk om variabelen inntekt fordelt rekkevis etter måletidspunkter, men bare for tilfeller der inntektsverdiene er over 500000
+tabulate
+tabulate var-list [if] [, options]
+Vis endimensjonal frekvenstabell om én variabel angis, og flerdimensjonal fordeling dersom to eller flere variabler angis. Kommandoen er kun kompatibel med kategoriske variabler.
+Ved bruk av opsjonen summarize() kan en vise andre verdier enn frekvenser i hver celle av tabellen
+Opsjoner
+missing Manglende verdier blir ikke ignorert, men blir tatt med i utregninger av prosenter, fordelinger med mer
+nolabels Vis originalverdiene for hver kategori og undertrykker labels
+freq Vis frekvens i cellene. Dette er standardvisningen for frekvenstabeller
+rowpct Vis rekkevis prosentuering. Krever at tabellen har to eller flere variabler
+colpct Vis kolonnevis prosentuering. Krever at tabellen har to eller flere variabler
+cellpct Vis prosentandel av totalen for tabellpopulasjonen
+chi2 Vis verdier fra kjikvadrattesten. Krever at tabellen har to eller flere variabler. Tester for om frekvensfordelingen er tilfeldig eller systematisk
+flatten Flater ut tabellen til et rutenettformat som kan eksporteres direkte til CSV
+colsort() Sorter kolonnene i stigende rekkefølge basert på verdiene i raden(e) angitt i argumentet. Raden angis ved dens kodeverdi. For flerdimensjonale tabeller må flere koder angis for å unikt identifisere raden. Ingen angitt rad fører til at det sorteres på totalen. Gjør en implisitt utflating av tabellen.
+rowsort() Sorter radene i stigende rekkefølge basert på verdiene i kolonnen angitt i argumentet. Kolonnen angis ved dens kodeverdi. Ingen angitt kolonne fører til at det sorteres på totalen. Hvis kolonnen er en dato, angis denne i en streng. Gjør en implisitt utflating av tabellen.
+top() Vis de n øverste radene i tabellen
+bottom() Vis de n nederste radene i tabellen
+summarize() Vis gjennomsnittsverdien av spesifisert variabel for hver celle (erstatter frekvens). Alternative statistikker kan legges på som opsjoner, jfr. listen under
+mean Vis gjennomsnitt i cellene. Dette er standardvisningen for volumtabeller
+std Vis standardavvik i cellene
+sum Vis sum i cellene
+p25 Vis 25-prosentil i cellene (grenseverdi for 2. kvartilet i verdifordelingen) med en nøyaktighet på 3 siffer
+p50 Vis 50-prosentil i cellene (grenseverdi for 3. kvartilet i verdifordelingen (median)) med en nøyaktighet på 3 siffer
+p75 Vis 75-prosentil i cellene (grenseverdi for 4. kvartilet i verdifordelingen) med en nøyaktighet på 3 siffer
+gini Vis gini-koeffisient i cellene. Brukes vanligvis til å måle inntekts- eller formuesforskjeller i en befolkning. Tar verdiene 0-1. 0 indikerer at alle har akkurat like stor inntekt eller formue, mens 1 indikerer at én person eier all inntekt eller formue
+iqr Vis interkvartilavstand (interquartile range (IQR)) i cellene. Dette er det samme som avstanden mellom 75. og 25. prosentil, og kalles også mellomspredning
+Eksempler
+tabulate kjønn sivilstand
+Toveistabulering av variablene kjønn og sivilstand
+tabulate kjønn sivilstand fødeår, rowsort() colsort('1', 201905)
+Toveistabulering sortert på totalverdien i radene og på verdien angitt av kodene '1' og 201905 i kolonnene
+tabulate kjønn sivilstand if kjønn == 2
+Samme som over, men bare om kjønn har verdien 2
+tabulate kjønn skilt
+Vis en oversikt over antall skilte og ikke-skilte, fordelt på kjønn (forutsetter at variabelen skilt er en dummyvariabel)
+tabulate kjønn skilt, summarize(lønn)
+Vis en oversikt over gjennomsnittlig lønn fordelt på status skilt/ikke-skilt og kjønn
+tabulate kjønn skilt, summarize(lønn) p50
+Vis en oversikt over median lønn fordelt på status skilt/ikke-skilt og kjønn
+tabulate kjønn skilt, summarize(lønn) p50 std rowsort()
+Vis en oversikt over median lønn og standardavvik fordelt på status skilt/ikke-skilt og kjønn. Sorterer også på radene. Ved bruk av flere statistikker i summarize vil det sorteres på den første angitte
+tabulate-panel
+tabulate-panel var-list [if] [, options]
+Vis frekvenstabell for de spesifiserte paneldata-variablene (må være kategoriske). Kan bare brukes på paneldata importert ved kommandoen import-panel eller generert ved kommandoen reshape-to-panel. Variabel 1 vises nedover i forspalten, og tallene fordeles kolonnevis etter måletidspunkt. Ved flere enn 1 variabel presenteres variablene hierarkisk i forspalten basert på rekkefølgen i spesifikasjonen.
+Kommandoen er ekvivalent til tabulate der tidsvariabelen vises som variabel 2. Ved bruk av opsjonen summarize() kan en vise andre verdier enn frekvenser i hver celle av tabellen
+Opsjoner
+chi2 Vis verdier fra kjikvadrattesten. Krever at tabellen har to eller flere variabler
+missing Manglende verdier blir ikke ignorert, men blir tatt med i utregninger av prosenter, fordelinger med mer
+nolabels Vis originalverdiene for hver kategori og undertrykker labels
+freq Vis frekvens i cellene. Dette er standardvisningen for frekvenstabeller
+rowpct Vis rekkevis prosentuering
+colpct Vis kolonnevis prosentuering. Krever at tabellen har to eller flere variabler
+cellpct Vis prosentandel av den totale tabellpopulasjon
+summarize() Vis gjennomsnittsverdien for hver celle (erstatter frekvens). Andre statistikker kan legges på vha options
+mean Vis gjennomsnitt i cellene. Dette er standardvisningen for volumtabeller
+std Vis standardavvik i cellene
+sum Vis sum i cellene
+p25 Vis 25-prosentil i cellene (grenseverdi for 2. kvartilet i verdifordelingen) med en nøyaktighet på 3 siffer
+p50 Vis 50-prosentil i cellene (grenseverdi for 3. kvartilet i verdifordelingen (median))
+p75 Vis 75-prosentil i cellene (grenseverdi for 4. kvartilet i verdifordelingen) med en nøyaktighet på 3 siffer
+gini Vis gini-koeffisient i cellene. Brukes vanligvis til å måle inntekts- eller formuesforskjeller i en befolkning. Tar verdiene 0-1. 0 indikerer at alle har akkurat like stor inntekt eller formue, mens 1 indikerer at én person eier all inntekt eller formue
+iqr Vis interkvartilavstand (interquartile range (IQR)) i cellene. Dette er det samme som avstanden mellom 75. og 25. prosentil, og kalles også mellomspredning
+Eksempler
+tabulate-panel sivstand
+Toveistabulering av variabelen sivstand fordelt på måletidspunkter (kolonnevis)
+tabulate-panel sivstand fylke if kjonn < 2
+Treveistabulering av variablene sivstand/fylke (hierarkisk) fordelt på måletidspunkter (kolonnevis), men bare om kjonn har en verdi lavere enn 2
+Støtte
+clear
+clear
+All historikk og alle importerte variabler i kommandolinjeområdet fjernes. Det er ikke mulig å angre denne handlingen
+Opsjoner
+Eksempler
+clear
+Fjerner all tilstand fra kommandolinjeområdet
+edit
+edit
+Skriv over det aktive skriptet med den gjeldende kommandolinjeøkten og gå til editoren. Alias til save, edit.
+Merk at dette vil skrive over det aktive skriptet ditt med økten du lagrer. Dette er praktisk om du har sendt et skript til kommandolinjen fra editoren og vil ha det tilbake igjen med endringene du har gjort i mellomtiden.
+Opsjoner
+load
+load 'script-name'
+Den gjeldende kommandolinjeøkten vil bli lagret som et nytt skript under navnet "Kopi av kommandolinjeøkt (tidspunkt)", og kommandolinjeøkten vil byttes ut med kommandoene fra det oppgitte skriptet. Se også kommandoen save
+Opsjoner
+Eksempler
+load 'arbeidsledighet per alder'
+Bytter ut innholdet i kommandolinjeøkten med kommandoene fra skriptet ved navn "arbeidsledighet per alder". Den gjeldende kommandolinjeøkten vil lagres under navnet "Kopi av kommandolinjeøkt (tidspunkt)"
+save
+save [script-name]
+Den gjeldende kommandolinjeøkten lagres som et skript under oppgitt navn, eller med et generert navn hvis navn ikke oppgis ("Kopi av kommandolinjeøkt (tidspunkt)"). Skriptet vises i skriptvinduet slik at en kan redigere og jobbe videre med det der. Den gjeldende økten forblir urørt. Se også kommandoen load
+Opsjoner
+edit Skriv over det aktive skriptet med den gjeldende kommandolinjeøkten og gå til editoren. Se også help edit.
+Eksempler
+save
+Lagrer den gjeldende kommandolinjeøkten under navnet "Kopi av kommandolinjeøkt (tidspunkt)"
+save eksempel
+Lagrer den gjeldende kommandolinjeøkten under navnet "eksempel"
+save 'utforskning av trygdevariabler'
+Lagrer den gjeldende kommandolinjeøkten under navnet "utforskning av trygdevariabler". Apostrofer kreves når navn inneholder mellomrom
+help
+help [command-name]
+Vis hjelpetekster for de forskjellige kommandoene. help uten parametre lister opp alle støttede kommandoer
+Opsjoner
+Eksempler
+help tabulate
+Vis hjelpeteksten til tabulate-kommandoen
+help-function
+help-function [function-name]
+Vis hjelpetekst for den spesifiserte funksjonen. help-function uten parametre lister opp alle støttede funksjoner
+Opsjoner
+Eksempler
+help-function sqrt
+Vis hjelpeteksten til sqrt-funksjonen
+history
+history
+List ut alle kommandoene i den gjeldende kommandolinjeøkten uten resultatene. Dette kan være nyttig for å få oversikt over arbeidet så langt, eller for å enkelt kopiere rekken av kommandoer over i et annet program
+Opsjoner
+Eksempler
+history
+Lister ut alle kommandoene i den gjeldende kommandolinjeøkten
+textblock
+textblock
+En tekstblokk er en utvidet kommentar som går over flere linjer. Start en tekstblokk ved å skrive textblock og avslutt med endblock (på hver sin linje).
+Alt som skrives mellom disse to vil ikke bli eksekvert, men vist frem i et markdown format. Du kan altså bruke overskrift, lister osv. Se et av eksempelskriptene for en demonstrasjon av hvordan dette kan se ut.
+Opsjoner
+variables
+variables register-var-list
+List opp registervariabler med tilhørende metadata
+Opsjoner
+Eksempler
+variables
+Vis alle registervariabler fra de(n) påkoblede datakilde(ne) med tilhørende metadata
+variables db/F_REHAB_INNV_GRAD db/INNTEKT_WLONN
+Vis metadata for registervariablene F_REHAB_INNV_GRAD og INNTEKT_WLONN fra kilden med lokalt alias db
+configure
+configure [konfigurasjon, ...]
+Aktiver en konfigurasjon for dette skriptet.
+alpha: ved configure alpha vil du få tilganger til gitte kommandoer og funksjonalitet som ikke kan brukes ellers. Disse kommandoene kan, i motsetning til andre kommandoer, endres i fremtiden. Det frarådes derfor å bruke benytte seg av disse i skript som skal brukes til spesifikke formål.
+nocache Er til bruk ved feilsøking hvor man trenger kommandoen beregnes på nytt og ikke hentes ut av en av de mange bufferne som tar vare på resultatene. Se configure nocache for mer informasjon om alternativene til denne konfigurasjonen. Om ingen alternativ angis vil alle alternativene gjelde og alle former for caching vil skrus as.
+Opsjoner
+Overlevelsesanalyse
+cox
+cox hendelse-var tid-var var-list [if] [, options]
+Kjør en Cox-regresjonsanalyse på et ferdig tilrettelagt datasett. Cox-regresjoner brukes til å estimere hvilke variabler som påvirker hazardrisikoen mest (økt hazardrisiko betyr kortere overlevelsestid og vice versa). Avhengig variabel er alltid tid-var, og man kan benytte forklaringsvariabler på samme måte som for andre regresjoner, f.eks. regress. Man estimerer altså effekten av forklaringsvariablene på overlevelsestid, og implisitt hazardrisikoen.
+Som standard estimeres koeffisienter som skal tolkes på vanlig måte, men ved bruk av opsjonen hazard estimeres istedet hazardrater. Dette er rateverdier der man ser på verdier over/under 1 (1 = ingen effekt).
+Analysen forutsetter at data tilrettelegges på riktig måte. Datasett som er tilrettelagt for Kaplan-Meier, kan også brukes til Cox-analyser. Du finner oppskrifter for dette på nettsiden microdata.no (analyseeksempler).
+hendelse-var må være en dummyvariabel som tar verdien 1 dersom en hendelse inntreffer (død, uførhet, arbeidsledighet etc), gitt ved en spesifikk verdi for en variabel på forløpsformat. Også ferdige dateringsvariabler kan benyttes (konstante enhetsopplysninger der variabelen angir en dato). Da må variabelen ha en gyldig verdi som befinner seg mellom det definerte start- og stoppintervallet for at verdien til hendelse-var skal settes til 1. Dersom hendelsen ikke inntreffer i overlevelsestidsrommet, evt. datovariabelen ikke har noen verdi for den gitte enhet, settes hendelse-var til 0.
+tid-var må bestå av en numerisk kontinuerlig eller rangerbar variabel som lages ved å telle opp antall tidsenheter fra et definert start-tidspunkt til en spesifikk hendelse skjer (antall dager, uker, måneder, år etc).
+Ved bruk av data på forløpsformat (data med variable start- og stoppdatoer) kan man via kommandoen import-event identifisere en spesifikk hendelse som skjer i løpet av en gitt måleperiode (død, arbeidsledighet, uførhet etc), gitt ved en spesifikk verdi for variabelen som importeres. Deretter kjøres kommandoen collapse (min) START@... by(PERSONID_1) som finner datoen for den gitt hendelsen. Datovariabelen START@... fungerer da som en datering for hendelsen. Etterpå kobles datoen på et ordinært tverrsnittdatasett via kommandoen merge.
+Også ferdige dateringsvariabler (data med faste datoopplysninger, én per enhet) kan benyttes om dette er tilgjengelig (dødsdato etc). Da trenger man ikke foreta noen import-event-trinn først, men bare jobbe med data via import-kommandoen på vanlig måte. tid-var beregnes da gjennom å måle differansen mellom det definerte start-tidspunktet og datoverdien til den aktuelle datovariabelen (krever litt omformatering først).
+For enheter det ikke eksisterer gyldige hendelsesobservasjoner for i løpet av tidsintervallet, setter man tid-var til maksverdi.
+Opsjoner
+hazard Estimerer hazardrater i stedet for koeffisienter. Man bruker 1 som nullpunkt (1 betyr ingen effekt). Verdier > 1 betyr positiv effekt på hazardrisiko/-rate (og negativ effekt på overlevelsestid). Verdier < 1 betyr det motsatte. Standardfeil-verdier vises ikke for hazardrater.
+level() Spesifiser konfidensintervallnivået. Om ingenting er spesifisert benyttes normalen på 95%
+Eksempler
+cox hendelse dager norsk alder
+Estimerer effekten av norsk opprinnelse og alder på hazardrisikoen for en gitt hendelse definert gjennom dummy-variabelen hendelse
+cox hendelse dager norsk alder i.kjønn, hazard
+Estimerer effekten av norsk opprinnelse, alder og kjønn på hazardrisikoen for en gitt hendelse definert gjennom dummy-variabelen hendelse, men viser hazardrater i stedet for koeffisienter
+kaplan-meier
+kaplan-meier hendelse-var tid-var [if] [, options]
+Kjør en Kaplan-Meier overlevelsesanalyse på et ferdig tilrettelagt datasett.
+Generer en standard grafisk fremstilling av overlevelsesrate med loglog-konfidensintervall, som funksjon av tid. Nøkkeltall basert på analysen vises under grafen. Ved bruk av by-opsjon vises det separate nøkkeltall for hver by-kategori. Analysen forutsetter at data tilrettelegges på riktig måte. Du finner oppskrifter for dette på nettsiden microdata.no (analyseeksempler).
+hendelse-var må være en dummyvariabel som tar verdien 1 dersom en hendelse inntreffer (død, uførhet, arbeidsledighet etc), gitt ved en spesifikk verdi for en variabel på forløpsformat. Også ferdige dateringsvariabler kan benyttes (konstante enhetsopplysninger der variabelen angir en dato). Da må variabelen ha en gyldig verdi som befinner seg mellom det definerte start- og stoppintervallet for at verdien til hendelse-var skal settes til 1. Dersom hendelsen ikke inntreffer i overlevelsestidsrommet, evt. datovariabelen ikke har noen verdi for den gitte enhet, settes hendelse-var til 0.
+tid-var må bestå av en numerisk kontinuerlig eller rangerbar variabel som lages ved å telle opp antall tidsenheter fra et definert start-tidspunkt til en spesifikk hendelse skjer (antall dager, uker, måneder, år etc).
+Ved bruk av data på forløpsformat (data med variable start- og stoppdatoer) kan man via kommandoen import-event identifisere en spesifikk hendelse som skjer i løpet av en gitt måleperiode (død, arbeidsledighet, uførhet etc), gitt ved en spesifikk verdi for variabelen som importeres. Deretter kjøres kommandoen collapse (min) START@... by(PERSONID_1) som finner datoen for den gitt hendelsen. Datovariabelen START@... fungerer da som en datering for hendelsen. Etterpå kobles datoen på et ordinært tverrsnittdatasett via kommandoen merge.
+Også ferdige dateringsvariabler (data med faste datoopplysninger, én per enhet) kan benyttes om dette er tilgjengelig (dødsdato etc). Da trenger man ikke foreta noen import-event-trinn først, men bare jobbe med data via import-kommandoen på vanlig måte. tid-var beregnes da gjennom å måle differansen mellom det definerte start-tidspunktet og datoverdien til den aktuelle datovariabelen (krever litt omformatering først).
+For enheter det ikke eksisterer gyldige hendelsesobservasjoner for i løpet av tidsintervallet, setter man tid-var til maksverdi.
+Opsjoner
+by() Vis flere overlevelseskurver i samme graf, én per kategori i variabelen gitt som parameter til by(). Separate nøkkeltall vises for hver by-kategori.
+Eksempler
+kaplan-meier hendelse tid, by(kjønn)
+Kjør en kaplan-meier overlevelsesanalyse på et tilrettelagt datasett, og estimerer separat for menn og kvinner i en og samme graf.
+weibull
+weibull hendelse-var tid-var [if] [, options]
+Kjør en parametrisk Weibull overlevelsesanalyse på et ferdig tilrettelagt datasett.
+Generer en grafisk fremstilling av overlevelsesrate basert på Weibull-modellen, som funksjon av tid. Nøkkeltall basert på analysen vises under grafen. Ved bruk av by-opsjon vises det separate nøkkeltall for hver by-kategori.
+Analysen forutsetter at data tilrettelegges på riktig måte. Du finner oppskrifter for dette på nettsiden microdata.no (analyseeksempler).
+hendelse-var må være en dummyvariabel som tar verdien 1 dersom en hendelse inntreffer (død, uførhet, arbeidsledighet etc), gitt ved en spesifikk verdi for en variabel på forløpsformat.
+Også ferdige dateringsvariabler kan benyttes (konstante enhetsopplysninger der variabelen angir en dato). Da må variabelen ha en gyldig verdi som befinner seg mellom det definerte start- og stoppintervallet for at verdien til hendelse-var skal settes til 1. Dersom hendelsen ikke inntreffer i overlevelsestidsrommet, evt. datovariabelen ikke har noen verdi for den gitte enhet, settes hendelse-var til 0.
+tid-var må bestå av en numerisk kontinuerlig eller rangerbar variabel som lages ved å telle opp antall tidsenheter fra et definert start-tidspunkt til en spesifikk hendelse skjer (antall dager, uker, måneder, år etc).
+Ved bruk av data på forløpsformat (data med variable start- og stoppdatoer) kan man via kommandoen import-event identifisere en spesifikk hendelse som skjer i løpet av en gitt måleperiode (død, arbeidsledighet, uførhet etc), gitt ved en spesifikk verdi for variabelen som importeres. Deretter kjøres kommandoen collapse (min) START@... by(PERSONID_1) som finner datoen for den gitt hendelsen. Datovariabelen START@... fungerer da som en datering for hendelsen. Etterpå kobles datoen på et ordinært tverrsnittdatasett via kommandoen merge.
+Også ferdige dateringsvariabler (data med faste datoopplysninger, én per enhet) kan benyttes om dette er tilgjengelig (dødsdato etc). Da trenger man ikke foreta noen import-event-trinn først, men bare jobbe med data via import-kommandoen på vanlig måte. tid-var beregnes da gjennom å måle differansen mellom det definerte start-tidspunktet og datoverdien til den aktuelle datovariabelen (krever litt omformatering først).
+For enheter det ikke eksisterer gyldige hendelsesobservasjoner for i løpet av tidsintervallet, setter man tid-var til maksverdi.
+Se også kommandoen kaplan-meier som returnerer ikke-parametriske overlevelsesrater basert på faktiske hendelser (men ingen grafisk visning).
+Opsjoner
+by() Vis flere overlevelseskurver i samme graf, én per kategori i variabelen gitt som parameter til by(). Separate nøkkeltall vises for hver by-kategori.
+Eksempler
+weibull hendelse tid, by(kjønn)
+Kjører en parametrisk weibull overlevelsesanalyse på et tilrettelagt datasett, og estimerer separat for menn og kvinner i en og samme graf.

@@ -1,0 +1,40 @@
+// ===================================================================
+// Example: Hente ut informasjon om pågående utdanning for et gitt tidspunkt
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Utdanningsanalyser/Hente%20ut%20informasjon%20om%20p%C3%A5g%C3%A5ende%20utdanning%20for%20et%20gitt%20tidspunkt/
+// ===================================================================
+// Kursdata (informasjon om pågående utdanning) har kurs som enhetstype, ikke person. Kurs er
+// gitt ved kombinasjonen person x kurstype, slik at hver person kan ha flere kurstyper
+// samtidig.
+//
+// Siden kursdata ikke kan importeres direkte inn i persondatasett på standard måte, bruker man
+// merge. Prosessen består av tre steg: kobling mellom kurs-id og person-id, aggregering til
+// individnivå med collapse, og endelig kobling av informasjonen inn i persondatasettet.
+//
+// Eksempelet demonstrerer oppretting av en populasjon av bosatte per 1/1 2020, uthenting av
+// utdanningsstatus per 1/11 2020, og bruk av collapse(count) for å telle opp antall
+// observasjoner med pågående utdanning per individ for den gitte datoen.
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:30 as db
+
+// Oppretter persondatasett for bosatte per 2020-01-01
+create-dataset bosatte
+import db/BEFOLKNING_KJOENN as kjønn
+import db/BEFOLKNING_STATUSKODE 2020-01-01 as regstatus
+keep if regstatus == '1'
+
+// Henter personer som tar utdanning per 1. november 2020, og kobler dette på persondatasettet. Siden kursdata kan ha
+// flere observasjoner per individ, må kommandoen collapse brukes til å aggregere opp til personnivå. Vi bruker count som
+// aggregeringsverdi (antall records)
+create-dataset kursdata
+import db/NUDB_KURS_NUS 2020-11-01 as kurstype
+import db/NUDB_KURS_FNR as fnr
+collapse (count) kurstype -> ant_kurs, by(fnr)
+merge ant_kurs into bosatte
+
+// Lager tabell over antall personer som studerer per 1. november 2020
+use bosatte
+generate studerer = 0
+replace studerer = 1 if ant_kurs >= 1
+tabulate studerer kjønn

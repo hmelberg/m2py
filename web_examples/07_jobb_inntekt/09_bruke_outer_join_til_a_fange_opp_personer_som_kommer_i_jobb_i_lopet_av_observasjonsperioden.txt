@@ -1,0 +1,22 @@
+// ===================================================================
+// Example: Bruke outer join til å fange opp personer som kommer i jobb i løpet av observasjonsperioden
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Jobb-%20og%20inntektsanalyser/Bruke%20outer%20join%20til%20%C3%A5%20fange%20opp%20personer%20som%20kommer%20i%20jobb%20i%20l%C3%B8pet%20av%20observasjonsperioden/
+// ===================================================================
+// Dette eksempelet demonstrerer hvordan man bør gå fram hvis man vil gjennomføre en fulltelling
+// av ansatte over en lengre tidsperiode eller på flere måletidspunkter.
+//
+// Teknikken baserer seg på outer_join-alternativet ved import av datasett. I stedet for
+// standard "left join" - som begrenser resultatet til enheter i det første datasettet - fanger
+// outer join opp nye jobbobservasjoner som dukker opp i løpet av observasjonsperioden. Det
+// totale utvalget utvides i takt med antall nye observasjoner som legges til i hvert
+// importtrinn med outer_join-opsjonen.
+// ===================================================================
+
+require no.ssb.fdb:30 as db
+
+create-dataset jobber_alle
+import db/ARBLONN_ARB_ARBEIDSTID 2021-01-16 as arbtid2101
+import db/ARBLONN_ARB_ARBEIDSTID 2021-02-16 as arbtid2102, outer_join
+import db/ARBLONN_ARB_ARBEIDSTID 2021-03-16 as arbtid2103, outer_join
+
+summarize

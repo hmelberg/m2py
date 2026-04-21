@@ -1,0 +1,286 @@
+// ===================================================================
+// Example: Trekke ut deler av en hierarkisk kode og lage verdilabler
+// Source: https://microdata.no/manual/eksempel/Sammensatte%20operasjoner/Trekke%20ut%20deler%20av%20en%20hierarkisk%20kode%20og%20lage%20verdilabler/
+// ===================================================================
+// The example demonstrates extracting portions from hierarchical codes and applying value labels
+// to the aggregated codes. See chapter 3.9 in the user manual for more detailed information on
+// working with variables containing hierarchical code lists.
+//
+// The example that follows shows practical implementation of this technique across several
+// Norwegian administrative classifications, including municipal residence codes, education levels,
+// industry classifications, and occupational categories.
+// ===================================================================
+
+require no.ssb.fdb:45 as db
+
+create-dataset hierarkiske_koder
+import db/BEFOLKNING_KOMMNR_FORMELL 2025-01-01 as bosted
+import db/NUDB_BU 2024-08-01 as utdanning
+import db/REGSYS_VIRK_NACE1_SN07 2019-11-16 as næring
+import db/REGSYS_ARB_YRKE_STYRK08 2024-11-16 as yrke
+
+tabulate bosted
+tabulate utdanning
+tabulate næring
+tabulate yrke
+
+//Fylke
+generate fylke = substr(bosted,1,2)
+tabulate fylke
+define-labels fylkelabel '03' Oslo \
+                         '11' Rogaland \
+                         '15' 'Møre og Romsdal' \
+                         '18' Nordland \
+                         '31' Østfold \
+                         '32' Akershus \
+                         '33' Buskerud \
+                         '34' Innlandet \
+                         '39' Vestfold \
+                         '40' Telemark \
+                         '42' Agder \
+                         '46' Vestland \
+                         '50' Trøndelag \
+                         '55' Troms \
+                         '56' Finnmark
+assign-labels fylke fylkelabel
+tabulate fylke
+
+//Utdanningsnivå
+generate utdanningsnivå = substr(utdanning,1,1)
+tabulate utdanningsnivå
+define-labels utdlabel \
+  '0' 'Ingen utdanning' \
+  '1' 'Barneskole' \
+  '2' 'Ungdomsskole' \
+  '3' 'Videregående' \
+  '4' 'Videregående - avsluttende' \
+  '5' 'Påbygging til videregående' \
+  '6' 'UH-utdanning - lavere nivå' \
+  '7' 'UH-utdanning - høyere nivå' \
+  '8' 'Forskerutdanning' \
+  '9' 'Uoppgitt'
+assign-labels utdanningsnivå utdlabel
+tabulate utdanningsnivå
+
+//Hovednæring
+generate hovednæring = substr(næring,1,2)
+tabulate hovednæring
+destring hovednæring
+recode hovednæring \
+    (1/3 = 1 "Jordbruk, skogbruk, fiske") \
+	(5/9 = 2 "Bergverksdrift og utvinning") \
+	(10/33 = 3 "Industri") \
+	(35/39 = 4 "Elektrisitet, vann og renovasjon") \
+	(41/43 = 5 "Bygge- og anleggsvirksomhet") \
+	(45/47 = 6 "Varehandel, reparasjon av motorvogner") \
+	(49/53 = 7 "Transport og lagring") \
+	(55/56 = 8 "Overnattings- og serveringsvirksomhet") \
+	(58/63 = 9 "Informasjon og kommunikasjon") \
+	(64/66 = 10 "Finansiering og forsikring") \
+	(68/75 = 11 "Teknisk tjenesteyting, eiendomsdrift") \
+	(77/82 = 12 "Forretningsmessig tjenesteyting") \
+	(84 = 13 "Off.adm., forsvar, sosialforsikring") \
+	(85 = 14 "Undervisning") \
+	(86/88 = 15 "Helse- og sosialtjenester") \
+	(90/99 = 16 "Personlig tjenesteyting") \
+	(-2/0 = 99 "Ugyldig næringskode")
+tabulate hovednæring
+
+//Yrkesgruppe - nivå 1
+generate yrkesgruppe1 = substr(yrke,1,1)
+tabulate yrkesgruppe1
+destring yrkesgruppe1
+//Generert recode fra yrkeskoder nivå 1.csv fr. 3. oktober 2025 14:21:53
+recode yrkesgruppe1 \
+  (0 = 0 'Militære yrker og uoppgitt') \
+  (1 = 1 'Ledere') \
+  (2 = 2 'Akademiske yrker') \
+  (3 = 3 'Høyskoleyrker') \
+  (4 = 4 'Kontoryrker') \
+  (5 = 5 'Salgs- og serviceyrker') \
+  (6 = 6 'Bønder, fiskere mv.') \
+  (7 = 7 'Håndverkere') \
+  (8 = 8 'Prosess- og maskinoperatører, transportarbeidere mv.') \
+  (9 = 9 'Renholdere, hjelpearbeidere mv.')
+tabulate yrkesgruppe1
+
+//Yrkesgruppe - nivå 2
+generate yrkesgruppe2 = substr(yrke,1,2)
+tabulate yrkesgruppe2
+destring yrkesgruppe2
+//Generert recode fra yrkeskoder nivå 2.csv fr. 3. oktober 2025 14:22:47
+recode yrkesgruppe2 \
+  (0 = 0 'Uoppgitt / yrker som ikke kan identifiseres') \
+  (1 = 1 'Offiserer fra fenrik og høyere grad') \
+  (2 = 2 'Befal med sersjant grad') \
+  (3 = 3 'Menige') \
+  (11 = 11 'Politikere og toppledere') \
+  (12 = 12 'Administrative og merkantile ledere') \
+  (13 = 13 'Ledere av enheter for vareproduksjon og tjenesteyting') \
+  (14 = 14 'Ledere i hotell, restaurant, varehandel mv.') \
+  (21 = 21 'Realister, sivilingeniører mv.') \
+  (22 = 22 'Medisinske yrker') \
+  (23 = 23 'Undervisningsyrker') \
+  (24 = 24 'Rådgivere innen økonomi, administrasjon og salg') \
+  (25 = 25 'IKT-rådgivere') \
+  (26 = 26 'Juridiske, samfunnsvitenskapelige og humanistiske yrker') \
+  (31 = 31 'Ingeniører mv.') \
+  (32 = 32 'Helserelaterte yrker') \
+  (33 = 33 'Medarbeidere innen økonomi, administrasjon og salg') \
+  (34 = 34 'Yrker innen kultur, idrett mv.') \
+  (35 = 35 'IKT-teknikere') \
+  (41 = 41 'Kontormedarbeidere') \
+  (42 = 42 'Kundeserviceyrker') \
+  (43 = 43 'Økonomi- og logistikkmedarbeidere') \
+  (44 = 44 'Postbud, arkiv- og personalkontormedarbeidere') \
+  (51 = 51 'Yrker innen personlig tjenesteyting') \
+  (52 = 52 'Salgsyrker') \
+  (53 = 53 'Pleie- og omsorgsarbeidere') \
+  (54 = 54 'Sikkerhetsarbeidere') \
+  (61 = 61 'Jordbrukere') \
+  (62 = 62 'Skogbrukere, fiskere mv.') \
+  (71 = 71 'Byggearbeidere') \
+  (72 = 72 'Metall- og maskinarbeidere') \
+  (73 = 73 'Presisjonsarbeidere, kunsthåndverkere, grafiske arbeidere mv.') \
+  (74 = 74 'Elektrikere, elektronikere mv.') \
+  (75 = 75 'Andre håndverkspregede yrker') \
+  (81 = 81 'Prosess- og maskinoperatører') \
+  (82 = 82 'Montører') \
+  (83 = 83 'Transportarbeidere og operatører av mobile maskiner mv.') \
+  (91 = 91 'Renholdere mv.') \
+  (92 = 92 'Hjelpearbeidere i jordbruk, skogbruk og fiske') \
+  (93 = 93 'Hjelpearbeidere i bergverk, industri, bygg og anlegg og transport') \
+  (94 = 94 'Kjøkkenassistenter') \
+  (95 = 95 'Reklamedistributører mv.') \
+  (96 = 96 'Renovasjons- og gjenvinningsarbeidere mv.')
+tabulate yrkesgruppe2
+
+//Yrkesgruppe - nivå 3
+generate yrkesgruppe3 = substr(yrke,1,3)
+tabulate yrkesgruppe3
+destring yrkesgruppe3
+//Generert recode fra yrkeskoder nivå 3.csv fr. 3. oktober 2025 14:29:07
+recode yrkesgruppe3 \
+  (0 = 0 'Uoppgitt / yrker som ikke kan identifiseres') \
+  (11 = 11 'Offiserer fra fenrik og høyere grad') \
+  (21 = 21 'Befal med sersjant grad') \
+  (31 = 31 'Menige') \
+  (111 = 111 'Politikere og toppledere i offentlig administrasjon') \
+  (112 = 112 'Administrerende direktører') \
+  (121 = 121 'Ledere av administrative enheter') \
+  (122 = 122 'Ledere av salgs-, PR- og forskningsenheter') \
+  (131 = 131 'Ledere i gartnerier, akvakultur mv.') \
+  (132 = 132 'Ledere av produksjon, utvinning, bygg og anlegg, transport') \
+  (133 = 133 'Ledere av IKT-enheter') \
+  (134 = 134 'Ledere av utdanning, helse- og sosialtjenester') \
+  (141 = 141 'Ledere i hotell og restaurant') \
+  (142 = 142 'Varehandelssjefer') \
+  (143 = 143 'Daglige ledere, andre tjenesteytende virksomheter') \
+  (211 = 211 'Fysikere, kjemikere mv.') \
+  (212 = 212 'Matematikere, statistikere mv.') \
+  (213 = 213 'Biologiske yrker mv.') \
+  (214 = 214 'Sivilingeniører (unntatt elektroteknologi)') \
+  (215 = 215 'Sivilingeniører elektroteknologi') \
+  (216 = 216 'Arkitekter, designere mv.') \
+  (221 = 221 'Leger') \
+  (222 = 222 'Sykepleiere og spesialsykepleiere') \
+  (225 = 225 'Veterinærer') \
+  (226 = 226 'Andre medisinske yrker') \
+  (231 = 231 'Universitets- og høyskolelektorer/-lærere') \
+  (232 = 232 'Yrkesfaglærere') \
+  (233 = 233 'Lektorer mv (videregående skole)') \
+  (234 = 234 'Grunnskole- og førskole-/barnehagelærere') \
+  (235 = 235 'Andre lærere') \
+  (241 = 241 'Finansrådgivere') \
+  (242 = 242 'Administrasjonsrådgivere') \
+  (243 = 243 'Rådgivere innen salg, markedsføring mv.') \
+  (251 = 251 'Programvare- og applikasjonsutviklere/analytikere') \
+  (252 = 252 'Databasedesignere, systemadministratorer mv.') \
+  (261 = 261 'Juridiske yrker') \
+  (262 = 262 'Bibliotekarer, arkivarer mv.') \
+  (263 = 263 'Samfunnsvitenskapelige, humanistiske og religiøse yrker') \
+  (264 = 264 'Forfattere, journalister mv.') \
+  (265 = 265 'Profesjonelle kunstnere') \
+  (311 = 311 'Ingeniører') \
+  (312 = 312 'Arbeidsledere innen bergfag, industri, bygg og anlegg') \
+  (313 = 313 'Prosesskontrollører') \
+  (314 = 314 'Bioteknikere mv.') \
+  (315 = 315 'Skipoffiserer, flygere, flygeledere mv.') \
+  (321 = 321 'Radiografer, proteseteknikere, reseptarer mv.') \
+  (323 = 323 'Yrker innen alternativ medisin') \
+  (324 = 324 'Dyrepleiere') \
+  (325 = 325 'Andre helseyrker') \
+  (331 = 331 'Yrker innen finanstjenester') \
+  (332 = 332 'Agenter og meglere') \
+  (333 = 333 'Forretningstjenesteyrker') \
+  (334 = 334 'Sekretærer og arbeidsledere for kontorpersonell') \
+  (335 = 335 'Yrker innen offentlig forvaltning') \
+  (341 = 341 'Yrker innen sosialarbeid og kultur') \
+  (342 = 342 'Yrker innen sport og idrett') \
+  (343 = 343 'Yrker innen estetiske fag') \
+  (351 = 351 'Operatører og brukerstøtte, IKT') \
+  (352 = 352 'Teknikere innen kringkasting og telekom') \
+  (411 = 411 'Kontormedarbeidere') \
+  (413 = 413 'Dataregistrere og stenografer') \
+  (421 = 421 'Kundebehandlere, penger og pengespill') \
+  (422 = 422 'Reisebyrå-, resepsjons- og andre opplysningsmedarbeidere') \
+  (431 = 431 'Regnskaps- og lønnsmedarbeidere mv.') \
+  (432 = 432 'Lager- og transportmedarbeidere') \
+  (441 = 441 'Postbud, arkiv- og personalkontor-medarbeidere') \
+  (511 = 511 'Persontransportpersonell') \
+  (512 = 512 'Kokker') \
+  (513 = 513 'Servitører og bartendere') \
+  (514 = 514 'Frisører, kosmetologer mv.') \
+  (515 = 515 'Renholdsledere og vaktmestre') \
+  (516 = 516 'Andre yrker innen personlig tjenesteyting') \
+  (521 = 521 'Torg og markedsselgere') \
+  (522 = 522 'Butikkselgere') \
+  (523 = 523 'Billettselgere') \
+  (524 = 524 'Andre salgsyrker') \
+  (531 = 531 'Barnehage- og skoleassistenter mv.') \
+  (532 = 532 'Pleiemedarbeidere') \
+  (541 = 541 'Sikkerhetsarbeidere') \
+  (611 = 611 'Korn-, grønnsaks-, frukt- og bærprodusenter, gartnere') \
+  (612 = 612 'Husdyr-, egg- og melkeprodusenter') \
+  (613 = 613 'Plante- og husdyrprodusenter (kombinasjonsbruk)') \
+  (621 = 621 'Skogbrukere') \
+  (622 = 622 'Havbruksarbeidere og fiskere') \
+  (711 = 711 'Bygningsarbeidere') \
+  (712 = 712 'Bygningstekniske arbeidere') \
+  (713 = 713 'Malere, overflatebehandlere, feiere mv.') \
+  (721 = 721 'Støpere, sveisere, platearbeidere mv.') \
+  (722 = 722 'Smeder, verktøymakere mv.') \
+  (723 = 723 'Mekanikere og reparatører') \
+  (731 = 731 'Presisjonsarbeidere og kunsthåndverkere') \
+  (732 = 732 'Grafiske arbeidere') \
+  (741 = 741 'Elektrikere mv.') \
+  (742 = 742 'Serviceelektronikere og tele- og IKT-installatører mv.') \
+  (751 = 751 'Slaktere, fiskehandlere, konditorer mv.') \
+  (752 = 752 'Møbelsnekkere') \
+  (753 = 753 'Skreddere, møbeltapetserere mv.') \
+  (754 = 754 'Yrkesdykkere, skytebaser mv.') \
+  (811 = 811 'Operatører innen borefag mv.') \
+  (812 = 812 'Operatører metallproduksjon') \
+  (813 = 813 'Operatører innen produksjon av kjemiske produkter') \
+  (814 = 814 'Operatører innen gummi, plast og papirproduksjon') \
+  (815 = 815 'Operatører innen bearbeiding og produksjon av tekstiler, pels, skinn og lær') \
+  (816 = 816 'Operatører innen næringsmiddelproduksjon') \
+  (817 = 817 'Operatører innen treforedling og trelast') \
+  (818 = 818 'Operatører av andre stasjonære maskiner') \
+  (821 = 821 'Montører') \
+  (831 = 831 'Lokomotiv og T-baneførere mv.') \
+  (832 = 832 'Bil-, drosje- og varebilførere') \
+  (833 = 833 'Lastebil-, buss- og trikkeførere') \
+  (834 = 834 'Operatører av mobile maskiner mv.') \
+  (835 = 835 'Dekks- og maskinmannskap (skip)') \
+  (911 = 911 'Renholdere') \
+  (912 = 912 'Bilvaskere, vinduspussere mv.') \
+  (921 = 921 'Hjelpearbeidere i jordbruk, skogbruk og fiske') \
+  (931 = 931 'Hjelpearbeidere i bergverk, bygg og anlegg') \
+  (932 = 932 'Hjelpearbeidere i industri') \
+  (933 = 933 'Hjelpearbeidere innen transport og lager') \
+  (941 = 941 'Kjøkkenassistenter') \
+  (951 = 951 'Reklamedistributører mv.') \
+  (961 = 961 'Renovasjons- og gjenvinningsarbeidere') \
+  (962 = 962 'Andre hjelpearbeidere')
+tabulate yrkesgruppe3

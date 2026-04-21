@@ -1,0 +1,147 @@
+// ===================================================================
+// Example: Vise flyttestrømmer mellom kommuner - 2017-2018
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Regionalanalyser/Vise%20flyttestr%C3%B8mmer%20mellom%20kommuner%20-%202017-2018/
+// ===================================================================
+// Flyttestrømmer mellom kommuner kan vises via BEFOLKNING_KOMMNR_FORMELL (oppdateres årlig
+// 1/1) eller BOSATTEFDT_BOSTED (kontinuerlig oppløsning, kan vise flyttinger på daglig basis).
+//
+// Eksempelet viser alle flyttinger mellom 1/1 2017 og 1/1 2018. Fordi Trøndelag ble opprettet
+// og enkelte Vestfold-kommuner ble slått sammen per 1/1 2018, må 2017-kommunekodene justeres.
+// Det nye Trøndelag fylke fikk nye koder for alle sine kommuner.
+//
+// Flyttestrømmene presenteres på fylkesnivå; flyttinger innen samme fylke grupperes, og
+// ikke-flyttere utelates fra statistikken.
+// ===================================================================
+
+require no.ssb.fdb:41 as db
+
+create-dataset flytting
+import db/BEFOLKNING_KOMMNR_FORMELL 2017-01-01 as kommune17
+import db/BEFOLKNING_KOMMNR_FORMELL 2018-01-01 as kommune18
+destring kommune17 kommune18
+
+//Omkoder kommunekodene for 2017 for å få dem konsistente med 2018-kodene
+//Generert recode fra Omkodinger av kommunekoder - Kopi av 2018.csv fr. 13. juni 2025 16:11:13
+recode kommune17 \
+  (702 = 715 'Holmestrand') \
+  (709 = 712 'Larvik') \
+  (714 = 715 'Holmestrand') \
+  (722 = 729 'Færder') \
+  (723 = 729 'Færder') \
+  (728 = 712 'Larvik') \
+  (1601 = 5001 'Trondheim') \
+  (1612 = 5011 'Hemne') \
+  (1613 = 5012 'Snillfjord') \
+  (1617 = 5013 'Hitra') \
+  (1620 = 5014 'Frøya') \
+  (1621 = 5015 'Ørland') \
+  (1622 = 5016 'Agdenes') \
+  (1624 = 5054 'Indre Fosen') \
+  (1627 = 5017 'Bjugn') \
+  (1630 = 5018 'Åfjord') \
+  (1632 = 5019 'Roan') \
+  (1633 = 5020 'Osen') \
+  (1634 = 5021 'Oppdal') \
+  (1635 = 5022 'Rennebu') \
+  (1636 = 5023 'Meldal') \
+  (1638 = 5024 'Orkdal') \
+  (1640 = 5025 'Røros') \
+  (1644 = 5026 'Holtålen') \
+  (1648 = 5027 'Midtre Gauldal') \
+  (1653 = 5028 'Melhus') \
+  (1657 = 5029 'Skaun') \
+  (1662 = 5030 'Klæbu') \
+  (1663 = 5031 'Malvik') \
+  (1664 = 5032 'Selbu') \
+  (1665 = 5033 'Tydal') \
+  (1702 = 5004 'Steinkjer') \
+  (1703 = 5005 'Namsos') \
+  (1711 = 5034 'Meråker') \
+  (1714 = 5035 'Stjørdal') \
+  (1717 = 5036 'Frosta') \
+  (1718 = 5054 'Indre Fosen') \
+  (1719 = 5037 'Levanger') \
+  (1721 = 5038 'Verdal') \
+  (1724 = 5039 'Verran') \
+  (1725 = 5040 'Namdalseid') \
+  (1736 = 5041 'Snåase - Snåsa') \
+  (1738 = 5042 'Lierne') \
+  (1739 = 5043 'Raarvihke - Røyrvik') \
+  (1740 = 5044 'Namsskogan') \
+  (1742 = 5045 'Grong') \
+  (1743 = 5046 'Høylandet') \
+  (1744 = 5047 'Overhalla') \
+  (1748 = 5048 'Fosnes') \
+  (1749 = 5049 'Flatanger') \
+  (1750 = 5050 'Vikna') \
+  (1751 = 5051 'Nærøy') \
+  (1755 = 5052 'Leka') \
+  (1756 = 5053 'Inderøy') \
+  (1852 = 1852 'Dielddanuorri - Tjeldsund') \
+  (1870 = 1870 'Sortland - Suortá') \
+  (1903 = 1903 'Harstad - Hárstták') \
+  (1940 = 1940 'Gáivuotna - Kåfjord - Kaivuono')
+
+//Lager en dummy-variabel som viser om man flytter fra en kommune
+generate flytter = kommune18 != kommune17 & !sysmiss(kommune18)
+
+define-labels flyttelbl 0 'Bor i samme kommune' 1 'Flyttet til ny kommune'
+assign-labels flytter flyttelbl
+
+textblock
+Andelen personer som flytter til ny kommune mellom 1/1 2017 og 1/1 2018:
+endblock
+piechart flytter
+tabulate flytter, cellpct freq
+
+//Lager en variabel som viser bostedsfylke (= de to første sifrene i kommunekoden)
+generate fylke17 = int(kommune17/100)
+generate fylke18 = int(kommune18/100)
+
+define-labels fylkelabel 1 Østfold \
+                         2 Akershus \
+                         3 Oslo \
+                         4 Hedmark \
+                         5 Oppland \
+                         6 Buskerud \
+                         7 Vestfold \
+                         8 Telemark \
+                         9 'Aust-Agder' \
+                         10 'Vest-Agder' \
+                         11 Rogaland \
+                         12 Hordaland \
+                         14 'Sogn og Fjordane' \
+                         15 'Møre og Romsdal' \
+                         18 Nordland \
+                         19 Troms \
+                         20 Finnmark \
+                         50 Trøndelag
+
+assign-labels fylke17 fylkelabel
+assign-labels fylke18 fylkelabel
+
+textblock
+Personer som flytter til ny kommune mellom 1/1 2017 og 1/1 2018, fordelt på bostedsfylke før/etter flytting:
+endblock
+tabulate fylke17 fylke18 if flytter
+tabulate fylke17 fylke18 if flytter, rowpct
+sankey fylke17 fylke18 if flytter
+barchart(percent) fylke18 if flytter, over(fylke17) stack
+
+textblock
+Personer som flytter til Oslo mellom 1/1 2017 og 1/1 2018, fordelt på bostedsfylke før flytting:
+endblock
+sankey fylke17 fylke18 if flytter & kommune18 == 301
+barchart(count) fylke18 if flytter & kommune18 == 301, over(fylke17)
+
+textblock
+Personer som flytter fra en kommune i Nord-Norge mellom 1/1 2017 og 1/1 2018, fordelt på bostedsfylke før/etter flytting:
+endblock
+sankey fylke17 fylke18 if flytter & inlist(fylke17,18,19,20)
+barchart(count) fylke18 if flytter & inlist(fylke17,18,19,20), over(fylke17)
+
+textblock
+Personer som flytter fra landsdelen Nord-Norge mellom 1/1 2017 og 1/1 2018, fordelt på bostedsfylke før/etter flytting:
+endblock
+sankey fylke17 fylke18 if flytter & inlist(fylke17,18,19,20) & !inlist(fylke18,18,19,20)
+barchart(count) fylke18 if flytter & inlist(fylke17,18,19,20) & !inlist(fylke18,18,19,20), over(fylke17)

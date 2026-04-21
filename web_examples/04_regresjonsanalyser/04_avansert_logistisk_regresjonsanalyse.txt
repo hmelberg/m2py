@@ -1,0 +1,100 @@
+// ===================================================================
+// Example: Avansert logistisk regresjonsanalyse
+// Source: https://microdata.no/manual/eksempel/Regresjonsanalyser/Avansert logistisk regresjonsanalyse/
+// ===================================================================
+// Eksempelet illustrerer hvordan man kan gå frem for å analysere sannsynligheten for å komme
+// i jobb og tjene over 500000 kr ett år etter å ha vært uten jobb, blant personer i alderen
+// 16-60 år. Analysen kontrollerer for demografiske faktorer og arbeidsmarkedsstatuskategorier
+// inkludert arbeidsledighet, arbeidsmarkedstiltak, uførhet og andre jobbsøkerstatuser.
+// Metodikken kombinerer deskriptiv statistikk med logit-regresjon som inkluderer beregning av
+// marginaleffekter ved bruk av opsjonen mfx(dydx).
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:33 as db
+
+// Oppretter populasjonen personer 16-60 år som er uten jobb i november 2018, og bosatt i Norge per 1. januar 2019
+create-dataset demografidata
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+import db/BEFOLKNING_STATUSKODE 2019-01-01 as regstat
+import db/REGSYS_ARB_ARBMARK_STATUS 2018-11-16 as arbmstatus
+
+generate alder = 2018 - int(faarmnd / 100)
+generate jobb = inlist(arbmstatus,'1','2')
+keep if inrange(alder,16,60) & regstat == '1' & jobb == 0
+
+histogram alder, discrete
+
+// Henter øvrige variabler (demografidata finnes det bare data på per 1/1 hvert år)
+import db/BEFOLKNING_KJOENN as kjønn
+import db/BEFOLKNING_INVKAT as innvkat
+import db/SIVSTANDFDT_SIVSTAND 2018-11-16 as sivstand
+import db/BEFOLKNING_BARN_I_REGSTAT_FAMNR 2019-01-01 as antbarn
+import db/NUDB_BU 2018-11-16 as utd
+import db/NUDB_SOSBAK as sosbakgrunn
+import db/BEFOLKNING_KOMMNR_FAKTISK 2019-01-01 as bosted
+import db/ARBSOEK2001FDT_HOVED 2018-11-16 as arbsøkerstatus
+import db/UFOERP2011FDT_GRAD 2018-11-16 as uføregrad
+import db/INNTEKT_BRUTTOFORM 2018-12-31 as formue
+import db/INNTEKT_WYRKINNT 2019-12-31 as inntekt19
+
+// Lager en avhengig variabel med to utfall (dummyvariabel): Høy inntekt vs. lav inntekt
+histogram inntekt19, width(100000) freq
+summarize inntekt19
+generate høyinnt = inntekt19 > 500000
+piechart høyinnt
+
+// Tilrettelegger de uavhengige variablene slik at de passer med den statistiske modellen
+// (innebærer at de fleste variabler gjøres som til dummy'er)
+generate mann = kjønn == '1'
+piechart mann
+
+destring sivstand
+generate gift = sivstand == 2
+piechart gift
+
+generate innvandrer = innvkat == 'B'
+piechart innvandrer
+
+tabulate antbarn, missing
+generate ettbarn = antbarn == 1
+
+generate flerebarn = antbarn > 1
+
+destring utd
+generate høyutd = inrange(utd,700000,899999)
+piechart høyutd
+
+generate høyutd_foreldre = sosbakgrunn == '1'
+piechart høyutd_foreldre
+
+generate oslo = bosted == '0301'
+generate bergen = bosted == '1201'
+generate stavanger = bosted == '1103'
+generate trondheim = bosted == '5001'
+barchart(sum) oslo bergen stavanger trondheim
+
+destring arbsøkerstatus
+tabulate arbsøkerstatus, missing
+
+generate ledig = arbsøkerstatus == 1
+generate tiltak = arbsøkerstatus == 3
+generate yrkeshemmet = arbsøkerstatus == 5 | arbsøkerstatus >= 10
+generate andrearbsøk = arbsøkerstatus == 2 | arbsøkerstatus == 4 | arbsøkerstatus == 7
+
+generate ufør = !sysmiss(uføregrad)
+
+barchart(sum) ledig tiltak yrkeshemmet andrearbsøk ufør
+
+histogram formue, width(100000) freq
+summarize formue
+generate formuehøy = formue > 1000000
+piechart formuehøy
+
+// Bruk sankey for å vise overganger
+sankey arbsøkerstatus høyinnt
+sankey høyutd høyinnt
+
+// Kjører selve logit-analysen der den avhengige variabelen listes først (må være dummy)
+logit høyinnt mann gift alder innvandrer ettbarn flerebarn høyutd høyutd_foreldre \
+    oslo bergen stavanger trondheim ledig tiltak yrkeshemmet andrearbsøk ufør formuehøy, mfx(dydx)

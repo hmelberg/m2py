@@ -1,0 +1,411 @@
+// ===================================================================
+// Example: Vise flyttestrømmer mellom kommuner - 2019-2020
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Regionalanalyser/Vise%20flyttestr%C3%B8mmer%20mellom%20kommuner%20-%202019-2020/
+// ===================================================================
+// Flyttestrømmer mellom kommuner kan vises via BEFOLKNING_KOMMNR_FORMELL (oppdateres årlig
+// 1/1) eller BOSATTEFDT_BOSTED (kontinuerlig oppløsning, kan vise flyttinger på daglig basis).
+//
+// Dette eksempelet viser alle flyttinger mellom 1/1 2019 og 1/1 2020. Siden kommunereformen
+// trådte i kraft 1/1 2020, må 2019-kommunekodene justeres for å samsvare med 2020-kodene.
+// Reformen reduserte antall kommuner fra 428 til 356 og endret kodene. I tillegg ble to
+// kommuner splittet opp: Tysfjord ble delt i Narvik og Hamarøy, og Snillfjord ble delt i Heim,
+// Hitra og Orkland.
+//
+// Flyttestrømmene presenteres på fylkesnivå for å unngå uhåndterbare tabeller. Personer som
+// flytter innen samme fylke grupperes sammen; ikke-flyttere er utelatt.
+// ===================================================================
+
+require no.ssb.fdb:41 as db
+
+create-dataset flytting
+import db/BEFOLKNING_KOMMNR_FORMELL 2019-01-01 as kommune19
+import db/BEFOLKNING_KOMMNR_FORMELL 2020-01-01 as kommune20
+destring kommune19 kommune20
+
+//Omkoder kommunekodene for 2019 for å få dem konsistente med 2020-kodene
+//Generert recode fra Omkodinger av kommunekoder - Kopi av 2020.csv fr. 13. juni 2025 16:07:38
+recode kommune19 \
+  (101 = 3001 'Halden') \
+  (104 = 3002 'Moss') \
+  (105 = 3003 'Sarpsborg') \
+  (106 = 3004 'Fredrikstad') \
+  (111 = 3011 'Hvaler') \
+  (118 = 3012 'Aremark') \
+  (119 = 3013 'Marker') \
+  (121 = 3026 'Aurskog-Høland') \
+  (122 = 3014 'Indre Østfold') \
+  (123 = 3014 'Indre Østfold') \
+  (124 = 3014 'Indre Østfold') \
+  (125 = 3014 'Indre Østfold') \
+  (127 = 3015 'Skiptvet') \
+  (128 = 3016 'Rakkestad') \
+  (135 = 3017 'Råde') \
+  (136 = 3002 'Moss') \
+  (137 = 3018 'Våler (Viken)') \
+  (138 = 3014 'Indre Østfold') \
+  (211 = 3019 'Vestby') \
+  (213 = 3020 'Nordre Follo') \
+  (214 = 3021 'Ås') \
+  (215 = 3022 'Frogn') \
+  (216 = 3023 'Nesodden') \
+  (217 = 3020 'Nordre Follo') \
+  (219 = 3024 'Bærum') \
+  (220 = 3025 'Asker') \
+  (221 = 3026 'Aurskog-Høland') \
+  (226 = 3030 'Lillestrøm') \
+  (227 = 3030 'Lillestrøm') \
+  (228 = 3027 'Rælingen') \
+  (229 = 3028 'Enebakk') \
+  (230 = 3029 'Lørenskog') \
+  (231 = 3030 'Lillestrøm') \
+  (233 = 3031 'Nittedal') \
+  (234 = 3032 'Gjerdrum') \
+  (235 = 3033 'Ullensaker') \
+  (236 = 3034 'Nes') \
+  (237 = 3035 'Eidsvoll') \
+  (238 = 3036 'Nannestad') \
+  (239 = 3037 'Hurdal') \
+  (402 = 3401 'Kongsvinger') \
+  (403 = 3403 'Hamar') \
+  (412 = 3411 'Ringsaker') \
+  (415 = 3412 'Løten') \
+  (417 = 3413 'Stange') \
+  (418 = 3414 'Nord-Odal') \
+  (419 = 3415 'Sør-Odal') \
+  (420 = 3416 'Eidskog') \
+  (423 = 3417 'Grue') \
+  (425 = 3418 'Åsnes') \
+  (426 = 3419 'Våler (Innlandet)') \
+  (427 = 3420 'Elverum') \
+  (428 = 3421 'Trysil') \
+  (429 = 3422 'Åmot') \
+  (430 = 3423 'Stor-Elvdal') \
+  (432 = 3424 'Rendalen') \
+  (434 = 3425 'Engerdal') \
+  (436 = 3426 'Tolga') \
+  (437 = 3427 'Tynset') \
+  (438 = 3428 'Alvdal') \
+  (439 = 3429 'Folldal') \
+  (441 = 3430 'Os') \
+  (501 = 3405 'Lillehammer') \
+  (502 = 3407 'Gjøvik') \
+  (511 = 3431 'Dovre') \
+  (512 = 3432 'Lesja') \
+  (513 = 3433 'Skjåk') \
+  (514 = 3434 'Lom') \
+  (515 = 3435 'Vågå') \
+  (516 = 3436 'Nord-Fron') \
+  (517 = 3437 'Sel') \
+  (519 = 3438 'Sør-Fron') \
+  (520 = 3439 'Ringebu') \
+  (521 = 3440 'Øyer') \
+  (522 = 3441 'Gausdal') \
+  (528 = 3442 'Østre Toten') \
+  (529 = 3443 'Vestre Toten') \
+  (532 = 3053 'Jevnaker') \
+  (533 = 3054 'Lunner') \
+  (534 = 3446 'Gran') \
+  (536 = 3447 'Søndre Land') \
+  (538 = 3448 'Nordre Land') \
+  (540 = 3449 'Sør-Aurdal') \
+  (541 = 3450 'Etnedal') \
+  (542 = 3451 'Nord-Aurdal') \
+  (543 = 3452 'Vestre Slidre') \
+  (544 = 3453 'Øystre Slidre') \
+  (545 = 3454 'Vang') \
+  (602 = 3005 'Drammen') \
+  (604 = 3006 'Kongsberg') \
+  (605 = 3007 'Ringerike') \
+  (612 = 3038 'Hole') \
+  (615 = 3039 'Flå') \
+  (616 = 3040 'Nesbyen') \
+  (617 = 3041 'Gol') \
+  (618 = 3042 'Hemsedal') \
+  (619 = 3043 'Ål') \
+  (620 = 3044 'Hol') \
+  (621 = 3045 'Sigdal') \
+  (622 = 3046 'Krødsherad') \
+  (623 = 3047 'Modum') \
+  (624 = 3048 'Øvre Eiker') \
+  (625 = 3005 'Drammen') \
+  (626 = 3049 'Lier') \
+  (627 = 3025 'Asker') \
+  (628 = 3025 'Asker') \
+  (631 = 3050 'Flesberg') \
+  (632 = 3051 'Rollag') \
+  (633 = 3052 'Nore og Uvdal') \
+  (701 = 3801 'Horten') \
+  (704 = 3803 'Tønsberg') \
+  (710 = 3804 'Sandefjord') \
+  (711 = 3005 'Drammen') \
+  (712 = 3805 'Larvik') \
+  (713 = 3802 'Holmestrand') \
+  (715 = 3802 'Holmestrand') \
+  (716 = 3803 'Tønsberg') \
+  (729 = 3811 'Færder') \
+  (805 = 3806 'Porsgrunn') \
+  (806 = 3807 'Skien') \
+  (807 = 3808 'Notodden') \
+  (811 = 3812 'Siljan') \
+  (814 = 3813 'Bamble') \
+  (815 = 3814 'Kragerø') \
+  (817 = 3815 'Drangedal') \
+  (819 = 3816 'Nome') \
+  (821 = 3817 'Midt-Telemark') \
+  (822 = 3817 'Midt-Telemark') \
+  (826 = 3818 'Tinn') \
+  (827 = 3819 'Hjartdal') \
+  (828 = 3820 'Seljord') \
+  (829 = 3821 'Kviteseid') \
+  (830 = 3822 'Nissedal') \
+  (831 = 3823 'Fyresdal') \
+  (833 = 3824 'Tokke') \
+  (834 = 3825 'Vinje') \
+  (901 = 4201 'Risør') \
+  (904 = 4202 'Grimstad') \
+  (906 = 4203 'Arendal') \
+  (911 = 4211 'Gjerstad') \
+  (912 = 4212 'Vegårshei') \
+  (914 = 4213 'Tvedestrand') \
+  (919 = 4214 'Froland') \
+  (926 = 4215 'Lillesand') \
+  (928 = 4216 'Birkenes') \
+  (929 = 4217 'Åmli') \
+  (935 = 4218 'Iveland') \
+  (937 = 4219 'Evje og Hornnes') \
+  (938 = 4220 'Bygland') \
+  (940 = 4221 'Valle') \
+  (941 = 4222 'Bykle') \
+  (1001 = 4204 'Kristiansand') \
+  (1002 = 4205 'Lindesnes') \
+  (1003 = 4206 'Farsund') \
+  (1004 = 4207 'Flekkefjord') \
+  (1014 = 4223 'Vennesla') \
+  (1017 = 4204 'Kristiansand') \
+  (1018 = 4204 'Kristiansand') \
+  (1021 = 4205 'Lindesnes') \
+  (1026 = 4224 'Åseral') \
+  (1027 = 4225 'Lyngdal') \
+  (1029 = 4205 'Lindesnes') \
+  (1032 = 4225 'Lyngdal') \
+  (1034 = 4226 'Hægebostad') \
+  (1037 = 4227 'Kvinesdal') \
+  (1046 = 4228 'Sirdal') \
+  (1102 = 1108 'Sandnes') \
+  (1103 = 1103 'Stavanger') \
+  (1129 = 1108 'Sandnes') \
+  (1141 = 1103 'Stavanger') \
+  (1142 = 1103 'Stavanger') \
+  (1201 = 4601 'Bergen') \
+  (1211 = 4611 'Etne') \
+  (1216 = 4612 'Sveio') \
+  (1219 = 4613 'Bømlo') \
+  (1221 = 4614 'Stord') \
+  (1222 = 4615 'Fitjar') \
+  (1223 = 4616 'Tysnes') \
+  (1224 = 4617 'Kvinnherad') \
+  (1227 = 4618 'Ullensvang') \
+  (1228 = 4618 'Ullensvang') \
+  (1231 = 4618 'Ullensvang') \
+  (1232 = 4619 'Eidfjord') \
+  (1233 = 4620 'Ulvik') \
+  (1234 = 4621 'Voss') \
+  (1235 = 4621 'Voss') \
+  (1238 = 4622 'Kvam') \
+  (1241 = 4624 'Bjørnafjorden') \
+  (1242 = 4623 'Samnanger') \
+  (1243 = 4624 'Bjørnafjorden') \
+  (1244 = 4625 'Austevoll') \
+  (1245 = 4626 'Øygarden') \
+  (1246 = 4626 'Øygarden') \
+  (1247 = 4627 'Askøy') \
+  (1251 = 4628 'Vaksdal') \
+  (1252 = 4629 'Modalen') \
+  (1253 = 4630 'Osterøy') \
+  (1256 = 4631 'Alver') \
+  (1259 = 4626 'Øygarden') \
+  (1260 = 4631 'Alver') \
+  (1263 = 4631 'Alver') \
+  (1264 = 4632 'Austrheim') \
+  (1265 = 4633 'Fedje') \
+  (1266 = 4634 'Masfjorden') \
+  (1401 = 4602 'Kinn') \
+  (1411 = 4635 'Gulen') \
+  (1412 = 4636 'Solund') \
+  (1413 = 4637 'Hyllestad') \
+  (1416 = 4638 'Høyanger') \
+  (1417 = 4639 'Vik') \
+  (1418 = 4640 'Sogndal') \
+  (1419 = 4640 'Sogndal') \
+  (1420 = 4640 'Sogndal') \
+  (1421 = 4641 'Aurland') \
+  (1422 = 4642 'Lærdal') \
+  (1424 = 4643 'Årdal') \
+  (1426 = 4644 'Luster') \
+  (1428 = 4645 'Askvoll') \
+  (1429 = 4646 'Fjaler') \
+  (1430 = 4647 'Sunnfjord') \
+  (1431 = 4647 'Sunnfjord') \
+  (1432 = 4647 'Sunnfjord') \
+  (1433 = 4647 'Sunnfjord') \
+  (1438 = 4648 'Bremanger') \
+  (1439 = 4602 'Kinn') \
+  (1441 = 4649 'Stad') \
+  (1443 = 4649 'Stad') \
+  (1444 = 1577 'Volda') \
+  (1445 = 4650 'Gloppen') \
+  (1449 = 4651 'Stryn') \
+  (1502 = 1506 'Molde') \
+  (1504 = 1507 'Ålesund') \
+  (1514 = 1514 'Sande') \
+  (1519 = 1577 'Volda') \
+  (1523 = 1507 'Ålesund') \
+  (1524 = 1578 'Fjord') \
+  (1526 = 1578 'Fjord') \
+  (1529 = 1507 'Ålesund') \
+  (1534 = 1507 'Ålesund') \
+  (1543 = 1506 'Molde') \
+  (1545 = 1506 'Molde') \
+  (1546 = 1507 'Ålesund') \
+  (1548 = 1579 'Hustadvika') \
+  (1551 = 1579 'Hustadvika') \
+  (1571 = 5055 'Heim') \
+  (1805 = 1806 'Narvik') \
+  (1826 = 1826 'Aarborte - Hattfjelldal') \
+  (1849 = 1875 'Hábmer - Hamarøy') \
+  (1852 = 5412 'Dielddanuorri - Tjeldsund') \
+  (1854 = 1806 'Narvik') \
+  (1867 = 1867 'Bø') \
+  (1902 = 5401 'Tromsø') \
+  (1903 = 5402 'Harstad - Hárstták') \
+  (1911 = 5411 'Kvæfjord') \
+  (1913 = 5412 'Dielddanuorri - Tjeldsund') \
+  (1917 = 5413 'Ibestad') \
+  (1919 = 5414 'Gratangen') \
+  (1920 = 5415 'Loabák - Lavangen') \
+  (1922 = 5416 'Bardu') \
+  (1923 = 5417 'Salangen') \
+  (1924 = 5418 'Målselv') \
+  (1925 = 5419 'Sørreisa') \
+  (1926 = 5420 'Dyrøy') \
+  (1927 = 5421 'Senja') \
+  (1928 = 5421 'Senja') \
+  (1929 = 5421 'Senja') \
+  (1931 = 5421 'Senja') \
+  (1933 = 5422 'Balsfjord') \
+  (1936 = 5423 'Karlsøy') \
+  (1938 = 5424 'Lyngen') \
+  (1939 = 5425 'Storfjord - Omasvuotna - Omasvuono') \
+  (1940 = 5426 'Gáivuotna - Kåfjord - Kaivuono') \
+  (1941 = 5427 'Skjervøy') \
+  (1942 = 5428 'Nordreisa - Ráisa - Raisi') \
+  (1943 = 5429 'Kvænangen') \
+  (2002 = 5404 'Vardø') \
+  (2003 = 5405 'Vadsø') \
+  (2004 = 5406 'Hammerfest - Hámmerfeasta') \
+  (2011 = 5430 'Guovdageaidnu - Kautokeino') \
+  (2012 = 5403 'Alta') \
+  (2014 = 5432 'Loppa') \
+  (2015 = 5433 'Hasvik') \
+  (2017 = 5406 'Hammerfest - Hámmerfeasta') \
+  (2018 = 5434 'Måsøy') \
+  (2019 = 5435 'Nordkapp') \
+  (2020 = 5436 'Porsanger - Porsángu - Porsanki') \
+  (2021 = 5437 'Kárášjohka - Karasjok') \
+  (2022 = 5438 'Lebesby') \
+  (2023 = 5439 'Gamvik') \
+  (2024 = 5440 'Berlevåg') \
+  (2025 = 5441 'Deatnu - Tana') \
+  (2027 = 5442 'Unjárga - Nesseby') \
+  (2028 = 5443 'Båtsfjord') \
+  (2030 = 5444 'Sør-Varanger') \
+  (5001 = 5001 'Trondheim') \
+  (5004 = 5006 'Steinkjer') \
+  (5005 = 5007 'Namsos - Nåavmesjenjaelmie') \
+  (5011 = 5055 'Heim') \
+  (5013 = 5056 'Hitra') \
+  (5015 = 5057 'Ørland') \
+  (5016 = 5059 'Orkland') \
+  (5017 = 5057 'Ørland') \
+  (5018 = 5058 'Åfjord') \
+  (5019 = 5058 'Åfjord') \
+  (5023 = 5059 'Orkland') \
+  (5024 = 5059 'Orkland') \
+  (5030 = 5001 'Trondheim') \
+  (5039 = 5006 'Steinkjer') \
+  (5040 = 5007 'Namsos - Nåavmesjenjaelmie') \
+  (5048 = 5007 'Namsos - Nåavmesjenjaelmie') \
+  (5050 = 5060 'Nærøysund') \
+  (5051 = 5060 'Nærøysund')
+
+//I tillegg ble to kommuner splittet opp og fordelt på til sammen fem kommuner: 1850 Tysfjord ble splittet opp i 1806 Narvik og 1875 Hamarøy, mens 5012 Snillfjord ble splittet opp i 5055 Heim, 5056 Hitra og 5059 Orkland. Siden vi ikke kan vite med sikkerhet hvem i de gamle kommunene som havnet i de nye oppslittede kommunene, må kommune19 korrigeres til hver av de oppsplittede bostedskommunene basert på hvor man bor året etter (1/1 2020) for de aktuelle kommunene. Vi antar altså at alle bostedsendringer fra gammel til ny oppsplittet kommunekode for disse aktuelle kommunene skyldes administrative endringer, og ikke reelle flyttinger.
+
+recode kommune19 (1850 = 1806 'Narvik') if kommune20 == 1806
+recode kommune19 (1850 = 1875 'Hamarøy') if kommune20 == 1875
+recode kommune19 (5012 = 5055 'Heim') if kommune20 == 5055
+recode kommune19 (5012 = 5056 'Hitra') if kommune20 == 5056
+recode kommune19 (5012 = 5059 'Orkland') if kommune20 == 5059
+
+textblock
+Personer bosatt i Nordland eller Trøndelag begge år, etter korrigering. Hhv. 25 og 27 personer har fortsatt de gamle kodene for Tysfjord og Snillfjord. Disse bor ikke i en av de nye oppsplittede kommunene året etter, og regnes derfor som "flyttet" i neste trinn under:
+endblock
+tabulate kommune19 if int(kommune19/100) == 18 & int(kommune20/100) == 18
+tabulate kommune19 if int(kommune19/100) == 50 & int(kommune20/100) == 50
+
+
+//Lager en dummy-variabel som viser om man flytter fra en kommune
+generate flytter = kommune20 != kommune19 & !sysmiss(kommune20)
+
+define-labels flyttelbl 0 'Bor i samme kommune' 1 'Flyttet til ny kommune'
+assign-labels flytter flyttelbl
+
+textblock
+Andelen personer som flytter til ny kommune mellom 1/1 2019 og 1/1 2020:
+endblock
+piechart flytter
+tabulate flytter, cellpct freq
+
+//Lager en variabel som viser bostedsfylke (= de to første sifrene i kommunekoden)
+generate fylke19 = int(kommune19/100)
+generate fylke20 = int(kommune20/100)
+
+define-labels fylkelabel 3 Oslo \
+                         11 Rogaland \
+                         15 'Møre og Romsdal' \
+                         18 Nordland \
+                         30 Viken \
+                         34 Innlandet \
+                         38 'Vestfold og Telemark' \
+                         42 Agder \
+                         46 Vestland \
+                         50 Trøndelag \
+                         54 'Troms og Finnmark'
+
+assign-labels fylke19 fylkelabel
+assign-labels fylke20 fylkelabel
+
+textblock
+Personer som flytter til ny kommune mellom 1/1 2019 og 1/1 2020, fordelt på bostedsfylke før/etter flytting:
+endblock
+tabulate fylke19 fylke20 if flytter
+tabulate fylke19 fylke20 if flytter, rowpct
+sankey fylke19 fylke20 if flytter
+barchart(percent) fylke20 if flytter, over(fylke19) stack
+
+textblock
+Personer som flytter til Oslo mellom 1/1 2019 og 1/1 2020, fordelt på bostedsfylke før flytting:
+endblock
+sankey fylke19 fylke20 if flytter & kommune20 == 301
+barchart(count) fylke20 if flytter & kommune20 == 301, over(fylke19)
+
+textblock
+Personer som flytter fra en kommune i Nord-Norge mellom 1/1 2019 og 1/1 2020, fordelt på bostedsfylke før/etter flytting:
+endblock
+sankey fylke19 fylke20 if flytter & inlist(fylke19,18,54)
+barchart(count) fylke20 if flytter & inlist(fylke19,18,54), over(fylke19)
+
+textblock
+Personer som flytter fra landsdelen Nord-Norge mellom 1/1 2019 og 1/1 2020, fordelt på bostedsfylke før/etter flytting:
+endblock
+sankey fylke19 fylke20 if flytter & inlist(fylke19,18,54) & !inlist(fylke20,18,54)
+barchart(count) fylke20 if flytter & inlist(fylke19,18,54) & !inlist(fylke20,18,54), over(fylke19)

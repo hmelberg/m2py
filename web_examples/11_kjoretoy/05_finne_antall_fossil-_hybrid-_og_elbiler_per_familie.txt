@@ -1,0 +1,219 @@
+// ===================================================================
+// Example: Finne antall fossil-, hybrid-, og elbiler per familie
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Kj%C3%B8ret%C3%B8yanalyser/Finne%20antall%20fossilbiler-hybridbiler-elbiler%20per%20familie/
+// ===================================================================
+// Eksempelet under viser hvordan man kan telle opp antall fossil-, hybrid-, og elbiler per
+// familie. Det har en del fellestrekk med eksempelet Finne antall personbiler per familie. Men i
+// dette tilfellet foretar man en finere inndeling av typer personbiler basert på de tre
+// hovedkategoriene av drivstoff.
+//
+// Først teller man opp antall personbiler per individ av hhv. typene fossil-, hybrid-, og elbil
+// i separate datasett ved hjelp av kommandoen collapse(count), for så å koble opplysningene inn
+// i et persondatasett som blant annet inneholder en variabel med familieidentifikatorer.
+// Deretter aggregerer man opp til familienivå ved kommandoen collapse der man nå bruker familie
+// som aggregeringsmål.
+//
+// For å finne tall for familier som ikke eier en personbil, er det viktig at man bruker et
+// persondatasett (totalpopulasjon) som basis, dvs. at man kobler antallet personbiler inn i et
+// persondatasett (og ikke motsatt), og deretter aggregerer til familienivå. Personer som det
+// ikke finnes en link til fra noen av de respektive personbildatasettene vil per definisjon være
+// individer som ikke eier en personbil.
+// ===================================================================
+
+require no.ssb.fdb:32 as db
+
+// Lager persondatasett
+create-dataset befolkning
+import db/BEFOLKNING_KOMMNR_FORMELL 2024-01-01 as kommune
+import db/NUDB_BU 2023-08-01 as utdanning
+import db/INNTEKT_LONN 2022-12-31 as lønn
+import db/BEFOLKNING_REGSTAT_FAMNR 2023-01-01 as famnr
+
+generate utdanningsnivå = substr(utdanning,1,1)
+destring utdanningsnivå
+
+
+// Lager fossilbildatasett
+create-dataset fossilbiler
+import db/KJORETOY_KJT_GRUP 2023-12-31 as kjøretøygruppe
+import db/KJORETOY_DRIVSTOFF_OMK 2023-12-31 as drivstofftype
+keep if kjøretøygruppe == '101' & inlist(drivstofftype,'01','02')
+drop kjøretøygruppe
+import db/KJORETOY_KJORETOYID_FNR 2023-12-31 as idnr
+
+// Aggregerer til individnivå og finner antall fossilbiler per individ
+collapse (count) drivstofftype -> ant_fossilbiler, by(idnr)
+
+// Kobler opplysning om antall fossilbiler på persondatasettet
+merge ant_fossilbiler into befolkning
+
+
+// Lager hybridbildatasett
+create-dataset hybridbiler
+import db/KJORETOY_KJT_GRUP 2023-12-31 as kjøretøygruppe
+import db/KJORETOY_DRIVSTOFF_OMK 2023-12-31 as drivstofftype
+keep if kjøretøygruppe == '101' & inlist(drivstofftype,'07','08')
+drop kjøretøygruppe
+import db/KJORETOY_KJORETOYID_FNR 2023-12-31 as idnr
+
+// Aggregerer til individnivå og finner antall hybridbiler per individ
+collapse (count) drivstofftype -> ant_hybridbiler, by(idnr)
+
+// Kobler opplysning om antall hybridbiler på persondatasettet
+merge ant_hybridbiler into befolkning
+
+
+// Lager elbildatasett
+create-dataset elbiler
+import db/KJORETOY_KJT_GRUP 2023-12-31 as kjøretøygruppe
+import db/KJORETOY_DRIVSTOFF_OMK 2023-12-31 as drivstofftype
+keep if kjøretøygruppe == '101' & drivstofftype == '05'
+drop kjøretøygruppe
+import db/KJORETOY_KJORETOYID_FNR 2023-12-31 as idnr
+
+// Aggregerer til individnivå og finner antall elbiler per individ
+collapse (count) drivstofftype -> ant_elbiler, by(idnr)
+
+// Kobler opplysning om antall elbiler på persondatasettet
+merge ant_elbiler into befolkning
+
+
+// Aggregerer persondatasettet opp til familienivå og lager statistikk over antall fossil-,
+// hybrid-, og elbiler per familie
+use befolkning
+collapse (count) kommune -> familiestørrelse \
+    (sum) ant_fossilbiler ant_hybridbiler ant_elbiler lønn -> sum_lønn_familie \
+    (max) utdanningsnivå -> max_utdanningsnivå, by(famnr)
+
+generate ant_biler = ant_fossilbiler + ant_hybridbiler + ant_elbiler
+
+// Kloner variabler for antall biler, og slår sammen antall over 2 til samlet kategori for den ene varianten
+clone-variables ant_fossilbiler -> ant_fossilbiler_raw
+recode ant_fossilbiler (missing = 0 'Ingen') (3/max = 3 '>')
+recode ant_fossilbiler_raw (missing = 0 'Ingen')
+
+clone-variables ant_hybridbiler -> ant_hybridbiler_raw
+recode ant_hybridbiler (missing = 0 'Ingen') (3/max = 3 '>')
+recode ant_hybridbiler_raw (missing = 0 'Ingen')
+
+clone-variables ant_elbiler -> ant_elbiler_raw
+recode ant_elbiler (missing = 0 'Ingen') (3/max = 3 '>')
+recode ant_elbiler_raw (missing = 0 'Ingen')
+
+clone-variables ant_biler -> ant_biler_raw
+recode ant_biler (missing = 0 'Ingen') (3/max = 3 '>')
+recode ant_biler_raw (missing = 0 'Ingen')
+
+textblock
+Antall fossilbiler per familie med minst én fossilbil
+endblock
+piechart ant_fossilbiler if ant_fossilbiler > 0
+tabulate ant_fossilbiler if ant_fossilbiler > 0, freq cellpct
+tabulate ant_fossilbiler if ant_fossilbiler > 0, summarize(familiestørrelse)
+tabulate ant_fossilbiler if ant_fossilbiler > 0, summarize(sum_lønn_familie)
+
+textblock
+Antall hybridbiler per familie med minst én hybridbil
+endblock
+piechart ant_hybridbiler if ant_hybridbiler > 0
+tabulate ant_hybridbiler if ant_hybridbiler > 0, freq cellpct
+tabulate ant_hybridbiler if ant_hybridbiler > 0, summarize(familiestørrelse)
+tabulate ant_hybridbiler if ant_hybridbiler > 0, summarize(sum_lønn_familie)
+
+textblock
+Antall elbiler per familie med minst én elbil
+endblock
+piechart ant_elbiler if ant_elbiler > 0
+tabulate ant_elbiler if ant_elbiler > 0, freq cellpct
+tabulate ant_elbiler if ant_elbiler > 0, summarize(familiestørrelse)
+tabulate ant_elbiler if ant_elbiler > 0, summarize(sum_lønn_familie)
+
+textblock
+Antall personbiler totalt per familie med minst én personbil
+endblock
+piechart ant_biler if ant_biler > 0
+tabulate ant_biler if ant_biler > 0, freq cellpct
+tabulate ant_biler if ant_biler > 0, summarize(familiestørrelse)
+tabulate ant_biler if ant_biler > 0, summarize(sum_lønn_familie)
+
+textblock
+Kombinasjoner av antall fossil-, hybrid- og elbiler per familie
+endblock
+tabulate ant_fossilbiler ant_elbiler
+tabulate ant_fossilbiler ant_hybridbiler
+tabulate ant_elbiler ant_hybridbiler
+tabulate ant_elbiler ant_hybridbiler
+
+
+// Lager oppsummerende variabler for kombinasjoner av biltyper
+generate bilkombinasjon = 1 if ant_elbiler_raw == 0 & ant_hybridbiler_raw == 0 & ant_fossilbiler_raw > 0 //kun fossil
+replace bilkombinasjon = 2 if ant_elbiler_raw == 0 & ant_hybridbiler_raw > 0 & ant_fossilbiler_raw == 0 //kun hybrid
+replace bilkombinasjon = 3 if ant_elbiler_raw > 0 & ant_hybridbiler_raw == 0 & ant_fossilbiler_raw == 0 //kun el
+replace bilkombinasjon = 4 if ant_elbiler_raw == 0 & ant_hybridbiler_raw > 0 & ant_fossilbiler_raw > 0 //fossil og hybrid
+replace bilkombinasjon = 5 if ant_elbiler_raw > 0 & ant_hybridbiler_raw == 0 & ant_fossilbiler_raw > 0 //fossil og el
+replace bilkombinasjon = 6 if ant_elbiler_raw > 0 & ant_hybridbiler_raw > 0 & ant_fossilbiler_raw == 0 //el og hybrid
+replace bilkombinasjon = 7 if ant_elbiler_raw > 0 & ant_hybridbiler_raw > 0 & ant_fossilbiler_raw > 0 //alle typer
+replace bilkombinasjon = 8 if ant_elbiler_raw == 0 & ant_hybridbiler_raw == 0 & ant_fossilbiler_raw == 0 //ingen
+
+define-labels bilkomblbl 1 'Kun fossilbil(er)' 2 'Kun hybridbil(er)' 3 'Kun elbil(er)' 4 'Fossil- og hybridbil(er)' 5 'Fossil- og elbil(er)' 6 'El- og hybridbil(er)' 7 'Alle typer' 8 'Ingen personbil'
+assign-labels bilkombinasjon bilkomblbl
+
+recode max_utdanningsnivå (0/3 = 1 'Ikke fullført VG') \
+	(4/5 = 2 'Videregående utdanning') \
+	(6 = 3 'Lavere UH-utdanning') \
+	(7 = 4 'Høyere UH-utdanning (mastergradsnivå)') \
+	(8 = 5 'Forskerutdanning') \
+	(9 = 6 'Uoppgitt')
+
+
+textblock
+Kombinasjoner av fossil-, hybrid- og elbiler
+endblock
+piechart bilkombinasjon
+tabulate bilkombinasjon, freq cellpct missing
+tabulate bilkombinasjon, summarize(ant_biler_raw)
+tabulate bilkombinasjon ant_biler
+tabulate bilkombinasjon ant_biler, rowpct
+tabulate bilkombinasjon max_utdanningsnivå, rowpct missing
+
+
+// Lager geografiske inndelinger
+
+// Henter nyeste oppdaterte bostedskommune på individnivå og kobler det på familiedatasettet via familienummeret (som er
+// lik identifikatoren til eldste person i familien) - bostedsopplysningen vil da peke til bostedskommunen til eldste
+// person i familien. Dette vil i praksis også være familiens bosted.
+create-dataset bosted
+import db/BEFOLKNING_KOMMNR_FORMELL 2024-01-01 as kommune
+merge kommune into befolkning on famnr
+
+use befolkning
+generate fylke = substr(kommune,1,2)
+
+define-labels fylkelbl \
+	'03' Oslo \
+	'11' Rogaland \
+	'15' 'Møre og Romsdal' \
+	'18' Nordland \
+	'31' Østfold \
+	'32' Akershus \
+	'33' Buskerud \
+	'34' Innlandet \
+	'39' Vestfold \
+	'40' Telemark \
+	'42' Agder \
+	'46' Vestland \
+	'50' Trøndelag \
+	'55' Troms \
+	'56' Finnmark
+assign-labels fylke fylkelbl
+
+// Kloner kommunevariabel og trekker ut storbyer fra den ene variabelen (resten plasseres i samlet kategori)
+clone-variables kommune -> storby
+replace storby = '9999' if !inlist(storby, '0301', '1103', '3201', '3301', '4204', '4601', '5001', '5501')
+recode storby ('9999' = '9999' 'Øvrige kommuner')
+
+textblock
+Kombinasjoner av fossil-, hybrid- og elbiler fordelt på fylker og storbyer
+endblock
+tabulate fylke bilkombinasjon, rowpct
+tabulate storby bilkombinasjon, rowpct

@@ -1,0 +1,48 @@
+// ===================================================================
+// Example: Hvordan lage populasjoner
+// Source: https://microdata.no/manual/eksempel/Grunnleggende%20operasjoner/Hvordan%20lage%20populasjoner/
+// ===================================================================
+// The analysis tool in microdata.no operates using the left-join principle. This means the first
+// variable created determines the population size. If you begin with a universal variable like
+// gender, your dataset will include the maximum possible individuals from the database, encompassing
+// deceased persons, emigrants, and those not yet born at your analysis time.
+//
+// Conversely, starting with a limited variable such as disability benefits means your dataset
+// contains only individuals in Norway who received those benefits at your measurement point.
+//
+// The initial variable sets an upper bound on population size (unless using the `outer_join`
+// option), so careful consideration of your first import is essential to capture all desired
+// individuals. However, you can reduce populations using commands like `drop if` or `keep if`.
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:23 as db
+
+// Eksempel 1: Populasjon = alle bosatte i Bergen per 1/1 2021
+create-dataset eks1
+import db/BEFOLKNING_KOMMNR_FAKTISK 2021-01-01 as bosted
+keep if bosted == '4601'
+
+// Eksempel 2: Populasjon = alle bosatte i Vestland per 1/1 2021
+create-dataset eks2
+import db/BEFOLKNING_KOMMNR_FAKTISK 2021-01-01 as bosted
+keep if substr(bosted, 1, 2) == '46'
+
+// Eksempel 3: Populasjon = alle med en yrkesinntekt i året 2021 (= alle med en årlig yrkesinntekt > 0 i 2021)
+create-dataset eks3
+import db/INNTEKT_WYRKINNT 2021-12-31 as yrkesinntekt
+
+// Eksempel 4: Når en begynner med en universell variabel men egentlig vil
+// analysere individer med gitte egenskaper på et gitt tidspunkt
+create-dataset eks4
+import db/BEFOLKNING_KJOENN as kjønn
+import db/INNTEKT_WYRKINNT 2021-12-31 as yrkesinntekt
+drop if sysmiss(yrkesinntekt)
+
+// Eksempel 5: Når en begynner med en universell variabel men egentlig vil analysere individer som faktisk var bosatt i
+// Norge på et gitt tidspunkt. Variabelen BEFOLKNING_STATUSKODE er egnet til dette formålet da den inneholder koder for
+// hhv. "bosatt", "død" og "emigrert". "Bosatt" har koden '1'.
+create-dataset eks5
+import db/BEFOLKNING_KJOENN as kjønn
+import db/BEFOLKNING_STATUSKODE 2021-01-01 as regstatus
+keep if regstatus == '1'

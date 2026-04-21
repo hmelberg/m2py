@@ -1,0 +1,23 @@
+// ===================================================================
+// Example: Konvertere fra alfanumerisk til numerisk verdiformat
+// Source: https://microdata.no/manual/eksempel/Grunnleggende%20operasjoner/Konvertere%20fra%20alfanumerisk%20til%20numerisk%20verdiformat/
+// ===================================================================
+// Some variables contain alphanumeric values (text), where quotation marks (single or double) are
+// used when referencing the values, such as "1" or "2". The `destring` command can be utilized to
+// convert such variables into numeric format (numerical values).
+//
+// The example below demonstrates converting the gender variable from alphanumeric to numeric
+// format. Note that the variable retains its original name following the operation. Only the value
+// format is modified.
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:23 as db
+
+create-dataset demografidata
+import db/BEFOLKNING_KJOENN as kjønn
+tabulate kjønn
+destring kjønn
+
+// Fremstiller enkel statistikk for den numeriske variabelen kjønn
+summarize kjønn

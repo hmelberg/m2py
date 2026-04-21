@@ -1,0 +1,40 @@
+// ===================================================================
+// Example: Logistisk regresjonsanalyse
+// Source: https://microdata.no/manual/eksempel/Regresjonsanalyser/Logistisk regresjonsanalyse/
+// ===================================================================
+// Logistiske regresjonsanalyser (logit/probit) brukes til å estimere hvilken effekt et sett
+// med forklaringsvariabler har på sannsynligheten for et gitt utfall gitt ved en dikotom
+// responsvariabel. Slike analyser gjelder binære utfall som sysselsettingsstatus eller
+// programdeltakelse. Analytikere kan tilpasse resultatene gjennom ulike opsjoner, bl.a.
+// fjerning av konstantledd og justering av signifikansnivå. Eksempelet bruker logit-metoden,
+// men probit er et alternativ, og multinomiske analyser for utfall med flere enn to
+// kategorier kan kjøres med mlogit-kommandoen.
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:33 as db
+
+// Starter med å lage en populasjon
+create-dataset demografidata
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+import db/BEFOLKNING_STATUSKODE 2020-01-01 as regstat
+generate alder = 2020 - int(faarmnd / 100)
+keep if regstat == '1' & inrange(alder,16,66)
+
+// Importerer relevante analysevariabler
+import db/BEFOLKNING_KJOENN as kjønn
+import db/SIVSTANDFDT_SIVSTAND 2020-01-01 as sivstand
+import db/INNTEKT_BRUTTOFORM 2020-01-01 as formue
+import db/INNTEKT_WYRKINNT 2021-01-01 as innt21
+
+// Lager en avhengig variabel med to utfall (dummyvariabel): Høy inntekt vs. lav inntekt
+generate høyinnt = innt21 > 800000
+
+// Tilrettelegger de uavhengige variablene slik at de passer med den statistiske modellen
+// (innebærer at de fleste variabler gjøres som til dummy'er)
+generate mann = kjønn == '1'
+generate gift = sivstand == '2'
+generate formuehøy = formue > 1500000
+
+// Kjører selve logit-analysen der den avhengige variabelen (må være dummy) listes først
+logit høyinnt mann gift alder formuehøy

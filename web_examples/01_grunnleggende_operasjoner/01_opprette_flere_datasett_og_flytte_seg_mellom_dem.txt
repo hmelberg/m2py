@@ -1,0 +1,28 @@
+// ===================================================================
+// Example: Opprette flere datasett og flytte seg mellom dem
+// Source: https://microdata.no/manual/eksempel/Grunnleggende%20operasjoner/Opprette%20flere%20datasett%20og%20flytte%20seg%20mellom%20dem/
+// ===================================================================
+// It is possible to create more than one dataset using the `create-dataset` command. All operations
+// are performed on the most recently created dataset, as the system automatically moves to newly
+// created datasets. To work on a previously created dataset, use the `use` command.
+//
+// The example shows how to establish a new dataset called datasett2, bring variables into it, and
+// then return to the initial dataset. The demografidata dataset will contain all individuals in the
+// database with a recorded gender, while datasett2 will only include individuals with a registered
+// marital status as of January 1, 2021. These datasets therefore have different populations.
+//
+// An important consideration: the first import step performed determines the population size for
+// that dataset, since the system adds new variables through a "left-join" principle. Care must be
+// taken not to begin by importing variables where only portions of the desired selection have values.
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:23 as db
+
+create-dataset demografidata
+import db/BEFOLKNING_KJOENN as kjønn
+
+create-dataset datasett2
+import db/SIVSTANDFDT_SIVSTAND 2021-01-01 as sivstand
+
+use demografidata

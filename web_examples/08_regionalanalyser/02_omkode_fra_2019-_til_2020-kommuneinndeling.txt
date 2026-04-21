@@ -1,0 +1,520 @@
+// ===================================================================
+// Example: Omkode fra 2019- til 2020-kommuneinndeling
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Regionalanalyser/Omkode%20fra%202019-%20til%202020-kommuneinndeling/
+// ===================================================================
+// Kommuneinndelingene endres hyppig i Norge, og spesielt ved årsskiftet til 2020 fikk de fleste
+// kommuner nye kommunenumre samtidig som fylkesinndelingen ble endret. Når man vil lage
+// konsistent regionalstatistikk over tid, blir slike endringer i kodene en utfordring.
+//
+// Analyseeksempelet foretar en omkoding av kommune- og fylkeskodene fra 2019-standard til
+// 2020-standard, slik at man kan lage konsistent statistikk over bosted før og etter 2020.
+// Pga. omfanget av endringene tar skriptet utgangspunkt i den innebygde funksjonaliteten for
+// automatiske omkodinger ved hjelp av opplasting av skilletegnseparerte filer
+// (korrespondansetabeller).
+// ===================================================================
+
+// Kobler til databank
+require no.ssb.fdb:30 as db
+
+// Importerer folkeregistrert bosted per 1/1 2019 og 2020 for alle med et permanent bosted i 1/1 2019
+create-dataset befolkning
+import db/BEFOLKNING_KOMMNR_FORMELL 2019-01-01 as kommune19
+import db/BEFOLKNING_KOMMNR_FORMELL 2020-01-01 as kommune20
+
+generate fylke19 = substr(kommune19,1,2)
+generate fylke20 = substr(kommune20,1,2)
+
+define-labels fylke19lbl \
+	'01' Østfold \
+	'02' Akershus \
+	'03' Oslo \
+	'04' Hedmark \
+	'05' Oppland \
+	'06' Buskerud \
+	'07' Vestfold \
+	'08' Telemark \
+	'09' 'Aust-Agder' \
+	'10' 'Vest-Agder' \
+	'11' Rogaland \
+	'12' Hordaland \
+	'14' 'Sogn og Fjordane' \
+	'15' 'Møre og Romsdal' \
+	'18' Nordland \
+	'19' Troms \
+	'20' Finnmark \
+	'50' Trøndelag
+
+define-labels fylke20lbl \
+	'03' Oslo \
+	'11' Rogaland \
+	'15' 'Møre og Romsdal' \
+	'18' Nordland \
+	'30' Viken \
+	'34' Innlandet \
+	'38' 'Vestfold og Telemark' \
+	'42' Agder \
+	'46' Vestland \
+	'50' Trøndelag \
+	'54' 'Troms og Finnmark'
+
+assign-labels fylke19 fylke19lbl
+assign-labels fylke20 fylke20lbl
+
+// Viser bostedkommuner og -fylker for hele befolkningen per 1/1 2019, og fylke per 1/1 2020
+tabulate kommune19, missing
+tabulate fylke19, missing
+tabulate fylke20, missing
+
+// Kopierer kommunevariabel for 2019 - denne konverteres så til numerisk verdi slik at vi kan kjøre en automatisk
+// omkoding fra 2019- til 2020-kommuneinndeling. Dette kan gjøres ved hjelp av det innebygde omkodingsverktøyet i microdata.no.
+clone-variables kommune19 -> kommune19_20standard
+destring kommune19_20standard, force
+
+// Generert recode fra kommuneendringer 2019-2020 med riktige formater.csv fr. 27. oktober 2023 11:50:07
+// Kommandoen må deles opp pga. lengden på argumentene
+recode kommune19_20standard \
+	 (0101 = 3001 'Halden') \
+	 (0104 = 3002 'Moss') \
+	 (0105 = 3003 'Sarpsborg') \
+	 (0106 = 3004 'Fredrikstad') \
+	 (0111 = 3011 'Hvaler') \
+	 (0118 = 3012 'Aremark') \
+	 (0119 = 3013 'Marker') \
+	 (0121 = 3026 'Aurskog-Høland') \
+	 (0122 = 3014 'Indre Østfold') \
+	 (0123 = 3014 'Indre Østfold') \
+	 (0124 = 3014 'Indre Østfold') \
+	 (0125 = 3014 'Indre Østfold') \
+	 (0127 = 3015 'Skiptvet') \
+	 (0128 = 3016 'Rakkestad') \
+	 (0135 = 3017 'Råde') \
+	 (0136 = 3002 'Moss') \
+	 (0137 = 3018 'Våler (Viken)') \
+	 (0138 = 3014 'Indre Østfold') \
+	 (0211 = 3019 'Vestby') \
+	 (0213 = 3020 'Nordre Follo') \
+	 (0214 = 3021 'Ås') \
+	 (0215 = 3022 'Frogn') \
+	 (0216 = 3023 'Nesodden') \
+	 (0217 = 3020 'Nordre Follo') \
+	 (0219 = 3024 'Bærum') \
+	 (0220 = 3025 'Asker') \
+	 (0221 = 3026 'Aurskog-Høland') \
+	 (0226 = 3030 'Lillestrøm') \
+	 (0227 = 3030 'Lillestrøm') \
+	 (0228 = 3027 'Rælingen') \
+	 (0229 = 3028 'Enebakk') \
+	 (0230 = 3029 'Lørenskog') \
+	 (0231 = 3030 'Lillestrøm') \
+	 (0233 = 3031 'Nittedal') \
+	 (0234 = 3032 'Gjerdrum') \
+	 (0235 = 3033 'Ullensaker') \
+	 (0236 = 3034 'Nes') \
+	 (0237 = 3035 'Eidsvoll') \
+	 (0238 = 3036 'Nannestad') \
+	 (0239 = 3037 'Hurdal') \
+	 (0301 = 0301 'Oslo') \
+	 (0402 = 3401 'Kongsvinger') \
+	 (0403 = 3403 'Hamar') \
+	 (0412 = 3411 'Ringsaker') \
+	 (0415 = 3412 'Løten') \
+	 (0417 = 3413 'Stange') \
+	 (0418 = 3414 'Nord-Odal') \
+	 (0419 = 3415 'Sør-Odal') \
+	 (0420 = 3416 'Eidskog') \
+	 (0423 = 3417 'Grue') \
+	 (0425 = 3418 'Åsnes') \
+	 (0426 = 3419 'Våler (Innlandet)') \
+	 (0427 = 3420 'Elverum') \
+	 (0428 = 3421 'Trysil') \
+	 (0429 = 3422 'Åmot') \
+	 (0430 = 3423 'Stor-Elvdal') \
+	 (0432 = 3424 'Rendalen') \
+	 (0434 = 3425 'Engerdal') \
+	 (0436 = 3426 'Tolga') \
+	 (0437 = 3427 'Tynset') \
+	 (0438 = 3428 'Alvdal') \
+	 (0439 = 3429 'Folldal') \
+	 (0441 = 3430 'Os (Innlandet)') \
+	 (0501 = 3405 'Lillehammer') \
+	 (0502 = 3407 'Gjøvik') \
+	 (0511 = 3431 'Dovre') \
+	 (0512 = 3432 'Lesja') \
+	 (0513 = 3433 'Skjåk') \
+	 (0514 = 3434 'Lom') \
+	 (0515 = 3435 'Vågå') \
+	 (0516 = 3436 'Nord-Fron') \
+	 (0517 = 3437 'Sel') \
+	 (0519 = 3438 'Sør-Fron') \
+	 (0520 = 3439 'Ringebu') \
+	 (0521 = 3440 'Øyer') \
+	 (0522 = 3441 'Gausdal') \
+	 (0528 = 3442 'Østre Toten') \
+	 (0529 = 3443 'Vestre Toten') \
+	 (0532 = 3053 'Jevnaker') \
+	 (0533 = 3054 'Lunner') \
+	 (0534 = 3446 'Gran') \
+	 (0536 = 3447 'Søndre Land') \
+	 (0538 = 3448 'Nordre Land') \
+	 (0540 = 3449 'Sør-Aurdal') \
+	 (0541 = 3450 'Etnedal') \
+	 (0542 = 3451 'Nord-Aurdal') \
+	 (0543 = 3452 'Vestre Slidre') \
+	 (0544 = 3453 'Øystre Slidre') \
+	 (0545 = 3454 'Vang') \
+	 (0602 = 3005 'Drammen') \
+	 (0604 = 3006 'Kongsberg') \
+	 (0605 = 3007 'Ringerike') \
+	 (0612 = 3038 'Hole') \
+	 (0615 = 3039 'Flå') \
+	 (0616 = 3040 'Nesbyen') \
+	 (0617 = 3041 'Gol') \
+	 (0618 = 3042 'Hemsedal') \
+	 (0619 = 3043 'Ål') \
+	 (0620 = 3044 'Hol') \
+	 (0621 = 3045 'Sigdal') \
+	 (0622 = 3046 'Krødsherad') \
+	 (0623 = 3047 'Modum') \
+	 (0624 = 3048 'Øvre Eiker') \
+	 (0625 = 3005 'Drammen') \
+	 (0626 = 3049 'Lier') \
+	 (0627 = 3025 'Asker') \
+	 (0628 = 3025 'Asker') \
+	 (0631 = 3050 'Flesberg') \
+	 (0632 = 3051 'Rollag') \
+	 (0633 = 3052 'Nore Og Uvdal') \
+	 (0701 = 3801 'Horten') \
+	 (0704 = 3803 'Tønsberg') \
+	 (0710 = 3804 'Sandefjord') \
+	 (0711 = 3005 'Drammen') \
+	 (0712 = 3805 'Larvik') \
+	 (0713 = 3802 'Holmestrand') \
+	 (0715 = 3802 'Holmestrand') \
+	 (0716 = 3803 'Tønsberg') \
+	 (0729 = 3811 'Færder') \
+	 (0805 = 3806 'Porsgrunn') \
+	 (0806 = 3807 'Skien') \
+	 (0807 = 3808 'Notodden') \
+	 (0811 = 3812 'Siljan') \
+	 (0814 = 3813 'Bamble') \
+	 (0815 = 3814 'Kragerø') \
+	 (0817 = 3815 'Drangedal') \
+	 (0819 = 3816 'Nome') \
+	 (0821 = 3817 'Midt-Telemark') \
+	 (0822 = 3817 'Midt-Telemark') \
+	 (0826 = 3818 'Tinn') \
+	 (0827 = 3819 'Hjartdal') \
+	 (0828 = 3820 'Seljord') \
+	 (0829 = 3821 'Kviteseid') \
+	 (0830 = 3822 'Nissedal') \
+	 (0831 = 3823 'Fyresdal') \
+	 (0833 = 3824 'Tokke') \
+	 (0834 = 3825 'Vinje') \
+	 (0901 = 4201 'Risør') \
+	 (0904 = 4202 'Grimstad') \
+	 (0906 = 4203 'Arendal') \
+	 (0911 = 4211 'Gjerstad') \
+	 (0912 = 4212 'Vegårshei') \
+	 (0914 = 4213 'Tvedestrand') \
+	 (0919 = 4214 'Froland') \
+	 (0926 = 4215 'Lillesand') \
+	 (0928 = 4216 'Birkenes') \
+	 (0929 = 4217 'Åmli') \
+	 (0935 = 4218 'Iveland') \
+	 (0937 = 4219 'Evje Og Hornnes') \
+	 (0938 = 4220 'Bygland') \
+	 (0940 = 4221 'Valle') \
+	 (0941 = 4222 'Bykle') \
+	 (1001 = 4204 'Kristiansand') \
+	 (1002 = 4205 'Lindesnes') \
+	 (1003 = 4206 'Farsund') \
+	 (1004 = 4207 'Flekkefjord') \
+	 (1014 = 4223 'Vennesla') \
+	 (1017 = 4204 'Kristiansand') \
+	 (1018 = 4204 'Kristiansand') \
+	 (1021 = 4205 'Lindesnes') \
+	 (1026 = 4224 'Åseral') \
+	 (1027 = 4225 'Lyngdal') \
+	 (1029 = 4205 'Lindesnes') \
+	 (1032 = 4225 'Lyngdal') \
+	 (1034 = 4226 'Hægebostad') \
+	 (1037 = 4227 'Kvinesdal') \
+	 (1046 = 4228 'Sirdal') \
+	 (1101 = 1101 'Eigersund') \
+	 (1102 = 1108 'Sandnes') \
+	 (1103 = 1103 'Stavanger') \
+	 (1106 = 1106 'Haugesund') \
+	 (1111 = 1111 'Sokndal') \
+	 (1112 = 1112 'Lund') \
+	 (1114 = 1114 'Bjerkreim') \
+	 (1119 = 1119 'Hå') \
+	 (1120 = 1120 'Klepp') \
+	 (1121 = 1121 'Time') \
+	 (1122 = 1122 'Gjesdal') \
+	 (1124 = 1124 'Sola') \
+	 (1127 = 1127 'Randaberg') \
+	 (1129 = 1108 'Sandnes') \
+	 (1130 = 1130 'Strand') \
+	 (1133 = 1133 'Hjelmeland') \
+	 (1134 = 1134 'Suldal') \
+	 (1135 = 1135 'Sauda') \
+	 (1141 = 1103 'Stavanger') \
+	 (1142 = 1103 'Stavanger') \
+	 (1144 = 1144 'Kvitsøy') \
+	 (1145 = 1145 'Bokn') \
+	 (1146 = 1146 'Tysvær') \
+	 (1149 = 1149 'Karmøy') \
+	 (1151 = 1151 'Utsira') \
+	 (1160 = 1160 'Vindafjord') \
+	 (1201 = 4601 'Bergen') \
+	 (1211 = 4611 'Etne') \
+	 (1216 = 4612 'Sveio') \
+	 (1219 = 4613 'Bømlo') \
+	 (1221 = 4614 'Stord') \
+	 (1222 = 4615 'Fitjar') \
+	 (1223 = 4616 'Tysnes') \
+	 (1224 = 4617 'Kvinnherad') \
+	 (1227 = 4618 'Ullensvang') \
+	 (1228 = 4618 'Ullensvang') \
+	 (1231 = 4618 'Ullensvang') \
+	 (1232 = 4619 'Eidfjord') \
+	 (1233 = 4620 'Ulvik') \
+	 (1234 = 4621 'Voss') \
+	 (1235 = 4621 'Voss') \
+	 (1238 = 4622 'Kvam') \
+	 (1241 = 4624 'Bjørnafjorden') \
+	 (1242 = 4623 'Samnanger') \
+	 (1243 = 4624 'Bjørnafjorden') \
+	 (1244 = 4625 'Austevoll') \
+	 (1245 = 4626 'Øygarden') \
+	 (1246 = 4626 'Øygarden') \
+	 (1247 = 4627 'Askøy') \
+	 (1251 = 4628 'Vaksdal') \
+	 (1252 = 4629 'Modalen') \
+	 (1253 = 4630 'Osterøy') \
+	 (1256 = 4631 'Alver') \
+	 (1259 = 4626 'Øygarden') \
+	 (1260 = 4631 'Alver') \
+	 (1263 = 4631 'Alver') \
+	 (1264 = 4632 'Austrheim') \
+	 (1265 = 4633 'Fedje') \
+	 (1266 = 4634 'Masfjorden') \
+	 (1401 = 4602 'Kinn') \
+	 (1411 = 4635 'Gulen') \
+	 (1412 = 4636 'Solund') \
+	 (1413 = 4637 'Hyllestad') \
+	 (1416 = 4638 'Høyanger') \
+	 (1417 = 4639 'Vik') \
+	 (1418 = 4640 'Sogndal') \
+	 (1419 = 4640 'Sogndal') \
+	 (1420 = 4640 'Sogndal') \
+	 (1421 = 4641 'Aurland') \
+	 (1422 = 4642 'Lærdal') \
+	 (1424 = 4643 'Årdal') \
+	 (1426 = 4644 'Luster') \
+	 (1428 = 4645 'Askvoll') \
+	 (1429 = 4646 'Fjaler') \
+	 (1430 = 4647 'Sunnfjord') \
+	 (1431 = 4647 'Sunnfjord') \
+	 (1432 = 4647 'Sunnfjord') \
+	 (1433 = 4647 'Sunnfjord') \
+	 (1438 = 4648 'Bremanger') \
+	 (1439 = 4602 'Kinn') \
+	 (1441 = 4649 'Stad') \
+	 (1443 = 4649 'Stad') \
+	 (1444 = 1577 'Volda') \
+	 (1445 = 4650 'Gloppen') \
+	 (1449 = 4651 'Stryn') \
+	 (1502 = 1506 'Molde') \
+	 (1504 = 1507 'Ålesund') \
+	 (1505 = 1505 'Kristiansund') \
+	 (1511 = 1511 'Vanylven') \
+	 (1514 = 1514 'Sande') \
+	 (1515 = 1515 'Herøy') \
+	 (1516 = 1516 'Ulstein') \
+	 (1517 = 1517 'Hareid') \
+	 (1519 = 1577 'Volda') \
+	 (1520 = 1520 'Ørsta') \
+	 (1523 = 1507 'Ålesund') \
+	 (1524 = 1578 'Fjord') \
+	 (1525 = 1525 'Stranda') \
+	 (1526 = 1578 'Fjord') \
+	 (1528 = 1528 'Sykkylven') \
+	 (1529 = 1507 'Ålesund') \
+	 (1531 = 1531 'Sula') \
+	 (1532 = 1532 'Giske') \
+	 (1534 = 1507 'Ålesund') \
+	 (1535 = 1535 'Vestnes') \
+	 (1539 = 1539 'Rauma') \
+	 (1543 = 1506 'Molde') \
+	 (1545 = 1506 'Molde') \
+	 (1546 = 1507 'Ålesund') \
+	 (1547 = 1547 'Aukra') \
+	 (1548 = 1579 'Hustadvika') \
+	 (1551 = 1579 'Hustadvika') \
+	 (1554 = 1554 'Averøy') \
+	 (1557 = 1557 'Gjemnes') \
+	 (1560 = 1560 'Tingvoll') \
+	 (1563 = 1563 'Sunndal') \
+	 (1566 = 1566 'Surnadal') \
+	 (1571 = 5055 'Heim') \
+	 (1573 = 1573 'Smøla') \
+	 (1576 = 1576 'Aure') \
+	 (1804 = 1804 'Bodø') \
+	 (1805 = 1806 'Narvik') \
+	 (1811 = 1811 'Bindal') \
+	 (1812 = 1812 'Sømna') \
+	 (1813 = 1813 'Brønnøy') \
+	 (1815 = 1815 'Vega') \
+	 (1816 = 1816 'Vevelstad') \
+	 (1818 = 1818 'Herøy') \
+	 (1820 = 1820 'Alstahaug') \
+	 (1822 = 1822 'Leirfjord') \
+	 (1824 = 1824 'Vefsn') \
+	 (1825 = 1825 'Grane') \
+	 (1826 = 1826 'Hattfjelldal') \
+	 (1827 = 1827 'Dønna') \
+	 (1828 = 1828 'Nesna') \
+	 (1832 = 1832 'Hemnes') \
+	 (1833 = 1833 'Rana') \
+	 (1834 = 1834 'Lurøy') \
+	 (1835 = 1835 'Træna') \
+	 (1836 = 1836 'Rødøy') \
+	 (1837 = 1837 'Meløy') \
+	 (1838 = 1838 'Gildeskål') \
+	 (1839 = 1839 'Beiarn') \
+	 (1840 = 1840 'Saltdal') \
+	 (1841 = 1841 'Fauske') \
+	 (1845 = 1845 'Sørfold') \
+	 (1848 = 1848 'Steigen') \
+	 (1849 = 1875 'Hamarøy') \
+	 (1850 = 1806 'Narvik') \
+	 (1850 = 1875 'Hamarøy') \
+	 (1851 = 1851 'Lødingen') \
+	 (1852 = 5412 'Tjeldsund') \
+	 (1853 = 1853 'Evenes') \
+	 (1854 = 1806 'Narvik') \
+	 (1856 = 1856 'Røst') \
+	 (1857 = 1857 'Værøy') \
+	 (1859 = 1859 'Flakstad') \
+	 (1860 = 1860 'Vestvågøy') \
+	 (1865 = 1865 'Vågan') \
+	 (1866 = 1866 'Hadsel') \
+	 (1867 = 1867 'Bø') \
+	 (1868 = 1868 'Øksnes') \
+	 (1870 = 1870 'Sortland') \
+	 (1871 = 1871 'Andøy') \
+	 (1874 = 1874 'Moskenes') \
+	 (1902 = 5401 'Tromsø') \
+	 (1903 = 5402 'Harstad') \
+	 (1911 = 5411 'Kvæfjord') \
+	 (1913 = 5412 'Tjeldsund') \
+	 (1917 = 5413 'Ibestad') \
+	 (1919 = 5414 'Gratangen') \
+	 (1920 = 5415 'Lavangen') \
+	 (1922 = 5416 'Bardu') \
+	 (1923 = 5417 'Salangen') \
+	 (1924 = 5418 'Målselv') \
+	 (1925 = 5419 'Sørreisa') \
+	 (1926 = 5420 'Dyrøy') \
+	 (1927 = 5421 'Senja') \
+	 (1928 = 5421 'Senja') \
+	 (1929 = 5421 'Senja') \
+	 (1931 = 5421 'Senja') \
+	 (1933 = 5422 'Balsfjord') \
+	 (1936 = 5423 'Karlsøy') \
+	 (1938 = 5424 'Lyngen') \
+	 (1939 = 5425 'Storfjord') \
+	 (1940 = 5426 'Kåfjord') \
+	 (1941 = 5427 'Skjervøy') \
+	 (1942 = 5428 'Nordreisa') \
+	 (1943 = 5429 'Kvænangen') \
+	 (2002 = 5404 'Vardø') \
+	 (2003 = 5405 'Vadsø') \
+	 (2004 = 5406 'Hammerfest') \
+	 (2011 = 5430 'Kautokeino') \
+	 (2012 = 5403 'Alta') \
+	 (2014 = 5432 'Loppa') \
+	 (2015 = 5433 'Hasvik') \
+	 (2017 = 5406 'Hammerfest') \
+	 (2018 = 5434 'Måsøy') \
+	 (2019 = 5435 'Nordkapp') \
+	 (2020 = 5436 'Porsanger') \
+	 (2021 = 5437 'Karasjok') \
+	 (2022 = 5438 'Lebesby') \
+	 (2023 = 5439 'Gamvik') \
+	 (2024 = 5440 'Berlevåg') \
+	 (2025 = 5441 'Tana') \
+	 (2027 = 5442 'Nesseby') \
+	 (2028 = 5443 'Båtsfjord') \
+	 (2030 = 5444 'Sør-Varanger') \
+	 (5001 = 5001 'Trondheim') \
+	 (5004 = 5006 'Steinkjer') \
+	 (5005 = 5007 'Namsos') \
+	 (5011 = 5055 'Heim') \
+	 (5012 = 5055 'Heim') \
+	 (5012 = 5056 'Hitra') \
+	 (5012 = 5059 'Orkland') \
+	 (5013 = 5056 'Hitra') \
+	 (5014 = 5014 'Frøya') \
+	 (5015 = 5057 'Ørland') \
+	 (5016 = 5059 'Orkland') \
+	 (5017 = 5057 'Ørland') \
+	 (5018 = 5058 'Åfjord') \
+	 (5019 = 5058 'Åfjord') \
+	 (5020 = 5020 'Osen') \
+	 (5021 = 5021 'Oppdal') \
+	 (5022 = 5022 'Rennebu') \
+	 (5023 = 5059 'Orkland') \
+	 (5024 = 5059 'Orkland') \
+	 (5025 = 5025 'Røros') \
+	 (5026 = 5026 'Holtålen') \
+	 (5027 = 5027 'Midtre Gauldal') \
+	 (5028 = 5028 'Melhus') \
+	 (5029 = 5029 'Skaun') \
+	 (5030 = 5001 'Trondheim') \
+	 (5031 = 5031 'Malvik') \
+	 (5032 = 5032 'Selbu') \
+	 (5033 = 5033 'Tydal') \
+	 (5034 = 5034 'Meråker') \
+	 (5035 = 5035 'Stjørdal') \
+	 (5036 = 5036 'Frosta') \
+	 (5037 = 5037 'Levanger') \
+	 (5038 = 5038 'Verdal') \
+	 (5039 = 5006 'Steinkjer') \
+	 (5040 = 5007 'Namsos') \
+	 (5041 = 5041 'Snåsa') \
+	 (5042 = 5042 'Lierne') \
+	 (5043 = 5043 'Røyrvik') \
+	 (5044 = 5044 'Namsskogan') \
+	 (5045 = 5045 'Grong') \
+	 (5046 = 5046 'Høylandet') \
+	 (5047 = 5047 'Overhalla') \
+	 (5048 = 5007 'Namsos') \
+	 (5049 = 5049 'Flatanger') \
+	 (5050 = 5060 'Nærøysund') \
+	 (5051 = 5060 'Nærøysund') \
+	 (5052 = 5052 'Leka') \
+	 (5053 = 5053 'Inderøy') \
+	 (5054 = 5054 'Indre Fosen') \
+	 (5061 = 5061 'Rindal')
+
+// Kjører en tabell for å se om omkodingen til 2020-kommuneinndeling ser riktig ut
+tabulate kommune19_20standard, missing
+
+// Lager fylkeskoder for bosattkommuner per 1/1 2019 som matcher kommunestandarden for 2020
+generate fylke19_20standard = substr(string(kommune19_20standard),1,2)
+replace fylke19_20standard = '03' if kommune19_20standard == 301
+
+assign-labels fylke19_20standard fylke20lbl
+
+// Kontrollerer at omkodingen har gått riktig for seg:
+
+// Oversikt over bostedsfylker per 1/1 2019 med omkodet inndeling i tråd med 2020-kommuneinndeling
+tabulate fylke19_20standard
+
+// Oversikt over bostedsfylker per 1/1 2019 med omkodet inndeling krysset mot bostedsfylker målt per 1/1 2020 (viser tall for bostedsfylker som er konsistente over de to årene -> kan følge flyttemønster mellom fylker fra 2019 til 2020)
+tabulate fylke19_20standard fylke20
+
+// Oversikt over bostedsfylker per 1/1 2019 med omkodet inndeling krysset mot bostedsfylker kodet etter gjeldende 2019-kommuneinndeling (viser en slags overgangsmatrise)
+tabulate fylke19_20standard fylke19

@@ -1,0 +1,42 @@
+// Eksempel 2.12: Restrukturere fra tverrsnitts- til paneldata (wide til long)
+require no.ssb.fdb:17 as db
+
+// Lager først et vanlig wide-datasett bestående av et 1% utvalg av alle bosatte per 1/1 2018
+create-dataset wide
+import db/BEFOLKNING_STATUSKODE 2018-01-01 as regstat18
+keep if regstat18 == '1'
+sample 0.01 333
+import db/BEFOLKNING_STATUSKODE 2019-01-01 as regstat19
+import db/BEFOLKNING_STATUSKODE 2020-01-01 as regstat20
+import db/SIVSTANDFDT_SIVSTAND 2018-01-01 as sivstand18
+import db/SIVSTANDFDT_SIVSTAND 2019-01-01 as sivstand19
+import db/SIVSTANDFDT_SIVSTAND 2020-01-01 as sivstand20
+import db/BEFOLKNING_KJOENN as kjonn
+import db/INNTEKT_WLONN 2018-01-01 as lonn18
+import db/INNTEKT_WLONN 2019-01-01 as lonn19
+import db/INNTEKT_WLONN 2020-01-01 as lonn20
+
+// Kjører litt opptellinger og statistikk
+tabulate regstat18, missing
+tabulate regstat19, missing
+tabulate regstat20, missing
+tabulate sivstand18, missing
+tabulate sivstand19, missing
+tabulate sivstand20, missing
+tabulate kjonn, missing
+
+summarize lonn18 lonn19 lonn20
+
+// Konverterer til long-format (paneldata)
+reshape-to-panel regstat sivstand lonn
+
+// Tester om det er samsvar med opptellingene på wide-datasettet
+tabulate-panel regstat, missing
+tabulate-panel sivstand, missing
+tabulate-panel regstat sivstand, missing
+
+tabulate-panel kjonn, missing
+tabulate-panel regstat kjonn, missing
+tabulate-panel sivstand kjonn, missing
+
+summarize-panel lonn

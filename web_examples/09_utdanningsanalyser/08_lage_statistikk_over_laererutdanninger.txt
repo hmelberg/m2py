@@ -1,0 +1,58 @@
+// ===================================================================
+// Example: Lage statistikk over lærerutdanninger
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Utdanningsanalyser/Lage%20statistikk%20over%20l%C3%A6rerutdanninger/
+// ===================================================================
+// Dette eksempelet viser hvordan man kan finne personer som jobber som lærere, og lage en
+// oversikt over hvilken type utdanning de har (høyeste fullførte utdanning).
+// ===================================================================
+
+require no.ssb.fdb:40 as db
+
+// Lager populasjon av personer i alderen 22-62 som jobber i et læreryrke i nov-2023
+create-dataset lærere
+import db/REGSYS_ARB_YRKE_STYRK08 2023-11-16 as yrke
+keep if substr(yrke,1,2) == '23'
+
+textblock
+Antall sysselsatte i læreryrker i nov-2023
+endblock
+tabulate yrke
+
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
+generate alder = 2023 - int(faarmnd / 100)
+keep if inrange(alder,22,62)
+
+
+// Lager oversikt over utdanningstype (høyeste fullførte utdanning) for læreryrker
+import db/NUDB_BU 2023-08-01 as utdanning
+textblock
+Utdanningstyper for lærere i alderen 22-62 i nov-2023
+endblock
+tabulate utdanning
+
+textblock
+Topp 20 utdanninger for lærere i alderen 22-62 i nov-2023 (sortert i stigende (motsatt) rekkefølge)
+endblock
+tabulate utdanning, rowsort() bottom(20)
+
+textblock
+Topp 20 utdanninger for grunnskolelærere i alderen 22-62 i nov-2023 (sortert i stigende (motsatt) rekkefølge).
+
+Viser firesifret NUS-kodeinndeling for å unngå for mange koder med få observasjoner
+endblock
+generate utdanning4 = substr(utdanning,1,4)
+tabulate utdanning4 if yrke == '2341', rowsort() bottom(20)
+
+textblock
+Topp 20 utdanninger for lektorer mv. (videregående skole) i alderen 22-62 i nov-2023 (sortert i stigende (motsatt) rekkefølge).
+
+Viser firesifret NUS-kodeinndeling for å unngå for mange koder med få observasjoner
+endblock
+tabulate utdanning4 if yrke == '2330', rowsort() bottom(20)
+
+textblock
+Topp 20 utdanninger for universitets- og høyskolelektorer/-lærere i alderen 22-62 i nov-2023 (sortert i stigende (motsatt) rekkefølge).
+
+Viser firesifret NUS-kodeinndeling for å unngå for mange koder med få observasjoner
+endblock
+tabulate utdanning4 if yrke == '2310', rowsort() bottom(20)

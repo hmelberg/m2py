@@ -1,0 +1,66 @@
+// ===================================================================
+// Example: Lage statistikk over eierskifte
+// Source: https://microdata.no/manual/eksempel/Tema%20-%20Kj%C3%B8ret%C3%B8yanalyser/Lage%20statistikk%20over%20eierskifte/
+// ===================================================================
+// The script demonstrates how to create statistics on the number of vehicle ownership transfers
+// (personbiler) within a year.
+//
+// Since analyses cannot be run on pseudonymized identifier variables like KJORETOY_KJORETOYID_FNR,
+// the approach involves creating a pseudo-personal identifier by multiplying a set of relatively
+// unique personal attributes. The example combines birth date, calculated gross wealth,
+// six-digit education code for highest completed education, and municipality of residence.
+// Multiplying these four numeric variables produces a value intended to be unique across
+// virtually all individuals.
+//
+// The final step links these pseudo-personal identifiers to the vehicle dataset through owner
+// information (KJORETOY_KJORETOYID_FNR) for two different years. When owner identifiers match
+// across years, ownership remains unchanged. When the identifier has a missing value in the
+// later year, vehicle ownership has transferred. The vehicle identifier itself combines
+// registration number and owner's personal number, so ownership changes invalidate the previous
+// identifier value.
+// ===================================================================
+
+require no.ssb.fdb:41 as ds
+
+//Oppretter personbildatasett med eierinfo i 2022 og 2023
+create-dataset biler
+import ds/KJORETOY_KJORETOYID_FNR 2022-12-31 as eier22
+import ds/KJORETOY_KJORETOYID_FNR 2023-12-31 as eier23
+import ds/KJORETOY_KJT_GRUP 2022-12-31 as klasse
+keep if klasse == '101' // Behold kun personbiler
+
+
+//Oppretter persondatasett (totalpopulasjon) for å lage pseudo-personid
+create-dataset totalpopulasjon
+import ds/BEFOLKNING_FOEDSELS_AAR_MND as fdato
+import ds/INNTEKT_BER_BRFORM 2022-12-31 as formue
+import ds/NUDB_BU 2022-12-31 as utd
+import ds/BOSATTEFDT_BOSTED 2022-12-31 as kommune
+destring utd kommune
+
+//Lager en pseudo-personid vha. de unike variablene fødselsdato, formue, høyeste fullførte utdanning og bostedskommune, og kobler på biler-datasettet for årene 2022 og 2023
+for i in formue utd kommune
+  replace $i = 1 if sysmiss($i)
+end
+
+generate pseudoid22 = fdato * formue * utd * kommune
+clone-variables pseudoid22 -> pseudoid23
+
+merge pseudoid22 into biler on eier22
+merge pseudoid23 into biler on eier23
+
+
+//Bruker opplysningene til å finne biler som skiftet eier i 2023
+use biler
+drop if sysmiss(pseudoid22) // Fjern om bilen ikke hadde eieropplysninger ved utgangen av 2022
+
+generate eierskifte23 = 0 if pseudoid22 == pseudoid23
+replace eierskifte23 = 1 if sysmiss(pseudoid23)
+
+define-labels skiftetlbl 0 'Samme eier' 1 'Eierskifte'
+assign-labels eierskifte23 skiftetlbl
+
+textblock
+Antall eierskifter av personbiler i løpet av 2023
+endblock
+tabulate eierskifte23, missing

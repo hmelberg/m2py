@@ -1,0 +1,257 @@
+{
+  "type": "register",
+  "data_type": "string",
+  "microdata_datatype": "Alfanumerisk",
+  "description": "Virksomhetens hovednæring Enhetstype: Person. Temporalitet: Tverrsnitt. Gyldighetsperiode: 2015-11-16 – 2019-11-16.",
+  "short_title": "Virksomhetens hovednæring",
+  "temporalitet": "Tverrsnitt",
+  "enhetstype": "Person",
+  "updated_at": "2020-10-29",
+  "databank": "no.ssb.fdb",
+  "topics": [
+    "Arbeid og lønn → Sysselsetting → Virksomheter og foretak"
+  ],
+  "keywords": [
+    "hovednæring",
+    "virksomhetens"
+  ],
+  "labels": {
+    "00.000": "Uoppgitt",
+    "01.000": "Jordbruk og tjenester tilknyttet jordbruk, jakt og viltstell, ufordelt",
+    "01.110": "Dyrking av korn (unntatt ris), belgvekster og oljeholdige vekster",
+    "01.130": "Dyrking av grønnsaker, meloner, rot- og knollvekster",
+    "01.210": "Dyrking av druer",
+    "01.230": "Dyrking av sitrusfrukter",
+    "01.250": "Dyrking av annen frukt som vokser på trær eller busker samt nøtter",
+    "01.410": "Melkeproduksjon på storfe",
+    "01.451": "Sauehold",
+    "01.460": "Svinehold",
+    "01.471": "Hold av verpehøner for konsumeggproduksjon",
+    "01.500": "Kombinert husdyrhold og planteproduksjon",
+    "01.610": "Tjenester tilknyttet planteproduksjon",
+    "01.700": "Jakt, viltstell og tjenester tilknyttet jakt og viltstell",
+
+    "02.000": "Skogbruk og tjenester tilknyttet skogbruk, ufordelt",
+    "02.200": "Avvirkning",
+
+    "03.000": "Fiske, fangst og akvakultur, ufordelt",
+    "03.111": "Hav- og kystfiske",
+    "03.120": "Ferskvannsfiske",
+    "03.211": "Produksjon i hav- og kystbasert akvakultur",
+    "03.221": "Produksjon i ferskvannsbasert akvakultur",
+
+    "10.110": "Bearbeiding og konservering av kjøtt",
+    "10.310": "Bearbeiding og konservering av poteter",
+    "10.510": "Produksjon av meierivarer",
+    "10.710": "Produksjon av brød og ferske konditorvarer",
+    "10.810": "Produksjon av sukker",
+    "10.820": "Produksjon av kakao, sjokolade og sukkervarer",
+    "10.910": "Produksjon av fôrvarer til husdyrhold",
+
+    "19.200": "Produksjon av raffinerte petroleumsprodukter",
+
+    "20.140": "Produksjon av andre organiske kjemiske råvarer",
+    "20.150": "Produksjon av gjødsel, nitrogenforbindelser og vekstjord",
+
+    "23.510": "Produksjon av sement",
+    "23.610": "Produksjon av betongprodukter for bygge- og anleggsvirksomhet",
+
+    "24.101": "Produksjon av jern og stål",
+    "24.421": "Produksjon av primæraluminium",
+
+    "25.110": "Produksjon av metallkonstruksjoner og deler",
+
+    "26.200": "Produksjon av datamaskiner og tilleggsutstyr",
+    "26.300": "Produksjon av kommunikasjonsutstyr",
+
+    "27.110": "Produksjon av elektromotorer, generatorer og transformatorer",
+
+    "28.300": "Produksjon av jordbruks- og skogbruksmaskiner",
+    "28.920": "Produksjon av maskiner og utstyr til bergverksdrift og bygge- og anleggsvirksomhet",
+
+    "29.100": "Produksjon av motorvogner",
+    "30.111": "Bygging av skip og skrog over 100 br.tonn",
+
+    "35.111": "Produksjon av elektrisitet fra vannkraft",
+    "35.119": "Produksjon av elektrisitet ellers",
+    "35.130": "Distribusjon av elektrisitet",
+
+    "36.000": "Uttak fra kilde, rensing og distribusjon av vann",
+    "37.000": "Oppsamling og behandling av avløpsvann",
+    "38.110": "Innsamling av ikke-farlig avfall",
+    "38.320": "Sortering og bearbeiding av avfall for materialgjenvinning",
+    "39.000": "Miljørydding, miljørensing og lignende virksomhet",
+
+    "41.200": "Oppføring av bygninger",
+    "42.110": "Bygging av veier og motorveier",
+    "42.210": "Bygging av vann- og kloakkanlegg",
+    "43.120": "Grunnarbeid",
+    "43.210": "Elektrisk installasjonsarbeid",
+
+    "45.200": "Vedlikehold og reparasjon av motorvogner, unntatt motorsykler",
+
+    "46.390": "Engroshandel med bredt utvalg av nærings- og nytelsesmidler",
+    "46.740": "Engroshandel med jernvarer, rørleggerartikler og oppvarmingsutstyr",
+    "46.900": "Uspesifisert engroshandel",
+
+    "47.111": "Butikkhandel med bredt vareutvalg med hovedvekt på nærings- og nytelsesmidler",
+    "47.190": "Butikkhandel med bredt vareutvalg ellers",
+    "47.410": "Butikkhandel med datamaskiner og utstyr til datamaskiner",
+    "47.910": "Postordre-/Internetthandel med bredt vareutvalg",
+
+    "49.410": "Godstransport på vei",
+    "49.500": "Rørtransport",
+
+    "50.201": "Utenriks sjøfart med gods",
+    "51.100": "Lufttransport med passasjerer",
+
+    "52.100": "Lagring",
+    "52.240": "Lasting og lossing",
+
+    "53.100": "Landsdekkende posttjenester",
+    "53.200": "Andre post- og budtjenester",
+
+    "55.101": "Drift av hoteller, pensjonater og moteller med restaurant",
+    "55.300": "Drift av campingplasser",
+    "56.101": "Drift av restauranter og kafeer",
+    "56.210": "Cateringvirksomhet",
+
+    "58.130": "Utgivelse av aviser",
+    "58.210": "Utgivelse av programvare for dataspill",
+
+    "59.110": "Produksjon av film, video og fjernsynsprogrammer",
+    "60.200": "Fjernsynskringkasting",
+
+    "61.100": "Kabelbasert telekommunikasjon",
+    "61.200": "Trådløs telekommunikasjon",
+
+    "62.010": "Programmeringstjenester",
+    "62.020": "Konsulentvirksomhet tilknyttet informasjonsteknologi",
+    "63.110": "Databehandling, datalagring og tilknyttede tjenester",
+
+    "64.190": "Bankvirksomhet ellers",
+    "64.920": "Annen kredittgivning",
+
+    "65.120": "Skadeforsikring",
+
+    "66.120": "Verdipapirmegling",
+    "66.220": "Forsikringsformidling",
+
+    "68.100": "Kjøp og salg av egen fast eiendom",
+    "68.209": "Utleie av egen eller leid fast eiendom ellers",
+    "68.310": "Eiendomsmegling",
+
+    "69.100": "Juridisk tjenesteyting",
+    "69.202": "Revisjon",
+
+    "70.210": "PR og kommunikasjonstjenester",
+    "70.220": "Bedriftsrådgivning og annen administrativ rådgivning",
+
+    "71.112": "Arkitekttjenester vedrørende byggverk",
+    "71.121": "Byggeteknisk konsulentvirksomhet",
+
+    "72.190": "Annen forskning og annet utviklingsarbeid innen naturvitenskap og teknikk",
+
+    "73.110": "Reklamebyråer",
+    "73.200": "Markeds- og opinionsundersøkelser",
+
+    "74.200": "Fotografvirksomhet",
+
+    "75.000": "Veterinærtjenester",
+
+    "77.110": "Utleie og leasing av biler og andre lette motorvogner",
+    "77.320": "Utleie og leasing av bygge- og anleggsmaskiner og -utstyr",
+
+    "78.200": "Utleie av arbeidskraft",
+
+    "79.110": "Reisebyråvirksomhet",
+
+    "80.100": "Private vakttjenester",
+
+    "81.210": "Rengjøring av bygninger",
+
+    "82.300": "Kongress-, messe- og utstillingsvirksomhet",
+
+    "84.110": "Generell offentlig administrasjon",
+
+    "85.201": "Ordinær grunnskoleundervisning",
+    "85.310": "Videregående opplæring innen allmennfaglige studieretninger",
+    "85.421": "Undervisning ved universiteter",
+
+    "86.211": "Allmenn legetjeneste",
+    "86.230": "Tannhelsetjenester",
+    "86.901": "Hjemmesykepleie",
+
+    "87.302": "Bofellesskap for eldre og funksjonshemmede med fast tilknyttet personell hele døgnet",
+
+    "88.101": "Hjemmehjelp",
+    "88.911": "Barnehager",
+
+    "90.011": "Utøvende kunstnere og underholdningsvirksomhet innen musikk",
+
+    "91.022": "Drift av kulturhistoriske museer",
+
+    "93.110": "Drift av idrettsanlegg",
+    "93.130": "Treningssentre",
+
+    "94.200": "Arbeidstakerorganisasjoner",
+
+    "95.220": "Reparasjon av husholdningsvarer og hageredskaper",
+
+    "96.020": "Frisering og annen skjønnhetspleie",
+
+    "99.000": "Internasjonale organisasjoner og organer"
+  },
+  "distribution": {
+    "47.111": 0.08,
+    "47.190": 0.04,
+    "46.390": 0.04,
+    "46.900": 0.03,
+    "62.010": 0.06,
+    "62.020": 0.04,
+    "63.110": 0.02,
+    "64.190": 0.03,
+    "70.220": 0.02,
+    "69.100": 0.02,
+    "69.202": 0.01,
+    "41.200": 0.03,
+    "42.110": 0.02,
+    "43.120": 0.03,
+    "43.210": 0.02,
+    "49.410": 0.03,
+    "49.500": 0.01,
+    "55.101": 0.02,
+    "56.101": 0.03,
+    "56.210": 0.01,
+    "86.211": 0.03,
+    "86.230": 0.01,
+    "86.901": 0.02,
+    "88.911": 0.03,
+    "85.201": 0.02,
+    "85.310": 0.02,
+    "85.421": 0.02,
+    "10.710": 0.02,
+    "10.820": 0.01,
+    "16.100": 0.01,
+    "23.610": 0.01,
+    "24.101": 0.01,
+    "24.421": 0.01,
+    "25.110": 0.01,
+    "28.300": 0.01,
+    "29.100": 0.01,
+    "30.111": 0.005,
+    "35.111": 0.01,
+    "35.130": 0.01,
+    "36.000": 0.01,
+    "38.110": 0.01,
+    "38.320": 0.005,
+    "39.000": 0.005,
+    "77.110": 0.01,
+    "77.320": 0.005,
+    "78.200": 0.01,
+    "93.130": 0.01,
+    "96.020": 0.01,
+    "00.000": 0.01
+  }
+}
+
