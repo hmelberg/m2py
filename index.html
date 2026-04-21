@@ -683,7 +683,7 @@
 
     .ai-sidebar {
       position: fixed; right: 0; top: 44px; bottom: 36px; z-index: 86;
-      width: 440px; background: var(--sidebar-bg);
+      width: 520px; background: var(--sidebar-bg);
       border-left: 1px solid var(--border);
       display: flex; flex-direction: column;
       transform: translateX(100%); transition: transform 0.22s ease;
@@ -691,7 +691,7 @@
       box-shadow: -2px 0 12px rgba(0,0,0,0.08);
     }
     .ai-sidebar.open { transform: translateX(0); }
-    .container.ai-open { margin-right: 440px; transition: margin-right 0.22s ease; }
+    .container.ai-open { margin-right: 520px; transition: margin-right 0.22s ease; }
 
     .ai-sidebar .ai-header {
       flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
@@ -6699,8 +6699,10 @@ def _run_microdata_chunk(_code):
           if (dom.sidebarRight && !dom.sidebarRight.classList.contains('collapsed')) {
             dom.sidebarRight.classList.add('collapsed');
             dom.containers.forEach(c => c.classList.remove('sidebar-open'));
-            if (dom.sidebarOpenTab) dom.sidebarOpenTab.style.display = '';
           }
+          // Always make sure the Datasett open-tab is reachable; the original
+          // code uses a `.hidden` class to hide it while Datasett is open.
+          if (dom.sidebarOpenTab) dom.sidebarOpenTab.classList.remove('hidden');
           dom.aiSidebar.classList.add('open');
           dom.aiSidebar.setAttribute('aria-hidden', 'false');
           dom.containers.forEach(c => c.classList.add('ai-open'));
@@ -6712,6 +6714,10 @@ def _run_microdata_chunk(_code):
           dom.aiSidebar.setAttribute('aria-hidden', 'true');
           dom.containers.forEach(c => c.classList.remove('ai-open'));
           dom.aiToggleBtn.classList.remove('active');
+          // Make sure the Datasett tab is reachable after the AI panel goes away.
+          if (dom.sidebarOpenTab && dom.sidebarRight && dom.sidebarRight.classList.contains('collapsed')) {
+            dom.sidebarOpenTab.classList.remove('hidden');
+          }
         }
       }
       function toggleOpen() { setOpen(!dom.aiSidebar.classList.contains('open')); }
