@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>py2m — Python to microdata</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    /* ── Theme variables ─────────────────────────────────────────────────── */
+    body[data-theme="light"] {
+      --bg: #f5f2eb; --bg-panel: #fff; --bg-code: #faf8f5;
+      --text: #1a1b26; --text-muted: #565f89; --accent: #2563eb;
+      --border: #e4e2dd; --topbar-bg: #e8e6e1;
+    }
+    body[data-theme="dark"] {
+      --bg: #1a1b26; --bg-panel: #24283b; --bg-code: #16161e;
+      --text: #c0caf5; --text-muted: #737aa2; --accent: #7aa2f7;
+      --border: #334155; --topbar-bg: #24283b;
+    }
+    body { background: var(--bg); color: var(--text); }
+
+    /* ── Top bar ─────────────────────────────────────────────────────────── */
+    .topbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      height: 44px; display: flex; align-items: center; gap: 8px;
+      padding: 0 12px; background: var(--topbar-bg);
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .topbar-title { font-weight: 600; font-size: 15px; flex: 1; white-space: nowrap; }
+    .icon-btn {
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; padding: 6px 8px; font-size: 18px;
+      line-height: 1; border-radius: 4px;
+    }
+    .icon-btn:hover { color: var(--accent); }
+
+    /* ── Hamburger dropdown ──────────────────────────────────────────────── */
+    .dropdown-wrap { position: relative; }
+    .dropdown {
+      display: none; position: absolute; top: 100%; left: 0; margin-top: 4px;
+      z-index: 200; background: var(--bg-panel); border: 1px solid var(--border);
+      border-radius: 6px; padding: 4px 0; min-width: 200px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+    }
+    .dropdown.open { display: block; }
+    .dropdown button {
+      display: block; width: 100%; text-align: left; padding: 9px 14px;
+      border: none; background: none; color: var(--text); cursor: pointer; font-size: 14px;
+    }
+    .dropdown button:hover { background: var(--border); }
+    .dropdown hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+    .dropdown-section-title {
+      font-size: 11px; text-transform: uppercase; color: var(--text-muted);
+      padding: 6px 14px 2px;
+    }
+
+    /* ── Buttons ─────────────────────────────────────────────────────────── */
+    .btn {
+      padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer;
+      font-weight: 600; font-size: 14px;
+      display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { opacity: 0.88; }
+    .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; background: var(--text-muted); }
+    .btn-secondary { background: var(--border); color: var(--text); }
+    .btn-secondary:hover:not(:disabled) { opacity: 0.85; }
+    .btn-secondary:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-run--running { background: #dc2626 !important; color: #fff !important; opacity: 1 !important; }
+    .btn-run--running:hover { background: #b91c1c !important; }
+
+    /* ── Main layout ─────────────────────────────────────────────────────── */
+    .app-body {
+      flex: 1; min-height: 0; display: flex;
+      margin-top: 44px; margin-bottom: 30px; overflow: hidden;
+    }
+    .container { display: flex; flex: 1; min-width: 0; overflow: hidden; }
+
+    /* ── Panels ──────────────────────────────────────────────────────────── */
+    .panel { display: flex; flex-direction: column; min-width: 80px; min-height: 0; }
+    .panel-left { flex: 0 0 50%; border-right: 1px solid var(--border); }
+    .panel-right { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+    /* ── Resizer ─────────────────────────────────────────────────────────── */
+    .resizer {
+      width: 6px; flex-shrink: 0; background: transparent;
+      cursor: col-resize; transition: background 0.15s;
+    }
+    .resizer:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+
+    /* ── Panel toolbars ──────────────────────────────────────────────────── */
+    .panel-toolbar {
+      display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+      background: var(--topbar-bg); border-bottom: 1px solid var(--border);
+      flex-shrink: 0; font-size: 12px; font-weight: 600;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .panel-toolbar-label { flex: 1; }
+    .panel-toolbar .small-btn {
+      font-size: 12px; padding: 3px 9px; font-weight: 500;
+      background: var(--border); border: none; border-radius: 4px;
+      color: var(--text); cursor: pointer; text-transform: none; letter-spacing: 0;
+    }
+    .panel-toolbar .small-btn:hover { opacity: 0.8; }
+    .panel-toolbar .close-btn {
+      font-size: 15px; background: none; border: none; color: var(--text-muted);
+      cursor: pointer; padding: 2px 6px; border-radius: 4px;
+    }
+    .panel-toolbar .close-btn:hover { color: var(--text); }
+
+    /* ── Code editor ─────────────────────────────────────────────────────── */
+    .code-area {
+      display: flex; flex: 1; min-height: 0; overflow: hidden;
+      font-family: 'Fira Code', Consolas, 'Courier New', monospace;
+      font-size: 13px; line-height: 1.55;
+    }
+    .line-numbers {
+      width: 44px; flex-shrink: 0; padding: 8px 6px 8px 10px;
+      background: var(--bg-code); color: var(--text-muted);
+      text-align: right; user-select: none; overflow: hidden;
+      font-size: 13px; line-height: 1.55; border-right: 1px solid var(--border);
+    }
+    .line-numbers span { display: block; }
+    textarea.code-input {
+      flex: 1; min-width: 0; border: none; outline: none; resize: none;
+      background: var(--bg-code); color: var(--text);
+      font-family: inherit; font-size: inherit; line-height: inherit;
+      padding: 8px 10px; tab-size: 4;
+    }
+
+    /* ── Microdata output ────────────────────────────────────────────────── */
+    .microdata-out-wrap {
+      flex: 1; min-height: 0; overflow: auto; background: var(--bg-code);
+    }
+    .microdata-out {
+      padding: 10px 12px; min-height: 100%;
+      font-family: 'Fira Code', Consolas, 'Courier New', monospace;
+      font-size: 13px; line-height: 1.55; color: var(--text);
+      white-space: pre; word-break: normal; overflow-x: auto;
+    }
+    .microdata-out .placeholder { color: var(--text-muted); font-style: italic; white-space: normal; }
+    .microdata-out .warn { color: #ca8a04; }
+    body[data-theme="dark"] .microdata-out .warn { color: #fbbf24; }
+
+    /* ── Run output panel ────────────────────────────────────────────────── */
+    .run-panel {
+      flex: 0 0 36%; min-height: 60px; display: flex; flex-direction: column;
+      border-top: 1px solid var(--border);
+    }
+    .run-panel.hidden { display: none; }
+    .run-output {
+      flex: 1; min-height: 0; overflow: auto; padding: 8px 12px;
+      background: var(--bg);
+      font-family: 'Fira Code', Consolas, 'Courier New', monospace;
+      font-size: 13px; line-height: 1.55; color: var(--text);
+      white-space: pre-wrap; word-break: break-all;
+    }
+    .run-output .out-err { color: #dc2626; }
+    body[data-theme="dark"] .run-output .out-err { color: #f87171; }
+    .run-output .out-muted { color: var(--text-muted); font-style: italic; }
+
+    /* ── Bottom status bar ───────────────────────────────────────────────── */
+    .bottombar {
+      position: fixed; bottom: 0; left: 0; right: 0; height: 30px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 14px; background: var(--topbar-bg);
+      border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted);
+    }
+    .bottombar .err { color: #dc2626; }
+
+    /* ── Spinner ─────────────────────────────────────────────────────────── */
+    .spinner {
+      display: inline-block; width: 12px; height: 12px;
+      border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff;
+      border-radius: 50%; animation: spin 0.65s linear infinite; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Scrollbars ──────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 7px; height: 7px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+  </style>
+</head>
+<body data-theme="light">
+
+<!-- ── Top bar ──────────────────────────────────────────────────────────── -->
+<div class="topbar">
+  <div class="dropdown-wrap">
+    <button class="icon-btn" id="hamburgerBtn" title="Menu" aria-label="Menu">&#9776;</button>
+    <div class="dropdown" id="hamburgerMenu">
+      <button id="menuTranslate">&#8644;&nbsp; Translate to microdata</button>
+      <button id="menuRun">&#9654;&nbsp; Run Python</button>
+      <hr>
+      <button id="menuClearAll">Clear output</button>
+      <button id="menuLoadFile">Load .py file&hellip;</button>
+      <hr>
+      <div class="dropdown-section-title">Examples</div>
+      <button id="menuExampleBasic">Basic transforms</button>
+      <button id="menuExampleFilter">Filter &amp; drop</button>
+      <button id="menuExampleRegress">Regression</button>
+      <button id="menuExampleGroupby">Groupby / collapse</button>
+    </div>
+  </div>
+
+  <span class="topbar-title">py2m &mdash; Python &rarr; microdata</span>
+
+  <button class="btn btn-secondary" id="btnTranslate" disabled title="Ctrl+T">
+    &#8644; Translate
+  </button>
+  <button class="btn btn-primary" id="btnRun" disabled title="Ctrl+Enter">
+    <span id="btnRunLabel">&#9654; Run</span>
+  </button>
+
+  <button class="icon-btn" id="themeBtn" title="Toggle light/dark">&#9788;</button>
+</div>
+
+<!-- ── Main layout ──────────────────────────────────────────────────────── -->
+<div class="app-body">
+  <div class="container" id="container">
+
+    <!-- Left: Python editor -->
+    <div class="panel panel-left" id="panelLeft">
+      <div class="panel-toolbar">
+        <span class="panel-toolbar-label">Python</span>
+        <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px">
+          Use <code>## microdata</code> / <code>## python</code> to switch blocks
+        </span>
+      </div>
+      <div class="code-area">
+        <div class="line-numbers" id="lineNumbers"><span>1</span></div>
+        <textarea class="code-input" id="codeInput" spellcheck="false"
+          placeholder="# Write Python / pandas code here&#10;# Lines between ## microdata ... ## python markers pass through as-is&#10;&#10;## microdata&#10;create-dataset mydata&#10;require w income age&#10;&#10;## python&#10;import pandas as pd&#10;import numpy as np&#10;&#10;df['log_income'] = np.log(df['income'].clip(lower=1))"></textarea>
+      </div>
+    </div>
+
+    <!-- Resizer -->
+    <div class="resizer" id="resizer"></div>
+
+    <!-- Right: microdata output + run console -->
+    <div class="panel panel-right" id="panelRight">
+      <div class="panel-toolbar">
+        <span class="panel-toolbar-label">Microdata script</span>
+        <button class="small-btn" id="btnCopy">Copy</button>
+      </div>
+      <div class="microdata-out-wrap" id="microdataOutWrap">
+        <div class="microdata-out" id="microdataOut">
+          <span class="placeholder">Click &ldquo;Translate&rdquo; (or Ctrl+T) to see the microdata script&hellip;</span>
+        </div>
+      </div>
+
+      <!-- Run output (hidden until Run is clicked) -->
+      <div class="run-panel hidden" id="runPanel">
+        <div class="panel-toolbar">
+          <span class="panel-toolbar-label">Run output</span>
+          <button class="close-btn" id="btnCloseRun" title="Close">&#10005;</button>
+        </div>
+        <div class="run-output" id="runOutput"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Bottom status bar ─────────────────────────────────────────────────── -->
+<footer class="bottombar">
+  <span id="leftStatus">Loading Pyodide&hellip;</span>
+  <span id="rightStatus"></span>
+</footer>
+
+<input type="file" id="fileInput" accept=".py,text/x-python,text/plain" style="display:none">
+
+<!-- ── Pyodide ───────────────────────────────────────────────────────────── -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js"></script>
+
+<script>
+'use strict';
+
+// ── Theme ────────────────────────────────────────────────────────────────────
+(function() {
+  const KEY = 'py2m_theme';
+  const saved = (function() { try { return localStorage.getItem(KEY); } catch(e) { return null; } })();
+  document.body.setAttribute('data-theme', saved || 'light');
+
+  document.getElementById('themeBtn').addEventListener('click', function() {
+    const cur = document.body.getAttribute('data-theme');
+    const next = cur === 'dark' ? 'light' : 'dark';
+    document.body.setAttribute('data-theme', next);
+    try { localStorage.setItem(KEY, next); } catch(e) {}
+  });
+})();
+
+// ── Resizer ──────────────────────────────────────────────────────────────────
+(function() {
+  const panelLeft = document.getElementById('panelLeft');
+  const resizer   = document.getElementById('resizer');
+  const container = document.getElementById('container');
+  let startX, startW;
+
+  resizer.addEventListener('mousedown', function(e) {
+    startX = e.clientX;
+    startW = panelLeft.getBoundingClientRect().width;
+    document.body.style.userSelect = 'none';
+
+    function onMove(e) {
+      const w = Math.max(120, Math.min(container.offsetWidth - 200, startW + e.clientX - startX));
+      panelLeft.style.flex = '0 0 ' + w + 'px';
+    }
+    function onUp() {
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    e.preventDefault();
+  });
+})();
+
+// ── Line numbers ─────────────────────────────────────────────────────────────
+(function() {
+  const ta = document.getElementById('codeInput');
+  const ln = document.getElementById('lineNumbers');
+
+  function update() {
+    const n = Math.max(1, ta.value.split('\n').length);
+    let html = '';
+    for (let i = 1; i <= n; i++) html += '<span>' + i + '</span>';
+    ln.innerHTML = html;
+    syncScroll();
+  }
+  function syncScroll() {
+    const maxS = ta.scrollHeight - ta.clientHeight;
+    const maxL = ln.scrollHeight - ln.clientHeight;
+    if (maxS > 0) ln.scrollTop = (ta.scrollTop / maxS) * maxL;
+    else ln.scrollTop = ta.scrollTop;
+  }
+
+  ta.addEventListener('input', update);
+  ta.addEventListener('scroll', syncScroll);
+
+  // Tab key → 4 spaces
+  ta.addEventListener('keydown', function(e) {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = ta.selectionStart, end = ta.selectionEnd;
+      ta.value = ta.value.substring(0, s) + '    ' + ta.value.substring(end);
+      ta.selectionStart = ta.selectionEnd = s + 4;
+      update();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      document.getElementById('btnRun').click();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 't') {
+      e.preventDefault();
+      document.getElementById('btnTranslate').click();
+    }
+  });
+
+  update();
+})();
+
+// ── Hamburger menu ───────────────────────────────────────────────────────────
+(function() {
+  const btn  = document.getElementById('hamburgerBtn');
+  const menu = document.getElementById('hamburgerMenu');
+  btn.addEventListener('click', function(e) { e.stopPropagation(); menu.classList.toggle('open'); });
+  document.addEventListener('click', function() { menu.classList.remove('open'); });
+  menu.addEventListener('click', function(e) { e.stopPropagation(); });
+})();
+
+function closeMenu() { document.getElementById('hamburgerMenu').classList.remove('open'); }
+
+// ── Status helpers ───────────────────────────────────────────────────────────
+function setLeft(msg, isErr) {
+  const el = document.getElementById('leftStatus');
+  el.textContent = msg;
+  el.className = isErr ? 'err' : '';
+}
+function setRight(msg, isErr) {
+  const el = document.getElementById('rightStatus');
+  el.textContent = msg;
+  el.className = isErr ? 'err' : '';
+}
+
+// ── Block parser ─────────────────────────────────────────────────────────────
+// Segments: { kind: 'python' | 'microdata', text: string }
+// Markers (lines by themselves): ## microdata | ## micro | ## python | ## pyodide
+function matchMarker(line) {
+  const t = line.trim();
+  if (/^##\s*microdata\s*$/i.test(t) || /^##\s*micro\s*$/i.test(t) || /^#micro\s*$/i.test(t)) return 'microdata';
+  if (/^##\s*python\s*$/i.test(t)    || /^##\s*pyodide\s*$/i.test(t) || /^#py\s*$/i.test(t))   return 'python';
+  return null;
+}
+
+function parseBlocks(text) {
+  const lines = text.split(/\r?\n/);
+  let mode = 'python';   // default: treat code as Python
+  let buf  = [];
+  const segs = [];
+
+  function flush() {
+    const t = buf.join('\n');
+    if (t.trim()) segs.push({ kind: mode, text: t });
+    buf = [];
+  }
+
+  for (const line of lines) {
+    const m = matchMarker(line);
+    if (m) {
+      if (m !== mode) { flush(); mode = m; }
+      // marker line itself is never added to buffer
+    } else {
+      buf.push(line);
+    }
+  }
+  flush();
+  return segs;
+}
+
+// ── Pyodide + py2m loading ───────────────────────────────────────────────────
+let pyodide  = null;
+let pyReady  = false;
+let running  = false;
+
+async function initPyodide() {
+  setLeft('Loading Pyodide…');
+  pyodide = await loadPyodide();
+
+  setLeft('Loading numpy / pandas…');
+  await pyodide.loadPackage(['numpy', 'pandas']);
+
+  setLeft('Loading micropip…');
+  await pyodide.loadPackage('micropip');
+
+  for (const pkg of ['scipy', 'statsmodels', 'plotly', 'lifelines']) {
+    try {
+      setLeft('Installing ' + pkg + '…');
+      await pyodide.runPythonAsync(
+        'import micropip\nawait micropip.install(' + JSON.stringify(pkg) + ')'
+      );
+    } catch(e) { console.warn('Optional package', pkg, ':', e.message || e); }
+  }
+
+  // ── Load py2m package files from same server ───────────────────────────
+  setLeft('Fetching py2m…');
+  const base = window.location.href.replace(/[^/]+$/, '');
+  const py2mModules = ['__init__', 'chain', 'expr', 'formula', 'commands', 'expander', 'transformer'];
+
+  const fetched = await Promise.all(
+    py2mModules.map(function(m) {
+      return fetch(base + 'py2m/' + m + '.py').then(function(r) {
+        if (!r.ok) throw new Error('Cannot fetch py2m/' + m + '.py — run from a web server in the py2m project folder.');
+        return r.text();
+      });
+    })
+  );
+
+  // Write files into Pyodide's virtual FS so `import py2m` works naturally
+  await pyodide.runPythonAsync('import os; os.makedirs("/home/pyodide/py2m", exist_ok=True)');
+  for (let i = 0; i < py2mModules.length; i++) {
+    const code = fetched[i];
+    const fname = '/home/pyodide/py2m/' + py2mModules[i] + '.py';
+    // Write via Python to avoid encoding issues
+    await pyodide.runPythonAsync(
+      'open(' + JSON.stringify(fname) + ', "w", encoding="utf-8").write(' + JSON.stringify(code) + ')'
+    );
+  }
+
+  // Optionally load functions.py (makes it importable in user code)
+  try {
+    const fr = await fetch(base + 'functions.py');
+    if (fr.ok) {
+      const funcCode = await fr.text();
+      await pyodide.runPythonAsync(`
+import sys, importlib.util as _ilu
+_spec = _ilu.spec_from_loader("functions", loader=None)
+_mod  = _ilu.module_from_spec(_spec)
+sys.modules["functions"] = _mod
+exec(compile(${JSON.stringify(funcCode)}, "functions.py", "exec"), _mod.__dict__)
+del _spec, _mod
+`);
+    }
+  } catch(e) { /* functions.py is optional */ }
+
+  // Verify import works
+  await pyodide.runPythonAsync('import py2m as _py2m_test; del _py2m_test');
+
+  pyReady = true;
+  setLeft('Ready');
+  document.getElementById('btnTranslate').disabled = false;
+  document.getElementById('btnRun').disabled       = false;
+}
+
+initPyodide().catch(function(e) {
+  setLeft('Load failed: ' + (e && e.message ? e.message : String(e)), true);
+});
+
+// ── Translate ────────────────────────────────────────────────────────────────
+async function doTranslate() {
+  if (!pyReady) { setRight('Pyodide still loading…', true); return; }
+  const raw = document.getElementById('codeInput').value;
+  if (!raw.trim()) { setRight('Nothing to translate.', true); return; }
+
+  setRight('Translating…');
+  const outEl = document.getElementById('microdataOut');
+  outEl.innerHTML = '';
+
+  try {
+    const segs  = parseBlocks(raw);
+    const parts = [];
+
+    for (const seg of segs) {
+      if (seg.kind === 'microdata') {
+        // Microdata blocks pass straight through
+        parts.push(seg.text.trim());
+      } else {
+        // Translate Python block via py2m
+        const jsonResult = await pyodide.runPythonAsync(`
+import py2m as _py2m, json as _json
+_r = _py2m.transform(${JSON.stringify(seg.text)})
+_json.dumps({"script": _r.script(), "warnings": list(_r.warnings)})
+`);
+        const data = JSON.parse(jsonResult);
+        if (data.script && data.script.trim()) parts.push(data.script.trim());
+        for (const w of (data.warnings || [])) {
+          parts.push('// WARNING: ' + w);
+        }
+      }
+    }
+
+    const combined = parts.join('\n\n').trim();
+
+    if (!combined) {
+      outEl.innerHTML = '<span class="placeholder">(no translatable output — check that your code uses pandas/numpy patterns that py2m recognises)</span>';
+      setRight('No output.');
+      return;
+    }
+
+    // Render with warning lines highlighted
+    outEl.innerHTML = '';
+    for (const line of combined.split('\n')) {
+      const span = document.createElement('span');
+      if (line.startsWith('// WARNING:')) span.className = 'warn';
+      span.textContent = line + '\n';
+      outEl.appendChild(span);
+    }
+    setRight('Translated.');
+
+  } catch(e) {
+    outEl.textContent = '// ERROR: ' + (e.message || String(e));
+    setRight('Translation error.', true);
+  }
+}
+
+document.getElementById('btnTranslate').addEventListener('click', doTranslate);
+document.getElementById('menuTranslate').addEventListener('click', function() { closeMenu(); doTranslate(); });
+
+// ── Run Python ───────────────────────────────────────────────────────────────
+async function doRun() {
+  if (!pyReady)  { setRight('Pyodide still loading…', true); return; }
+  if (running)   { return; }  // could add interrupt here later
+
+  const raw = document.getElementById('codeInput').value;
+  if (!raw.trim()) { setRight('Nothing to run.', true); return; }
+
+  running = true;
+  const btn   = document.getElementById('btnRun');
+  const label = document.getElementById('btnRunLabel');
+  btn.classList.add('btn-run--running');
+  label.innerHTML = '<span class="spinner"></span> Running…';
+  setRight('Running…');
+
+  const runPanel  = document.getElementById('runPanel');
+  const runOutput = document.getElementById('runOutput');
+  runPanel.classList.remove('hidden');
+  runOutput.innerHTML = '';
+
+  function appendLine(text, cls) {
+    const div = document.createElement('div');
+    if (cls) div.className = cls;
+    div.textContent = text;
+    runOutput.appendChild(div);
+    runOutput.scrollTop = runOutput.scrollHeight;
+  }
+
+  if (typeof pyodide.setStdout === 'function') {
+    pyodide.setStdout({ batched: function(s) { appendLine(s, ''); } });
+  }
+  if (typeof pyodide.setStderr === 'function') {
+    pyodide.setStderr({ batched: function(s) { appendLine(s, 'out-err'); } });
+  }
+
+  let hasOutput = false;
+  try {
+    const segs = parseBlocks(raw);
+    for (const seg of segs) {
+      if (seg.kind !== 'python') continue;  // skip microdata pass-through blocks
+      await pyodide.runPythonAsync(seg.text);
+      hasOutput = true;
+    }
+    if (!hasOutput) appendLine('(no Python blocks to run)', 'out-muted');
+    setRight('Done.');
+  } catch(e) {
+    appendLine(e.message || String(e), 'out-err');
+    setRight('Run error.', true);
+  } finally {
+    running = false;
+    btn.classList.remove('btn-run--running');
+    label.textContent = '▶ Run';
+    if (typeof pyodide.setStdout === 'function') pyodide.setStdout();
+    if (typeof pyodide.setStderr === 'function') pyodide.setStderr();
+  }
+}
+
+document.getElementById('btnRun').addEventListener('click', doRun);
+document.getElementById('menuRun').addEventListener('click', function() { closeMenu(); doRun(); });
+
+// Close run panel
+document.getElementById('btnCloseRun').addEventListener('click', function() {
+  document.getElementById('runPanel').classList.add('hidden');
+});
+
+// ── Copy microdata ────────────────────────────────────────────────────────────
+document.getElementById('btnCopy').addEventListener('click', function() {
+  const text = document.getElementById('microdataOut').textContent;
+  if (!text || !text.trim()) return;
+  const btn = document.getElementById('btnCopy');
+  const write = navigator.clipboard && navigator.clipboard.writeText
+    ? navigator.clipboard.writeText(text)
+    : Promise.reject();
+  write.catch(function() {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+  }).finally(function() {
+    btn.textContent = 'Copied!';
+    setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+  });
+  btn.textContent = 'Copied!';
+  setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+});
+
+// ── Menu: Clear ───────────────────────────────────────────────────────────────
+document.getElementById('menuClearAll').addEventListener('click', function() {
+  closeMenu();
+  document.getElementById('microdataOut').innerHTML =
+    '<span class="placeholder">Click \u201cTranslate\u201d (or Ctrl+T) to see the microdata script\u2026</span>';
+  document.getElementById('runPanel').classList.add('hidden');
+  document.getElementById('runOutput').innerHTML = '';
+  setRight('');
+});
+
+// ── Menu: Load file ───────────────────────────────────────────────────────────
+document.getElementById('menuLoadFile').addEventListener('click', function() {
+  closeMenu();
+  document.getElementById('fileInput').click();
+});
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const ta = document.getElementById('codeInput');
+    ta.value = ev.target.result;
+    ta.dispatchEvent(new Event('input'));
+  };
+  reader.readAsText(f, 'UTF-8');
+  e.target.value = '';
+});
+
+// ── Examples ──────────────────────────────────────────────────────────────────
+const EXAMPLES = {
+
+menuExampleBasic: `## microdata
+create-dataset mydata
+require w income age gender
+
+## python
+import pandas as pd
+import numpy as np
+
+# Log transform
+df['log_income'] = np.log(df['income'].clip(lower=1))
+
+# Age groups
+df['age_group'] = pd.cut(df['age'], bins=[0, 30, 50, 100], labels=[1, 2, 3])
+
+# Fill missing income with 0
+df['income'] = df['income'].fillna(0)
+
+print(df[['income', 'log_income', 'age_group']].head())
+`,
+
+menuExampleFilter: `## microdata
+create-dataset mydata
+require w income age gender
+
+## python
+import pandas as pd
+import numpy as np
+
+# Keep adults with positive income
+df = df[(df['age'] > 18) & (df['income'] > 0)]
+
+# Drop rows missing income or age
+df = df.dropna(subset=['income', 'age'])
+
+# Keep only needed columns
+df = df[['income', 'age', 'gender']]
+
+print(df.shape)
+`,
+
+menuExampleRegress: `## microdata
+create-dataset mydata
+require w income age gender educ
+
+## python
+import pandas as pd
+import numpy as np
+import statsmodels.formula.api as smf
+
+df['log_income'] = np.log(df['income'].clip(lower=1))
+
+# OLS with interaction term
+model = smf.ols('log_income ~ age + gender + educ + age:gender', data=df).fit()
+print(model.summary())
+
+# Store predictions
+df['predicted'] = model.predict()
+df['residuals'] = model.resid
+`,
+
+menuExampleGroupby: `## microdata
+create-dataset mydata
+require w income age gender sector
+
+## python
+import pandas as pd
+import numpy as np
+
+# Group mean income by sector and gender
+df_mean = df.groupby(['sector', 'gender'])['income'].transform('mean')
+df['mean_income_group'] = df_mean
+
+# Collapse: summary table
+summary = df.groupby(['sector', 'gender']).agg(
+    mean_income=('income', 'mean'),
+    n=('income', 'count')
+).reset_index()
+
+print(summary)
+`,
+
+};
+
+Object.keys(EXAMPLES).forEach(function(id) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.addEventListener('click', function() {
+    closeMenu();
+    const ta = document.getElementById('codeInput');
+    ta.value = EXAMPLES[id];
+    ta.dispatchEvent(new Event('input'));
+  });
+});
+</script>
+</body>
+</html>
