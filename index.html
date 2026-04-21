@@ -753,6 +753,37 @@
       color: var(--accent); border-color: var(--accent); }
     .ai-codeblock-btn.flash { background: color-mix(in srgb, var(--accent) 25%, transparent); color: var(--accent); }
 
+    .ai-validation-warning {
+      margin-top: 10px; padding: 8px 10px; border-radius: 6px;
+      background: color-mix(in srgb, #d97706 8%, var(--bg-panel));
+      border-left: 3px solid #d97706; color: var(--text); font-size: 12.5px;
+    }
+    body[data-theme="dark"] .ai-validation-warning {
+      background: rgba(217,119,6,.12); color: #fcd34d;
+    }
+    .ai-validation-warning-title {
+      font-weight: 600; font-size: 12px; margin-bottom: 6px;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .ai-validation-section { margin-top: 8px; }
+    .ai-validation-section:first-child { margin-top: 0; }
+    .ai-validation-section-label {
+      font-size: 11px; color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.4px; margin-bottom: 4px;
+    }
+    .ai-validation-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+    .ai-chip {
+      display: inline-flex; align-items: center; padding: 3px 8px;
+      background: var(--bg-panel); border: 1px solid #d97706;
+      border-radius: 12px; font-size: 12px; cursor: pointer;
+      font-family: 'Fira Code', 'Consolas', monospace;
+      color: #b45309;
+    }
+    body[data-theme="dark"] .ai-chip { color: #fcd34d; }
+    .ai-chip:hover { background: #d97706; color: #fff; }
+    .ai-validation-bullets { margin: 4px 0 0 16px; padding: 0; font-size: 12px; }
+    .ai-validation-bullets li { margin: 2px 0; }
+
     .ai-empty {
       text-align: center; color: var(--text-muted); font-size: 13px; padding: 32px 16px; line-height: 1.5;
     }
@@ -6773,9 +6804,82 @@ def _run_microdata_chunk(_code):
           if (!btn) return;
           handleCodeAction(btn.dataset.act, script, btn);
         });
+        // Validation warnings (unknown variables / commands / parse errors)
+        const warning = renderValidationWarnings(meta && meta.validation);
+        if (warning) bubble.appendChild(warning);
         node.appendChild(bubble);
         if (meta) appendMeta(node, meta);
         scrollToBottom();
+      }
+
+      function renderValidationWarnings(validation) {
+        if (!validation || validation.passed || !validation.errors || !validation.errors.length) {
+          return null;
+        }
+        const wrap = document.createElement('div');
+        wrap.className = 'ai-validation-warning';
+        const title = document.createElement('div');
+        title.className = 'ai-validation-warning-title';
+        title.textContent = '⚠ Valideringsadvarsler';
+        wrap.appendChild(title);
+
+        const groups = { unknown_variable: [], unknown_command: [], parse: [], runtime: [], other: [] };
+        for (const e of validation.errors) {
+          const k = e.kind in groups ? e.kind : 'other';
+          groups[k].push(e);
+        }
+
+        const renderChips = (label, errs, suggestionTemplate) => {
+          if (!errs.length) return;
+          const sec = document.createElement('div');
+          sec.className = 'ai-validation-section';
+          const lab = document.createElement('div');
+          lab.className = 'ai-validation-section-label';
+          lab.textContent = label;
+          sec.appendChild(lab);
+          const chips = document.createElement('div');
+          chips.className = 'ai-validation-chips';
+          errs.forEach(e => {
+            const chip = document.createElement('span');
+            chip.className = 'ai-chip';
+            chip.textContent = e.token || e.message || '?';
+            chip.title = (e.message || '') + ' — klikk for å foreslå alternativ';
+            chip.addEventListener('click', () => {
+              if (!dom.aiInput) return;
+              dom.aiInput.value = suggestionTemplate.replace('{token}', e.token || '');
+              autoresize();
+              dom.aiInput.focus();
+            });
+            chips.appendChild(chip);
+          });
+          sec.appendChild(chips);
+          wrap.appendChild(sec);
+        };
+
+        renderChips('Ukjente variabler', groups.unknown_variable, 'Bruk en annen variabel for {token}');
+        renderChips('Ukjente kommandoer', groups.unknown_command, 'Skriv om uten å bruke {token}');
+
+        const others = [...groups.parse, ...groups.runtime, ...groups.other];
+        if (others.length) {
+          const sec = document.createElement('div');
+          sec.className = 'ai-validation-section';
+          const lab = document.createElement('div');
+          lab.className = 'ai-validation-section-label';
+          lab.textContent = 'Andre advarsler';
+          sec.appendChild(lab);
+          const ul = document.createElement('ul');
+          ul.className = 'ai-validation-bullets';
+          others.forEach(e => {
+            const li = document.createElement('li');
+            const lineHint = e.line_no ? ('linje ' + e.line_no + ': ') : '';
+            li.textContent = lineHint + (e.message || e.kind);
+            ul.appendChild(li);
+          });
+          sec.appendChild(ul);
+          wrap.appendChild(sec);
+        }
+
+        return wrap;
       }
 
       function appendAssistantVariableList(node, variables, meta) {
