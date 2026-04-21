@@ -6877,11 +6877,16 @@ def _run_microdata_chunk(_code):
         if (!state.apiKey) {
           throw new Error('Mangler API-nøkkel. Klikk ⚙ for å sette den.');
         }
-        const res = await fetch(state.apiBase + '/_/api' + path, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-API-Key': state.apiKey },
-          body: JSON.stringify(body),
-        });
+        const isGet = body == null;
+        const opts = {
+          method: isGet ? 'GET' : 'POST',
+          headers: { 'X-API-Key': state.apiKey },
+        };
+        if (!isGet) {
+          opts.headers['Content-Type'] = 'application/json';
+          opts.body = JSON.stringify(body);
+        }
+        const res = await fetch(state.apiBase + '/_/api' + path, opts);
         const text = await res.text();
         let json;
         try { json = JSON.parse(text); } catch (e) { json = { error: text }; }
@@ -6893,6 +6898,34 @@ def _run_microdata_chunk(_code):
           throw err;
         }
         return json;
+      }
+
+      function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+      async function pollTask(taskId, onTick) {
+        const maxWaitMs = 180000;       // 3-minute ceiling
+        const intervalMs = 1500;
+        const start = Date.now();
+        while (Date.now() - start < maxWaitMs) {
+          await sleep(intervalMs);
+          const elapsed = Math.round((Date.now() - start) / 1000);
+          if (onTick) onTick(elapsed);
+          let status;
+          try {
+            status = await callApi('/task_status?task_id=' + encodeURIComponent(taskId), null);
+          } catch (e) {
+            if (e.status === 404) {
+              throw new Error('Bakgrunnsoppgaven ble ikke funnet (task_id ugyldig).');
+            }
+            throw e;
+          }
+          if (status.status === 'completed') return status.result;
+          if (status.status === 'failed' || status.status === 'killed') {
+            throw new Error('Bakgrunnsoppgave feilet: ' + (status.error || status.status));
+          }
+          // 'running' → loop
+        }
+        throw new Error('Bakgrunnsoppgaven brukte mer enn 3 min — avbrutt.');
       }
 
       function detectLang(text) {
@@ -6939,7 +6972,29 @@ def _run_microdata_chunk(_code):
           } else {
             resp = await callApi('/query', { question: text, lang });
             intent = resp.intent || 'qa';
-            result = resp.result || {};
+            // Async path: poll background task until it completes.
+            if (resp.task_id) {
+              const tickEl = thinkingNode.querySelector('.ai-thinking');
+              const finalEnv = await pollTask(resp.task_id, (sec) => {
+                if (!tickEl) return;
+                let elapsed = tickEl.querySelector('.ai-tick-elapsed');
+                if (!elapsed) {
+                  elapsed = document.createElement('span');
+                  elapsed.className = 'ai-tick-elapsed';
+                  elapsed.style.marginLeft = '4px';
+                  elapsed.style.opacity = '0.7';
+                  tickEl.appendChild(elapsed);
+                }
+                elapsed.textContent = ' ' + sec + 's';
+              });
+              result = (finalEnv && finalEnv.result) || {};
+              intent = (finalEnv && finalEnv.intent) || intent;
+              // Merge classifier info from initial response if final lacks it
+              if (!finalEnv.classifier && resp.classifier) finalEnv.classifier = resp.classifier;
+              resp = Object.assign({}, resp, finalEnv);
+            } else {
+              result = resp.result || {};
+            }
           }
 
           const meta = {
