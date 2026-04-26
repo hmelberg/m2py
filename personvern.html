@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Personvernerklæring – Microdata Script Runner</title>
+<style>
+  :root {
+    --accent: #2563eb;
+    --accent-dark: #1d4ed8;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --bg: #f8fafc;
+    --bg-card: #ffffff;
+    --border: #e2e8f0;
+    --warn-bg: #fef3c7;
+    --warn-border: #f59e0b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --accent: #3b82f6;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --bg: #0f172a;
+      --bg-card: #1e293b;
+      --border: #334155;
+      --warn-bg: #422006;
+      --warn-border: #d97706;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text);
+    font-size: 15px; line-height: 1.7;
+  }
+  main {
+    max-width: 760px; margin: 0 auto; padding: 48px 32px 80px;
+  }
+  @media (max-width: 700px) { main { padding: 28px 18px 60px; } }
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  h2 {
+    font-size: 18px; font-weight: 700; margin: 36px 0 12px;
+    padding-top: 18px; border-top: 1px solid var(--border);
+  }
+  h2:first-of-type { border-top: none; padding-top: 0; }
+  h3 { font-size: 15px; font-weight: 700; margin: 18px 0 6px; }
+  p { margin-bottom: 12px; }
+  ul { padding-left: 22px; margin-bottom: 12px; }
+  li { margin-bottom: 4px; }
+  a { color: var(--accent); }
+  a:hover { color: var(--accent-dark); }
+  .lead {
+    font-size: 16px; color: var(--text-muted);
+    margin-bottom: 8px; line-height: 1.6;
+  }
+  .meta {
+    font-size: 12px; color: var(--text-muted);
+    margin-bottom: 24px;
+  }
+  .draft-notice {
+    background: var(--warn-bg);
+    border-left: 3px solid var(--warn-border);
+    padding: 12px 16px; border-radius: 0 6px 6px 0;
+    margin: 16px 0 28px; font-size: 13.5px;
+  }
+  .doc-table {
+    width: 100%; border-collapse: collapse;
+    margin: 8px 0 16px; font-size: 14px;
+  }
+  .doc-table th {
+    text-align: left; padding: 8px 12px;
+    background: var(--bg-card); border-bottom: 2px solid var(--border);
+    font-weight: 600; font-size: 12px; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--text-muted);
+  }
+  .doc-table td {
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .back-link { display: inline-block; margin-bottom: 24px; font-size: 13.5px; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back-link" href="index.html">← Tilbake til Script Runner</a>
+  <h1>Personvernerklæring</h1>
+  <p class="lead">Microdata Script Runner — informasjon om databehandling for innloggede brukere.</p>
+  <p class="meta">Sist oppdatert: 2026-04-27 · Versjon: utkast for gjennomgang av personvernombud.</p>
+
+  <div class="draft-notice">
+    <strong>Utkast.</strong> Denne erklæringen er et førsteutkast og er ikke ferdig juridisk gjennomgått. Endelig versjon publiseres etter gjennomgang av personvernombud.
+  </div>
+
+  <h2>1. Hva er dette?</h2>
+  <p>Microdata Script Runner er et hobbyprosjekt drevet av Hans Olav Melberg som hjelper brukere å skrive og kjøre kode mot microdata.no-syntaks, Python og R direkte i nettleseren. <strong>Selve editoren krever ingen innlogging og lagrer ingen data om deg.</strong> Hvis du <em>velger</em> å logge inn for å bruke AI-assistenten eller lagre skript online, behandles personopplysninger som beskrevet under.</p>
+
+  <h2>2. Hvilke opplysninger samles inn?</h2>
+  <p>For innloggede brukere lagres følgende:</p>
+  <table class="doc-table">
+    <thead><tr><th>Opplysning</th><th>Kilde</th><th>Formål</th></tr></thead>
+    <tbody>
+      <tr><td>E-postadresse</td><td>Microsoft SSO eller magic-link</td><td>Identifisere kontoen din; sende invitasjon eller sletteforespørsel</td></tr>
+      <tr><td>Visningsnavn</td><td>Microsoft-konto</td><td>Vise hvem som er logget inn</td></tr>
+      <tr><td>Microsoft objekt-ID (oid) og tenant-ID</td><td>Microsoft ID-token</td><td>Stabil identifikator hvis e-post endres; revisjonssporing</td></tr>
+      <tr><td>Kontokategori (internal / kurs / credits / free)</td><td>Whitelist eller admin</td><td>Styre tilgang til AI og lagring</td></tr>
+      <tr><td>Credits-saldo og bruksteller</td><td>Generert av tjenesten</td><td>Håndheve daglige eller forhåndsbetalte grenser</td></tr>
+      <tr><td>Sesjons-tokens (hashet)</td><td>Generert ved innlogging</td><td>Holde deg innlogget; revoker ved utlogging</td></tr>
+      <tr><td>Lagrede skript (hvis du bruker «Mine skript»)</td><td>Skrevet av deg</td><td>La deg laste skriptet på en annen enhet</td></tr>
+      <tr><td>Spørsmål til AI og generert skript</td><td>Skrevet av deg / AI-modell</td><td>Logges 90 dager for kvalitetsforbedring og misbruksoppdaging</td></tr>
+      <tr><td>Tidspunkt og IP-adresse for innlogging</td><td>HTTP-forespørsel</td><td>Sikkerhet og audit</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Det som <em>ikke</em> sendes til serveren:</strong> innholdet du skriver i editoren mens du jobber lokalt, datasett du laster inn, kjøreresultater, output, eller widget-innhold. Disse forblir i nettleseren din.</p>
+
+  <h2>3. Formål og rettslig grunnlag</h2>
+  <p>Behandlingen er nødvendig for å levere tjenesten du har bedt om (artikkel 6(1)(b) i GDPR — oppfyllelse av avtale). Du har gitt samtykke ved å logge inn og akseptere denne erklæringen.</p>
+
+  <h2>4. Hvor lagres dataene?</h2>
+  <ul>
+    <li><strong>Kontoinformasjon, skript og logger:</strong> Anvil Works (EU-region). Anvil er databehandler.</li>
+    <li><strong>AI-spørsmål under behandling:</strong> Sendes til Anthropic (USA) for at AI-modellen skal kunne svare. Anthropic er databehandler. Spørsmålet lagres ikke permanent hos Anthropic; svaret lagres av oss i 90 dager.</li>
+    <li><strong>Innlogging:</strong> Microsoft Identity Platform håndterer SSO. Microsoft mottar ingen tjenestespesifikk informasjon utover at du har logget inn.</li>
+  </ul>
+
+  <h2>5. Hvor lenge lagres dataene?</h2>
+  <ul>
+    <li><strong>Spørsmål til AI og generert skript:</strong> 90 dager, deretter slettes innholdet automatisk. Aggregerte tellere (antall kall, modell, latens) beholdes uten innholdsdata.</li>
+    <li><strong>Lagrede skript:</strong> Til du sletter dem eller kontoen din.</li>
+    <li><strong>Kontoinformasjon:</strong> Til kontoen slettes.</li>
+    <li><strong>Audit-logger:</strong> 12 måneder.</li>
+    <li><strong>Sesjons-tokens:</strong> 30 dager fra siste bruk.</li>
+  </ul>
+
+  <h2>6. Dine rettigheter</h2>
+  <p>Du har rett til:</p>
+  <ul>
+    <li><strong>Innsyn</strong> — be om kopi av alle data lagret om deg</li>
+    <li><strong>Retting</strong> — få feilaktige opplysninger korrigert</li>
+    <li><strong>Sletting</strong> — be om at all data om deg slettes (se nedenfor)</li>
+    <li><strong>Dataportabilitet</strong> — få dine lagrede skript eksportert i lesbart format</li>
+    <li><strong>Innsigelse og begrensning</strong> — protestere mot eller begrense behandlingen</li>
+    <li><strong>Klage</strong> — du kan klage til Datatilsynet (<a href="https://www.datatilsynet.no" target="_blank" rel="noopener">datatilsynet.no</a>)</li>
+  </ul>
+
+  <h2>7. Sletting av konto</h2>
+  <p>Du kan be om sletting ved å sende en e-post til kontaktadressen nederst. Slettingen utføres innen 30 dager og omfatter:</p>
+  <ul>
+    <li>Brukerprofilen din (e-post, navn, kategori, credits)</li>
+    <li>Alle dine lagrede skript</li>
+    <li>Aktive sesjons-tokens</li>
+    <li>Innholdet av AI-spørsmålene dine i loggene (e-post-koblingen anonymiseres; aggregerte teller-data beholdes uten kobling til deg)</li>
+  </ul>
+
+  <h2>8. Deling med tredjepart</h2>
+  <p>Vi selger eller leier ikke ut data. Personopplysninger deles kun med:</p>
+  <ul>
+    <li>Anvil Works (databehandler — server- og databasetjeneste, EU)</li>
+    <li>Anthropic (databehandler — AI-tjeneste, USA, Standard Contractual Clauses)</li>
+    <li>Microsoft (identitetsleverandør for SSO)</li>
+    <li>Offentlig myndighet hvis lovpålagt</li>
+  </ul>
+
+  <h2>9. Sikkerhet</h2>
+  <p>Tjenesten benytter HTTPS for all kommunikasjon. Sesjons-tokens lagres som SHA-256-hash på serveren. Microsoft ID-tokens valideres mot Microsofts offentlige nøkler. Anvil-databasen er kryptert i hvile.</p>
+
+  <h2>10. Endringer i erklæringen</h2>
+  <p>Endringer publiseres på denne siden. Vesentlige endringer varsles via e-post til innloggede brukere.</p>
+
+  <h2>11. Kontakt</h2>
+  <p>Behandlingsansvarlig: Hans Olav Melberg.<br>
+  E-post: <a href="mailto:hans.olav.melberg@fhi.no">hans.olav.melberg@fhi.no</a> eller <a href="mailto:hans.melberg@gmail.com">hans.melberg@gmail.com</a>.</p>
+  <p>For henvendelser om personvern, sletting eller innsyn, oppgi e-postadressen du brukte ved innlogging.</p>
+
+</main>
+</body>
+</html>
