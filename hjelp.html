@@ -182,7 +182,7 @@
   <a href="#editor">Editor og snarveier</a>
   <a href="#tab-intro">Tab-autocomplete</a>
   <a href="#sidebar">Datasett-panel</a>
-  <div class="nav-section">Forklaring og presentasjon</div>
+  <div class="nav-section">Skrittvis kjøring</div>
   <a href="#forklar">Kjør skrittvis</a>
   <a href="#widgets">Widgets</a>
   <div class="nav-section">Andre moduser</div>
@@ -225,7 +225,7 @@
     <p>Trykk <kbd>Ctrl</kbd>+<kbd>Enter</kbd> eller knappen <strong>Kjør</strong>. Resultater vises i outputfeltet. Tabeller, diagrammer og tekst vises automatisk.</p>
 
     <h3>Oversette</h3>
-    <p>Knappen <strong>Oversett</strong> (pil-ikon) konverterer Python- eller R-kode til microdata-syntaks. Oversatt kode kan kjøres direkte med <strong>Kjør</strong>.</p>
+    <p>Knappen <strong>Oversett</strong> (pil-ikon) konverterer Python- eller R-kode til microdata-syntaks. Resultatet vises i outputfeltet — for å <strong>kjøre</strong> den oversatte koden må du enten kopiere den inn i editoren og bytte til microdata-modus, eller skrive den om til microdata direkte.</p>
 
     <h3>Stoppe / avbryte</h3>
     <p>Trykk <strong>Kjør</strong>-knappen igjen under kjøring for å avbryte.</p>
@@ -240,7 +240,7 @@
     <table class="doc-table">
       <thead><tr><th>Kommando</th><th>Beskrivelse</th></tr></thead>
       <tbody>
-        <tr><td><code>require no.ssb.fdb:51 as db</code></td><td>Koble til en datakilde og gi den et navn</td></tr>
+        <tr><td><code>require no.ssb.fdb:52 as db</code></td><td>Koble til en datakilde og gi den et navn</td></tr>
         <tr><td><code>create-dataset navn</code></td><td>Opprett tomt datasett</td></tr>
         <tr><td><code>import db/VARIABEL [dato] as alias</code></td><td>Importer variabel fra registerdata</td></tr>
         <tr><td><code>import-event db/VARIABEL dato1 to dato2 as alias</code></td><td>Importer hendelsesdata</td></tr>
@@ -305,12 +305,12 @@ generate hoy = (inntekt > maks)</code></pre>
         <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>Kjør scriptet</td></tr>
         <tr><td><kbd>Tab</kbd></td><td>Autofullfør (kommando, variabel, metode)</td></tr>
         <tr><td><kbd>Esc</kbd></td><td>Lukk autocomplete-liste</td></tr>
-        <tr><td>Klikk linjenummer</td><td>Sett / fjern stoppunkt (rød prikk) for Forklar</td></tr>
+        <tr><td>Klikk linjenummer</td><td>Sett / fjern stoppunkt (rød prikk) for Kjør skrittvis</td></tr>
       </tbody>
     </table>
 
     <h3>Stoppunkter</h3>
-    <p>Klikk på et linjenummer for å sette et rød stoppunkt. Under <strong>Forklar</strong> vil kjøringen pause ved stoppunktet og vente på at du trykker videre.</p>
+    <p>Klikk på et linjenummer for å sette et rød stoppunkt. Under <strong>Kjør skrittvis</strong> vil kjøringen pause ved stoppunktet og vente på at du trykker videre.</p>
   </section>
 
   <!-- ── TAB INTRO ── -->
@@ -332,16 +332,16 @@ generate hoy = (inntekt > maks)</code></pre>
       <li><strong>Variabelliste</strong> med type-ikon: <code>ABC</code> tekst, <code>123</code> numerisk, skjold-ikon for pseudonymisert ID</li>
       <li>Klikk på en variabel for <strong>detaljvisning</strong>: navn, type, beskrivelse og lenke til microdata-katalogen</li>
     </ul>
-    <p>Sidemenyen oppdateres automatisk etter hver kjøring og etter hvert blokk i Forklar-modus.</p>
+    <p>Sidemenyen oppdateres automatisk etter hver kjøring og etter hvert blokk i Kjør skrittvis-modus.</p>
   </section>
 
   <!-- ── FORKLAR ── -->
   <section id="forklar">
-    <h2>Kjør skrittvis — steg-for-steg forklaring</h2>
-    <p><strong>Kjør skrittvis</strong>-knappen kjører scriptet ett <em>blokk</em> om gangen, leser opp kommentarer og lar deg følge med på hva som skjer. Det er nyttig for presentasjoner og undervisning.</p>
+    <h2>Kjør skrittvis — steg-for-steg gjennomgang</h2>
+    <p><strong>Kjør skrittvis</strong>-knappen kjører scriptet ett <em>blokk</em> om gangen og leser opp kommentarene med tale. Alle kommentarlinjer som starter med <code>//</code> (microdata) eller <code>#</code> (Python/R) blir lest høyt — kode-linjene utføres uten kommentar. Nyttig for presentasjoner og undervisning.</p>
 
     <h3>Blokker</h3>
-    <p>En blokk er en gruppe sammenhengende linjer uten tomlinjer imellom. To eller flere tomlinjer separerer blokker.</p>
+    <p>En blokk er en gruppe sammenhengende linjer uten tomlinjer imellom. Én eller flere tomlinjer separerer blokker.</p>
     <pre><code>// Denne kommentaren leses OPP før koden kjøres
 create-dataset df
 import db/BEFOLKNING_KJOENN as kjonn
@@ -363,16 +363,16 @@ summarize kjonn
 
     <h3>Pause, navigasjon og stoppunkter</h3>
     <ul>
-      <li>Trykk <strong>Forklar</strong> igjen for å pause/fortsette</li>
+      <li>Trykk <strong>Kjør skrittvis</strong> igjen for å pause/fortsette</li>
       <li>Pil-knappene hopper til forrige/neste blokk</li>
-      <li>Stoppunkter (klikk på linjenummer) gjør at Forklar pauser automatisk</li>
+      <li>Stoppunkter (klikk på linjenummer) gjør at kjøringen pauser automatisk</li>
     </ul>
   </section>
 
   <!-- ── WIDGETS ── -->
   <section id="widgets">
-    <h2>Forklar-widgets</h2>
-    <p>Widgets er interaktive kort som vises i Forklar-modusen. De settes inn som spesielle kommentarlinjer og er tilgjengelig i alle moduser.</p>
+    <h2>Widgets i Kjør skrittvis</h2>
+    <p>Widgets er interaktive kort som vises mens scriptet kjøres skrittvis. De settes inn som spesielle kommentarlinjer og er tilgjengelig i alle moduser.</p>
 
     <h3>Syntaks</h3>
     <pre><code>// microdata:
@@ -520,21 +520,23 @@ summarize kjonn
 
     <h3>Eksempel: microdata + Python</h3>
     <pre><code>## microdata
-require no.ssb.fdb:51 as db
+require no.ssb.fdb:52 as db
 create-dataset df
-import db/ALDER as alder
+import db/BEFOLKNING_FOEDSELS_AAR_MND as faarmnd
 import db/INNTEKT_WLONN 2022-01-01 as inntekt
+generate alder = 2022 - int(faarmnd / 100)
+keep if inrange(alder, 25, 67)
+keep if inntekt > 0
 
 ## python
-import seaborn as sns
 import matplotlib.pyplot as plt
-sns.scatterplot(data=df, x="alder", y="inntekt")
+df.plot.scatter(x="alder", y="inntekt", alpha=0.3, s=8)
 plt.tight_layout()
 show(plt.gcf())</code></pre>
 
     <h3>Eksempel: microdata + R</h3>
     <pre><code># microdata
-require no.ssb.fdb:51 as db
+require no.ssb.fdb:52 as db
 create-dataset df
 import db/BEFOLKNING_KJOENN as kjonn
 import db/INNTEKT_WLONN 2022-01-01 as inntekt
