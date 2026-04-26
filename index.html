@@ -7075,34 +7075,33 @@ def _run_microdata_chunk(_code):
               lang,
               max_repair: 1,
             });
-            intent = 'revise';
-            result = resp;
+            intent = resp.intent || 'revise';
           } else {
             resp = await callApi('/query', { question: text, lang });
             intent = resp.intent || 'qa';
-            // Async path: poll background task until it completes.
-            if (resp.task_id) {
-              const tickEl = thinkingNode.querySelector('.ai-thinking');
-              const finalEnv = await pollTask(resp.task_id, (sec) => {
-                if (!tickEl) return;
-                let elapsed = tickEl.querySelector('.ai-tick-elapsed');
-                if (!elapsed) {
-                  elapsed = document.createElement('span');
-                  elapsed.className = 'ai-tick-elapsed';
-                  elapsed.style.marginLeft = '4px';
-                  elapsed.style.opacity = '0.7';
-                  tickEl.appendChild(elapsed);
-                }
-                elapsed.textContent = ' ' + sec + 's';
-              });
-              result = (finalEnv && finalEnv.result) || {};
-              intent = (finalEnv && finalEnv.intent) || intent;
-              // Merge classifier info from initial response if final lacks it
-              if (!finalEnv.classifier && resp.classifier) finalEnv.classifier = resp.classifier;
-              resp = Object.assign({}, resp, finalEnv);
-            } else {
-              result = resp.result || {};
-            }
+          }
+
+          // Async path: poll background task until it completes.
+          if (resp.task_id) {
+            const tickEl = thinkingNode.querySelector('.ai-thinking');
+            const finalEnv = await pollTask(resp.task_id, (sec) => {
+              if (!tickEl) return;
+              let elapsed = tickEl.querySelector('.ai-tick-elapsed');
+              if (!elapsed) {
+                elapsed = document.createElement('span');
+                elapsed.className = 'ai-tick-elapsed';
+                elapsed.style.marginLeft = '4px';
+                elapsed.style.opacity = '0.7';
+                tickEl.appendChild(elapsed);
+              }
+              elapsed.textContent = ' ' + sec + 's';
+            });
+            result = (finalEnv && finalEnv.result) || {};
+            intent = (finalEnv && finalEnv.intent) || intent;
+            if (finalEnv && !finalEnv.classifier && resp.classifier) finalEnv.classifier = resp.classifier;
+            resp = Object.assign({}, resp, finalEnv);
+          } else {
+            result = resp.result || resp;
           }
 
           const meta = {
