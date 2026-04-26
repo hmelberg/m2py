@@ -1026,16 +1026,73 @@
 
   <div class="ai-modal-backdrop" id="aiSettingsBackdrop">
     <div class="ai-modal">
-      <h3>AI-innstillinger</h3>
-      <label for="aiCfgBaseUrl">API base-URL</label>
-      <input type="text" id="aiCfgBaseUrl" placeholder="https://mdataapi.anvil.app">
-      <div class="ai-modal-help">Adressen til Anvil-appen som kjører API-et. Standard: https://mdataapi.anvil.app</div>
-      <label for="aiCfgApiKey">API-nøkkel</label>
-      <input type="password" id="aiCfgApiKey" placeholder="sk-mdapi-...">
-      <div class="ai-modal-help">Lagres lokalt i din nettleser (localStorage). Sendes som <code>X-API-Key</code>.</div>
-      <div class="ai-modal-actions">
-        <button type="button" class="ai-modal-btn" id="aiCfgCancel">Avbryt</button>
-        <button type="button" class="ai-modal-btn primary" id="aiCfgSave">Lagre</button>
+      <h3>Konto og innstillinger</h3>
+
+      <div id="aiCfgLoggedIn" style="display:none;">
+        <div class="ai-modal-help" style="margin-bottom:6px;">Logget inn som</div>
+        <div id="aiCfgUserEmail" style="font-weight:600; margin-bottom:8px;"></div>
+        <div id="aiCfgUserMeta" class="ai-modal-help" style="margin-bottom:14px;"></div>
+        <div class="ai-modal-actions" style="margin-bottom:18px;">
+          <button type="button" class="ai-modal-btn" id="aiCfgLogout">Logg ut</button>
+          <button type="button" class="ai-modal-btn primary" id="aiCfgAdmin" style="display:none;">Åpne admin-panel</button>
+        </div>
+      </div>
+
+      <div id="aiCfgLoggedOut">
+        <div class="ai-modal-help" style="margin-bottom:14px;">
+          Du er ikke logget inn. AI-assistenten og online-lagring krever en konto.
+        </div>
+        <div class="ai-modal-actions" style="margin-bottom:18px;">
+          <button type="button" class="ai-modal-btn primary" id="aiCfgLogin">Logg inn</button>
+        </div>
+      </div>
+
+      <details style="margin-top:12px;">
+        <summary style="cursor:pointer; font-size:13px; color:var(--text-muted);">Avansert: API-base og service-token</summary>
+        <div style="margin-top:10px;">
+          <label for="aiCfgBaseUrl">API base-URL</label>
+          <input type="text" id="aiCfgBaseUrl" placeholder="https://mdataapi.anvil.app">
+          <div class="ai-modal-help">Adressen til Anvil-appen som kjører API-et. Standard: https://mdataapi.anvil.app</div>
+          <label for="aiCfgApiKey">Service-token (kun for automatisering)</label>
+          <input type="password" id="aiCfgApiKey" placeholder="(la stå tom for vanlig bruk)">
+          <div class="ai-modal-help">Lagres lokalt. Sendes som <code>X-API-Key</code>. Brukes kun for skript / eval-harness.</div>
+        </div>
+      </details>
+
+      <div class="ai-modal-actions" style="margin-top:14px;">
+        <button type="button" class="ai-modal-btn" id="aiCfgCancel">Lukk</button>
+        <button type="button" class="ai-modal-btn primary" id="aiCfgSave">Lagre innstillinger</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ai-modal-backdrop" id="loginBackdrop">
+    <div class="ai-modal" style="max-width:420px;">
+      <h3>Logg inn</h3>
+      <div id="loginStep1">
+        <div class="ai-modal-help" style="margin-bottom:14px;">
+          Skriv inn e-postadressen din. Vi sender en lenke du klikker for å logge inn.
+          FHI-ansatte (<code>@fhi.no</code>) får full tilgang automatisk.
+        </div>
+        <label for="loginEmail">E-post</label>
+        <input type="email" id="loginEmail" placeholder="navn@fhi.no" autocomplete="email">
+        <div class="ai-modal-help">Lenken utløper om 15 minutter og kan kun brukes én gang.</div>
+        <div class="ai-modal-actions">
+          <button type="button" class="ai-modal-btn" id="loginCancel">Avbryt</button>
+          <button type="button" class="ai-modal-btn primary" id="loginSubmit">Send påloggings-lenke</button>
+        </div>
+      </div>
+      <div id="loginStep2" style="display:none;">
+        <p style="margin-bottom:12px;">✓ Vi har sendt en e-post til <strong id="loginSentEmail"></strong>.</p>
+        <div class="ai-modal-help" style="margin-bottom:14px;">
+          Klikk lenken i e-posten for å logge inn. Du kan lukke dette vinduet — du blir logget inn automatisk når du klikker.
+        </div>
+        <div class="ai-modal-actions">
+          <button type="button" class="ai-modal-btn primary" id="loginDone">Lukk</button>
+        </div>
+      </div>
+      <div id="loginStep3" style="display:none;">
+        <p style="margin-bottom:12px;">⏳ Logger inn…</p>
       </div>
     </div>
   </div>
@@ -6658,6 +6715,202 @@ def _run_microdata_chunk(_code):
     });
 
     /* ===================================================================
+       Auth module — magic-link login, bearer token, /auth/me refresh
+       =================================================================== */
+    (function authModule() {
+      const LS_TOKEN = 'mdapi_token';
+      const LS_USER = 'mdapi_user';
+      const LS_BASE = 'md_ai_api_base';
+      const DEFAULT_BASE = 'https://mdataapi.anvil.app';
+
+      const state = {
+        token: localStorage.getItem(LS_TOKEN) || '',
+        user: null,
+      };
+      try { state.user = JSON.parse(localStorage.getItem(LS_USER) || 'null'); } catch (e) {}
+
+      function apiBase() {
+        return (localStorage.getItem(LS_BASE) || DEFAULT_BASE).replace(/\/+$/, '');
+      }
+
+      const $ = (id) => document.getElementById(id);
+      const dom = {};
+      function cacheDom() {
+        ['loginBackdrop','loginStep1','loginStep2','loginStep3',
+         'loginEmail','loginSubmit','loginCancel','loginDone','loginSentEmail'
+        ].forEach(id => { dom[id] = $(id); });
+      }
+
+      function setStep(n) {
+        if (!dom.loginStep1) return;
+        dom.loginStep1.style.display = n === 1 ? '' : 'none';
+        dom.loginStep2.style.display = n === 2 ? '' : 'none';
+        dom.loginStep3.style.display = n === 3 ? '' : 'none';
+      }
+
+      function showLogin() {
+        if (!dom.loginBackdrop) return;
+        setStep(1);
+        dom.loginBackdrop.classList.add('open');
+        setTimeout(() => dom.loginEmail && dom.loginEmail.focus(), 60);
+      }
+      function hideLogin() { dom.loginBackdrop && dom.loginBackdrop.classList.remove('open'); }
+
+      async function requestMagicLink(email) {
+        const lang = /[æøå]/i.test(email) ? 'no' : 'no'; // default Norwegian
+        const res = await fetch(apiBase() + '/_/api/auth/email/request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, lang }),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error('Kunne ikke sende lenke: ' + (text || res.status));
+        }
+        return res.json();
+      }
+
+      async function verifyCode(code) {
+        const res = await fetch(apiBase() + '/_/api/auth/email/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || ('HTTP ' + res.status));
+        }
+        return res.json();
+      }
+
+      async function refreshMe() {
+        if (!state.token) return null;
+        try {
+          const res = await fetch(apiBase() + '/_/api/auth/me', {
+            headers: { 'Authorization': 'Bearer ' + state.token },
+          });
+          if (res.status === 401) { logoutLocal(); return null; }
+          if (!res.ok) return null;
+          const data = await res.json();
+          if (data.user) {
+            state.user = data.user;
+            localStorage.setItem(LS_USER, JSON.stringify(state.user));
+          }
+          return data;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function logoutLocal() {
+        state.token = '';
+        state.user = null;
+        localStorage.removeItem(LS_TOKEN);
+        localStorage.removeItem(LS_USER);
+      }
+
+      async function logout() {
+        try {
+          await fetch(apiBase() + '/_/api/auth/logout', {
+            method: 'POST',
+            headers: state.token ? { 'Authorization': 'Bearer ' + state.token } : {},
+          });
+        } catch (e) {}
+        logoutLocal();
+      }
+
+      function persistLogin(data) {
+        state.token = data.token;
+        state.user = data.user;
+        localStorage.setItem(LS_TOKEN, state.token);
+        localStorage.setItem(LS_USER, JSON.stringify(state.user));
+      }
+
+      async function handleLoginParam() {
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('login');
+        if (!code) return false;
+        // Show step3 immediately to give visual feedback
+        if (dom.loginBackdrop) {
+          setStep(3);
+          dom.loginBackdrop.classList.add('open');
+        }
+        try {
+          const data = await verifyCode(code);
+          persistLogin(data);
+          // Clean URL
+          params.delete('login');
+          const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+          history.replaceState({}, document.title, newUrl);
+          hideLogin();
+          return true;
+        } catch (e) {
+          alert('Påloggings-lenken er ugyldig eller utløpt: ' + e.message);
+          params.delete('login');
+          history.replaceState({}, document.title, window.location.pathname);
+          hideLogin();
+          return false;
+        }
+      }
+
+      function init() {
+        cacheDom();
+        if (!dom.loginBackdrop) return;
+
+        dom.loginSubmit.addEventListener('click', async () => {
+          const email = (dom.loginEmail.value || '').trim();
+          if (!email || !email.includes('@')) {
+            alert('Skriv inn en gyldig e-postadresse.');
+            return;
+          }
+          dom.loginSubmit.disabled = true;
+          const orig = dom.loginSubmit.textContent;
+          dom.loginSubmit.textContent = 'Sender…';
+          try {
+            await requestMagicLink(email);
+            dom.loginSentEmail.textContent = email;
+            setStep(2);
+          } catch (e) {
+            alert(e.message);
+          } finally {
+            dom.loginSubmit.disabled = false;
+            dom.loginSubmit.textContent = orig;
+          }
+        });
+        dom.loginEmail.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); dom.loginSubmit.click(); }
+        });
+        dom.loginCancel.addEventListener('click', hideLogin);
+        dom.loginDone.addEventListener('click', hideLogin);
+        dom.loginBackdrop.addEventListener('click', (e) => {
+          if (e.target === dom.loginBackdrop) hideLogin();
+        });
+
+        // On load: handle ?login=, then refresh /auth/me if we have a token
+        handleLoginParam().then((handled) => {
+          if (state.token) refreshMe();
+        });
+      }
+
+      // Public surface for aiModule and other consumers
+      window.mdAuth = {
+        get token() { return state.token; },
+        get user() { return state.user; },
+        get isLoggedIn() { return !!state.token; },
+        showLogin,
+        hideLogin,
+        refreshMe,
+        logout,
+      };
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+
+    /* ===================================================================
        AI assistant — sidebar wiring + API calls
        =================================================================== */
     (function aiModule() {
@@ -6680,6 +6933,8 @@ def _run_microdata_chunk(_code):
         ['aiToggleBtn','aiSidebar','aiCloseBtn','aiSettingsBtn','aiClearBtn',
          'aiThread','aiInput','aiSendBtn','aiIncludeScript',
          'aiSettingsBackdrop','aiCfgBaseUrl','aiCfgApiKey','aiCfgSave','aiCfgCancel',
+         'aiCfgLoggedIn','aiCfgLoggedOut','aiCfgUserEmail','aiCfgUserMeta',
+         'aiCfgLogout','aiCfgAdmin','aiCfgLogin',
          'sidebarRight','sidebarOpenTab','scriptInput'
         ].forEach(id => { dom[id] = $(id); });
         dom.containers = document.querySelectorAll('.container');
@@ -6982,13 +7237,18 @@ def _run_microdata_chunk(_code):
       }
 
       async function callApi(path, body) {
-        if (!state.apiKey) {
-          throw new Error('Mangler API-nøkkel. Klikk ⚙ for å sette den.');
+        const auth = window.mdAuth;
+        const token = auth && auth.token;
+        if (!token && !state.apiKey) {
+          // Defer to caller to handle (sendMessage triggers login modal)
+          throw new Error('Ikke logget inn');
         }
         const isGet = body == null;
         const opts = {
           method: isGet ? 'GET' : 'POST',
-          headers: { 'X-API-Key': state.apiKey },
+          headers: token
+            ? { 'Authorization': 'Bearer ' + token }
+            : { 'X-API-Key': state.apiKey },
         };
         if (!isGet) {
           opts.headers['Content-Type'] = 'application/json';
@@ -7003,6 +7263,11 @@ def _run_microdata_chunk(_code):
           const err = new Error(msg);
           err.payload = json;
           err.status = res.status;
+          // 401 with bearer → token expired/revoked; clear and prompt re-login
+          if (res.status === 401 && token && auth) {
+            auth.logout();
+            auth.showLogin();
+          }
           throw err;
         }
         return json;
@@ -7050,6 +7315,13 @@ def _run_microdata_chunk(_code):
         if (state.sending) return;
         const text = dom.aiInput.value.trim();
         if (!text) return;
+        // Gate on login: if neither bearer token nor legacy API-key, show login modal.
+        const auth = window.mdAuth;
+        const isAuthed = (auth && auth.token) || state.apiKey;
+        if (!isAuthed) {
+          if (auth) auth.showLogin();
+          return;
+        }
         state.sending = true;
         dom.aiSendBtn.disabled = true;
 
@@ -7142,11 +7414,40 @@ def _run_microdata_chunk(_code):
         ta.style.height = Math.min(ta.scrollHeight, 160) + 'px';
       }
 
+      function categoryLabel(cat) {
+        return ({ internal: 'Internal', kurs: 'Kurs', credits: 'Credits', free: 'Free' }[cat] || cat || '?');
+      }
+
+      function refreshUserPanel() {
+        const auth = window.mdAuth;
+        const user = auth && auth.user;
+        if (user) {
+          dom.aiCfgLoggedIn.style.display = '';
+          dom.aiCfgLoggedOut.style.display = 'none';
+          dom.aiCfgUserEmail.textContent = user.email || '';
+          const bits = [];
+          bits.push('Kategori: ' + categoryLabel(user.category));
+          if (typeof user.credits === 'number') bits.push('Saldo: ' + user.credits);
+          if (user.is_superuser) bits.push('Superuser');
+          if (user.is_admin) bits.push('Admin');
+          if (user.expires_at) bits.push('Utløper: ' + user.expires_at.slice(0, 10));
+          dom.aiCfgUserMeta.textContent = bits.join(' · ');
+          dom.aiCfgAdmin.style.display = user.is_admin ? '' : 'none';
+        } else {
+          dom.aiCfgLoggedIn.style.display = 'none';
+          dom.aiCfgLoggedOut.style.display = '';
+        }
+      }
+
       function openSettings() {
         dom.aiCfgBaseUrl.value = state.apiBase;
         dom.aiCfgApiKey.value = state.apiKey;
+        refreshUserPanel();
+        // Refresh /auth/me in background so the displayed credits/category are up-to-date
+        if (window.mdAuth && window.mdAuth.token) {
+          window.mdAuth.refreshMe().then(refreshUserPanel);
+        }
         dom.aiSettingsBackdrop.classList.add('open');
-        setTimeout(() => dom.aiCfgApiKey.focus(), 60);
       }
       function closeSettings() { dom.aiSettingsBackdrop.classList.remove('open'); }
       function saveSettings() {
@@ -7175,6 +7476,25 @@ def _run_microdata_chunk(_code):
         dom.aiSettingsBackdrop.addEventListener('click', (e) => {
           if (e.target === dom.aiSettingsBackdrop) closeSettings();
         });
+
+        // Auth-related buttons in the settings modal
+        if (dom.aiCfgLogin) {
+          dom.aiCfgLogin.addEventListener('click', () => {
+            closeSettings();
+            if (window.mdAuth) window.mdAuth.showLogin();
+          });
+        }
+        if (dom.aiCfgLogout) {
+          dom.aiCfgLogout.addEventListener('click', async () => {
+            if (window.mdAuth) await window.mdAuth.logout();
+            refreshUserPanel();
+          });
+        }
+        if (dom.aiCfgAdmin) {
+          dom.aiCfgAdmin.addEventListener('click', () => {
+            window.location.href = 'admin.html';
+          });
+        }
 
         dom.aiSendBtn.addEventListener('click', sendMessage);
         dom.aiInput.addEventListener('input', autoresize);
@@ -7205,14 +7525,8 @@ def _run_microdata_chunk(_code):
           observer.observe(dom.sidebarRight, { attributes: true, attributeFilter: ['class'] });
         }
 
-        // Show settings dialog automatically on first use if no key saved.
-        if (!state.apiKey) {
-          // Defer until the user actually opens the panel.
-          dom.aiToggleBtn.addEventListener('click', function once() {
-            if (!state.apiKey) openSettings();
-            dom.aiToggleBtn.removeEventListener('click', once);
-          }, { once: true });
-        }
+        // Auth gate is in sendMessage; no auto-open of settings on first AI-panel
+        // toggle. Users see the panel and the empty state; only Send triggers login.
       }
 
       if (document.readyState === 'loading') {
