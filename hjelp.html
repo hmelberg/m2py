@@ -185,6 +185,8 @@
   <div class="nav-section">Skrittvis kjøring</div>
   <a href="#forklar">Kjør skrittvis</a>
   <a href="#widgets">Widgets</a>
+  <div class="nav-section">AI assistent</div>
+  <a href="#ai">AI assistent</a>
   <div class="nav-section">Andre moduser</div>
   <a href="#modes">Moduser</a>
   <a href="#python">Python (Pyodide)</a>
@@ -429,6 +431,57 @@ summarize kjonn
 
     <div class="callout">
       Alle widgets støtter <code>speak="tekst"</code> for parallell taleopplesning mens widgeten vises, og <code>auto_advance_ms=3000</code> for automatisk lukking etter angitt tid.
+    </div>
+  </section>
+
+  <!-- ── AI ── -->
+  <section id="ai">
+    <h2>AI assistent</h2>
+    <p>Et eksperimentelt sidepanel med en AI-assistent som kan svare på spørsmål om microdata-syntaks, foreslå variabler og generere eller revidere skript. Åpnes med stjerne-ikonet øverst til høyre eller <kbd>Ctrl</kbd>+<kbd>I</kbd>.</p>
+
+    <div class="callout">
+      <strong>Krever API-nøkkel.</strong> Klikk tannhjul-ikonet i AI-panelet og lim inn en nøkkel. Nøkkelen lagres lokalt i nettleseren (localStorage) og sendes som <code>X-API-Key</code>-header til Anvil-API-et. Ta kontakt med utvikleren for å få en nøkkel.
+    </div>
+
+    <h3>Hva assistenten kan gjøre</h3>
+    <p>Assistenten klassifiserer spørsmålet og svarer på én av tre måter:</p>
+    <ul>
+      <li><strong>Spørsmål</strong> — forklarer kommandoer, syntaks og bruk («Hva gjør reshape long?»)</li>
+      <li><strong>Variabel-søk</strong> — finner relevante variabler i microdata-katalogen («Hvilke variabler finnes for utdanning?»)</li>
+      <li><strong>Skript-generering</strong> — lager et komplett microdata-skript fra et naturlig spørsmål («Vis sammendragsstatistikk for inntekt og kjønn»)</li>
+    </ul>
+
+    <h3>Revidere et eksisterende skript</h3>
+    <p>For å la assistenten endre på skriptet i editoren <em>må</em> du huke av <strong>«Inkluder skript fra editor (revider)»</strong> rett over tekstfeltet før du sender. Da brukes innholdet i editoren som utgangspunkt, og forespørselen tolkes som en revisjon — for eksempel «Legg til logaritmisk inntekt» eller «Filtrer på alder over 25».</p>
+    <p>Uten denne avhukingen lages et nytt skript fra bunnen, selv om editoren har innhold.</p>
+
+    <h3>Knapper på genererte skript</h3>
+    <p>Når assistenten returnerer et skript, vises tre knapper under kodeblokken:</p>
+    <ul>
+      <li><strong>📋 Kopier</strong> — kopierer skriptet til utklippstavlen</li>
+      <li><strong>⬇ Erstatt skript</strong> — bytter ut alt i editoren med det genererte skriptet</li>
+      <li><strong>+ Legg til</strong> — føyer skriptet til nederst i editoren</li>
+    </ul>
+
+    <h3>Valideringsadvarsler</h3>
+    <p>Genererte skript kjøres gjennom statisk validering før de vises. Hvis det finnes ukjente variabler, ukjente kommandoer eller parsingsfeil, vises disse som klikkbare brikker (chips) under skriptet. Klikk på en brikke for å forfatte en oppfølgingsmelding som ber assistenten fikse akkurat den feilen.</p>
+
+    <h3>Tidsbruk</h3>
+    <p>Spørsmål og variabel-søk svarer som regel på under 5 sekunder. Skript-generering og revisjon kan ta 20–60 sekunder, opptil ~3 minutter for kompliserte forespørsler — du ser en «Tenker… Ns»-teller mens jobben kjører i bakgrunnen.</p>
+
+    <h3>Andre kontroller</h3>
+    <ul>
+      <li><strong>Tannhjul</strong> — endre API-nøkkel og base-URL</li>
+      <li><strong>Søppelbøtte</strong> — tøm samtalen (sletter ikke noe på serveren)</li>
+      <li><strong>×</strong> — lukk panelet</li>
+      <li><kbd>Enter</kbd> sender, <kbd>Shift</kbd>+<kbd>Enter</kbd> gir ny linje</li>
+    </ul>
+
+    <h3>Personvern</h3>
+    <p>Det som sendes til API-et er kun spørsmålsteksten din, og — hvis avhuket — innholdet i skripteditoren. Datafiler, kjøreresultater, output og widget-innhold sendes ikke. Norsk eller engelsk språk gjettes automatisk fra spørsmålet.</p>
+
+    <div class="callout">
+      <strong>Eksperimentell.</strong> AI-assistenten kan ta feil, foreslå variabler som ikke finnes, eller generere skript som ikke kjører. Sjekk alltid resultatet før bruk.
     </div>
   </section>
 
