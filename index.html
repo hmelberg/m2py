@@ -1370,7 +1370,7 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-06';
+    window.M2PY_VERSION = '2026-05-07';
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function (err) {
@@ -5897,34 +5897,28 @@ e.translate_script_to_python(script)
           }
         } catch (e) { pyInterruptBuf = null; }
       }
-      setStatus(leftStatus, 'Loading numpy, pandas, scipy, pyarrow...');
-      await pyodide.loadPackage(['numpy', 'pandas', 'scipy']);
-      setStatus(leftStatus, 'Loading micropip and setuptools...');
-      await pyodide.loadPackage('micropip');
+      // Alle pyodide-bundlede pakker i ett parallelt kall (B1).
+      // statsmodels er bundlet og importeres på modul-toppnivå i m2py.py.
+      setStatus(leftStatus, 'Loading numpy, pandas, scipy, micropip, setuptools, statsmodels...');
       try {
-        await pyodide.loadPackage('setuptools');
+        await pyodide.loadPackage([
+          'numpy', 'pandas', 'scipy',
+          'micropip', 'setuptools', 'statsmodels'
+        ]);
       } catch (e) {
-        try {
-          await pyodide.runPythonAsync(`
-import micropip
-await micropip.install('setuptools')
-`);
-        } catch (e2) {
-          console.warn('setuptools:', e2);
-        }
+        console.warn('loadPackage bundled set:', e);
       }
-      // statsmodels importeres på modul-toppnivå i m2py.py, og plotly importeres
-      // inne i figurkommandoer (barchart osv.) i m2py.py — auto-install i
-      // run-handleren ser ikke disse fordi de ikke er i brukerens microdata-skript.
-      // matplotlib, lifelines og linearmodels brukes mer sjeldent og blir lazy.
+      // plotly er PyPI (ikke bundlet) og importeres inne i figurkommandoer i m2py.py
+      // — auto-install i run-handler ser ikke disse, så vi installerer eager.
+      // matplotlib, lifelines og linearmodels prefetches i bakgrunn etter Ready (B2).
       try {
-        setStatus(leftStatus, 'Installing statsmodels and plotly...');
+        setStatus(leftStatus, 'Installing plotly...');
         await pyodide.runPythonAsync(`
 import micropip
-await micropip.install(['statsmodels', 'plotly'])
+await micropip.install('plotly')
 `);
       } catch (e) {
-        console.warn('statsmodels/plotly install:', e);
+        console.warn('plotly install:', e);
       }
       setStatus(leftStatus, 'Fetching m2py, functions, mockdata modules and variable_metadata...');
       const base = window.location.href.replace(/[^/]+$/, '');
@@ -6085,14 +6079,39 @@ library <- function(pkg, ...) {
       }
     }
 
+    // Bakgrunns-prefetch av lazy pakker etter Ready (B2). Fyller SW-cachen og
+    // installerer pakkene i Pyodide før brukeren trenger dem. Feiler stille —
+    // eksisterende auto-install i run-handleren håndterer ev. utelatte pakker.
+    function schedulePrefetchLazyPackages(py) {
+      var pkgs = ['matplotlib', 'lifelines', 'linearmodels'];
+      var go = function () {
+        py.runPythonAsync(
+          'import micropip, asyncio\n' +
+          'async def _prefetch():\n' +
+          '    for p in ' + JSON.stringify(pkgs) + ':\n' +
+          '        try:\n' +
+          '            await micropip.install(p)\n' +
+          '        except Exception as e:\n' +
+          '            print("prefetch", p, "failed:", e)\n' +
+          'asyncio.ensure_future(_prefetch())\n'
+        ).catch(function (e) { console.warn('prefetch failed:', e); });
+      };
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(go, { timeout: 10000 });
+      } else {
+        setTimeout(go, 3000);
+      }
+    }
+
     // Start loading Pyodide and dependencies in the background as soon as possible
     loadPyodideAndM2py()
-      .then(function() {
+      .then(function(py) {
         setRunButtonsUi('idle');
         // Auto-kjør starteksempelet hvis brukeren ikke har endret teksten
         if (scriptInput.value.trim() === _PLACEHOLDER.trim()) {
           document.getElementById('btnRun').click();
         }
+        schedulePrefetchLazyPackages(py);
       })
       .catch(function(e) {
         setStatus(leftStatus, 'Load failed: ' + (e && e.message ? e.message : String(e)), true);

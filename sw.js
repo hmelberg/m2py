@@ -1,4 +1,4 @@
-const CACHE = 'm2py-v1';
+const CACHE = 'm2py-v2';
 const CDN_HOSTS = new Set([
   'cdn.jsdelivr.net',
   'cdn.plot.ly',
@@ -13,7 +13,28 @@ const LOCAL_SWR_SUFFIXES = [
   '/mockdata_realism.py'
 ];
 
-self.addEventListener('install', () => self.skipWaiting());
+const PRECACHE_URLS = [
+  'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js',
+  'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.asm.wasm',
+  'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.asm.js',
+  'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide-lock.json',
+  'https://cdn.plot.ly/plotly-2.32.0.min.js',
+  'https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js'
+];
+
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(CACHE).then(cache =>
+      Promise.allSettled(
+        PRECACHE_URLS.map(u =>
+          fetch(u, { cache: 'no-cache' })
+            .then(r => (r && (r.ok || r.type === 'opaque')) ? cache.put(u, r) : null)
+            .catch(() => null)
+        )
+      )
+    ).then(() => self.skipWaiting())
+  );
+});
 
 self.addEventListener('activate', e => e.waitUntil(
   caches.keys().then(keys => Promise.all(
