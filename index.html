@@ -1370,7 +1370,7 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-07';
+    window.M2PY_VERSION = '2026-05-07b';
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function (err) {
@@ -5897,13 +5897,14 @@ e.translate_script_to_python(script)
           }
         } catch (e) { pyInterruptBuf = null; }
       }
-      // Alle pyodide-bundlede pakker i ett parallelt kall (B1).
-      // statsmodels er bundlet og importeres på modul-toppnivå i m2py.py.
-      setStatus(leftStatus, 'Loading numpy, pandas, scipy, micropip, setuptools, statsmodels...');
+      // Pyodide-bundlede pakker som m2py.py + functions.py trenger ved import-tid:
+      // numpy/pandas/scipy/micropip/setuptools. statsmodels er nå lazy i m2py.py
+      // (se _ensure_statsmodels) og prefetches etter Ready.
+      setStatus(leftStatus, 'Loading numpy, pandas, scipy, micropip, setuptools...');
       try {
         await pyodide.loadPackage([
           'numpy', 'pandas', 'scipy',
-          'micropip', 'setuptools', 'statsmodels'
+          'micropip', 'setuptools'
         ]);
       } catch (e) {
         console.warn('loadPackage bundled set:', e);
@@ -6083,7 +6084,7 @@ library <- function(pkg, ...) {
     // installerer pakkene i Pyodide før brukeren trenger dem. Feiler stille —
     // eksisterende auto-install i run-handleren håndterer ev. utelatte pakker.
     function schedulePrefetchLazyPackages(py) {
-      var pkgs = ['matplotlib', 'lifelines', 'linearmodels'];
+      var pkgs = ['statsmodels', 'matplotlib', 'lifelines', 'linearmodels'];
       var go = function () {
         py.runPythonAsync(
           'import micropip, asyncio\n' +
