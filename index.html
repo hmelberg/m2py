@@ -5913,17 +5913,18 @@ await micropip.install('setuptools')
           console.warn('setuptools:', e2);
         }
       }
-      // statsmodels importeres på modul-toppnivå i m2py.py, så den må lastes nå.
-      // plotly, matplotlib, lifelines og linearmodels installeres lazy ved første
-      // bruk via auto-install i run-handleren nedenfor.
+      // statsmodels importeres på modul-toppnivå i m2py.py, og plotly importeres
+      // inne i figurkommandoer (barchart osv.) i m2py.py — auto-install i
+      // run-handleren ser ikke disse fordi de ikke er i brukerens microdata-skript.
+      // matplotlib, lifelines og linearmodels brukes mer sjeldent og blir lazy.
       try {
-        setStatus(leftStatus, 'Installing statsmodels...');
+        setStatus(leftStatus, 'Installing statsmodels and plotly...');
         await pyodide.runPythonAsync(`
 import micropip
-await micropip.install('statsmodels')
+await micropip.install(['statsmodels', 'plotly'])
 `);
       } catch (e) {
-        console.warn('statsmodels install:', e);
+        console.warn('statsmodels/plotly install:', e);
       }
       setStatus(leftStatus, 'Fetching m2py, functions, mockdata modules and variable_metadata...');
       const base = window.location.href.replace(/[^/]+$/, '');
