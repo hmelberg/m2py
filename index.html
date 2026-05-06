@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Microdata script runner</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://cdn.plot.ly" crossorigin>
+  <link rel="preload" as="script" href="https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js">
   <style>
     * { box-sizing: border-box; }
     html { height: 100%; }
@@ -1366,6 +1369,16 @@
   <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
+  <script>
+    window.M2PY_VERSION = '2026-05-06';
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function (err) {
+          console.warn('SW register failed:', err);
+        });
+      });
+    }
+  </script>
   <script>
     window.refreshPlotlyAfterLayout = function() {
       setTimeout(function() {
@@ -5900,45 +5913,11 @@ await micropip.install('setuptools')
           console.warn('setuptools:', e2);
         }
       }
-      try {
-        await pyodide.runPythonAsync(`
-import micropip
-await micropip.install('statsmodels')
-`);
-      } catch (e) {
-        console.warn('statsmodels install:', e);
-      }
-      try {
-        await pyodide.runPythonAsync(`
-import micropip
-await micropip.install('plotly')
-`);
-      } catch (e) {
-        console.warn('plotly install:', e);
-      }
-      try {
-        setStatus(leftStatus, 'Installing matplotlib...');
-        await pyodide.runPythonAsync(`
-import micropip
-await micropip.install('matplotlib')
-`);
-      } catch (e) {
-        console.warn('matplotlib install:', e);
-      }
-      for (const pkg of ['lifelines', 'linearmodels']) {
-        try {
-          setStatus(leftStatus, `Installing ${pkg}...`);
-          await pyodide.runPythonAsync(`
-import micropip
-await micropip.install(${JSON.stringify(pkg)})
-`);
-        } catch (e) {
-          console.warn(`${pkg} install:`, e);
-        }
-      }
+      // Tunge pakker (statsmodels, plotly, matplotlib, lifelines, linearmodels)
+      // installeres lazy ved første bruk via auto-install i run-handleren nedenfor.
       setStatus(leftStatus, 'Fetching m2py, functions, mockdata modules and variable_metadata...');
       const base = window.location.href.replace(/[^/]+$/, '');
-      const _cb = '?_=' + Date.now();
+      const _cb = '?v=' + (window.M2PY_VERSION || '1');
       const [m2pyResp, funcResp, metaResp, coreResp, realismResp] = await Promise.all([
         fetch(base + 'm2py.py' + _cb),
         fetch(base + 'functions.py' + _cb),
@@ -6152,16 +6131,23 @@ library <- function(pkg, ...) {
         if (activeEditorMode === 'python') {
           try {
             setStatus(rightStatus, 'Sjekker pakker\u2026');
-            await py.loadPackagesFromImports(effectiveScript);
+            await py.loadPackagesFromImports(effectiveScript, {
+              messageCallback: function (msg) { setStatus(rightStatus, msg); }
+            });
           } catch(e) { console.warn('loadPackagesFromImports:', e); }
           var _pyPkgs = extractPythonImports(effectiveScript);
           for (var _pkg of _pyPkgs) {
             try {
-              await py.runPythonAsync(
+              var _needInstall = await py.runPythonAsync(
                 'import importlib.util as _iu\n' +
-                'if _iu.find_spec(' + JSON.stringify(_pkg) + ') is None:\n' +
-                '    import micropip as _mp; await _mp.install(' + JSON.stringify(_pkg) + ')'
+                '_iu.find_spec(' + JSON.stringify(_pkg) + ') is None'
               );
+              if (_needInstall) {
+                setStatus(rightStatus, 'Installerer ' + _pkg + '\u2026');
+                await py.runPythonAsync(
+                  'import micropip as _mp\nawait _mp.install(' + JSON.stringify(_pkg) + ')'
+                );
+              }
             } catch(e) { console.warn('micropip install', _pkg, e); }
           }
         }
