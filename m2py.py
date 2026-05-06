@@ -2828,8 +2828,17 @@ class MockDataEngine:
                 result_df = result_df[keep_mask].reset_index(drop=True)
         return result_df
 
-import statsmodels.api as sm
-from statsmodels.discrete.discrete_model import Probit
+def _ensure_statsmodels():
+    """Lazy-import statsmodels. Bruker friendly error hvis ikke installert."""
+    try:
+        import statsmodels.api as sm
+        from statsmodels.discrete.discrete_model import Probit
+        return sm, Probit
+    except ImportError:
+        raise ImportError(
+            "statsmodels må være installert for regresjonskommandoer. "
+            "Kjør: pip install statsmodels"
+        )
 
 def calculate_gini(x):
     """Spesialfunksjon for microdata.no gini-koeffisient"""
@@ -4172,6 +4181,7 @@ class StatsEngine:
 
 class RegressionHandler:
     def _add_const(self, X, add):
+        sm, _ = _ensure_statsmodels()
         return sm.add_constant(X) if add else X
 
     def _apply_cov(self, model, options, df_clean=None):
@@ -4242,6 +4252,7 @@ class RegressionHandler:
         """Fit en enkel regresjon og returner (model, dep_var, indep_vars, df_clean).
         Brukes av coefplot og evt. andre metoder som trenger råmodellen.
         """
+        sm, Probit = _ensure_statsmodels()
         dep_var = args[0]
         raw_indep = list(args[1:])
         add_const = 'noconstant' not in options
@@ -4315,6 +4326,7 @@ class RegressionHandler:
             return self._execute_iv(cmd, df, args, options)
         if cmd == 'rdd':
             return self._execute_rdd(cmd, df, args, options)
+        sm, Probit = _ensure_statsmodels()
 
         dep_var = args[0]
         raw_indep = list(args[1:])
@@ -4669,6 +4681,7 @@ class RegressionHandler:
         return (f"Ukjent regresjonskommando: {cmd}", None)
 
     def _execute_iv(self, cmd, df, args, options):
+        sm, _ = _ensure_statsmodels()
         alpha = 1 - (float(options.get('level', 95)) / 100)
         dep = args.get('dep')
         exog_vars = args.get('exog', [])
@@ -4736,6 +4749,7 @@ class RegressionHandler:
 
     def _execute_rdd(self, cmd, df, args, options):
         """Regression Discontinuity Design (sharp og fuzzy)."""
+        sm, _ = _ensure_statsmodels()
         dep = args.get('dep')
         runvar = args.get('runvar')
         raw_exog = args.get('exog', [])
