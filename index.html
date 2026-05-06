@@ -1099,6 +1099,36 @@
       </div>
     </div>
   </div>
+
+  <div class="ai-modal-backdrop" id="welcomeBackdrop">
+    <div class="ai-modal" style="max-width:520px;">
+      <h3>Velkommen!</h3>
+      <p style="margin:0 0 10px 0;">
+        Dette er en side der du kan øve på å kjøre analyser i microdata.no-stil.
+      </p>
+      <div class="ai-modal-help" style="margin-bottom:14px;">
+        Denne siden inneholder ikke ekte tall. Det er et hobbyprosjekt og er
+        <strong>ikke</strong> laget av microdata.no selv. Den kommer uten garantier
+        for at analysene er korrekt implementert.
+      </div>
+      <div style="margin:14px 0; padding:10px 12px; background:var(--bg-code);
+                  border-left:3px solid var(--accent); border-radius:4px;">
+        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase;
+                    letter-spacing:0.5px; margin-bottom:4px;">Tips</div>
+        <div id="welcomeTipText" style="font-size:13px; line-height:1.5;"></div>
+      </div>
+      <label style="display:flex; align-items:center; gap:6px; font-size:12px;
+                    color:var(--text-muted); margin-top:12px; text-transform:none;
+                    letter-spacing:0;">
+        <input type="checkbox" id="welcomeDontShow" style="margin:0;">
+        Ikke vis denne meldingen igjen
+      </label>
+      <div class="ai-modal-actions">
+        <button type="button" class="ai-modal-btn" id="welcomeNextTip">Vis et nytt tips</button>
+        <button type="button" class="ai-modal-btn primary" id="welcomeOk">OK</button>
+      </div>
+    </div>
+  </div>
   </div>
   <footer class="bottombar">
     <div class="bottombar-left">
@@ -1370,7 +1400,7 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-07b';
+    window.M2PY_VERSION = '2026-05-08';
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function (err) {
@@ -1378,6 +1408,73 @@
         });
       });
     }
+
+    (function welcomeModule() {
+      var LS_KEY = 'microdata_welcome_dismissed';
+      var TIPS = [
+        "Trykk Ctrl+Enter (eller Cmd+Enter) for å kjøre scriptet.",
+        "Bruk Tab i kode-feltet for å få kommando- og variabel-forslag.",
+        "Klikk på linjenummer for å sette stoppunkt og kjøre skrittvis.",
+        "Skriv `help <kommando>` for å se syntaks og eksempler.",
+        "Du kan blande microdata-, Python- og R-kode i samme script.",
+        "Last ned plott som PNG ved å høyreklikke på figuren.",
+        "Bruk `import` for å laste eksempel-datasett (f.eks. `import inntekt`).",
+        "AI-assistenten i sidemenyen kan forklare og forbedre koden din.",
+        "Lagre script-en din via menyen (☰) → 'Lagre script'.",
+        "Tilpass tema, font og layout via Innstillinger i menyen.",
+        "`describe` gir deg en rask oversikt over et datasett.",
+        "Bruk `keep` og `drop` til å filtrere variabler eller observasjoner.",
+        "`generate y = x1 + x2` lager en ny variabel basert på et uttrykk.",
+        "`collapse` aggregerer datasettet til et høyere nivå.",
+        "Du finner full hjelp i menyen (☰) → 'Hjelp'.",
+        "Tab i hjelpe-feltet filtrerer kommandoer og funksjoner mens du skriver.",
+        "Plot-typer: `histogram`, `barchart`, `scatter`, `lineplot`.",
+        "`regress y x1 x2` kjører en lineær regresjon (statsmodels).",
+        "Bruk `## python` eller `## r` for å bytte språk i en kodeblokk.",
+        "Kommentarer i microdata-kode begynner med `//`."
+      ];
+
+      function pickTip(prev) {
+        if (TIPS.length <= 1) return TIPS[0] || '';
+        var i;
+        do { i = Math.floor(Math.random() * TIPS.length); }
+        while (TIPS[i] === prev);
+        return TIPS[i];
+      }
+
+      function show() {
+        if (localStorage.getItem(LS_KEY) === '1') return;
+        var bd = document.getElementById('welcomeBackdrop');
+        var tipEl = document.getElementById('welcomeTipText');
+        var nextBtn = document.getElementById('welcomeNextTip');
+        var okBtn = document.getElementById('welcomeOk');
+        var cb = document.getElementById('welcomeDontShow');
+        if (!bd || !tipEl || !nextBtn || !okBtn || !cb) return;
+
+        tipEl.textContent = pickTip(null);
+        bd.classList.add('open');
+
+        nextBtn.onclick = function () { tipEl.textContent = pickTip(tipEl.textContent); };
+        var close = function () {
+          if (cb.checked) localStorage.setItem(LS_KEY, '1');
+          bd.classList.remove('open');
+        };
+        okBtn.onclick = close;
+        bd.addEventListener('click', function (e) { if (e.target === bd) close(); });
+        document.addEventListener('keydown', function esc(e) {
+          if (e.key === 'Escape' && bd.classList.contains('open')) {
+            close();
+            document.removeEventListener('keydown', esc);
+          }
+        });
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', show);
+      } else {
+        show();
+      }
+    })();
   </script>
   <script>
     window.refreshPlotlyAfterLayout = function() {
