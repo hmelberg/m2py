@@ -408,11 +408,18 @@ def to_symbol(s):
     return str(s)
 
 def bind(name):
-    """Returnerer verdien til en let-binding ved navn."""
+    """Returnerer verdien til en let-binding ved navn.
+
+    Microdata-semantikk: `bind(kpi)` slår opp bindingen kpi. I m2py kommer
+    argumentet inn allerede evaluert (siden eval kjøres med bindinger i miljøet,
+    blir bare `y` til verdien sin før bind kalles). For å støtte begge formene:
+      - streng som matcher en binding -> oppslag
+      - allerede en verdi (tall/streng/None) -> returner uendret
+    """
     bindings = _bindings_ref[0]
-    if bindings is None or not isinstance(name, str):
-        return np.nan
-    return bindings.get(name, np.nan)
+    if isinstance(name, str) and bindings is not None and name in bindings:
+        return bindings[name]
+    return name
 
 # ============ ANDRE ============
 def quantile(x, n):
