@@ -905,6 +905,7 @@
         <button type="button" id="menuRunnerMode" style="display:none">Kjøremodus: Microdata</button>
         <button type="button" id="menuToggleOutputMode" style="display:none">Output-modus: String</button>
         <button type="button" id="menuStrictEmulation" title="Når PÅ: matcher microdata.no-regler (pseudonym-validering m.m.). Når AV: tillater alt simulatoren kan kjøre.">Streng emulering: PÅ</button>
+        <button type="button" id="menuDisclosureControl" title="Når PÅ: tabeller og statistikk sensureres som i microdata.no (min populasjon 1000, små celler skjules, persentiler avrundes). Når AV: alle tall vises rått.">Avsløringskontroll: PÅ</button>
         <!-- Menyvalg skjult: standardverdier fra #suppressEmbedded, #plotStatic, #plotSeaborn (alle ukrytt i bunnen av siden). Fjern kommentarwrapper for å vise igjen.
         <button type="button" id="menuToggleSuppress">Skjul innebygde (plots/tabeller)</button>
         <button type="button" id="menuToggleStaticPlot">Plot: Interaktiv</button>
@@ -1401,7 +1402,7 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-19';
+    window.M2PY_VERSION = '2026-05-19b';
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function (err) {
@@ -2252,6 +2253,35 @@
         menuStrictBtn.addEventListener('click', function() {
           setStrictEmulation(!getStrictEmulation());
           updateStrictEmulationLabel();
+          dropdown.classList.remove('open');
+        });
+      }
+
+      // Avsløringskontroll: default PÅ; også PÅ når flagget mangler. Speiles
+      // til Pyodide via globals()['M2PY_DISCLOSURE_CONTROL'].
+      const DC_KEY = 'microdata_disclosure_control';
+      function getDisclosureControl() {
+        try {
+          const v = localStorage.getItem(DC_KEY);
+          return v === null || v === '1';
+        } catch (e) { return true; }
+      }
+      function setDisclosureControl(on) {
+        try { localStorage.setItem(DC_KEY, on ? '1' : '0'); } catch (e) {}
+        window.__applyDisclosureControlToPython && window.__applyDisclosureControlToPython();
+      }
+      window.__getDisclosureControl = getDisclosureControl;
+      function updateDCLabel() {
+        const btn = document.getElementById('menuDisclosureControl');
+        if (!btn) return;
+        btn.textContent = 'Avsløringskontroll: ' + (getDisclosureControl() ? 'PÅ' : 'AV');
+      }
+      updateDCLabel();
+      const menuDCBtn = document.getElementById('menuDisclosureControl');
+      if (menuDCBtn) {
+        menuDCBtn.addEventListener('click', function() {
+          setDisclosureControl(!getDisclosureControl());
+          updateDCLabel();
           dropdown.classList.remove('open');
         });
       }
@@ -6130,6 +6160,20 @@ exec(compile(m2py_code, "m2py.py", "exec"), sys.modules["m2py"].__dict__)
         } catch (e) { console.warn('apply strict emulation:', e); }
       };
       await window.__applyStrictEmulationToPython();
+
+      // Speile avsløringskontroll-flagget fra localStorage til m2py.M2PY_DISCLOSURE_CONTROL.
+      window.__applyDisclosureControlToPython = async function () {
+        if (!pyodide) return;
+        const on = window.__getDisclosureControl ? window.__getDisclosureControl() : true;
+        try {
+          await pyodide.runPythonAsync(
+            `import sys\n` +
+            `if 'm2py' in sys.modules:\n` +
+            `    sys.modules['m2py'].M2PY_DISCLOSURE_CONTROL = ${on ? "'1'" : "'0'"}\n`
+          );
+        } catch (e) { console.warn('apply disclosure control:', e); }
+      };
+      await window.__applyDisclosureControlToPython();
       let functionsLoaded = false;
       try {
         functionsLoaded = await pyodide.runPythonAsync(`
