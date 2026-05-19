@@ -4064,34 +4064,10 @@ json.dumps(out)
           if (slashSuggs.length) { showAutocomplete(slashSuggs, slashStart, pos); return; }
         }
 
-        // Prioritet 1: Etter kommando + mellomrom (eller delvis variabel) -> alltid variabelliste (ikke hjelp)
-        if (!hasRightText && isCommand && (endsWithSpace || prefix.length > 0)) {
-          const importLike = ['import', 'import-event', 'import-panel'].indexOf(firstWord.toLowerCase()) >= 0;
-          let varNames = [];
-          if (importLike) {
-            varNames = microdataVariableNames.slice();
-          } else {
-            const active = window.activeDatasetName;
-            const cols = (active && window.lastDatasetInfo && window.lastDatasetInfo[active]) ? (window.lastDatasetInfo[active].columns || []) : [];
-            // Aktivt datasett har kolonner: bruk dem; ellers fallback til katalogvariabler (f.eks. kjonn, inntekt)
-            varNames = cols.length > 0 ? cols.slice() : microdataVariableNames.slice();
-          }
-          varNames.sort();
-          if (prefix.length > 0) {
-            const p = prefix.toLowerCase();
-            varNames = varNames.filter(v => v.toLowerCase().startsWith(p));
-          }
-          const vars = varNames.map(v => {
-            const detail = getVariableShortDescription(v);
-            return { label: v, kind: 'variable', detail: detail || 'variable', insertText: v };
-          });
-          if (vars.length > 0) {
-            showAutocomplete(vars, prefix.length > 0 ? start : pos, prefix.length > 0 ? end : pos);
-            return;
-          }
-        }
-
-        // Hjelp: bare når cursor står inne i et ord og vi ikke er i «kommando + variabel»-kontekst
+        // Hjelp har prioritet: hvis cursor står på et komplett, kjent
+        // ord (variabel/alias/kommando/funksjon), vis hjelp i stedet for
+        // forslag. Dette gjelder uansett om cursor er midt i, ved enden,
+        // eller starten av ordet (getFullWordAtCursor gir hele ordet).
         if (prefix.length > 0) {
           const { fullWord } = getFullWordAtCursor();
           const word = fullWord;
@@ -4123,6 +4099,34 @@ json.dumps(out)
             (varAliasMap[word] && microdataCatalog && microdataCatalog.variables && microdataCatalog.variables[varAliasMap[word]]);
           if (isVariable && microdataCatalog && microdataCatalog.variables && microdataCatalog.variables[keyResolved]) {
             showCatalogVariableHelpModal(word, catalogKey);
+            return;
+          }
+        }
+
+        // Prioritet 2: Etter kommando + mellomrom (eller delvis variabel)
+        // og ordet ved cursor IKKE er en komplett kjent variabel -> variabelliste.
+        if (!hasRightText && isCommand && (endsWithSpace || prefix.length > 0)) {
+          const importLike = ['import', 'import-event', 'import-panel'].indexOf(firstWord.toLowerCase()) >= 0;
+          let varNames = [];
+          if (importLike) {
+            varNames = microdataVariableNames.slice();
+          } else {
+            const active = window.activeDatasetName;
+            const cols = (active && window.lastDatasetInfo && window.lastDatasetInfo[active]) ? (window.lastDatasetInfo[active].columns || []) : [];
+            // Aktivt datasett har kolonner: bruk dem; ellers fallback til katalogvariabler (f.eks. kjonn, inntekt)
+            varNames = cols.length > 0 ? cols.slice() : microdataVariableNames.slice();
+          }
+          varNames.sort();
+          if (prefix.length > 0) {
+            const p = prefix.toLowerCase();
+            varNames = varNames.filter(v => v.toLowerCase().startsWith(p));
+          }
+          const vars = varNames.map(v => {
+            const detail = getVariableShortDescription(v);
+            return { label: v, kind: 'variable', detail: detail || 'variable', insertText: v };
+          });
+          if (vars.length > 0) {
+            showAutocomplete(vars, prefix.length > 0 ? start : pos, prefix.length > 0 ? end : pos);
             return;
           }
         }
