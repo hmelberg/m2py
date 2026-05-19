@@ -320,6 +320,14 @@ generate hoy = (inntekt &gt; maks)</code></pre>
       <li><strong>Median/persentiler vises med 3 signifikante sifre.</strong> I <code>summarize</code> blir f.eks. 47 238 til 47 200 og 2,7183 til 2,72.</li>
       <li><strong>Winsorisering 1/99 %.</strong> Numeriske variabler kuttes ved 1- og 99-persentilen før visning av gjennomsnitt og standardavvik i <code>summarize</code>, og før plotting i <code>histogram</code>, <code>scatter</code> og <code>boxplot</code>. Median og kvartiler er ikke påvirket. Regresjon og collapse bruker rå data.</li>
     </ul>
+
+    <h4>Per-script-overstyring</h4>
+    <p>Du kan også styre avsløringskontroll fra selve scriptet med et magisk direktiv øverst i koden. Direktivet er en vanlig kommentar (<code>//</code>) som ignoreres av microdata.no-produksjon, men leses av m2py før kjøring og slås tilbake igjen etterpå (påvirker ikke andre script):</p>
+    <pre><code>// m2py: disclosure-control=off
+create-dataset bef
+import db/BEFOLKNING_KJOENN as kjonn
+summarize kjonn</code></pre>
+    <p>Verdier: <code>on</code>/<code>off</code>, <code>true</code>/<code>false</code>, <code>1</code>/<code>0</code>, <code>yes</code>/<code>no</code>. Kortform <code>dc</code> aksepteres også: <code>// m2py: dc=off</code>. Nyttig i API-/script-bruk der man vil styre modus uten å endre globale innstillinger.</p>
   </section>
 
   <!-- ── EDITOR ── -->
