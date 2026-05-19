@@ -109,7 +109,7 @@ window.MICRODATA_COMMAND_HELP = {
   },
   "generate": {
     "syntax": "generate name = expression [if]",
-    "description": "Lag ny variabel definert ved et uttrykk. Støtter aritmetikk og funksjoner, med valgfri if-betingelse.",
+    "description": "Lag ny variabel definert ved et uttrykk. Støtter aritmetikk og funksjoner, med valgfri if-betingelse. Med `if`: rader som ikke matcher får automatisk missing-verdi. NB: literal `.` (Stata-syntaks for missing) er ikke gyldig i microdata.no — bruk `sysmiss(x)` for å teste, eller `generate x = uttrykk if cond` for å lage missing der betingelsen ikke holder.",
     "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#generate"
   },
   "rename": {
@@ -158,7 +158,7 @@ window.MICRODATA_COMMAND_HELP = {
   },
   "replace": {
     "syntax": "replace var-name = expression [if]",
-    "description": "Erstatt verdier i en eksisterende variabel for enheter som oppfyller en betingelse.",
+    "description": "Erstatt verdier i en eksisterende variabel for enheter som oppfyller en betingelse. NB: literal `.` (Stata-syntaks for missing) er ikke gyldig i microdata.no. Bruk `sysmiss(x)` for å teste om en verdi er missing.",
     "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#replace"
   },
   "destring": {

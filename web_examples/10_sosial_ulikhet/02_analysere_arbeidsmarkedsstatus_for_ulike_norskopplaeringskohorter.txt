@@ -56,10 +56,12 @@ barchart(count) første_oppholdsår
 
 
 //---- Kobler på data om sysselsetting, ledighet, og helse/trygd tre år etter innvandring -----
-generate lønnsmottaker_3 = .
-generate dagpengemottaker_3 = .
-generate gr_hj_stønad_ufør_3 = .
-generate sosialhjelpsmottaker_3 = .
+// Initialiserer flagg som 0 (ikke mottaker); replace nedenfor setter til 1 der det
+// gjelder. (microdata.no støtter ikke Stata-syntaksen `generate x = .`.)
+generate lønnsmottaker_3 = 0
+generate dagpengemottaker_3 = 0
+generate gr_hj_stønad_ufør_3 = 0
+generate sosialhjelpsmottaker_3 = 0
 
 for år in 1993:2002
   import db/INNTEKT_WLONN date_fmt($år) as lønn++$år
@@ -102,7 +104,8 @@ end
 
 //-----Kobler på data om pågående utdanning (målt over hele året tre år senere) --------------
 
-generate utdanning_3 = .
+// Initialiserer som 0 (ingen utdanning registrert); settes til 1 der relevant.
+generate utdanning_3 = 0
 
 create-dataset kurs_personid
 import db/NUDB_KURS_FNR as personid
