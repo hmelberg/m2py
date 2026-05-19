@@ -904,6 +904,7 @@
         <hr style="margin:4px 0;border-color:#334155;">
         <button type="button" id="menuRunnerMode" style="display:none">Kjøremodus: Microdata</button>
         <button type="button" id="menuToggleOutputMode" style="display:none">Output-modus: String</button>
+        <button type="button" id="menuStrictEmulation" title="Når PÅ: matcher microdata.no-regler (pseudonym-validering m.m.). Når AV: tillater alt simulatoren kan kjøre.">Streng emulering: PÅ</button>
         <!-- Menyvalg skjult: standardverdier fra #suppressEmbedded, #plotStatic, #plotSeaborn (alle ukrytt i bunnen av siden). Fjern kommentarwrapper for å vise igjen.
         <button type="button" id="menuToggleSuppress">Skjul innebygde (plots/tabeller)</button>
         <button type="button" id="menuToggleStaticPlot">Plot: Interaktiv</button>
@@ -1400,7 +1401,7 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-08';
+    window.M2PY_VERSION = '2026-05-19';
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function (err) {
@@ -2222,6 +2223,35 @@
           const next = getRunnerModeFromStorage() === 'pyodide' ? 'microdata' : 'pyodide';
           setRunnerModeInStorage(next);
           updateRunnerModeMenuLabel();
+          dropdown.classList.remove('open');
+        });
+      }
+
+      // Streng emulering: default PÅ; også PÅ når flagget mangler. Speiles til
+      // Pyodide via globals()['M2PY_STRICT_EMULATION'] når interpreteren er klar.
+      const STRICT_EMU_KEY = 'microdata_strict_emulation';
+      function getStrictEmulation() {
+        try {
+          const v = localStorage.getItem(STRICT_EMU_KEY);
+          return v === null || v === '1';
+        } catch (e) { return true; }
+      }
+      function setStrictEmulation(on) {
+        try { localStorage.setItem(STRICT_EMU_KEY, on ? '1' : '0'); } catch (e) {}
+        window.__applyStrictEmulationToPython && window.__applyStrictEmulationToPython();
+      }
+      window.__getStrictEmulation = getStrictEmulation;
+      function updateStrictEmulationLabel() {
+        const btn = document.getElementById('menuStrictEmulation');
+        if (!btn) return;
+        btn.textContent = 'Streng emulering: ' + (getStrictEmulation() ? 'PÅ' : 'AV');
+      }
+      updateStrictEmulationLabel();
+      const menuStrictBtn = document.getElementById('menuStrictEmulation');
+      if (menuStrictBtn) {
+        menuStrictBtn.addEventListener('click', function() {
+          setStrictEmulation(!getStrictEmulation());
+          updateStrictEmulationLabel();
           dropdown.classList.remove('open');
         });
       }
@@ -6086,6 +6116,20 @@ spec2 = importlib.util.spec_from_loader("m2py", loader=None)
 sys.modules["m2py"] = importlib.util.module_from_spec(spec2)
 exec(compile(m2py_code, "m2py.py", "exec"), sys.modules["m2py"].__dict__)
 `);
+      // Speile streng-emulering-flagget fra localStorage til m2py.M2PY_STRICT_EMULATION.
+      // Default er PÅ; gjenta-kallbar når brukeren toggler i hamburger-menyen.
+      window.__applyStrictEmulationToPython = async function () {
+        if (!pyodide) return;
+        const on = window.__getStrictEmulation ? window.__getStrictEmulation() : true;
+        try {
+          await pyodide.runPythonAsync(
+            `import sys\n` +
+            `if 'm2py' in sys.modules:\n` +
+            `    sys.modules['m2py'].M2PY_STRICT_EMULATION = ${on ? "'1'" : "'0'"}\n`
+          );
+        } catch (e) { console.warn('apply strict emulation:', e); }
+      };
+      await window.__applyStrictEmulationToPython();
       let functionsLoaded = false;
       try {
         functionsLoaded = await pyodide.runPythonAsync(`

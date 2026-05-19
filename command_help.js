@@ -34,8 +34,8 @@ window.MICRODATA_COMMAND_HELP = {
     "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#let"
   },
   "for": {
-    "syntax": "for i [, j] in (values | n : m) [, ...] [; g in ..]",
-    "description": "Start en løkke over verdier eller intervaller. Kommandoene mellom for og end kjører for hver kombinasjon av iteratorverdier.",
+    "syntax": "for i [, j] in values | n : m [, ...] [; g in ..]",
+    "description": "Start en løkke over verdier eller intervaller (n:m, inklusiv). Kommandoene mellom for og end kjører for hver kombinasjon av iteratorverdier. Eksempler: `for år in 1998 : 2009`, `for forelder in mor, far`, `for år, v in 0:2, første andre tredje`. NB: bruk ikke parentes rundt verdiene og ikke ellipsis `...` — disse er ikke gyldig i microdata.no.",
     "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#for"
   },
   "end": {
@@ -139,12 +139,12 @@ window.MICRODATA_COMMAND_HELP = {
   },
   "collapse": {
     "syntax": "collapse (statistic) var-name [-> new-name] [...] [, by(var)]",
-    "description": "Aggreger datasettet til et høyere nivå. Etterpå består datasettet kun av aggregerte variabler og by-variabelen.",
+    "description": "Aggreger datasettet til et høyere nivå. Etterpå består datasettet kun av aggregerte variabler og by-variabelen. Støttede statistikker: count, sum, mean, sd, median, min, max, p25, p75, gini, iqr, percent. NB: kun ÉN by-variabel — for sammensatte nøkler, lag composite først med `generate k = string(a) ++ \"_\" ++ string(b)`. `first`/`last` er ikke støttet i microdata.no.",
     "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#collapse"
   },
   "merge": {
     "syntax": "merge var-list into dataset [on variable]",
-    "description": "Koble variabler fra ett datasett inn i et annet på samme eller lavere enhetsnivå, gjerne via en koblingsvariabel.",
+    "description": "Koble variabler fra ett datasett inn i et annet på samme eller lavere enhetsnivå, gjerne via en koblingsvariabel. NB: kun ÉN nøkkel-variabel i `on` — for sammensatte nøkler, lag composite først med `generate k = string(a) ++ \"_\" ++ string(b)`.",
     "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#merge"
   },
   "recode": {

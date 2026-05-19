@@ -287,14 +287,28 @@
     <h3>collapse-statistikk</h3>
     <p>Tilgjengelige statistikkmål for <code>collapse</code> og <code>aggregate</code>:</p>
     <p><code>mean</code> · <code>min</code> · <code>max</code> · <code>median</code> · <code>sum</code> · <code>count</code> · <code>sd</code> · <code>semean</code> · <code>sebinomial</code> · <code>percent</code> · <code>iqr</code> · <code>gini</code></p>
+    <p><em>NB:</em> <code>collapse (first)</code> og <code>collapse (last)</code> er <strong>ikke</strong> støttet i microdata.no — bruk i stedet en aggregert statistikk.</p>
+    <p><em>Multi-key:</em> kun ÉN variabel i <code>by()</code> og <code>on</code>. Lag composite-nøkkel først:
+       <code>generate composite = string(k1) ++ "_" ++ string(k2)</code>.</p>
+
+    <h3>Pseudonym-variabler</h3>
+    <p>Variabler som identifiserer enheter (typisk variabler med navn som slutter på <code>_FNR</code> — f.eks. <code>BEFOLKNING_MOR_FNR</code>) er <strong>pseudonymer</strong>. I microdata.no kan disse kun brukes som nøkkel i <code>collapse(by)</code> eller <code>merge(on)</code> — ikke i <code>generate</code>/<code>replace</code>, sammenligninger eller andre transformasjoner.</p>
 
     <h3>Kontrollflyt</h3>
-    <pre><code>for i in 2018 2019 2020
-  import db/INNTEKT_WLONN &i-01-01 as inntekt_&i
+    <p>For-løkker bruker prod-grammatikk: range med <code>n : m</code> (inklusiv), eller verdiliste (komma- eller whitespace-separert). Bruk <code>$i</code> for substitusjon. Ikke bruk parentes rundt iterator-listen eller literal ellipsis <code>...</code>.</p>
+    <pre><code>for i in 2018 : 2020
+  import db/INNTEKT_WLONN $i-01-01 as inntekt_$i
+end
+
+for forelder in mor, far
+  // ...
 end
 
 let maks = 200000
-generate hoy = (inntekt > maks)</code></pre>
+generate hoy = (inntekt &gt; maks)</code></pre>
+
+    <h3>Streng emulering</h3>
+    <p>m2py kjører som standard i <strong>streng emulering</strong>-modus, som matcher microdata.no sine regler så langt som mulig (validering av pseudonymer, multi-key reject, type-sjekk osv.). Du kan skru dette av i hamburger-menyen for å eksperimentere med ting som ikke ville fungert i prod — men da risikerer du å skrive skript som ikke kjører i microdata.no.</p>
   </section>
 
   <!-- ── EDITOR ── -->
