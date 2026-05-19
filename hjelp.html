@@ -307,17 +307,18 @@ end
 let maks = 200000
 generate hoy = (inntekt &gt; maks)</code></pre>
 
-    <h3>Streng emulering</h3>
-    <p>m2py kjører som standard i <strong>streng emulering</strong>-modus, som matcher microdata.no sine regler så langt som mulig (validering av pseudonymer, multi-key reject, type-sjekk osv.). Du kan skru dette av i hamburger-menyen for å eksperimentere med ting som ikke ville fungert i prod — men da risikerer du å skrive skript som ikke kjører i microdata.no.</p>
-
     <h3>Avsløringskontroll</h3>
-    <p>m2py emulerer også microdata.no sine <strong>avsløringskontroll-regler</strong> som standard. Disse beskytter personvern ved å begrense hva som kan vises i statistikk. Du kan skru dette av i hamburger-menyen for å se rå tall mens du lærer. Konkrete regler:</p>
+    <p>m2py emulerer microdata.no sine regler som standard — både <em>syntaks/validering</em> (slik at skriptet ditt kjører i prod) og <em>sensurering av output</em> (slik at du ser samme tall som i prod). Du kan skru av alt i hamburger-menyen ("Avsløringskontroll: AV") for å eksperimentere uten begrensninger, men da risikerer du å skrive skript som ikke kjører i microdata.no. Konkrete regler:</p>
     <ul>
-      <li><strong>Min populasjon 1000.</strong> <code>keep if</code>, <code>drop if</code> og <code>sample</code> kan ikke etterlate færre enn 1000 enheter. Forsøk gir FEIL og datasettet er uendret.</li>
-      <li><strong>Tabeller med for mange små celler skjules.</strong> <code>tabulate</code> stoppes hvis mer enn 50 % av cellene har frekvens lavere enn 5. Reduser antall kategorier eller utvid populasjonen.</li>
-      <li><strong>Endringer må påvirke ≥10 enheter.</strong> <code>generate</code>, <code>replace</code> og <code>recode</code> avvises hvis endringen påvirker 1–9 rader (eller alle bortsett fra 1–9). Unntak: endringer som påvirker alle eller ingen rader er OK.</li>
-      <li><strong>Deskriptiv statistikk krever ≥10 enheter.</strong> <code>summarize</code>, <code>correlate</code>, <code>ci</code>, <code>anova</code>, <code>normaltest</code> stoppes på populasjoner under 10. Unntak: ren <code>count</code>/<code>sum</code> via andre kommandoer.</li>
+      <li><strong>Pseudonym-validering.</strong> Variabler som slutter på <code>_FNR</code> kan kun brukes som nøkkel i <code>collapse(by)</code> eller <code>merge(on)</code> — ikke i <code>generate</code>, <code>replace</code>, sammenligninger osv.</li>
+      <li><strong>Type-sjekk.</strong> Alfanumeriske variabler (f.eks. <code>BEFOLKNING_KJOENN</code>) avvises for numeriske operasjoner som <code>min</code>, <code>max</code>, <code>mean</code>, <code>sum</code>, <code>median</code>.</li>
+      <li><strong>For-løkker:</strong> bruk <code>$i</code>-substitusjon og enten range (<code>1998 : 2009</code>) eller komma/whitespace-liste. Parentes rundt verdier og literal <code>...</code> er ikke gyldig.</li>
+      <li><strong>Min populasjon 1000.</strong> <code>keep if</code>, <code>drop if</code> og <code>sample</code> kan ikke etterlate færre enn 1000 enheter.</li>
+      <li><strong>Tabeller med for mange små celler skjules.</strong> <code>tabulate</code> stoppes hvis mer enn 50 % av cellene har frekvens lavere enn 5.</li>
+      <li><strong>Endringer må påvirke ≥10 enheter.</strong> <code>generate</code>, <code>replace</code> og <code>recode</code> avvises hvis endringen påvirker 1–9 rader (eller alle bortsett fra 1–9).</li>
+      <li><strong>Deskriptiv statistikk krever ≥10 enheter.</strong> <code>summarize</code>, <code>correlate</code>, <code>ci</code>, <code>anova</code>, <code>normaltest</code> stoppes på populasjoner under 10.</li>
       <li><strong>Median/persentiler vises med 3 signifikante sifre.</strong> I <code>summarize</code> blir f.eks. 47 238 til 47 200 og 2,7183 til 2,72.</li>
+      <li><strong>Winsorisering 1/99 %.</strong> Numeriske variabler kuttes ved 1- og 99-persentilen før visning av gjennomsnitt og standardavvik i <code>summarize</code>, og før plotting i <code>histogram</code>, <code>scatter</code> og <code>boxplot</code>. Median og kvartiler er ikke påvirket. Regresjon og collapse bruker rå data.</li>
     </ul>
   </section>
 
