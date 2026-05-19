@@ -109,7 +109,7 @@ window.MICRODATA_COMMAND_HELP = {
   },
   "generate": {
     "syntax": "generate name = expression [if]",
-    "description": "Lag ny variabel definert ved et uttrykk. Støtter aritmetikk og funksjoner, med valgfri if-betingelse.",
+    "description": "Lag ny variabel definert ved et uttrykk. Støtter aritmetikk og funksjoner, med valgfri if-betingelse. Med `if`: rader som ikke matcher får automatisk missing-verdi. Tildeling med `.` er OK (`generate x = .` gir alle missing). Sammenligning med `.` er IKKE gyldig — bruk `sysmiss(x)`.",
     "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#generate"
   },
   "rename": {
@@ -158,7 +158,7 @@ window.MICRODATA_COMMAND_HELP = {
   },
   "replace": {
     "syntax": "replace var-name = expression [if]",
-    "description": "Erstatt verdier i en eksisterende variabel for enheter som oppfyller en betingelse.",
+    "description": "Erstatt verdier i en eksisterende variabel for enheter som oppfyller en betingelse. Tildeling til `.` er OK (`replace x = .`). Sammenligning med `.` (f.eks. `if y == .`) er IKKE gyldig — bruk `sysmiss(y)`.",
     "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#replace"
   },
   "destring": {
