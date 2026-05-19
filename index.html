@@ -1401,7 +1401,7 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-19d';
+    window.M2PY_VERSION = '2026-05-20';
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function (err) {
@@ -1432,7 +1432,10 @@
         "Plot-typer: `histogram`, `barchart`, `scatter`, `lineplot`.",
         "`regress y x1 x2` kjører en lineær regresjon (statsmodels).",
         "Bruk `## python` eller `## r` for å bytte språk i en kodeblokk.",
-        "Kommentarer i microdata-kode begynner med `//`."
+        "Kommentarer i microdata-kode begynner med `//`.",
+        "Avsløringskontroll (i menyen) emulerer microdata.no — min 1000 enheter, sensurerte tabeller, winsorisering. Slå av for rå tall mens du lærer.",
+        "Sett `// m2py: dc=off` øverst i scriptet for å slå av avsløringskontroll bare for det scriptet.",
+        "Variabler som slutter på `_FNR` er pseudonymer — kan kun brukes som nøkkel i collapse(by) eller merge(on)."
       ];
 
       function pickTip(prev) {
