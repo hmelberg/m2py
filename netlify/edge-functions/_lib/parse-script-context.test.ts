@@ -1,6 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { parsePersonvernComments } from "./parse-script-context.ts";
-import { detectLanguage } from "./parse-script-context.ts";
+import { detectLanguage, parsePersonvernComments } from "./parse-script-context.ts";
 
 Deno.test("ingen kommentarer gir tom struktur", () => {
   const result = parsePersonvernComments("import all from BEFOLKNING\nkeep if alder >= 18");
@@ -159,4 +158,23 @@ df = pd.read_csv("output.csv")
 
 Deno.test("tomt script returnerer microdata som default", () => {
   assertEquals(detectLanguage(""), "microdata");
+});
+
+Deno.test("ett python-signal er ikke nok — returnerer microdata", () => {
+  assertEquals(detectLanguage("def analyze(df):\n    return df"), "microdata");
+});
+
+Deno.test("to R-signaler er nok", () => {
+  const script = `library(dplyr)\ndf <- read.csv("data.csv")`;
+  assertEquals(detectLanguage(script), "r");
+});
+
+Deno.test("python/R tie går til python", () => {
+  // 2 python-signaler (from import + def), 2 R-signaler (library + <-)
+  const script = `library(dplyr)
+from x import y
+def foo():
+    df <- 1
+`;
+  assertEquals(detectLanguage(script), "python");
 });

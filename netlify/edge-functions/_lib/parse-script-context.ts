@@ -86,6 +86,7 @@ const MICRODATA_PATTERNS = [
   /^\s*summarize\s+\w+/im,
   /^\s*keep\s+if\s+/im,
   /^\s*drop\s+if\s+/im,
+  // m2py merge: "merge VAR into DATASET on KEY" — NOT Stata's "merge 1:m using"
   /^\s*merge\s+\w+\s+(into|onto)\s+/im,
 ];
 
@@ -111,21 +112,30 @@ function countMatches(script: string, patterns: RegExp[]): number {
   return n;
 }
 
+/**
+ * Detects the scripting language of a script.
+ *
+ * Thresholds are asymmetric by design:
+ *   - Microdata: ≥1 pattern match (microdata keywords are domain-specific and rarely appear by accident)
+ *   - Python/R:  ≥2 pattern matches to avoid single-token false positives (e.g. a lone `<-` or `def`)
+ * Empty/whitespace-only input defaults to "microdata".
+ * When Python and R scores are equal (tie), "python" is returned.
+ */
 export function detectLanguage(script: string): Language {
   if (!script.trim()) return "microdata";
 
-  const m = countMatches(script, MICRODATA_PATTERNS);
-  const p = countMatches(script, PYTHON_PATTERNS);
-  const r = countMatches(script, R_PATTERNS);
+  const microdataScore = countMatches(script, MICRODATA_PATTERNS);
+  const pythonScore = countMatches(script, PYTHON_PATTERNS);
+  const rScore = countMatches(script, R_PATTERNS);
 
-  const hasMicrodata = m >= 1;
-  const hasPython = p >= 2;
-  const hasR = r >= 2;
+  const hasMicrodata = microdataScore >= 1;
+  const hasPython = pythonScore >= 2;
+  const hasR = rScore >= 2;
 
   if (hasMicrodata && (hasPython || hasR)) return "mixed";
   if (hasMicrodata) return "microdata";
   if (hasPython && !hasR) return "python";
   if (hasR && !hasPython) return "r";
-  if (hasPython && hasR) return p >= r ? "python" : "r";
+  if (hasPython && hasR) return pythonScore >= rScore ? "python" : "r";
   return "microdata";
 }
