@@ -154,6 +154,12 @@ export default async (request: Request): Promise<Response> => {
     return new Response("Forbidden", { status: 403 });
   }
 
+  const MAX_BODY_BYTES = 50_000;
+  const contentLength = parseInt(request.headers.get("content-length") ?? "0", 10);
+  if (contentLength > MAX_BODY_BYTES) {
+    return new Response("Payload too large", { status: 413 });
+  }
+
   if (request.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
@@ -161,6 +167,9 @@ export default async (request: Request): Promise<Response> => {
   let body: RequestBody;
   try {
     body = await request.json();
+    if (typeof body.script === "string" && body.script.length > MAX_BODY_BYTES) {
+      return new Response("Script too large", { status: 413 });
+    }
   } catch (_) {
     return new Response("Invalid JSON", { status: 400 });
   }
