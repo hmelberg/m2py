@@ -155,6 +155,10 @@ export default async (request: Request): Promise<Response> => {
     return new Response("Forbidden", { status: 403 });
   }
 
+  if (request.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+
   const MAX_BODY_BYTES = 50_000;
   const contentLength = parseInt(request.headers.get("content-length") ?? "0", 10);
   if (contentLength > MAX_BODY_BYTES) {
@@ -170,10 +174,6 @@ export default async (request: Request): Promise<Response> => {
       status: 429,
       headers: { "Retry-After": String(rate.retryAfterSeconds) },
     });
-  }
-
-  if (request.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
   }
 
   let body: RequestBody;

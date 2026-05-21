@@ -915,8 +915,9 @@
         <button type="button" id="menuClearOutput">Tøm output</button>
         <button type="button" id="menuSettings">Innstillinger&#8230;</button>
         <hr style="margin:4px 0;border-color:#334155;">
-        <div class="menu-section-label" style="padding: 6px 14px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Personvern</div>
+        <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Personvern</div>
         <button type="button" id="btnDmQuick">Vurder dataminimering</button>
+        <button type="button" id="btnDmRevokeConsent" style="font-size: 12px; color: var(--text-muted);">Avregistrer AI-bruk</button>
       </div>
     </div>
     <input type="text" class="script-name" id="scriptName" placeholder="Script navn" value="Script navn">
@@ -1484,6 +1485,17 @@
                 status.textContent = `Feil fra server: ${obj.message}`;
               }
             } catch (_) { /* ignore */ }
+          }
+        }
+        // Render markdown when stream is complete
+        if (typeof window.markdownit === 'function') {
+          try {
+            const md = window.markdownit({ html: false, linkify: true, breaks: true });
+            body.innerHTML = md.render(accumulated);
+            body.style.fontFamily = '';  // remove monospace styling
+            body.style.whiteSpace = '';  // remove pre-wrap
+          } catch (e) {
+            // Fall back to text rendering on parser error
           }
         }
         status.textContent = `Ferdig. ${inputTokens} input / ${outputTokens} output tokens.`;
@@ -2445,6 +2457,16 @@
         showDmConsent(() => runDmQuick(script));
       } else {
         runDmQuick(script);
+      }
+    });
+
+    document.getElementById('btnDmRevokeConsent').addEventListener('click', () => {
+      document.getElementById('hamburgerDropdown').classList.remove('open');
+      if (hasDmConsent()) {
+        setDmConsent(false);
+        alert('AI-bruk avregistrert. Du blir spurt på nytt neste gang du bruker dataminimering-vurdering.');
+      } else {
+        alert('Du har ikke gitt AI-tillatelse.');
       }
     });
 
@@ -7830,7 +7852,7 @@ def _run_microdata_chunk(_code):
     <div class="ai-modal" style="max-width: 780px; max-height: 80vh; display: flex; flex-direction: column;">
       <h3 style="font-size: 1.25em;">Dataminimering-vurdering</h3>
       <div id="dmResultBody" style="flex: 1; overflow-y: auto; padding: 8px 0; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.5;"></div>
-      <div id="dmResultStatus" style="font-size: 12px; color: var(--muted); padding: 4px 0;"></div>
+      <div id="dmResultStatus" style="font-size: 12px; color: var(--text-muted); padding: 4px 0;"></div>
       <div class="ai-modal-actions" style="margin-top: 8px;">
         <button type="button" id="dmResultCancel" class="ai-modal-btn">Avbryt</button>
         <button type="button" id="dmResultCopy" class="ai-modal-btn">Kopier</button>
