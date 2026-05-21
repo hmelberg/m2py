@@ -5,9 +5,125 @@ import {
 } from "./_lib/parse-script-context.ts";
 import { streamAnthropic } from "./_lib/anthropic.ts";
 
+// Prompt text inlined from ./prompts/_shared-principles.md
+// (Deno Deploy does not bundle .md files at runtime; source of truth is the .md file)
+const sharedPrinciples = `\
+RETTSLIG GRUNNLAG
+
+Vurderingen forankres i:
+- Personvernforordningen art. 5(1)(c) (dataminimering): personopplysninger
+  skal være "adekvate, relevante og begrenset til det som er nødvendig for å
+  oppnå formålene".
+- Helseregisterloven § 6: graden av personidentifikasjon skal ikke overskride
+  det som er nødvendig for formålet.
+- Personvernforordningen art. 89(1): forskning krever egnede garantier som
+  anonymisering eller pseudonymisering der det er mulig.
+- Personvernforordningen art. 5(1)(b) (formålsbegrensning): relevant når en
+  variabel virker hentet "for sikkerhets skyld".
+
+Kalibreringsregel: personvernforordningen gir ikke ett endelig svar på hva
+som er "nødvendig" — det avhenger av formålet. Formuler observasjoner som
+muligheter for minimering, ikke som lovbrudd. Endelig vurdering ligger hos
+forsker og dataansvarlig.
+
+VURDERINGSDIMENSJONER
+
+1. Ubrukte variabler — importert men aldri brukt.
+2. Variabel-granularitet — ICD-kode-detaljnivå, dato-oppløsning, geografi,
+   inntekt, alder.
+3. Populasjons-avgrensing — \`keep if\`/\`drop if\`-filtere.
+4. Tidsperiode — er tidsvinduet snevert nok.
+5. Sjeldne kombinasjoner — filterkjeder som krymper til sårbar undergruppe.
+6. Koblingsbehov — er alle \`merge\`/\`import\` nødvendige.
+7. Aggregat vs individnivå — tidlig nok \`collapse\`?
+8. Direkte identifikatorer i transformasjoner.
+
+IKKE VURDERT FRA SCRIPTET
+
+Følgende krever kontekst utenfor scriptet og skal ikke gjettes på:
+- Analyseplan og dokumentert begrunnelse.
+- Tilgangsbegrensning og lagringstid.
+- Mulighet for alternativer (syntetiske data, fjernanalyse).
+- Senere gjenbruk.
+
+NB: Disclosure-control i resultater (T1-T8) håndteres separat av m2py.
+Fokuser på selve dataminimeringen i scriptet.`;
+
+// Prompt text inlined from ./prompts/dm-quick.md
+// (Deno Deploy does not bundle .md files at runtime; source of truth is the .md file)
+const dmQuickTemplate = `\
+Du vurderer om et forskningsscript som henter mikrodata fra microdata.no
+praktiserer dataminimering — prinsippet om å hente og bruke kun det minimum
+av data som trengs for problemstillingen.
+
+{{SHARED_PRINCIPLES}}
+
+KOMMENTARER OG TIDLIGERE ERKLÆRT KONTEKST
+
+Scriptet kan inneholde kommentarer som beskriver formål, antakelser eller
+begrunnelser. Les og bruk alle kommentarer aktivt.
+
+Spesielt:
+- Linjer i en \`// personvern blokk start ... slutt\`-blokk, og enkeltlinjer
+  som starter med \`// personvern: <feltnavn>:\` der feltnavn er ett av
+  formål / sentrale variabler / tidsperiode / geografi / sensitive grupper /
+  alternativer vurdert, er strukturerte svar fra forskeren. Behandle som
+  forskerens autoritative erklæring.
+- Linjer som starter med \`// personvern: <fritekst>\` (eller fritekst inne i
+  blokk) er forskerens egne begrunnelser.
+
+Disse er trukket ut i seksjonen TIDLIGERE ERKLÆRT KONTEKST nedenfor. Hvis en
+observasjon allerede er begrunnet der, ikke gjenta den — pek heller på om
+begrunnelsen virker tilstrekkelig.
+
+{{CONTEXT_SECTION}}
+
+KATEGORISER SCRIPTET FØRST
+
+- A) Full analyse — import + tydelig analyse
+- B) Synlig hensikt — import + transformasjon, analyse mangler
+- C) Ren import — kun import-linjer + minimale rename
+
+SPRÅK
+
+Detektert språk: {{LANGUAGE}}
+
+OUTPUT (norsk, markdown)
+
+## Klassifisering
+Kategori: <A|B|C>
+Språk: <microdata|R|python|mixed>
+Antatt analyseintensjon: <kort, eller "ikke synlig fra scriptet">
+
+## Samlet vurdering
+2–4 setninger med skala (god/akseptabel/forbedringspotensial), forankret i
+relevante hjemler. Bruk typisk art. 5(1)(c) og hregl § 6 for helsedata;
+art. 89(1) der aggregering/pseudonymisering er aktuelt; art. 5(1)(b) der
+variabler virker hentet uten kobling til uttrykkelig formål. Ikke alle
+hjemler trenger nevnes — bare de som styrker vurderingen.
+
+## Observasjoner
+- **<variabel, linjenr eller mønster>** — <problem>
+  - Forslag: <konkret endring>
+  - Sikkerhet: <høy | medium | lav>
+
+Sortér etter sikkerhet. Hopp over kategorier uten observasjoner.
+
+## Spørsmål til forsker
+Kun hvis kategori B eller C. Maks 3 spørsmål.
+
+REGLER
+- Vær konkret. Pek på variabelnavn eller linjenummer.
+- Ikke produser forslag bare for å produsere.
+- Markér sikkerhet ærlig.
+- Du ser kun scriptet — si fra om vurderingen ville endret seg med mer kontekst.
+
+SCRIPT
+
+{{SCRIPT}}`;
+
 interface RequestBody {
   script: string;
-  active_columns?: string[];
 }
 
 function renderContextSection(ctx: ScriptContext): string {
@@ -28,11 +144,6 @@ function renderContextSection(ctx: ScriptContext): string {
   return out.join("\n");
 }
 
-async function loadPrompt(name: string): Promise<string> {
-  const url = new URL(`./prompts/${name}.md`, import.meta.url);
-  return await Deno.readTextFile(url);
-}
-
 export default async (request: Request): Promise<Response> => {
   if (request.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
@@ -51,23 +162,19 @@ export default async (request: Request): Promise<Response> => {
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   const model = Deno.env.get("ANTHROPIC_MODEL") ?? "claude-sonnet-4-6";
   if (!apiKey) {
-    return new Response("Server misconfigured: ANTHROPIC_API_KEY missing", { status: 500 });
+    console.error("ANTHROPIC_API_KEY is not set");
+    return new Response("Server configuration error", { status: 500 });
   }
 
   const ctx = parsePersonvernComments(body.script);
   const language = detectLanguage(body.script);
   const contextSection = renderContextSection(ctx);
 
-  const [sharedPrinciples, dmQuickTemplate] = await Promise.all([
-    loadPrompt("_shared-principles"),
-    loadPrompt("dm-quick"),
-  ]);
-
   const prompt = dmQuickTemplate
-    .replace("{{SHARED_PRINCIPLES}}", sharedPrinciples)
-    .replace("{{CONTEXT_SECTION}}", contextSection)
-    .replace("{{LANGUAGE}}", language)
-    .replace("{{SCRIPT}}", body.script);
+    .replaceAll("{{SHARED_PRINCIPLES}}", () => sharedPrinciples)
+    .replaceAll("{{CONTEXT_SECTION}}", () => contextSection)
+    .replaceAll("{{LANGUAGE}}", () => language)
+    .replaceAll("{{SCRIPT}}", () => body.script);
 
   try {
     const stream = await streamAnthropic({ apiKey, model, prompt, maxTokens: 2000 });
