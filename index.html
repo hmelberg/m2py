@@ -1413,6 +1413,19 @@
     function hasDmConsent() { return localStorage.getItem(DM_CONSENT_KEY) === '1'; }
     function setDmConsent(v) { localStorage.setItem(DM_CONSENT_KEY, v ? '1' : '0'); }
 
+    function showDmConsent(onAccept) {
+      const backdrop = document.getElementById('dmConsentBackdrop');
+      backdrop.style.display = 'flex';
+      document.getElementById('dmConsentCancel').onclick = () => {
+        backdrop.style.display = 'none';
+      };
+      document.getElementById('dmConsentAccept').onclick = () => {
+        setDmConsent(true);
+        backdrop.style.display = 'none';
+        if (onAccept) onAccept();
+      };
+    }
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function (err) {
@@ -7718,5 +7731,29 @@ def _run_microdata_chunk(_code):
       }
     })();
   </script>
+
+  <div id="dmConsentBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 540px;">
+      <h3 style="font-size:17px;">AI-vurdering av dataminimering</h3>
+      <p>
+        Vurderingen bruker AI fra Anthropic. Når du klikker
+        "Aksepter og fortsett", sendes scriptet og dets kommentarer til Anthropic
+        for vurdering. <strong>Faktiske mikrodata-verdier sendes ikke</strong> —
+        m2py kjører lokalt i nettleseren, og dataverdiene blir aldri en del av
+        denne forespørselen.
+      </p>
+      <p>
+        Variabelnavn, kommentarer og selve script-koden overføres. Anthropic bruker
+        ikke API-input til trening som standard.
+      </p>
+      <p>
+        Du kan tilbakekalle denne tillatelsen senere via hamburger-menyen.
+      </p>
+      <div class="ai-modal-actions">
+        <button type="button" class="ai-modal-btn" id="dmConsentCancel">Avbryt</button>
+        <button type="button" class="ai-modal-btn primary" id="dmConsentAccept">Aksepter og fortsett</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
