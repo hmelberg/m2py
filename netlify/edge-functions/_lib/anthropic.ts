@@ -67,7 +67,33 @@ function transformAnthropicStream(
             const dataLine = event.split("\n").find((l) => l.startsWith("data:"));
             if (!dataLine) continue;
             const payload = dataLine.slice(5).trim();
-            if (!payload) continue;
+            if (!payload || payload === "[DONE]") continue;
+            try {
+              const obj = JSON.parse(payload);
+              if (obj.type === "content_block_delta" && obj.delta?.type === "text_delta") {
+                const out: StreamEvent = { type: "text", text: obj.delta.text };
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(out)}\n\n`));
+              } else if (obj.type === "message_start" && obj.message?.usage) {
+                inputTokens = obj.message.usage.input_tokens ?? 0;
+              } else if (obj.type === "message_delta" && obj.usage) {
+                outputTokens = obj.usage.output_tokens ?? outputTokens;
+              }
+            } catch (_e) {
+              // ignore non-JSON event data
+            }
+          }
+        }
+        // Drain any residual buffer content not yet terminated by \n\n
+        if (buffer.trim()) {
+          buffer += "\n\n";
+          let nlIdx;
+          while ((nlIdx = buffer.indexOf("\n\n")) >= 0) {
+            const event = buffer.slice(0, nlIdx);
+            buffer = buffer.slice(nlIdx + 2);
+            const dataLine = event.split("\n").find((l) => l.startsWith("data:"));
+            if (!dataLine) continue;
+            const payload = dataLine.slice(5).trim();
+            if (!payload || payload === "[DONE]") continue;
             try {
               const obj = JSON.parse(payload);
               if (obj.type === "content_block_delta" && obj.delta?.type === "text_delta") {
@@ -93,6 +119,7 @@ function transformAnthropicStream(
         const err: StreamEvent = { type: "error", message: String(e) };
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(err)}\n\n`));
       } finally {
+        reader.releaseLock();
         controller.close();
       }
     },
