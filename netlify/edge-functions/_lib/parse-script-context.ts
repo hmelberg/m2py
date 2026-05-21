@@ -76,3 +76,56 @@ export function parsePersonvernComments(script: string): ScriptContext {
 
   return ctx;
 }
+
+export type Language = "microdata" | "python" | "r" | "mixed";
+
+const MICRODATA_PATTERNS = [
+  /^\s*import\s+(all\s+)?(variables?\s+)?[^\n]*[ \t]from[ \t]+\w+/im,
+  /\bcollapse\s*\(\s*(mean|sum|sd|count|median|min|max|p\d+)/i,
+  /^\s*tabulate\s+\w+/im,
+  /^\s*summarize\s+\w+/im,
+  /^\s*keep\s+if\s+/im,
+  /^\s*drop\s+if\s+/im,
+  /^\s*merge\s+\w+\s+(into|onto)\s+/im,
+];
+
+const PYTHON_PATTERNS = [
+  /^\s*from\s+\w+\s+import\s+/m,
+  /^\s*import\s+\w+(\s+as\s+\w+)?$/m,
+  /^\s*def\s+\w+\s*\(/m,
+  /^\s*class\s+\w+/m,
+  /\bpd\.|np\.|pandas|numpy\b/i,
+];
+
+const R_PATTERNS = [
+  /^\s*library\s*\(/m,
+  /<-\s*[a-zA-Z0-9_(]/,
+  /\bdata\.frame\b/,
+  /%>%/,
+  /^\s*require\s*\(/m,
+];
+
+function countMatches(script: string, patterns: RegExp[]): number {
+  let n = 0;
+  for (const p of patterns) if (p.test(script)) n++;
+  return n;
+}
+
+export function detectLanguage(script: string): Language {
+  if (!script.trim()) return "microdata";
+
+  const m = countMatches(script, MICRODATA_PATTERNS);
+  const p = countMatches(script, PYTHON_PATTERNS);
+  const r = countMatches(script, R_PATTERNS);
+
+  const hasMicrodata = m >= 1;
+  const hasPython = p >= 2;
+  const hasR = r >= 2;
+
+  if (hasMicrodata && (hasPython || hasR)) return "mixed";
+  if (hasMicrodata) return "microdata";
+  if (hasPython && !hasR) return "python";
+  if (hasR && !hasPython) return "r";
+  if (hasPython && hasR) return p >= r ? "python" : "r";
+  return "microdata";
+}

@@ -1,5 +1,6 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { parsePersonvernComments } from "./parse-script-context.ts";
+import { detectLanguage } from "./parse-script-context.ts";
 
 Deno.test("ingen kommentarer gir tom struktur", () => {
   const result = parsePersonvernComments("import all from BEFOLKNING\nkeep if alder >= 18");
@@ -115,4 +116,47 @@ Deno.test("hasAny er true i blokk-form path", () => {
   ].join("\n");
   const r = parsePersonvernComments(script);
   assertEquals(r.hasAny, true);
+});
+
+Deno.test("microdata-script detekteres", () => {
+  const script = `
+import all from BEFOLKNING
+keep if alder >= 18
+collapse (mean) inntekt, by(kommune)
+`;
+  assertEquals(detectLanguage(script), "microdata");
+});
+
+Deno.test("python-script detekteres", () => {
+  const script = `
+import pandas as pd
+from sklearn import metrics
+def analyze(df):
+    return df.mean()
+`;
+  assertEquals(detectLanguage(script), "python");
+});
+
+Deno.test("r-script detekteres", () => {
+  const script = `
+library(dplyr)
+df <- read.csv("data.csv")
+df %>% filter(age >= 18)
+`;
+  assertEquals(detectLanguage(script), "r");
+});
+
+Deno.test("mixed-script detekteres", () => {
+  const script = `
+import all from BEFOLKNING
+collapse (mean) inntekt
+# Python-del nedenfor
+import pandas as pd
+df = pd.read_csv("output.csv")
+`;
+  assertEquals(detectLanguage(script), "mixed");
+});
+
+Deno.test("tomt script returnerer microdata som default", () => {
+  assertEquals(detectLanguage(""), "microdata");
 });
