@@ -329,6 +329,47 @@ create-dataset bef
 import db/BEFOLKNING_KJOENN as kjonn
 summarize kjonn</code></pre>
     <p>Verdier: <code>on</code>/<code>off</code>, <code>true</code>/<code>false</code>, <code>1</code>/<code>0</code>, <code>yes</code>/<code>no</code>. Kortform <code>dc</code> aksepteres også: <code>// m2py: dc=off</code>. Nyttig i API-/script-bruk der man vil styre modus uten å endre globale innstillinger.</p>
+
+    <h3>Dataminimering-vurdering</h3>
+    <p>
+      m2py kan be en AI vurdere om scriptet ditt praktiserer dataminimering —
+      prinsippet om å hente og bruke kun det minimum av data som trengs for
+      problemstillingen. Funksjonen er rådgivende; endelig vurdering ligger hos
+      forsker og dataansvarlig.
+    </p>
+    <p>
+      Vurderingen forankres i:
+    </p>
+    <ul>
+      <li>Personvernforordningen art. 5(1)(c) — dataminimering</li>
+      <li>Helseregisterloven § 6 — graden av personidentifikasjon</li>
+      <li>Personvernforordningen art. 89(1) — vitenskapelig forskning</li>
+    </ul>
+    <p>
+      Klikk på hamburger-menyen → "Vurder dataminimering". Første gang du bruker
+      funksjonen vises en bekreftelse på at scriptet sendes til Anthropic for
+      vurdering. Faktiske mikrodata-verdier sendes aldri.
+    </p>
+    <h4>Personvern-kommentarer i scriptet</h4>
+    <p>
+      Du kan legge til strukturerte begrunnelser direkte i scriptet:
+    </p>
+    <pre>// personvern blokk start
+// formål: Studere sammenheng mellom utdanning og inntekt
+// sentrale variabler: NUDB_UTDNIVAA, INNTEKT
+// tidsperiode: 1970-1980 fordi kohorten skal være ferdig utdannet
+// geografi: kommune nødvendig for å se regionale forskjeller
+// sensitive grupper: nei
+// alternativer vurdert: SSB-tabell A-04 var for grovkornet
+// personvern blokk slutt</pre>
+    <p>
+      Enkeltlinjer fungerer også:
+    </p>
+    <pre>// personvern: kuttet datoer til måned for å unngå unødig presisjon</pre>
+    <p>
+      Disse blir lest av AI-en som tilleggskontekst. Du kan også bruke
+      <code>#</code> i stedet for <code>//</code> i Python/R-script.
+    </p>
   </section>
 
   <!-- ── EDITOR ── -->
