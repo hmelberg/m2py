@@ -1426,6 +1426,86 @@
       };
     }
 
+    async function runDmQuick(script) {
+      const backdrop = document.getElementById('dmResultBackdrop');
+      const body = document.getElementById('dmResultBody');
+      const status = document.getElementById('dmResultStatus');
+      const cancelBtn = document.getElementById('dmResultCancel');
+      const copyBtn = document.getElementById('dmResultCopy');
+      const closeBtn = document.getElementById('dmResultClose');
+
+      body.textContent = '';
+      status.textContent = 'Henter vurdering…';
+      backdrop.style.display = 'flex';
+      cancelBtn.disabled = false;
+      copyBtn.disabled = true;
+
+      const controller = new AbortController();
+      cancelBtn.onclick = () => controller.abort();
+      closeBtn.onclick = () => { backdrop.style.display = 'none'; };
+
+      let accumulated = '';
+      let inputTokens = 0;
+      let outputTokens = 0;
+
+      try {
+        const resp = await fetch('/api/dm-quick', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ script }),
+          signal: controller.signal,
+        });
+        if (!resp.ok || !resp.body) {
+          status.textContent = `Feil: ${resp.status} ${await resp.text()}`;
+          return;
+        }
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let nl;
+          while ((nl = buffer.indexOf('\n\n')) >= 0) {
+            const event = buffer.slice(0, nl);
+            buffer = buffer.slice(nl + 2);
+            const dataLine = event.split('\n').find(l => l.startsWith('data:'));
+            if (!dataLine) continue;
+            try {
+              const obj = JSON.parse(dataLine.slice(5).trim());
+              if (obj.type === 'text') {
+                accumulated += obj.text;
+                body.textContent = accumulated;
+              } else if (obj.type === 'done') {
+                inputTokens = obj.inputTokens || 0;
+                outputTokens = obj.outputTokens || 0;
+              } else if (obj.type === 'error') {
+                status.textContent = `Feil fra server: ${obj.message}`;
+              }
+            } catch (_) { /* ignore */ }
+          }
+        }
+        status.textContent = `Ferdig. ${inputTokens} input / ${outputTokens} output tokens.`;
+        cancelBtn.disabled = true;
+        copyBtn.disabled = false;
+      } catch (e) {
+        if (e.name === 'AbortError') {
+          status.textContent = 'Avbrutt.';
+        } else {
+          status.textContent = `Feil: ${e.message}`;
+        }
+      }
+
+      copyBtn.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(accumulated);
+          copyBtn.textContent = 'Kopiert!';
+          setTimeout(() => copyBtn.textContent = 'Kopier', 1500);
+        } catch (_) { /* ignore */ }
+      };
+    }
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function (err) {
@@ -2353,6 +2433,20 @@
         exportDropdown.classList.remove('open');
       });
     })();
+
+    document.getElementById('btnDmQuick').addEventListener('click', () => {
+      document.getElementById('hamburgerDropdown').classList.remove('open');
+      const script = (document.getElementById('scriptInput').value || '').trim();
+      if (!script) {
+        alert('Editor er tom. Skriv et script først.');
+        return;
+      }
+      if (!hasDmConsent()) {
+        showDmConsent(() => runDmQuick(script));
+      } else {
+        runDmQuick(script);
+      }
+    });
 
     document.getElementById('helpBtn').addEventListener('click', function() {
       const overlay = document.getElementById('helpModalOverlay');
@@ -7731,6 +7825,19 @@ def _run_microdata_chunk(_code):
       }
     })();
   </script>
+
+  <div id="dmResultBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 780px; max-height: 80vh; display: flex; flex-direction: column;">
+      <h3 style="font-size: 1.25em;">Dataminimering-vurdering</h3>
+      <div id="dmResultBody" style="flex: 1; overflow-y: auto; padding: 8px 0; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.5;"></div>
+      <div id="dmResultStatus" style="font-size: 12px; color: var(--muted); padding: 4px 0;"></div>
+      <div class="ai-modal-actions" style="margin-top: 8px;">
+        <button type="button" id="dmResultCancel" class="ai-modal-btn">Avbryt</button>
+        <button type="button" id="dmResultCopy" class="ai-modal-btn">Kopier</button>
+        <button type="button" id="dmResultClose" class="ai-modal-btn primary">Lukk</button>
+      </div>
+    </div>
+  </div>
 
   <div id="dmConsentBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 540px;">
