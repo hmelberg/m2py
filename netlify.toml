@@ -27,3 +27,7 @@
   for = "/command_help.js"
   [headers.values]
     Cache-Control = "public, max-age=86400"
+
+[[edge_functions]]
+  function = "dm-quick"
+  path = "/api/dm-quick"
