@@ -4,6 +4,7 @@ import {
   type ScriptContext,
 } from "./_lib/parse-script-context.ts";
 import { streamAnthropic } from "./_lib/anthropic.ts";
+import { checkRateLimit } from "./_lib/rate-limit.ts";
 
 // Prompt text inlined from ./prompts/_shared-principles.md
 // (Deno Deploy does not bundle .md files at runtime; source of truth is the .md file)
@@ -158,6 +159,17 @@ export default async (request: Request): Promise<Response> => {
   const contentLength = parseInt(request.headers.get("content-length") ?? "0", 10);
   if (contentLength > MAX_BODY_BYTES) {
     return new Response("Payload too large", { status: 413 });
+  }
+
+  const ip = request.headers.get("x-nf-client-connection-ip")
+    ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    ?? "";
+  const rate = await checkRateLimit("dm-quick", ip);
+  if (!rate.allowed) {
+    return new Response("Rate limited", {
+      status: 429,
+      headers: { "Retry-After": String(rate.retryAfterSeconds) },
+    });
   }
 
   if (request.method !== "POST") {
