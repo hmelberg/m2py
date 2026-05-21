@@ -914,6 +914,9 @@
         -->
         <button type="button" id="menuClearOutput">Tøm output</button>
         <button type="button" id="menuSettings">Innstillinger&#8230;</button>
+        <hr style="margin:4px 0;border-color:#334155;">
+        <div class="menu-section-label" style="padding: 6px 14px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Personvern</div>
+        <button type="button" id="btnDmQuick">Vurder dataminimering</button>
       </div>
     </div>
     <input type="text" class="script-name" id="scriptName" placeholder="Script navn" value="Script navn">
@@ -1403,7 +1406,13 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-20b';
+    window.M2PY_VERSION = '2026-05-22a';
+
+    // --- Dataminimering: consent og state ---
+    const DM_CONSENT_KEY = 'microdata_dm_consent';
+    function hasDmConsent() { return localStorage.getItem(DM_CONSENT_KEY) === '1'; }
+    function setDmConsent(v) { localStorage.setItem(DM_CONSENT_KEY, v ? '1' : '0'); }
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function (err) {
