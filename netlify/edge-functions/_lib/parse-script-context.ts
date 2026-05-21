@@ -40,7 +40,7 @@ function classifyAndStore(
 
 export function parsePersonvernComments(script: string): ScriptContext {
   const ctx: ScriptContext = { structured: {}, freetext: [], hasAny: false };
-  const lines = script.split("\n");
+  const lines = script.split(/\r?\n/);
   let inBlock = false;
 
   for (let i = 0; i < lines.length; i++) {
@@ -58,7 +58,7 @@ export function parsePersonvernComments(script: string): ScriptContext {
     if (inBlock) {
       if (NONCOMMENT_RE.test(line)) {
         inBlock = false;
-        // fall through til vanlig parsing av denne linjen
+        // fall through to normal parsing of this line
       } else {
         const m = line.match(BLOCK_INNER_RE);
         if (m && m[1].trim()) {

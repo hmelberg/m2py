@@ -76,3 +76,43 @@ Deno.test("siste definisjon vinner ved konflikt", () => {
   const r = parsePersonvernComments(script);
   assertEquals(r.structured["formål"], "Ny");
 });
+
+Deno.test("tom linje inne i blokk ignoreres", () => {
+  const script = [
+    "// personvern blokk start",
+    "",
+    "// formål: Test",
+    "// personvern blokk slutt",
+  ].join("\n");
+  const r = parsePersonvernComments(script);
+  assertEquals(r.structured["formål"], "Test");
+});
+
+Deno.test("CRLF line endings støttes", () => {
+  const script = "// personvern: formål: Test\r\n// personvern: sentrale variabler: A\r\n";
+  const r = parsePersonvernComments(script);
+  assertEquals(r.structured["formål"], "Test");
+  assertEquals(r.structured["sentrale variabler"], "A");
+});
+
+Deno.test("# blokk-form støttes", () => {
+  const script = [
+    "# personvern blokk start",
+    "# formål: Python-test",
+    "# sentrale variabler: X, Y",
+    "# personvern blokk slutt",
+  ].join("\n");
+  const r = parsePersonvernComments(script);
+  assertEquals(r.structured["formål"], "Python-test");
+  assertEquals(r.structured["sentrale variabler"], "X, Y");
+});
+
+Deno.test("hasAny er true i blokk-form path", () => {
+  const script = [
+    "// personvern blokk start",
+    "// formål: Test",
+    "// personvern blokk slutt",
+  ].join("\n");
+  const r = parsePersonvernComments(script);
+  assertEquals(r.hasAny, true);
+});
