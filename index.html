@@ -914,10 +914,12 @@
         -->
         <button type="button" id="menuClearOutput">Tøm output</button>
         <button type="button" id="menuSettings">Innstillinger&#8230;</button>
-        <hr style="margin:4px 0;border-color:#334155;">
-        <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Personvern</div>
-        <button type="button" id="btnDmQuick">Vurder dataminimering</button>
-        <button type="button" id="btnDmRevokeConsent" style="font-size: 12px; color: var(--text-muted);">Avregistrer AI-bruk</button>
+        <div id="personvernMenuSection" style="display: none;">
+          <hr style="margin:4px 0;border-color:#334155;">
+          <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Personvern</div>
+          <button type="button" id="btnDmQuick">Vurder dataminimering</button>
+          <button type="button" id="btnDmRevokeConsent" style="font-size: 12px; color: var(--text-muted);">Avregistrer AI-bruk</button>
+        </div>
       </div>
     </div>
     <input type="text" class="script-name" id="scriptName" placeholder="Script navn" value="Script navn">
@@ -1407,12 +1409,24 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-22b';
+    window.M2PY_VERSION = '2026-05-22c';
 
     // --- Dataminimering: consent og state ---
     const DM_CONSENT_KEY = 'microdata_dm_consent';
     function hasDmConsent() { return localStorage.getItem(DM_CONSENT_KEY) === '1'; }
     function setDmConsent(v) { localStorage.setItem(DM_CONSENT_KEY, v ? '1' : '0'); }
+
+    // --- Dataminimering: tilgangskontroll (kun FHI-brukere) ---
+    function isFhiUser() {
+      const user = window.mdAuth && window.mdAuth.user;
+      return !!(user && user.email && /@fhi\.no$/i.test(user.email));
+    }
+    function updateDmMenuVisibility() {
+      const section = document.getElementById('personvernMenuSection');
+      if (section) section.style.display = isFhiUser() ? '' : 'none';
+    }
+    window.addEventListener('mdauth:userchanged', updateDmMenuVisibility);
+    document.addEventListener('DOMContentLoaded', updateDmMenuVisibility);
 
     function showDmConsent(onAccept) {
       const backdrop = document.getElementById('dmConsentBackdrop');
@@ -7106,6 +7120,7 @@ def _run_microdata_chunk(_code):
           if (data.user) {
             state.user = data.user;
             localStorage.setItem(LS_USER, JSON.stringify(state.user));
+            window.dispatchEvent(new CustomEvent('mdauth:userchanged'));
           }
           return data;
         } catch (e) {
@@ -7118,6 +7133,7 @@ def _run_microdata_chunk(_code):
         state.user = null;
         localStorage.removeItem(LS_TOKEN);
         localStorage.removeItem(LS_USER);
+        window.dispatchEvent(new CustomEvent('mdauth:userchanged'));
       }
 
       async function logout() {
@@ -7135,6 +7151,7 @@ def _run_microdata_chunk(_code):
         state.user = data.user;
         localStorage.setItem(LS_TOKEN, state.token);
         localStorage.setItem(LS_USER, JSON.stringify(state.user));
+        window.dispatchEvent(new CustomEvent('mdauth:userchanged'));
       }
 
       async function handleLoginParam() {
