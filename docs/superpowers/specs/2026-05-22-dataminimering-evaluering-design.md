@@ -588,32 +588,24 @@ av denne milepælen. (Hvis vi senere vil legge til paste-bart token for
 flere maskiner, gjør vi det som en utvidelse av m2py-auth generelt, ikke
 av dataminimering spesifikt.)
 
-### Anvil-endepunkt for token-validering
+### Anvil-endepunkt for token-validering — gjenbruk eksisterende
 
-Anvil må eksponere en endpoint som Edge Function kan kalle. Hvis ikke
-allerede eksisterende, legg til i `auth.py`:
+`microdata-api/server_code/auth_endpoints.py` har allerede
+`@anvil.server.http_endpoint("/auth/me", methods=["GET"], enable_cors=True)`
+som validerer Bearer-tokenet og returnerer brukerinfo (inkl. email) eller
+401. Vi gjenbruker dette direkte — ingen Anvil-side endring nødvendig.
 
-```python
-@anvil.server.http_endpoint("/dm/validate-session", methods=["POST"])
-def dm_validate_session():
-    """Validate an Anvil session token from m2py Edge Function.
-    Returns { valid: bool, email: str|null } — minimal info, no PII beyond
-    what's necessary for auth."""
-    raw = (anvil.server.request.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
-    if not raw:
-        return anvil.server.HttpResponse(401, json.dumps({"valid": False}))
-    session = lookup_session_token(raw)
-    if not session:
-        return anvil.server.HttpResponse(401, json.dumps({"valid": False}))
-    user = principal_user(session["principal"])
-    return anvil.server.HttpResponse(200, json.dumps({
-        "valid": True,
-        "email": user["email"]
-    }))
+Edge Function kaller `GET <anvil-base>/_/api/auth/me` med Authorization-
+headeren videresendt fra brukerens request. Anvil returnerer:
+
+```json
+{
+  "principal_kind": "user",
+  "user": { "email": "...", ... }
+}
 ```
 
-(Sjekk eksisterende endepunkter først — kanskje noe lignende finnes
-allerede og kan gjenbrukes.)
+eller 401 hvis token er ugyldig.
 
 ### Edge Function-endringer
 
@@ -704,23 +696,22 @@ som "skjult" backend-mekanisme for power-users som vet om den.
 
 ### Implementering — Milepæl 3 tasks
 
-Mindre arbeid enn opprinnelig planlagt:
+Anvil har allerede `/auth/me` — ingen Anvil-side endring. 6 tasks:
 
-1. **Anvil: legg til (eller verifiser) `dm/validate-session`-endepunkt** i
-   `server_code/auth.py`. Test med curl mot Anvil-instansen.
-2. **Edge Function: bytt token-sjekken** i `dm-vurder.ts` til Anvil-
+1. **Edge Function: bytt token-sjekken** i `dm-vurder.ts` til Anvil-
    validering (med M2PY_ACCESS_TOKEN som fallback). Legg til
-   `M2PY_ANVIL_VALIDATE_URL` env-var.
-3. **Frontend: oppdater `runDmVurder`** til å lese `window.mdAuth` i stedet
-   for `getDmToken`. Fjern token-relatert kode (`DM_TOKEN_KEY`,
+   `M2PY_ANVIL_VALIDATE_URL` env-var (eksempel:
+   `https://mdataapi.anvil.app/_/api/auth/me`).
+2. **Frontend: oppdater `runDmVurder`** til å lese `window.mdAuth.session.token`
+   i stedet for `getDmToken`. Fjern token-relatert kode (`DM_TOKEN_KEY`,
    `showDmTokenSetup`, `dmTokenBackdrop` etc.).
-4. **Frontend: oppdater `btnDmQuick`-handler** til å sjekke login-status og
+3. **Frontend: oppdater `btnDmQuick`-handler** til å sjekke login-status og
    trigge login-modal om nødvendig.
-5. **Frontend: meny-cleanup** — fjern "Sett tilgangsnøkkel" og "Avregistrer
+4. **Frontend: meny-cleanup** — fjern "Sett tilgangsnøkkel" og "Avregistrer
    AI-bruk"-knappene.
-6. **Migrasjon-snippet:** rydde `microdata_dm_token` fra localStorage ved
+5. **Migrasjon-snippet:** rydde `microdata_dm_token` fra localStorage ved
    første sideload etter deploy.
-7. **Dokumentasjon:** oppdater hjelp.html — "krever innlogging i m2py" i
+6. **Dokumentasjon:** oppdater hjelp.html — "krever innlogging i m2py" i
    stedet for "trenger tilgangsnøkkel". Fjern token-paste-instrukser.
 
 ## Personvern (brukerens data sendt til AI)
