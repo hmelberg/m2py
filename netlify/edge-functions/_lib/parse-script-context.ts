@@ -77,6 +77,72 @@ export function parsePersonvernComments(script: string): ScriptContext {
   return ctx;
 }
 
+const DIRECTIVES = new Set([
+  "revider-script",
+]);
+
+const TRUE_VALUES = new Set(["ja", "yes", "true", "1", "på", "on"]);
+const FALSE_VALUES = new Set(["nei", "no", "false", "0", "av", "off"]);
+
+export interface ScriptDirectives {
+  revider_script?: boolean;
+}
+
+function parseBoolean(value: string): boolean | undefined {
+  const v = value.trim().toLowerCase();
+  if (TRUE_VALUES.has(v)) return true;
+  if (FALSE_VALUES.has(v)) return false;
+  return undefined;
+}
+
+function classifyDirective(raw: string, directives: ScriptDirectives): void {
+  const m = raw.match(/^([^:]+):\s*(.+)$/);
+  if (!m) return;
+  const name = m[1].trim().toLowerCase();
+  const value = m[2].trim();
+  if (!DIRECTIVES.has(name)) return;
+  if (name === "revider-script") {
+    const b = parseBoolean(value);
+    if (b !== undefined) directives.revider_script = b;
+  }
+}
+
+export function parsePersonvernDirectives(script: string): ScriptDirectives {
+  const directives: ScriptDirectives = {};
+  const lines = script.split(/\r?\n/);
+  let inBlock = false;
+
+  for (const line of lines) {
+    if (BLOCK_START_RE.test(line)) {
+      inBlock = true;
+      continue;
+    }
+    if (inBlock && BLOCK_END_RE.test(line)) {
+      inBlock = false;
+      continue;
+    }
+    if (inBlock) {
+      if (NONCOMMENT_RE.test(line)) {
+        inBlock = false;
+        // fall through
+      } else {
+        const m = line.match(BLOCK_INNER_RE);
+        if (m && m[1].trim()) {
+          classifyDirective(m[1], directives);
+        }
+        continue;
+      }
+    }
+
+    const single = line.match(SINGLE_LINE_RE);
+    if (single) {
+      classifyDirective(single[1], directives);
+    }
+  }
+
+  return directives;
+}
+
 export type Language = "microdata" | "python" | "r" | "mixed";
 
 const MICRODATA_PATTERNS = [

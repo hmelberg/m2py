@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { detectLanguage, parsePersonvernComments } from "./parse-script-context.ts";
+import { detectLanguage, parsePersonvernComments, parsePersonvernDirectives } from "./parse-script-context.ts";
 
 Deno.test("ingen kommentarer gir tom struktur", () => {
   const result = parsePersonvernComments("import all from BEFOLKNING\nkeep if alder >= 18");
@@ -177,4 +177,66 @@ def foo():
     df <- 1
 `;
   assertEquals(detectLanguage(script), "python");
+});
+
+// --- parsePersonvernDirectives ---
+
+Deno.test("ingen direktiver gir tomt resultat", () => {
+  const r = parsePersonvernDirectives("import all from BEFOLKNING");
+  assertEquals(r, {});
+});
+
+Deno.test("revider-script: ja settes som true", () => {
+  const r = parsePersonvernDirectives("// personvern: revider-script: ja");
+  assertEquals(r.revider_script, true);
+});
+
+Deno.test("revider-script: nei settes som false", () => {
+  const r = parsePersonvernDirectives("// personvern: revider-script: nei");
+  assertEquals(r.revider_script, false);
+});
+
+Deno.test("revider-script: true settes som true", () => {
+  const r = parsePersonvernDirectives("// personvern: revider-script: true");
+  assertEquals(r.revider_script, true);
+});
+
+Deno.test("revider-script: false settes som false", () => {
+  const r = parsePersonvernDirectives("// personvern: revider-script: false");
+  assertEquals(r.revider_script, false);
+});
+
+Deno.test("# kommentartegn (Python/R) støttes i direktiv-parser", () => {
+  const r = parsePersonvernDirectives("# personvern: revider-script: ja");
+  assertEquals(r.revider_script, true);
+});
+
+Deno.test("direktiv inne i blokk fungerer", () => {
+  const script = [
+    "// personvern blokk start",
+    "// formål: Test",
+    "// revider-script: ja",
+    "// personvern blokk slutt",
+  ].join("\n");
+  const r = parsePersonvernDirectives(script);
+  assertEquals(r.revider_script, true);
+});
+
+Deno.test("ukjent direktiv-verdi ignoreres", () => {
+  const r = parsePersonvernDirectives("// personvern: revider-script: kanskje");
+  assertEquals(r.revider_script, undefined);
+});
+
+Deno.test("siste vinner ved konflikt i direktiv-parser", () => {
+  const script = [
+    "// personvern: revider-script: ja",
+    "// personvern: revider-script: nei",
+  ].join("\n");
+  const r = parsePersonvernDirectives(script);
+  assertEquals(r.revider_script, false);
+});
+
+Deno.test("strukturerte ikke-direktiv-felt påvirker ikke direktiv-parser", () => {
+  const r = parsePersonvernDirectives("// personvern: formål: studere noe");
+  assertEquals(r, {});
 });
