@@ -548,233 +548,180 @@ Ny:
 ### Ikke vurdert i Milepæl 2
 
 - IP-binding av tokens (kompliserer UX uten klar gevinst — IP-er endres)
-- Per-bruker-tokens med revokering (planlegges i Milepæl 3)
-- Selvbetjent tilgang via epost (planlegges i Milepæl 3)
+- Per-bruker-tilgang via eksisterende Anvil-auth (planlegges i Milepæl 3)
 
-## Milepæl 3 — Selvbetjent tilgang via epost-verifisert kode
+## Milepæl 3 — Gjenbruk Anvil-auth for unified tilgang
 
-Milepæl 2 har delt token. Milepæl 3 legger til en selvbetjent kode-flyt:
-brukere ber selv om tilgang, skriver inn FHI-epost, mottar en
-EFF-Diceware-stil 3-ords kode på mail. Kode lagres i Netlify Blobs med
-utløp og kan brukes på flere maskiner.
+Milepæl 2 leverer en delt site-token. Milepæl 3 dropper denne i UI-en til
+fordel for å gjenbruke m2py sin eksisterende Anvil-baserte innloggings-
+infrastruktur. Hvis brukeren allerede er logget inn i m2py (for å lagre
+script, bruke AI-hjelp, etc.), gir samme innlogging også tilgang til
+dataminimering-vurdering — ingen separat token-håndtering.
 
-Det delte tokenet fra Milepæl 2 beholdes som fallback (for utvikling og
-nødtilgang).
+**Bakgrunn:** m2py bruker allerede Anvil-app `microdata-api` for autentisering
+via magic-link-mail. `auth.py` har komplett system: `issue_magic_code`,
+`consume_magic_code`, `send_magic_link_email` (via `anvil.email.send`),
+session-tokens (`issue_session_token`), email-whitelist (`anvil.yaml`),
+bootstrap-admins. Frontend har `window.mdAuth` med innlogget bruker.
 
-### Kode-format
+Når denne infrastrukturen allerede finnes, er det ingen grunn å bygge en
+parallell tilgangsnøkkel-mekanisme bare for dataminimering.
 
-Tre ord fra EFF Large Wordlist, bindestrek-separert:
+### Kjernemodell
 
+- Bruker logger inn i m2py via eksisterende magic-link-flyt (én gang per
+  browser; krever klikk på lenke i mail)
+- `window.mdAuth.session.token` settes i localStorage
+- Når bruker klikker "Vurder dataminimering", sender frontend dette
+  tokenet i `Authorization: Bearer <token>`
+- Edge Function validerer mot Anvil — hvis OK, gi tilgang
+
+Ingen ny mail-flyt, ingen ny token-paste-modal, ingen ny consent-flow for
+dataminimering spesifikt. Brukeren ser én Logg inn-knapp som hører til
+m2py som helhet.
+
+### Multi-maskin
+
+Brukere som vil bruke m2py på flere maskiner må logge inn på hver av dem
+via magic-link. Dette er Anvil-systemets nåværende oppførsel — endres ikke
+av denne milepælen. (Hvis vi senere vil legge til paste-bart token for
+flere maskiner, gjør vi det som en utvidelse av m2py-auth generelt, ikke
+av dataminimering spesifikt.)
+
+### Anvil-endepunkt for token-validering
+
+Anvil må eksponere en endpoint som Edge Function kan kalle. Hvis ikke
+allerede eksisterende, legg til i `auth.py`:
+
+```python
+@anvil.server.http_endpoint("/dm/validate-session", methods=["POST"])
+def dm_validate_session():
+    """Validate an Anvil session token from m2py Edge Function.
+    Returns { valid: bool, email: str|null } — minimal info, no PII beyond
+    what's necessary for auth."""
+    raw = (anvil.server.request.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
+    if not raw:
+        return anvil.server.HttpResponse(401, json.dumps({"valid": False}))
+    session = lookup_session_token(raw)
+    if not session:
+        return anvil.server.HttpResponse(401, json.dumps({"valid": False}))
+    user = principal_user(session["principal"])
+    return anvil.server.HttpResponse(200, json.dumps({
+        "valid": True,
+        "email": user["email"]
+    }))
 ```
-abacus-charity-twelve
-gravity-meadow-radius
-twirl-fishhook-cleric
-```
 
-- 7 776 ord per posisjon, ~39 bits entropi totalt
-- Lowercase ASCII, ingen spesialtegn
-- EFF Large er public domain, håndkuratert mot anstøtelige/forvekslelige ord
-- Brukes av Bitwarden, 1Password, KeePassXC m.fl.
+(Sjekk eksisterende endepunkter først — kanskje noe lignende finnes
+allerede og kan gjenbrukes.)
 
-Embedded som JSON i `netlify/edge-functions/_lib/eff-wordlist.json` (~100 KB).
-Ingen runtime-avhengighet.
+### Edge Function-endringer
 
-### Verifikasjon — tolerant normalisering
-
-Aksepter brukerens innliming i flere former:
+`dm-vurder.ts` token-sjekken endres til:
 
 ```typescript
-function normalizeCode(s: string): string {
-  return s.toLowerCase().replace(/[^a-z-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+const token = extractBearerToken(request);
+
+// Sjekk M2PY_ACCESS_TOKEN først (dev/admin fallback, beholdes fra M2)
+const sharedToken = Deno.env.get("M2PY_ACCESS_TOKEN");
+if (sharedToken && token === sharedToken) {
+  // OK — dev fallback
+} else {
+  // Valider mot Anvil
+  const anvilUrl = Deno.env.get("M2PY_ANVIL_VALIDATE_URL");
+  const resp = await fetch(anvilUrl, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${token}` }
+  });
+  if (!resp.ok) return new Response("Unauthorized", { status: 401 });
+  const data = await resp.json();
+  if (!data.valid) return new Response("Unauthorized", { status: 401 });
+  // Optional: store data.email for logging/audit
 }
 ```
 
-Dette gjør at `Abacus Charity Twelve`, `abacus charity twelve`,
-`abacus-charity-twelve` og `ABACUS-CHARITY-TWELVE` alle aksepteres som samme
-kode.
+Beholdes:
+- Body-størrelse-grense
+- Per-IP rate limit
+- Alle andre prompt-/respons-detaljer
 
-### Utløp og fornyelse
+Endrer:
+- M2PY_ALLOWED_ORIGINS — kan slettes (har vært ubrukt siden M2)
+- Token-sjekken: nå Anvil-validering primært, M2PY_ACCESS_TOKEN som fallback
 
-- **Default 6 måneder fra utstedelse**
-- **Sliding window:** hver gang koden brukes mot `/api/dm-vurder`, oppdateres
-  `sist_brukt`-tidsstempelet og utløpet forlenges til 6 mnd fra nå.
-- Aktive brukere mister ikke tilgang. Inaktive (>6 mnd uten bruk) blir
-  automatisk skrudd av.
-
-### Multiple koder per bruker
-
-- Når bruker ber om kode på nytt med samme epost, utstedes en **ny** kode.
-- Gamle koder forblir gyldige til de utløper eller revokeres.
-- **Maks 5 aktive koder per epost.** Ved 6. forespørsel, slettes den eldste.
-- Lar brukere ha tokens på flere enheter (jobblaptop + privat + mobil)
-  uten å miste noe.
-
-### Email-domene-allowlist
-
-Konfigurerbar via Netlify env var:
-
-```
-M2PY_ALLOWED_EMAIL_DOMAINS=fhi.no
-```
-
-Komma-separert liste. Default kun `fhi.no`. Lett å utvide til
-`fhi.no,nih.no,uio.no` etc.
-
-### Rate-limiting på `dm-request-code`
-
-To akser, via Netlify Blobs:
-
-- **5 forespørsler / time / IP** — hindrer enumeration fra én IP
-- **3 forespørsler / time / epost-adresse** — hindrer harassment-DoS av
-  forskerens innboks
-
-### Email-leveranse via Resend
-
-- **Provider:** Resend (gratis 100 mail/dag, 3 000/mnd — nok for FHI-onboarding)
-- **Fra-adresse:** `noreply@melberg.app` (krever DNS-verifisering hos Resend
-  — 3-4 TXT/CNAME-records, engangsoppgave)
-- **API-nøkkel:** `RESEND_API_KEY` i Netlify env vars
-
-### Email-innhold
-
-```
-Tilgang til AI-vurdering i m2py
-
-Hei,
-
-Du har bedt om en kode for å bruke AI-vurdering av dataminimering 
-i m2py. Lim inn koden under i hamburger-menyen → "Sett tilgangsnøkkel":
-
-    abacus-charity-twelve
-
-Eller klikk her for å aktivere direkte på denne maskinen:
-https://micro.melberg.app?dm-code=abacus-charity-twelve
-
-Koden er gyldig i 6 måneder fra siste bruk. Du kan bruke den på 
-flere maskiner ved å lime den inn på hver av dem.
-
-m2py er et hobbyprosjekt og ikke offisielt fra microdata.no eller FHI.
-Vurderingene er rådgivende — endelig vurdering ligger hos forsker og 
-dataansvarlig.
-
-Hvis du ikke har bedt om denne koden, kan du ignorere mailen.
-
--- 
-m2py
-https://micro.melberg.app
-```
-
-Lenken med `?dm-code=...` aktiverer automatisk på maskinen brukeren klikker
-fra: frontend leser query param, lagrer i localStorage, og fjerner param
-fra URL-en uten reload.
-
-### Revokering
-
-Tre nivåer:
-
-**Self-revoke:** "Logg ut overalt" / "Glem meg" i hamburger-menyen kaller
-`/api/dm-revoke` med brukerens nåværende kode → markerer alle koder for
-samme epost som revokert i Blobs.
-
-**Nuke-flag:** Sett env var `M2PY_REVOKE_ALL_BEFORE=<unix-timestamp>` →
-alle koder utstedt før timestamp avvises ved neste sjekk. Krever redeploy.
-
-**Admin per-bruker (utsatt):** kommer som CLI-tool senere hvis behovet
-oppstår.
-
-### Storage-skjema (Netlify Blobs)
-
-Store: `dm-codes`
-
-Nøkkel: `code:<normalisert-kode>`
-Verdi:
-```json
-{
-  "email": "navn@fhi.no",
-  "utstedt": 1716489600,
-  "utløp": 1732454400,
-  "sist_brukt": 1716489600,
-  "revokert": false
-}
-```
-
-Indeks: `email:<lowercase-email>` → liste av koder for å revokere alle for
-én bruker, og for å håndheve maks-5-grensen.
-
-### Audit / logging
-
-Kun `sist_brukt` per kode. Ingen detaljert request-logging. Anthropic-
-konsollen viser totalkostnad. Hvis per-bruker-statistikk trengs senere,
-legg til `usage_count`-felt.
-
-### Arkitektur — nye endepunkter
-
-```
-/.netlify/edge-functions/dm-request-code   (Milepæl 3 ny)
-  - POST { email }
-  - Validerer epost-domene
-  - Rate-limit (per IP, per email)
-  - Generer kode, lagre i Blobs
-  - Send mail via Resend
-  - Returner 200 alltid (ikke avslør om epost finnes)
-
-/.netlify/edge-functions/dm-revoke         (Milepæl 3 ny)
-  - POST { } med Authorization Bearer <code>
-  - Markerer alle koder for samme email som revokert
-  - Returner 200
-
-/.netlify/edge-functions/dm-vurder         (Milepæl 2, utvides)
-  - Token-sjekken utvides:
-    1. Hvis token === M2PY_ACCESS_TOKEN: OK (delt fallback)
-    2. Ellers slå opp i Blobs:
-       - Kode finnes? Ikke revokert? Ikke utløpt?
-       - Hvis OK: oppdater sist_brukt og utløp, returner OK
-       - Ellers: 401
-    3. Sjekk M2PY_REVOKE_ALL_BEFORE-flag mot utstedt-tidsstempel
-```
+Ny env-var:
+- `M2PY_ANVIL_VALIDATE_URL` — full URL til Anvils validate-session-endepunkt
 
 ### Frontend-endringer
 
-**Ny hamburger-meny-knapp:** "Be om AI-tilgang" (under Personvern)
+**Hamburger-meny:** "Sett tilgangsnøkkel" og "Avregistrer AI-bruk" fjernes.
+Dataminimering-knappen står alene under Personvern-seksjonen.
 
-**Ny request-code-modal:** 
+**`runDmVurder`:** bytt fra `getDmToken()` til `window.mdAuth?.session?.token`:
 
-```
-┌─────────────────────────────────────────────┐
-│ Be om AI-tilgang                            │
-│                                             │
-│ Skriv inn din FHI-epost. Vi sender en kode  │
-│ som du limer inn i "Sett tilgangsnøkkel".   │
-│                                             │
-│ Epost: [_________________________________]  │
-│                                             │
-│              [Avbryt]  [Send kode]          │
-└─────────────────────────────────────────────┘
+```javascript
+const session = window.mdAuth && window.mdAuth.session;
+const token = session && session.token;
+if (!token) {
+  alert('Du må være logget inn i m2py for å bruke dataminimering. Bruk Logg inn-knappen.');
+  return;
+}
+headers['Authorization'] = `Bearer ${token}`;
 ```
 
-Etter Send-klikk: vis "Sjekk eposten din. Hvis adressen er godkjent får
-du en kode innen et minutt."
+**`btnDmQuick`-handler:** sjekker `window.mdAuth?.user` før den åpner
+dm-options-modal. Hvis ikke innlogget, vis enten en alert eller trigger
+m2py sin eksisterende login-modal.
 
-**Auto-aktivering ved URL-param:** ved sideload, sjekk `?dm-code=...`.
-Hvis tilstede, lagre i localStorage og fjern param fra URL.
+**Token-relatert kode:** `DM_TOKEN_KEY`, `getDmToken`, `setDmToken`,
+`showDmTokenSetup`, `dmTokenBackdrop` — alle fjernes.
 
-**"Logg ut overalt"-knapp:** i token-modal, ved siden av "Fjern". Kaller
-`/api/dm-revoke` og tømmer localStorage.
+**localStorage-key `microdata_dm_token`:** ryddes ved første sideload etter
+deploy (engangs migrasjon-jobb).
+
+### M2PY_ACCESS_TOKEN beholdes som backdoor
+
+`M2PY_ACCESS_TOKEN`-env-varen og sjekken mot den i Edge Function beholdes.
+Brukes til:
+- Lokal utvikling (du har det allerede i `.env`)
+- Nødtilgang hvis Anvil er nede
+- Demo-bruk uten Anvil-login
+
+Brukes IKKE i UI — ingen knapp for å sette den fra browser. Eksisterer kun
+som "skjult" backend-mekanisme for power-users som vet om den.
+
+### Sikkerhetsbetraktninger
+
+- **Anvil-whitelisten gir tilgang.** Hvis bruker er logget inn i m2py, er
+  vedkommende allerede i Anvil sin email_whitelist. Ingen ekstra sjekk
+  nødvendig på m2py-siden.
+- **Rate-limit på dm-vurder beholdes** (10/time/IP). Anvil har sine egne
+  rate-limits på session-utstedelse.
+- **Anthropic budget cap** som ytre sikkerhetsnett.
+- **Session-token-tyveri:** hvis noen får tak i en Anvil-session-token,
+  får de tilgang til både m2py og dataminimering. Anvil har egne
+  utløps-/revokerings-mekanismer som vi arver.
 
 ### Implementering — Milepæl 3 tasks
 
-1. **Sett opp Resend-konto** (du gjør selv): registrer, verifiser
-   `melberg.app`-DNS, generer API-nøkkel, sett `RESEND_API_KEY` i Netlify
-2. **Embed EFF-wordlist:** last ned, lagre som `eff-wordlist.json`
-3. **Lag `_lib/codes.ts`:** generere kode, normalisere, validere
-4. **Lag `_lib/email.ts`:** Resend-klient, mail-template
-5. **Edge function `dm-request-code.ts`:** validere epost, rate-limit,
-   utstede, sende
-6. **Utvid `dm-vurder.ts`:** Blobs-lookup som alternativ til delt token
-7. **Edge function `dm-revoke.ts`:** markér koder som revokert
-8. **Frontend: ny request-modal + auto-aktivering** ved query param
-9. **Frontend: "Logg ut overalt"** i eksisterende token-modal
-10. **Dokumentasjon:** oppdater hjelp.html med ny flyt
+Mindre arbeid enn opprinnelig planlagt:
+
+1. **Anvil: legg til (eller verifiser) `dm/validate-session`-endepunkt** i
+   `server_code/auth.py`. Test med curl mot Anvil-instansen.
+2. **Edge Function: bytt token-sjekken** i `dm-vurder.ts` til Anvil-
+   validering (med M2PY_ACCESS_TOKEN som fallback). Legg til
+   `M2PY_ANVIL_VALIDATE_URL` env-var.
+3. **Frontend: oppdater `runDmVurder`** til å lese `window.mdAuth` i stedet
+   for `getDmToken`. Fjern token-relatert kode (`DM_TOKEN_KEY`,
+   `showDmTokenSetup`, `dmTokenBackdrop` etc.).
+4. **Frontend: oppdater `btnDmQuick`-handler** til å sjekke login-status og
+   trigge login-modal om nødvendig.
+5. **Frontend: meny-cleanup** — fjern "Sett tilgangsnøkkel" og "Avregistrer
+   AI-bruk"-knappene.
+6. **Migrasjon-snippet:** rydde `microdata_dm_token` fra localStorage ved
+   første sideload etter deploy.
+7. **Dokumentasjon:** oppdater hjelp.html — "krever innlogging i m2py" i
+   stedet for "trenger tilgangsnøkkel". Fjern token-paste-instrukser.
 
 ## Personvern (brukerens data sendt til AI)
 
@@ -840,7 +787,8 @@ seksjon over for full design og 10 task-liste.
   Anbefaling: start med Sonnet og oppgrader hvis vurderings­kvaliteten er
   for tynn.
 - **Token-distribusjon:** Milepæl 2 leverer delt token (manuell utdeling).
-  Milepæl 3 legger til selvbetjent kode-flyt via FHI-epost-verifisering.
+  Milepæl 3 dropper det til fordel for gjenbruk av eksisterende m2py
+  Anvil-auth — innlogging i m2py = tilgang til alt, inkludert dataminimering.
 - **Hvis Anthropic returnerer Revidert script mid-stream:** edge case der
   AI inkluderer kode-blokken før den er ferdig. Frontend bør ikke splitte
   før strøm er fullstendig ferdig.
