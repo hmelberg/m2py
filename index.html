@@ -1578,6 +1578,125 @@
       return content.join('\n');
     }
 
+    // Detect dominant comment char in script
+    function detectCommentChar(script) {
+      const lines = script.split(/\r?\n/);
+      let slashCount = 0;
+      let hashCount = 0;
+      for (const line of lines) {
+        if (/^\s*\/\//.test(line)) slashCount++;
+        else if (/^\s*#/.test(line)) hashCount++;
+      }
+      // If clearly more hash than slash, use #
+      if (hashCount > slashCount * 2) return '#';
+      return '//';  // default for microdata
+    }
+
+    // Writes/updates personvern-blokk in the script editor.
+    // Behavior:
+    //   - Removes existing // personvern blokk start ... slutt blocks
+    //   - Removes single-line // personvern: <known-field>: ... lines
+    //   - Keeps freetext // personvern: <unknown-field-or-text>: ... lines
+    //   - Writes new block at top (after shebang/imports for Python/R, at very top for microdata)
+    //   - Each input line prefixed with "// " (or "# " for Python/R)
+    function writePersonvernBlokk(contextText) {
+      const editor = document.getElementById('scriptInput');
+      if (!editor) return;
+      const text = (contextText || '').trim();
+      if (!text) return;  // nothing to write
+
+      const script = editor.value;
+      const lines = script.split(/\r?\n/);
+      const knownFields = ['formål', 'tidsperiode', 'geografi', 'sensitive grupper', 'alternativer vurdert'];
+
+      // Detect dominant comment style: // for microdata, # for Python/R
+      const commentChar = detectCommentChar(script);  // returns "//" or "#"
+
+      // First pass: filter out existing personvern-blokk(s) and structured single-lines
+      const startRe = /^\s*(?:\/\/+|#+)\s*personvern\s+blokk\s+start\s*$/i;
+      const endRe = /^\s*(?:\/\/+|#+)\s*personvern\s+blokk\s+slutt\s*$/i;
+      const singleLineRe = /^\s*(?:\/\/+|#+)\s*personvern\s*:\s*(.*)$/i;
+
+      const kept = [];
+      let inBlock = false;
+      for (const line of lines) {
+        if (startRe.test(line)) {
+          inBlock = true;
+          continue;
+        }
+        if (inBlock && endRe.test(line)) {
+          inBlock = false;
+          continue;
+        }
+        if (inBlock) {
+          // Inside a block being removed — drop all lines.
+          // If user wants to preserve freetext, they should write outside the block.
+          continue;
+        }
+        // Outside block: check single-line form
+        const m = line.match(singleLineRe);
+        if (m) {
+          const content = m[1].trim();
+          // Check if it starts with a known field name
+          const fieldMatch = content.match(/^([^:]+):/);
+          if (fieldMatch) {
+            const fieldName = fieldMatch[1].trim().toLowerCase();
+            if (knownFields.includes(fieldName)) {
+              // Strip this structured single-line
+              continue;
+            }
+          }
+          // Otherwise it's freetext — keep
+          kept.push(line);
+          continue;
+        }
+        kept.push(line);
+      }
+
+      // Where to insert the new block?
+      // For Python/R: after shebang and imports
+      // For microdata: at the very top
+      let insertIndex = 0;
+      if (commentChar === '#') {
+        // Skip shebang
+        if (kept.length > 0 && /^\s*#!/.test(kept[0])) {
+          insertIndex = 1;
+        }
+        // Skip leading import / library / from blocks
+        while (insertIndex < kept.length) {
+          const ln = kept[insertIndex];
+          if (/^\s*(import\s+|from\s+\w+\s+import\s+|library\s*\(|require\s*\()/.test(ln)) {
+            insertIndex++;
+          } else if (/^\s*$/.test(ln) || /^\s*#/.test(ln)) {
+            insertIndex++;
+          } else {
+            break;
+          }
+        }
+      }
+      // For microdata: insertIndex = 0 (very top)
+
+      // Build the block lines
+      const userLines = text.split(/\r?\n/);
+      const blockLines = [
+        `${commentChar} personvern blokk start`,
+        ...userLines.map(l => `${commentChar} ${l}`),
+        `${commentChar} personvern blokk slutt`,
+        '',  // blank line after
+      ];
+
+      // Insert and join
+      const finalLines = [
+        ...kept.slice(0, insertIndex),
+        ...blockLines,
+        ...kept.slice(insertIndex),
+      ];
+      const newScript = finalLines.join('\n');
+
+      editor.value = newScript;
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
     async function runDmVurder(script, options) {
       const backdrop = document.getElementById('dmResultBackdrop');
       const body = document.getElementById('dmResultBody');
@@ -1724,6 +1843,11 @@
         status.textContent = `Ferdig. ${inputTokens} input / ${outputTokens} output tokens.`;
         cancelBtn.disabled = true;
         copyBtn.disabled = false;
+
+        // If user spesifiserte kontekst AND opted to save it, write back to editor
+        if (options.kontekst && options.lagre_kontekst_som_blokk !== false) {
+          writePersonvernBlokk(options.kontekst);
+        }
       } catch (e) {
         if (e.name === 'AbortError') {
           status.textContent = 'Avbrutt.';
