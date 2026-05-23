@@ -29,5 +29,5 @@
     Cache-Control = "public, max-age=86400"
 
 [[edge_functions]]
-  function = "dm-quick"
-  path = "/api/dm-quick"
+  function = "dm-vurder"
+  path = "/api/dm-vurder"

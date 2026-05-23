@@ -1407,7 +1407,7 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-22b';
+    window.M2PY_VERSION = '2026-05-23a';
 
     // --- Dataminimering: consent og state ---
     const DM_CONSENT_KEY = 'microdata_dm_consent';
@@ -1450,7 +1450,7 @@
       let outputTokens = 0;
 
       try {
-        const resp = await fetch('/api/dm-quick', {
+        const resp = await fetch('/api/dm-vurder', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ script }),

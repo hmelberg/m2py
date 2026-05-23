@@ -168,7 +168,7 @@ export default async (request: Request): Promise<Response> => {
   const ip = request.headers.get("x-nf-client-connection-ip")
     ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
     ?? "";
-  const rate = await checkRateLimit("dm-quick", ip);
+  const rate = await checkRateLimit("dm-vurder", ip);
   if (!rate.allowed) {
     return new Response("Rate limited", {
       status: 429,
