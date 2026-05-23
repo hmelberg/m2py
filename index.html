@@ -1591,6 +1591,8 @@
       backdrop.style.display = 'flex';
       cancelBtn.disabled = false;
       copyBtn.disabled = true;
+      const revisedSection = document.getElementById('dmResultRevisedSection');
+      if (revisedSection) revisedSection.style.display = 'none';
 
       const controller = new AbortController();
       cancelBtn.onclick = () => controller.abort();
@@ -1651,17 +1653,74 @@
             } catch (_) { /* ignore */ }
           }
         }
+        // Split out "## Revidert script" section if present
+        let mainText = accumulated;
+        let revisedScript = null;
+        let revisedMatch = null;
+
+        const revisedMatchResult = accumulated.match(/\n##\s+Revidert script\s*\n([\s\S]+)$/i);
+        if (revisedMatchResult) {
+          revisedMatch = revisedMatchResult;
+          mainText = accumulated.slice(0, revisedMatchResult.index);
+          // Extract code from fenced code block in the revised section
+          const codeBlockMatch = revisedMatchResult[1].match(/```[\w]*\n([\s\S]+?)\n```/);
+          if (codeBlockMatch) {
+            revisedScript = codeBlockMatch[1];
+          } else {
+            // No code block — the section may contain "Ingen endringer foreslås"
+            revisedScript = revisedMatchResult[1].trim();
+          }
+        }
+
         // Render markdown when stream is complete
         if (typeof window.markdownit === 'function') {
           try {
             const md = window.markdownit({ html: false, linkify: true, breaks: true });
-            body.innerHTML = md.render(accumulated);
+            body.innerHTML = md.render(mainText);
             body.style.fontFamily = '';  // remove monospace styling
             body.style.whiteSpace = '';  // remove pre-wrap
           } catch (e) {
             // Fall back to text rendering on parser error
           }
         }
+
+        // Show revised script section if present
+        const revisedCode = document.getElementById('dmResultRevisedCode');
+        if (revisedScript && revisedScript.length > 0) {
+          revisedCode.textContent = revisedScript;
+          revisedSection.style.display = 'block';
+        } else {
+          revisedSection.style.display = 'none';
+        }
+
+        // Wire up revised-script buttons
+        const copyRevisedBtn = document.getElementById('dmResultCopyRevised');
+        const replaceScriptBtn = document.getElementById('dmResultReplaceScript');
+
+        copyRevisedBtn.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(revisedScript || '');
+            copyRevisedBtn.textContent = 'Kopiert!';
+            setTimeout(() => copyRevisedBtn.textContent = 'Kopier revidert', 1500);
+          } catch (_) { /* ignore */ }
+        };
+
+        replaceScriptBtn.onclick = () => {
+          if (!revisedScript) return;
+          if (revisedScript.toLowerCase().includes('ingen endringer foreslås')) {
+            alert('AI fant ingen endringer å foreslå.');
+            return;
+          }
+          const editor = document.getElementById('scriptInput');
+          if (!editor) return;
+          const proceed = confirm('Erstatt scriptet med den reviderte versjonen?\n\nDu kan angre med Ctrl+Z etter at det er erstattet.');
+          if (!proceed) return;
+          editor.value = revisedScript;
+          editor.dispatchEvent(new Event('input', { bubbles: true }));
+          backdrop.style.display = 'none';
+          setTimeout(() => alert('Scriptet er erstattet. Anbefalt: kjør vurdering på nytt.'), 100);
+        };
+
         status.textContent = `Ferdig. ${inputTokens} input / ${outputTokens} output tokens.`;
         cancelBtn.disabled = true;
         copyBtn.disabled = false;
@@ -8022,6 +8081,14 @@ def _run_microdata_chunk(_code):
       <h3 style="font-size: 1.25em;">Dataminimering-vurdering</h3>
       <div id="dmResultBody" style="flex: 1; overflow-y: auto; padding: 8px 0; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.5;"></div>
       <div id="dmResultStatus" style="font-size: 12px; color: var(--text-muted); padding: 4px 0;"></div>
+      <div id="dmResultRevisedSection" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+        <h4 style="margin: 0 0 8px 0;">Revidert script</h4>
+        <pre id="dmResultRevisedCode" style="background: var(--bg); padding: 10px; border-radius: 4px; max-height: 240px; overflow-y: auto; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; margin: 0;"></pre>
+        <div style="margin-top: 8px; display: flex; gap: 8px;">
+          <button type="button" id="dmResultCopyRevised" class="ai-modal-btn">Kopier revidert</button>
+          <button type="button" id="dmResultReplaceScript" class="ai-modal-btn primary">Erstatt scriptet</button>
+        </div>
+      </div>
       <div class="ai-modal-actions" style="margin-top: 8px;">
         <button type="button" id="dmResultCancel" class="ai-modal-btn">Avbryt</button>
         <button type="button" id="dmResultCopy" class="ai-modal-btn">Kopier</button>
