@@ -146,13 +146,13 @@ function renderContextSection(ctx: ScriptContext): string {
 }
 
 export default async (request: Request): Promise<Response> => {
-  const allowedOrigins = (Deno.env.get("M2PY_ALLOWED_ORIGINS") ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const origin = request.headers.get("origin");
-  if (allowedOrigins.length > 0 && (!origin || !allowedOrigins.includes(origin))) {
-    return new Response("Forbidden", { status: 403 });
+  const expectedToken = Deno.env.get("M2PY_ACCESS_TOKEN");
+  if (expectedToken) {
+    const authHeader = request.headers.get("authorization") ?? "";
+    const presentedToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+    if (presentedToken !== expectedToken) {
+      return new Response("Unauthorized", { status: 401 });
+    }
   }
 
   if (request.method !== "POST") {

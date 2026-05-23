@@ -918,6 +918,7 @@
         <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Personvern</div>
         <button type="button" id="btnDmQuick">Vurder dataminimering</button>
         <button type="button" id="btnDmRevokeConsent" style="font-size: 12px; color: var(--text-muted);">Avregistrer AI-bruk</button>
+        <button type="button" id="btnDmSetToken" style="font-size: 12px; color: var(--text-muted);">Sett tilgangsnøkkel</button>
       </div>
     </div>
     <input type="text" class="script-name" id="scriptName" placeholder="Script navn" value="Script navn">
@@ -1414,6 +1415,39 @@
     function hasDmConsent() { return localStorage.getItem(DM_CONSENT_KEY) === '1'; }
     function setDmConsent(v) { localStorage.setItem(DM_CONSENT_KEY, v ? '1' : '0'); }
 
+    const DM_TOKEN_KEY = 'microdata_dm_token';
+    function getDmToken() { return localStorage.getItem(DM_TOKEN_KEY) || ''; }
+    function setDmToken(t) {
+      if (t) { localStorage.setItem(DM_TOKEN_KEY, t); }
+      else { localStorage.removeItem(DM_TOKEN_KEY); }
+    }
+
+    function showDmTokenSetup() {
+      const backdrop = document.getElementById('dmTokenBackdrop');
+      const input = document.getElementById('dmTokenInput');
+      const status = document.getElementById('dmTokenStatus');
+      const cancelBtn = document.getElementById('dmTokenCancel');
+      const clearBtn = document.getElementById('dmTokenClear');
+      const saveBtn = document.getElementById('dmTokenSave');
+
+      const current = getDmToken();
+      input.value = current;
+      status.textContent = current ? 'Nøkkel er satt (lim inn ny for å endre).' : 'Ingen nøkkel satt.';
+      backdrop.style.display = 'flex';
+
+      cancelBtn.onclick = () => { backdrop.style.display = 'none'; };
+      clearBtn.onclick = () => {
+        setDmToken('');
+        input.value = '';
+        status.textContent = 'Nøkkel fjernet.';
+      };
+      saveBtn.onclick = () => {
+        const value = input.value.trim();
+        setDmToken(value);
+        backdrop.style.display = 'none';
+      };
+    }
+
     function showDmConsent(onAccept) {
       const backdrop = document.getElementById('dmConsentBackdrop');
       backdrop.style.display = 'flex';
@@ -1450,12 +1484,19 @@
       let outputTokens = 0;
 
       try {
+        const token = getDmToken();
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
         const resp = await fetch('/api/dm-vurder', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ script }),
           signal: controller.signal,
         });
+        if (resp.status === 401) {
+          status.textContent = 'Tilgangsnøkkelen er ugyldig eller utløpt. Sett ny via menyen.';
+          return;
+        }
         if (!resp.ok || !resp.body) {
           status.textContent = `Feil: ${resp.status} ${await resp.text()}`;
           return;
@@ -2468,6 +2509,11 @@
       } else {
         alert('Du har ikke gitt AI-tillatelse.');
       }
+    });
+
+    document.getElementById('btnDmSetToken').addEventListener('click', () => {
+      document.getElementById('hamburgerDropdown').classList.remove('open');
+      showDmTokenSetup();
     });
 
     document.getElementById('helpBtn').addEventListener('click', function() {
@@ -7857,6 +7903,24 @@ def _run_microdata_chunk(_code):
         <button type="button" id="dmResultCancel" class="ai-modal-btn">Avbryt</button>
         <button type="button" id="dmResultCopy" class="ai-modal-btn">Kopier</button>
         <button type="button" id="dmResultClose" class="ai-modal-btn primary">Lukk</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dmTokenBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 480px;">
+      <h3 style="font-size: 1.25em;">Tilgangsnøkkel for AI-vurdering</h3>
+      <p>
+        Lim inn tilgangsnøkkelen du fikk fra administrator. Nøkkelen lagres lokalt
+        i nettleseren din og brukes ved hver vurdering. Du kan endre eller fjerne
+        den når som helst.
+      </p>
+      <input type="text" id="dmTokenInput" placeholder="m2py-token-..." style="width: 100%; padding: 8px; margin: 8px 0; font-family: monospace;">
+      <p id="dmTokenStatus" style="font-size: 12px; color: var(--text-muted); min-height: 1.2em;"></p>
+      <div class="ai-modal-actions" style="margin-top: 12px;">
+        <button type="button" id="dmTokenCancel" class="ai-modal-btn">Avbryt</button>
+        <button type="button" id="dmTokenClear" class="ai-modal-btn">Fjern</button>
+        <button type="button" id="dmTokenSave" class="ai-modal-btn primary">Lagre</button>
       </div>
     </div>
   </div>
