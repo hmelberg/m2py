@@ -330,7 +330,7 @@ import db/BEFOLKNING_KJOENN as kjonn
 summarize kjonn</code></pre>
     <p>Verdier: <code>on</code>/<code>off</code>, <code>true</code>/<code>false</code>, <code>1</code>/<code>0</code>, <code>yes</code>/<code>no</code>. Kortform <code>dc</code> aksepteres også: <code>// m2py: dc=off</code>. Nyttig i API-/script-bruk der man vil styre modus uten å endre globale innstillinger.</p>
 
-    <h3>Dataminimering-vurdering</h3>
+    <h2 id="hjelp-dataminimering">Dataminimering-vurdering</h2>
     <p>
       m2py kan be en AI vurdere om scriptet ditt praktiserer dataminimering —
       prinsippet om å hente og bruke kun det minimum av data som trengs for
@@ -344,31 +344,79 @@ summarize kjonn</code></pre>
       <li>Personvernforordningen art. 5(1)(c) — dataminimering</li>
       <li>Helseregisterloven § 6 — graden av personidentifikasjon</li>
       <li>Personvernforordningen art. 89(1) — vitenskapelig forskning</li>
+      <li>Personvernforordningen art. 9 — særlige kategorier (sensitive opplysninger)</li>
     </ul>
+
+    <h3>Slik fungerer det</h3>
     <p>
-      Klikk på hamburger-menyen → "Vurder dataminimering". Første gang du bruker
-      funksjonen vises en bekreftelse på at scriptet sendes til Anthropic for
-      vurdering. Faktiske mikrodata-verdier sendes aldri.
+      Klikk hamburger-meny → "Vurder dataminimering". Første gang du bruker
+      funksjonen vises en bekreftelse på at scriptet sendes til Anthropic. Faktiske
+      mikrodata-verdier sendes aldri.
     </p>
-    <h4>Personvern-kommentarer i scriptet</h4>
+    <p>
+      I valgmodalen kan du:
+    </p>
+    <ul>
+      <li><strong>Velge språk</strong> (auto / microdata / R / Python) — auto detekterer fra scriptet</li>
+      <li><strong>Velge rapportlengde</strong>: Kort (raske observasjoner) eller Lang (alle dimensjoner med oppfølgings­spørsmål)</li>
+      <li><strong>Be om revidert script</strong> — AI legger ved en konservativ revidert versjon på slutten av svaret, som du kan kopiere eller erstatte editoren med</li>
+      <li><strong>Spesifisere formål og kontekst</strong> — valgfritt; gir mer presis vurdering</li>
+    </ul>
+
+    <h3>Tilgangsnøkkel</h3>
+    <p>
+      AI-vurderingen krever en tilgangsnøkkel. Hvis du ikke har en, kontakt
+      administrator. Sett nøkkelen via hamburger-meny → "Sett tilgangsnøkkel".
+      Nøkkelen lagres lokalt i nettleseren din.
+    </p>
+
+    <h3>Sensitive variabler</h3>
+    <p>
+      AI flagger automatisk variabler som faller inn under <em>særlige kategorier</em>
+      (GDPR art. 9): etnisitet, religion, seksuell legning, særskilt sensitive
+      helseopplysninger (abort, kjønnssykdommer, psykiatri etc.), lov- og
+      straffeopplysninger. For disse kreves høyere begrunnelsesterskel.
+    </p>
+
+    <h3>Personvern-kommentarer i scriptet</h3>
     <p>
       Du kan legge til strukturerte begrunnelser direkte i scriptet:
     </p>
     <pre>// personvern blokk start
 // formål: Studere sammenheng mellom utdanning og inntekt
-// sentrale variabler: NUDB_UTDNIVAA, INNTEKT
 // tidsperiode: 1970-1980 fordi kohorten skal være ferdig utdannet
 // geografi: kommune nødvendig for å se regionale forskjeller
 // sensitive grupper: nei
 // alternativer vurdert: SSB-tabell A-04 var for grovkornet
 // personvern blokk slutt</pre>
     <p>
+      Eller fri tekst:
+    </p>
+    <pre>// personvern blokk start
+// Formål: studere sammenheng mellom utdanning og inntekt for kohort 1970-1980.
+// Tidsperioden valgt fordi kohorten skal være ferdig utdannet ved analyseslutt.
+// Kommune nødvendig for regionale forskjeller.
+// personvern blokk slutt</pre>
+    <p>
+      Hvis du huker av "Lagre som personvern-blokk" i sekundær-modalen, skriver
+      m2py innholdet inn i scriptet automatisk etter vurderingen.
+    </p>
+    <p>
       Enkeltlinjer fungerer også:
     </p>
     <pre>// personvern: kuttet datoer til måned for å unngå unødig presisjon</pre>
     <p>
-      Disse blir lest av AI-en som tilleggskontekst. Du kan også bruke
-      <code>#</code> i stedet for <code>//</code> i Python/R-script.
+      Du kan også bruke <code>#</code> i stedet for <code>//</code> i Python/R-script.
+    </p>
+
+    <h3>Direktiver i scriptet</h3>
+    <p>
+      Du kan styre AI-oppførselen direkte i scriptet:
+    </p>
+    <pre>// personvern: revider-script: ja</pre>
+    <p>
+      Da slår AI på revidert-script-output uansett hva du velger i UI-en. Nyttig
+      hvis du har et template som alltid skal revideres.
     </p>
   </section>
 
