@@ -1408,6 +1408,15 @@
   <script>
     window.M2PY_VERSION = '2026-05-23b';
 
+    // One-time migration: remove obsolete localStorage keys from previous milestones
+    // Safe to delete this snippet after a few months when most users have re-loaded
+    (function migrateDmStorage() {
+      try {
+        localStorage.removeItem('microdata_dm_token');
+        localStorage.removeItem('microdata_dm_consent');
+      } catch (_e) { /* ignore */ }
+    })();
+
     // --- Dataminimering: hovedmodal-state ---
     const dmOptionsState = {
       språk: 'auto',
