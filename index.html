@@ -1722,9 +1722,17 @@
       let outputTokens = 0;
 
       try {
-        const token = getDmToken();
-        const headers = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
+        // Get Anvil session token from mdAuth module
+        const token = window.mdAuth && window.mdAuth.token;
+        if (!token) {
+          status.textContent = 'Du må være logget inn for å bruke dataminimering. Klikk Logg inn øverst.';
+          cancelBtn.disabled = true;
+          return;
+        }
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        };
         const resp = await fetch('/api/dm-vurder', {
           method: 'POST',
           headers,
@@ -1738,7 +1746,7 @@
           signal: controller.signal,
         });
         if (resp.status === 401) {
-          status.textContent = 'Tilgangsnøkkelen er ugyldig eller utløpt. Sett ny via menyen.';
+          status.textContent = 'Innloggingen er utløpt. Logg inn på nytt og prøv igjen.';
           return;
         }
         if (!resp.ok || !resp.body) {
