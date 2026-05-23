@@ -545,11 +545,236 @@ Ny:
 - **Anthropic budget cap**: sett i Anthropic-konsollen (anbefalt $5–10/dag som
   sikkerhetsnett mot katastrofal misbruk)
 
-### Ikke vurdert i denne milepælen
+### Ikke vurdert i Milepæl 2
 
 - IP-binding av tokens (kompliserer UX uten klar gevinst — IP-er endres)
-- Per-bruker-tokens med revokering (overkill for hobbyprosjekt)
-- Magic-link via epost (krever email-infrastruktur som Resend; vurder senere)
+- Per-bruker-tokens med revokering (planlegges i Milepæl 3)
+- Selvbetjent tilgang via epost (planlegges i Milepæl 3)
+
+## Milepæl 3 — Selvbetjent tilgang via epost-verifisert kode
+
+Milepæl 2 har delt token. Milepæl 3 legger til en selvbetjent kode-flyt:
+brukere ber selv om tilgang, skriver inn FHI-epost, mottar en
+EFF-Diceware-stil 3-ords kode på mail. Kode lagres i Netlify Blobs med
+utløp og kan brukes på flere maskiner.
+
+Det delte tokenet fra Milepæl 2 beholdes som fallback (for utvikling og
+nødtilgang).
+
+### Kode-format
+
+Tre ord fra EFF Large Wordlist, bindestrek-separert:
+
+```
+abacus-charity-twelve
+gravity-meadow-radius
+twirl-fishhook-cleric
+```
+
+- 7 776 ord per posisjon, ~39 bits entropi totalt
+- Lowercase ASCII, ingen spesialtegn
+- EFF Large er public domain, håndkuratert mot anstøtelige/forvekslelige ord
+- Brukes av Bitwarden, 1Password, KeePassXC m.fl.
+
+Embedded som JSON i `netlify/edge-functions/_lib/eff-wordlist.json` (~100 KB).
+Ingen runtime-avhengighet.
+
+### Verifikasjon — tolerant normalisering
+
+Aksepter brukerens innliming i flere former:
+
+```typescript
+function normalizeCode(s: string): string {
+  return s.toLowerCase().replace(/[^a-z-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+}
+```
+
+Dette gjør at `Abacus Charity Twelve`, `abacus charity twelve`,
+`abacus-charity-twelve` og `ABACUS-CHARITY-TWELVE` alle aksepteres som samme
+kode.
+
+### Utløp og fornyelse
+
+- **Default 6 måneder fra utstedelse**
+- **Sliding window:** hver gang koden brukes mot `/api/dm-vurder`, oppdateres
+  `sist_brukt`-tidsstempelet og utløpet forlenges til 6 mnd fra nå.
+- Aktive brukere mister ikke tilgang. Inaktive (>6 mnd uten bruk) blir
+  automatisk skrudd av.
+
+### Multiple koder per bruker
+
+- Når bruker ber om kode på nytt med samme epost, utstedes en **ny** kode.
+- Gamle koder forblir gyldige til de utløper eller revokeres.
+- **Maks 5 aktive koder per epost.** Ved 6. forespørsel, slettes den eldste.
+- Lar brukere ha tokens på flere enheter (jobblaptop + privat + mobil)
+  uten å miste noe.
+
+### Email-domene-allowlist
+
+Konfigurerbar via Netlify env var:
+
+```
+M2PY_ALLOWED_EMAIL_DOMAINS=fhi.no
+```
+
+Komma-separert liste. Default kun `fhi.no`. Lett å utvide til
+`fhi.no,nih.no,uio.no` etc.
+
+### Rate-limiting på `dm-request-code`
+
+To akser, via Netlify Blobs:
+
+- **5 forespørsler / time / IP** — hindrer enumeration fra én IP
+- **3 forespørsler / time / epost-adresse** — hindrer harassment-DoS av
+  forskerens innboks
+
+### Email-leveranse via Resend
+
+- **Provider:** Resend (gratis 100 mail/dag, 3 000/mnd — nok for FHI-onboarding)
+- **Fra-adresse:** `noreply@melberg.app` (krever DNS-verifisering hos Resend
+  — 3-4 TXT/CNAME-records, engangsoppgave)
+- **API-nøkkel:** `RESEND_API_KEY` i Netlify env vars
+
+### Email-innhold
+
+```
+Tilgang til AI-vurdering i m2py
+
+Hei,
+
+Du har bedt om en kode for å bruke AI-vurdering av dataminimering 
+i m2py. Lim inn koden under i hamburger-menyen → "Sett tilgangsnøkkel":
+
+    abacus-charity-twelve
+
+Eller klikk her for å aktivere direkte på denne maskinen:
+https://micro.melberg.app?dm-code=abacus-charity-twelve
+
+Koden er gyldig i 6 måneder fra siste bruk. Du kan bruke den på 
+flere maskiner ved å lime den inn på hver av dem.
+
+m2py er et hobbyprosjekt og ikke offisielt fra microdata.no eller FHI.
+Vurderingene er rådgivende — endelig vurdering ligger hos forsker og 
+dataansvarlig.
+
+Hvis du ikke har bedt om denne koden, kan du ignorere mailen.
+
+-- 
+m2py
+https://micro.melberg.app
+```
+
+Lenken med `?dm-code=...` aktiverer automatisk på maskinen brukeren klikker
+fra: frontend leser query param, lagrer i localStorage, og fjerner param
+fra URL-en uten reload.
+
+### Revokering
+
+Tre nivåer:
+
+**Self-revoke:** "Logg ut overalt" / "Glem meg" i hamburger-menyen kaller
+`/api/dm-revoke` med brukerens nåværende kode → markerer alle koder for
+samme epost som revokert i Blobs.
+
+**Nuke-flag:** Sett env var `M2PY_REVOKE_ALL_BEFORE=<unix-timestamp>` →
+alle koder utstedt før timestamp avvises ved neste sjekk. Krever redeploy.
+
+**Admin per-bruker (utsatt):** kommer som CLI-tool senere hvis behovet
+oppstår.
+
+### Storage-skjema (Netlify Blobs)
+
+Store: `dm-codes`
+
+Nøkkel: `code:<normalisert-kode>`
+Verdi:
+```json
+{
+  "email": "navn@fhi.no",
+  "utstedt": 1716489600,
+  "utløp": 1732454400,
+  "sist_brukt": 1716489600,
+  "revokert": false
+}
+```
+
+Indeks: `email:<lowercase-email>` → liste av koder for å revokere alle for
+én bruker, og for å håndheve maks-5-grensen.
+
+### Audit / logging
+
+Kun `sist_brukt` per kode. Ingen detaljert request-logging. Anthropic-
+konsollen viser totalkostnad. Hvis per-bruker-statistikk trengs senere,
+legg til `usage_count`-felt.
+
+### Arkitektur — nye endepunkter
+
+```
+/.netlify/edge-functions/dm-request-code   (Milepæl 3 ny)
+  - POST { email }
+  - Validerer epost-domene
+  - Rate-limit (per IP, per email)
+  - Generer kode, lagre i Blobs
+  - Send mail via Resend
+  - Returner 200 alltid (ikke avslør om epost finnes)
+
+/.netlify/edge-functions/dm-revoke         (Milepæl 3 ny)
+  - POST { } med Authorization Bearer <code>
+  - Markerer alle koder for samme email som revokert
+  - Returner 200
+
+/.netlify/edge-functions/dm-vurder         (Milepæl 2, utvides)
+  - Token-sjekken utvides:
+    1. Hvis token === M2PY_ACCESS_TOKEN: OK (delt fallback)
+    2. Ellers slå opp i Blobs:
+       - Kode finnes? Ikke revokert? Ikke utløpt?
+       - Hvis OK: oppdater sist_brukt og utløp, returner OK
+       - Ellers: 401
+    3. Sjekk M2PY_REVOKE_ALL_BEFORE-flag mot utstedt-tidsstempel
+```
+
+### Frontend-endringer
+
+**Ny hamburger-meny-knapp:** "Be om AI-tilgang" (under Personvern)
+
+**Ny request-code-modal:** 
+
+```
+┌─────────────────────────────────────────────┐
+│ Be om AI-tilgang                            │
+│                                             │
+│ Skriv inn din FHI-epost. Vi sender en kode  │
+│ som du limer inn i "Sett tilgangsnøkkel".   │
+│                                             │
+│ Epost: [_________________________________]  │
+│                                             │
+│              [Avbryt]  [Send kode]          │
+└─────────────────────────────────────────────┘
+```
+
+Etter Send-klikk: vis "Sjekk eposten din. Hvis adressen er godkjent får
+du en kode innen et minutt."
+
+**Auto-aktivering ved URL-param:** ved sideload, sjekk `?dm-code=...`.
+Hvis tilstede, lagre i localStorage og fjern param fra URL.
+
+**"Logg ut overalt"-knapp:** i token-modal, ved siden av "Fjern". Kaller
+`/api/dm-revoke` og tømmer localStorage.
+
+### Implementering — Milepæl 3 tasks
+
+1. **Sett opp Resend-konto** (du gjør selv): registrer, verifiser
+   `melberg.app`-DNS, generer API-nøkkel, sett `RESEND_API_KEY` i Netlify
+2. **Embed EFF-wordlist:** last ned, lagre som `eff-wordlist.json`
+3. **Lag `_lib/codes.ts`:** generere kode, normalisere, validere
+4. **Lag `_lib/email.ts`:** Resend-klient, mail-template
+5. **Edge function `dm-request-code.ts`:** validere epost, rate-limit,
+   utstede, sende
+6. **Utvid `dm-vurder.ts`:** Blobs-lookup som alternativ til delt token
+7. **Edge function `dm-revoke.ts`:** markér koder som revokert
+8. **Frontend: ny request-modal + auto-aktivering** ved query param
+9. **Frontend: "Logg ut overalt"** i eksisterende token-modal
+10. **Dokumentasjon:** oppdater hjelp.html med ny flyt
 
 ## Personvern (brukerens data sendt til AI)
 
@@ -585,10 +810,12 @@ Ikke med:
 
 ## Implementeringsrekkefølge
 
-Milepæl 1 (kjapp-modus, eksisterende) er allerede levert. De resterende
-endringene leveres som **Milepæl 2 — Forenklet flyt**:
+- **Milepæl 1 — Kjapp-modus:** ✅ Levert
+- **Milepæl 2 — Forenklet flyt:** ✅ Levert
+- **Milepæl 3 — Selvbetjent tilgang via epost-kode:** Planlagt (se egen
+  seksjon over)
 
-### Milepæl 2
+### Milepæl 2 (oppsummering, levert)
 
 1. Backend: bytt `dm-quick.ts` til `dm-vurder.ts` (rename + utvid prompt-bygging
    med språk/detaljnivå/revisjon)
@@ -601,20 +828,19 @@ endringene leveres som **Milepæl 2 — Forenklet flyt**:
    "Erstatt scriptet"-knapp
 8. Frontend: generator-logikk for å skrive personvern-blokk
 9. Dokumentasjon: oppdater `hjelp.html` med ny flyt
-10. Migrasjon: existing `microdata_dm_consent` localStorage-key beholdes;
-    ny `microdata_dm_token` legges til
 
-Ingen Milepæl 3 — den opprinnelige separate revisjons-funksjonen er foldet
-inn som valgfri output i Milepæl 2.
+### Milepæl 3 (planlagt)
+
+Se egen "Milepæl 3 — Selvbetjent tilgang via epost-verifisert kode"-
+seksjon over for full design og 10 task-liste.
 
 ## Åpne spørsmål
 
 - **Modellvalg:** Sonnet (cost-effective) eller Opus (dypere vurdering).
   Anbefaling: start med Sonnet og oppgrader hvis vurderings­kvaliteten er
   for tynn.
-- **Token-distribusjon:** manuell utdeling via FHI-epost er trolig OK for
-  start. Hvis brukermassen vokser, vurder magic-link via Resend (eller
-  lignende) i en senere milepæl.
+- **Token-distribusjon:** Milepæl 2 leverer delt token (manuell utdeling).
+  Milepæl 3 legger til selvbetjent kode-flyt via FHI-epost-verifisering.
 - **Hvis Anthropic returnerer Revidert script mid-stream:** edge case der
   AI inkluderer kode-blokken før den er ferdig. Frontend bør ikke splitte
   før strøm er fullstendig ferdig.
