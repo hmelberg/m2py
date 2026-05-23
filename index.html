@@ -1502,11 +1502,7 @@
 
       // Wire context button - will be implemented in M2-T6, stub for now
       document.getElementById('dmOptContextBtn').onclick = () => {
-        if (typeof showDmContextModal === 'function') {
-          showDmContextModal();
-        } else {
-          alert('Spesifiser-formål-modal kommer i M2-T6.');
-        }
+        showDmContextModal();
       };
     }
 
@@ -1522,6 +1518,64 @@
         btn.textContent = 'Spesifiser formål / kontekst';
         status.textContent = 'Hvis ikke spesifisert, vurderer AI ut fra scriptet alene.';
       }
+    }
+
+    function showDmContextModal() {
+      const backdrop = document.getElementById('dmContextBackdrop');
+      const textarea = document.getElementById('dmContextTextarea');
+      const saveCheckbox = document.getElementById('dmContextSave');
+
+      // Pre-fill: priority is current state (if user opened, edited, cancelled, reopens),
+      // else extract from script's personvern-blokk if exists, else empty.
+      let prefill = dmOptionsState.kontekst || '';
+      if (!prefill) {
+        prefill = extractExistingPersonvernBlokk();
+      }
+      textarea.value = prefill;
+      saveCheckbox.checked = dmOptionsState.lagre_kontekst_som_blokk !== false;
+
+      backdrop.style.display = 'flex';
+
+      document.getElementById('dmContextCancel').onclick = () => {
+        backdrop.style.display = 'none';
+      };
+      document.getElementById('dmContextSubmit').onclick = () => {
+        dmOptionsState.kontekst = textarea.value.trim();
+        dmOptionsState.lagre_kontekst_som_blokk = saveCheckbox.checked;
+        backdrop.style.display = 'none';
+        updateDmOptContextStatus();
+      };
+
+      textarea.focus();
+    }
+
+    // Helper: extract content from existing `// personvern blokk start ... slutt`-blokk
+    // (or `# personvern blokk start ... slutt` for Python/R), stripping comment chars.
+    function extractExistingPersonvernBlokk() {
+      const script = document.getElementById('scriptInput')?.value || '';
+      const lines = script.split(/\r?\n/);
+      const startRe = /^\s*(?:\/\/+|#+)\s*personvern\s+blokk\s+start\s*$/i;
+      const endRe = /^\s*(?:\/\/+|#+)\s*personvern\s+blokk\s+slutt\s*$/i;
+      const innerRe = /^\s*(?:\/\/+|#+)\s*(.*)$/;
+
+      let inBlock = false;
+      const content = [];
+      for (const line of lines) {
+        if (startRe.test(line)) {
+          inBlock = true;
+          continue;
+        }
+        if (inBlock && endRe.test(line)) {
+          break;
+        }
+        if (inBlock) {
+          const m = line.match(innerRe);
+          if (m) {
+            content.push(m[1]);
+          }
+        }
+      }
+      return content.join('\n');
     }
 
     async function runDmVurder(script, options) {
@@ -8062,6 +8116,37 @@ def _run_microdata_chunk(_code):
       <div class="ai-modal-actions" style="margin-top: 16px;">
         <button type="button" id="dmOptCancel" class="ai-modal-btn">Avbryt</button>
         <button type="button" id="dmOptSubmit" class="ai-modal-btn primary">Vurder</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dmContextBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 600px;">
+      <h3 style="font-size: 1.25em;">Formål og kontekst</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+        Beskriv formålet og bakgrunnen for analysen. AI bruker dette for å gjøre
+        en mer presis vurdering. Alt er valgfritt.
+      </p>
+      <textarea id="dmContextTextarea"
+                style="width: 100%; min-height: 200px; padding: 10px; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.5; box-sizing: border-box;"
+                placeholder="Eksempler på hva som er nyttig:
+- Formålet med analysen
+- Hvorfor denne tidsperioden
+- Hvorfor dette geografiske detaljnivået
+- Hvilke sensitive grupper inngår i analysen
+- Alternativer du har vurdert (SSB-tabeller, syntetiske data, ...)"></textarea>
+      <div style="margin-top: 12px;">
+        <label>
+          <input type="checkbox" id="dmContextSave" checked>
+          Lagre dette som <code>// personvern</code>-blokk i scriptet
+        </label>
+        <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0 22px;">
+          Da plukker neste vurdering opp konteksten automatisk.
+        </p>
+      </div>
+      <div class="ai-modal-actions" style="margin-top: 16px;">
+        <button type="button" id="dmContextCancel" class="ai-modal-btn">Avbryt</button>
+        <button type="button" id="dmContextSubmit" class="ai-modal-btn primary">Bruk</button>
       </div>
     </div>
   </div>
