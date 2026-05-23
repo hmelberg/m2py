@@ -2808,6 +2808,16 @@
         alert('Editor er tom. Skriv et script først.');
         return;
       }
+      // Require Anvil login
+      if (!window.mdAuth || !window.mdAuth.isLoggedIn) {
+        if (window.mdAuth && typeof window.mdAuth.showLogin === 'function') {
+          window.mdAuth.showLogin();
+        } else {
+          alert('Du må være logget inn for å bruke dataminimering. Bruk Logg inn-knappen øverst.');
+        }
+        return;
+      }
+      // Consent + options
       if (!hasDmConsent()) {
         showDmConsent(() => showDmOptions());
       } else {
