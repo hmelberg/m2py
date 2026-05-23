@@ -342,8 +342,10 @@ export default async (request: Request): Promise<Response> => {
   const detected = detectLanguage(body.script);
   const directives = parsePersonvernDirectives(body.script);
 
-  // Request body takes priority; directive supplements when request field absent
-  const wantRevisedScript = body.ønsker_revidert_script ?? directives.revider_script ?? false;
+  // Directive takes priority when set (regardless of value); body falls back to false
+  const wantRevisedScript = directives.revider_script !== undefined
+    ? directives.revider_script
+    : (body.ønsker_revidert_script ?? false);
   const requestedLanguage = body.språk ?? "auto";
   const effectiveLanguage = requestedLanguage === "auto" ? detected : requestedLanguage;
   const detailLevel = body.detaljnivå === "lang" ? DETAIL_LEVEL_LANG : DETAIL_LEVEL_KORT;
