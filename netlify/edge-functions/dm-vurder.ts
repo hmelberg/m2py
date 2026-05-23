@@ -288,13 +288,48 @@ function languageInstruction(requested: string, detected: Language): string {
 // ====================================================================
 
 export default async (request: Request): Promise<Response> => {
-  const expectedToken = Deno.env.get("M2PY_ACCESS_TOKEN");
-  if (expectedToken) {
-    const authHeader = request.headers.get("authorization") ?? "";
-    const presentedToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-    if (presentedToken !== expectedToken) {
-      return new Response("Unauthorized", { status: 401 });
+  const ANVIL_VALIDATE_URL = Deno.env.get("M2PY_ANVIL_VALIDATE_URL")
+    ?? "https://mdataapi.anvil.app/_/api/auth/me";
+  const sharedToken = Deno.env.get("M2PY_ACCESS_TOKEN");
+
+  const authHeader = request.headers.get("authorization") ?? "";
+  const presentedToken = authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+
+  if (!presentedToken) {
+    return new Response("Unauthorized: missing token", { status: 401 });
+  }
+
+  // First check: shared dev/admin token (fallback)
+  let authenticated = false;
+  if (sharedToken && presentedToken === sharedToken) {
+    authenticated = true;
+  }
+
+  // Second check: validate against Anvil /auth/me
+  if (!authenticated) {
+    try {
+      const anvilResp = await fetch(ANVIL_VALIDATE_URL, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${presentedToken}` },
+      });
+      if (anvilResp.ok) {
+        const data = await anvilResp.json();
+        // /auth/me returns { principal_kind: "user", user: { email, ... } }
+        // or { user: null, principal_kind: "service_token", ... } for legacy
+        // Accept any successful response — Anvil's whitelist gates who can log in
+        if (data && (data.user || data.principal_kind === "service_token")) {
+          authenticated = true;
+        }
+      }
+    } catch (_e) {
+      // network error to Anvil — treat as unauthorized rather than crashing
     }
+  }
+
+  if (!authenticated) {
+    return new Response("Unauthorized", { status: 401 });
   }
 
   if (request.method !== "POST") {
