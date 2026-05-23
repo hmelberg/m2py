@@ -1,7 +1,7 @@
 # Dataminimering: AI-evaluering av script
 
-**Status:** Spec — implementering ikke startet
-**Dato:** 2026-05-22
+**Status:** Spec — revidert 2026-05-23 (forenklet design)
+**Dato:** 2026-05-22 (opprettet), 2026-05-23 (revidert)
 **Eier:** Hans Melberg
 
 ## Kontekst og motivasjon
@@ -16,20 +16,24 @@ Denne speccen beskriver en AI-basert vurderingsfunksjon i m2py som hjelper
 forskeren reflektere over om scriptet henter og bruker minimum nødvendig data,
 og foreslår konkrete forbedringer der det er rom for det.
 
+**Designnotat (2026-05-23):** Tidligere spec hadde to separate moduser (kjapp og
+grundig) pluss en egen revisjons-funksjon. Etter Milepæl 1 ble dette evaluert og
+forenklet til *én enhetlig flyt* med valgfri kontekst-spesifisering og valgfri
+revidert script. Se "Designhistorikk" nederst for opprinnelig design.
+
 ## Mål og avgrensning
 
 **Mål:**
 
-- Tilby forskeren en rask, lavterskel vurdering av om et script praktiserer
-  dataminimering.
-- Tilby en grundigere vurdering med strukturerte oppfølgings­spørsmål når
-  forskeren ønsker det.
-- Tilby en revisjons-funksjon som genererer et konservativt revidert script
-  med konkrete forslag til endringer der det er godt begrunnet.
+- Tilby forskeren én sammenhengende vurdering av om et script praktiserer
+  dataminimering, med valgfri tilleggskontekst og valgfri revidert script som
+  output i samme svar.
+- Eksplisitt flagging av særlig sensitive variabler (etnisitet, abort,
+  kjønnssykdommer, psykiatri, vold/overgrep, lov-/straffeopplysninger).
 - Forankre vurderingen i konkret norsk og europeisk lovverk slik at forslagene
   har juridisk relevans.
-- Persistere forskerens svar i scriptet selv, slik at det er én sannhetskilde
-  som lever sammen med koden.
+- Persistere forskerens kontekst i scriptet selv (valgfritt), slik at scriptet
+  er én sannhetskilde som lever sammen med koden.
 
 **Ikke-mål:**
 
@@ -40,136 +44,131 @@ og foreslår konkrete forbedringer der det er rom for det.
 - Duplisere disclosure-control-sjekkene som allerede ligger i m2py
   (T1-T8, winsorisering, små celler etc.).
 
-## To moduser: kjapp og grundig
+## Enhetlig flyt: én knapp, én forespørsel
 
-| Modus | Trigger | Bruk |
-| --- | --- | --- |
-| **Kjapp** | Knapp "Vurder dataminimering" | Mens forskeren skriver, raske sjekker |
-| **Grundig** | Knapp "Grundig vurdering" | Før innsending, REK-søknad eller publisering |
+Én hamburger-meny-knapp "Vurder dataminimering" åpner én modal med valgfrie
+innstillinger. Brukeren konfigurerer ett kall, AI returnerer alt i én
+streamed respons.
 
-Begge moduser tar utgangspunkt i scriptet i editoren (inkludert alle kommentarer)
-og eksisterende personvern-kommentarer (se neste seksjon).
-
-**Kjapp** sender script direkte til AI med en evaluerings-prompt.
-
-**Grundig** kjøres i to steg:
-1. AI utleder kontekst fra scriptet og pre-fyller et skjema med seks felter
-2. Forskeren bekrefter/justerer/skipper felter, og AI gir endelig vurdering med
-   skjemaets svar som tilleggskontekst
-
-I grundig-modus kan forskeren velge å lagre svarene som personvern-kommentarer
-øverst i scriptet (default på), slik at neste vurdering kan bygge videre på dem.
-
-## Revisjons-funksjon (dm-revise)
-
-Etter en vurdering (kjapp eller grundig) kan forskeren be om et konkret
-revidert script. AI produserer en konservativ versjon med foreslåtte endringer
-der den er rimelig sikker på at de forbedrer dataminimering uten å forringe
-analysen.
-
-### Prinsipper
-
-1. **Konservativ.** Bare endringer AI er rimelig sikker på. Sikkerhet "lav"
-   ekskluderes helt — bedre å la noe stå urørt enn å foreslå noe usikkert.
-2. **Bevarer analytisk intensjon.** Endre granularitet, ikke struktur.
-   Variabler og operasjoner som er sentrale beholdes. OK å bytte ICD-full
-   til 3-tegns; ikke OK å fjerne en variabel som inngår i regresjon selv om
-   relevansen er uklar.
-3. **Begrunnelse per endring.** Hver endret linje får en
-   `// personvern: <forklaring>`-fritekst-kommentar rett over, slik at
-   forskeren kan vurdere og evt. reversere enkeltvis.
-4. **Aldri oppfinn variabler.** Hvis AI foreslår en grovere variabel, må den
-   eksistere i tilgjengelig register.
-5. **Bygger på eksisterende vurdering.** Revisjonen forutsetter at en
-   vurdering (kjapp eller grundig) nettopp er gjort. Vurderingens markdown
-   sendes inn som primær kilde til hva som bør endres.
-6. **Ingen endringer er OK.** Hvis scriptet ser godt minimert ut, returneres
-   det uendret med en kort note.
-
-### Språkbasert promptvalg (én backend)
-
-Én backend (Claude via Anthropic API), men to prompt-varianter avhengig av
-detektert språk. Microdata-DSL krever full syntaks-kunnskap embedded i
-prompten; Python/R trenger ikke det og slipper dermed unna ~2–3K ekstra
-tokens.
+### Hovedmodal
 
 ```
-Browser
-  │
-  └──► /.netlify/edge-functions/dm-revise
-          │
-          ├── detekter språk (heuristisk)
-          │
-          ├── [microdata | mixed] → bruk dm-revise-microdata.md
-          │                         (full microdata-cheatsheet i prompten)
-          │
-          └── [python | r]        → bruk dm-revise-pyr.md
-                                    (lett prompt, kjenner ikke microdata-
-                                    syntaksen i dybden; nevner bare at
-                                    Python/R-script kan ha en
-                                    microdata-import-blokk øverst)
-          │
-          ▼
-       Anthropic API
+┌─────────────────────────────────────────────────┐
+│ Vurder dataminimering                           │
+│                                                 │
+│ Språk: [Automatisk ▾]                           │
+│        (auto / microdata / R / Python)          │
+│                                                 │
+│ Rapport: ◉ Kort  ○ Lang                         │
+│                                                 │
+│ ☐ Generer også revidert script                  │
+│                                                 │
+│ Formål og bakgrunn:                             │
+│   [Spesifiser formål / kontekst]                │
+│   (Hvis ikke spesifisert, vurderer AI ut fra    │
+│    scriptet alene.)                             │
+│                                                 │
+│              [Avbryt]  [Vurder]                 │
+└─────────────────────────────────────────────────┘
 ```
 
-Begge prompter inkluderer `_shared-principles.md` (rettslig grunnlag,
-vurderingsdimensjoner) og prinsippene under "Revisjons-funksjon".
+**Innstillinger:**
 
-**Hvorfor mixed → microdata-prompt:** microdata-delen er den vanskelige.
-microdata-prompten inneholder også vanlig Python/R-evne (Claude er fluent
-der uansett).
+| Felt | Verdier | Default | Effekt |
+| --- | --- | --- | --- |
+| Språk | auto / microdata / R / Python | auto | Påvirker prompt-variant (microdata-syntaks inkluderes ved microdata/auto+microdata) og output-klassifisering |
+| Rapport | Kort / Lang | Kort | Påvirker prompt-instruks for ordrikedom; kort = 3-5 observasjoner uten "Spørsmål til forsker", lang = alt |
+| Revidert script | Av / På | Av | Når på: AI legger til en `## Revidert script`-seksjon på slutten av svaret, og prompten utvides med konservative revisjons-instrukser |
 
-### Python/R-script og microdata-import-blokk
+### Sekundær modal: spesifiser formål
 
-Python/R-script på microdata.no har typisk en *microdata-import-blokk*
-øverst som requester variabler. Det er hovedstedet for dataminimering i
-slike script — fjerne variabler som ikke brukes senere er hovedhandlingen.
-Selve syntaksen for blokken framgår av scriptet AI får tilsendt; vi trenger
-ikke skrive ut blokkformatet i prompten.
-
-Dette nevnes eksplisitt i `dm-revise-pyr.md` slik at AI vet hvor den skal
-se etter minimerings-muligheter selv uten dyp microdata-syntaks-kunnskap.
-
-### Språkdeteksjon (heuristikk)
-
-Implementeres i `parse-script-context.ts`. Vekter signaler:
+Klikk "Spesifiser formål / kontekst" åpner:
 
 ```
-microdata: `import all from`, `collapse (mean)`, `tabulate`, `summarize`,
-           `keep if`, `//` som dominerende kommentartegn
-python:    `import x`, `def `, `from x import`, `#` dominerende,
-           ingen microdata-nøkkelord
-r:         `library()`, `<-`, `data.frame`, `#` dominerende,
-           ingen microdata-nøkkelord
-mixed:     microdata-signaler + python/r-signaler over terskel
+┌─────────────────────────────────────────────────┐
+│ Formål og kontekst                              │
+│                                                 │
+│ ┌─────────────────────────────────────────┐     │
+│ │ (Pre-fylt fra eksisterende personvern-  │     │
+│ │ blokk i scriptet — strippet `//` —      │     │
+│ │ eller tom med placeholder-eksempel.)    │     │
+│ │                                         │     │
+│ │ Eksempler på hva som er nyttig:         │     │
+│ │ - Formålet med analysen                 │     │
+│ │ - Hvorfor denne tidsperioden            │     │
+│ │ - Hvorfor dette geografiske nivået      │     │
+│ │ - Sensitive grupper analysert           │     │
+│ └─────────────────────────────────────────┘     │
+│                                                 │
+│ ☑ Lagre dette som // personvern-blokk           │
+│   i scriptet                                    │
+│                                                 │
+│              [Avbryt]  [Bruk]                   │
+└─────────────────────────────────────────────────┘
 ```
 
-Ved tvil: default til "mixed" → microdata-prompt (tryggeste valg).
+Pre-utfylling: hvis scriptet har en `// personvern blokk start ... slutt`-blokk,
+løftes innholdet inn (stripped for kommentartegn). Brukeren kan redigere fritt.
 
-### Output-struktur
+"Lagre som personvern-blokk" er default på — neste vurdering plukker da opp
+konteksten automatisk.
 
-```json
-{
-  "revised_script": "...",
-  "changes": [
-    {
-      "line_old": 12,
-      "line_count_old": 2,
-      "line_new": 14,
-      "summary": "ICD-koder kuttet til 3-tegnsnivå",
-      "rationale": "Scriptet skiller ikke på underkode",
-      "confidence": "høy"
-    }
-  ],
-  "no_changes_explanation": null,
-  "language_detected": "microdata",
-  "prompt_variant": "microdata"
-}
+### "Sentrale variabler" bevisst utelatt
+
+Tidligere design hadde et felt for "sentrale variabler". Det er nå droppet
+fordi:
+
+- Det fremgår direkte av scriptet hvilke variabler som brukes
+- AI kan selv identifisere eksponering / utfall / kovariater fra
+  bruks-mønstre (`collapse by`, `summarize`, regresjons-argumenter etc.)
+- Det reduserer skjema-tyngden og friksjonen i flyten
+
+### Sensitive variabler flagges av AI
+
+AI instrueres å eksplisitt sjekke for og flagge særlig sensitive variabler:
+
+- Etnisitet, opprinnelsesland, statsborgerskap
+- Religion
+- Seksuell legning eller praksis
+- Helseopplysninger knyttet til særlig sensitive temaer:
+  abort (NCSP-koder for provoserte aborter, abortdiagnoser),
+  kjønnssykdommer (HIV, syfilis, gonoré, klamydia, hepatitt),
+  rusmisbruk og psykiatri (særskilte diagnoser),
+  vold, overgrep, selvmordsforsøk
+- Lov-/straffeopplysninger
+
+Når slike variabler brukes, gir AI dem en egen seksjon "Særlig sensitive
+variabler" i outputen og henviser til **GDPR art. 9** (særlige kategorier).
+
+### Revidert script som valgfri output
+
+Sjekkbokset "Generer også revidert script" utvider prompten med konservative
+revisjons-instrukser. AI legger til en `## Revidert script`-seksjon på
+slutten av svaret med:
+
+- Reviderte kodeblokk i `microdata`/`python`/`r`-fenced format
+- Endringer kommenteres in-line med `// personvern: <forklaring>` (eller `#` for
+  Python/R)
+- Bare endringer AI er rimelig sikker på (høy/medium sikkerhet)
+- Hvis scriptet ser godt minimert ut, en kort note ("Ingen endringer foreslås")
+
+Frontend ser etter `## Revidert script`-markøren og rendrer seksjonen separat
+med en "Erstatt scriptet"-knapp.
+
+For microdata-script er ekstra prompt-kontekst (full syntaks-cheatsheet) bare
+nødvendig når revidert script er aktivt — sparer tokens i de fleste tilfeller.
+
+### Direktiv i script-kommentar (avansert)
+
+Brukeren kan også styre via kommentar i scriptet selv:
+
+```
+// personvern: revider-script: ja
 ```
 
-`no_changes_explanation` er `null` hvis det er endringer, eller en kort
-forklaring hvis ingen endringer foreslås.
+Backend parser denne og setter `ønsker_revidert_script: true` i requesten —
+overstyrer (eller komplementerer) sjekkboksen. Lar power-users sette
+preferanser i template-scripts.
 
 ## Rettslig grunnlag
 
@@ -179,6 +178,7 @@ Vurderingen forankres i:
 - **Helseregisterloven § 6** — graden av personidentifikasjon
 - **Personvernforordningen art. 89(1)** — vitenskapelig forskning og garantier
 - **Personvernforordningen art. 5(1)(b)** — formålsbegrensning
+- **Personvernforordningen art. 9** — særlige kategorier (sensitive variabler)
 
 Disse refereres i AI-promptens "Rettslig grunnlag"-seksjon og i den samlede
 vurderingen som AI produserer. Lovteksten er gjengitt i `docs/lovverk/`.
@@ -190,674 +190,384 @@ hos forsker og dataansvarlig.
 
 ## Personvern-kommentarer (script-side persistens)
 
-Forskerens kontekst og svar lagres som kommentarer i scriptet selv. Dette gjør
+Forskerens kontekst lagres som kommentarer i scriptet selv. Dette gjør
 scriptet til én sannhetskilde, versjonskontrollerbar sammen med koden.
 
-### Syntaks: to former
+### Syntaks
 
-**Blokk-form** (genereres av grundig-modus):
+**Blokk-form** (genereres når "Lagre som personvern-blokk" er på):
 
 ```
 // personvern blokk start
 // formål: Studere sammenheng mellom utdanning og inntekt for kohorten 1970-1980
-// sentrale variabler: NUDB_UTDNIVAA (eksponering), INNTEKT (utfall), KJOENN (kovariat)
-// tidsperiode: 1970-1980 fordi kohorten skal være ferdig utdannet ved analyseslutt
+// tidsperiode: 1970-1980 fordi kohorten skal være ferdig utdannet
 // geografi: kommune nødvendig for å se regionale forskjeller
 // sensitive grupper: nei
 // alternativer vurdert: SSB-tabell A-04 var for grovkornet
 // personvern blokk slutt
 ```
 
-**Enkeltlinje-form** (for ad hoc-notater eller manuell bruk):
+Eller fritt sammenhengende tekst innenfor blokken (uten feltnavn):
 
 ```
-// personvern: formål: Studere noe annet enn over
+// personvern blokk start
+// Formål: studere sammenheng mellom utdanning og inntekt for kohort 1970-1980.
+// Tidsperioden valgt fordi kohorten skal være ferdig utdannet ved analyseslutt.
+// Kommune nødvendig for regionale forskjeller.
+// personvern blokk slutt
+```
+
+**Enkeltlinje-form** for ad hoc-notater:
+
+```
 // personvern: kuttet datoer til måned for å unngå unødig presisjon
+// personvern: revider-script: ja
 ```
 
-Begge former kan eksistere samtidig.
+Begge former kan eksistere samtidig. Både `//` og `#` som kommentartegn
+støttes.
 
-### Kommentartegn
-
-Både `//` (microdata.no-DSL) og `#` (Python, R) støttes overalt. Generatoren
-bruker det dominerende tegnet i scriptet (default `//`).
-
-### Feltnavn (kanoniske)
+### Kjente feltnavn (kanoniske)
 
 | Feltnavn | Innhold |
 | --- | --- |
 | `formål` | Forskningsformål, 1–3 setninger |
-| `sentrale variabler` | Hovedeksponering, utfall, kovariater, koblings­variabler |
 | `tidsperiode` | Hvorfor disse årene? |
 | `geografi` | Hvorfor dette geografiske detaljnivået? |
 | `sensitive grupper` | Ja/nei + valgfri begrunnelse |
 | `alternativer vurdert` | SSB-tabeller, syntetiske data, fjernanalyse |
 
-Innholdet etter `personvern:` (i enkeltlinje-form) eller etter feltnavnet
-(i blokk-form) klassifiseres som **strukturert** hvis feltnavnet matcher en av
-de seks kanoniske, ellers som **fritekst**.
+NB: `sentrale variabler` er ikke lenger et kanonisk felt — AI utleder fra
+scriptet selv.
+
+Strukturerte felter parses for pre-utfylling i sekundær-modalen. Innhold i
+blokken som ikke matcher kjente feltnavn behandles som fritekst og brukes som
+kontekst i sin helhet.
 
 ### Parser-semantikk
 
-To-modus state-machine:
+To-modus state-machine. Detaljer som tidligere — se eksisterende
+`netlify/edge-functions/_lib/parse-script-context.ts`.
 
-```
-Utenfor blokk:
-  → "// personvern blokk start"     ⇒ enter blokk-modus
-  → "// personvern: <innhold>"      ⇒ enkeltlinje (strukturert/fritekst)
-  → andre linjer                    ⇒ ignorer
+### Generator-oppførsel
 
-Inne i blokk:
-  → "// personvern blokk slutt"     ⇒ exit blokk-modus
-  → "// <feltnavn>: <verdi>"        ⇒ strukturert hvis kjent feltnavn
-  → "// <annet>"                    ⇒ fritekst med blokk-tilknytning
-  → ikke-kommentar-linje            ⇒ implicit close (tolerant)
-```
+Når "Lagre som personvern-blokk" er på i sekundær-modalen:
 
-**Konflikt­håndtering:** flere definisjoner av samme felt → siste vinner
-(lese-rekkefølge ovenfra og ned). Flere blokker tillates, ingen "smart merge".
-
-### Generator-oppførsel (re-kjøring av grundig)
-
-Når sjekkboks "Lagre svar som personvern-kommentarer" er på:
-
-1. Fjern alle eksisterende `// personvern blokk start ... slutt`-blokker
+1. Fjern eksisterende `// personvern blokk start ... slutt`-blokk(er)
 2. Fjern enkeltlinje `// personvern: <feltnavn>: ...` der feltnavn er kjent
-3. Behold all fritekst (`// personvern: <fritekst>`)
-4. Behold frittstående fritekst fra gamle blokker som konvertes til enkeltlinje
-5. Skriv ny blokk øverst i scriptet:
-   - For microdata-DSL: helt øverst, før første ikke-kommentar-linje
-   - For Python/R: etter eventuell shebang og `import`/`library()`/`from`-
-     blokk, før første kjørende linje
+3. Behold fritekst-enkeltlinjer (`// personvern: <fritekst>`)
+4. Skriv ny blokk øverst i scriptet:
+   - microdata-DSL: helt øverst, før første ikke-kommentar-linje
+   - Python/R: etter shebang og `import`/`library()`-header
    - Tom linje etter blokken
-6. Hopp over felter brukeren ikke fylte ut
+5. Innhold er teksten brukeren skrev i sekundær-modalen, prefiks-pakket med
+   `//` (eller `#`)
 
 ## AI-promptdesign
 
-Alle prompter på Netlify-siden, lagret som markdown-filer i
-`netlify/edge-functions/prompts/`:
+Én hoved-prompt med placeholders. Innholdet varierer basert på request-felter
+(språk, detaljnivå, revidert script).
 
-- `dm-quick.md` — kjapp script-only vurdering
-- `dm-prefill.md` — grundig steg 1: utled feltverdier
-- `dm-thorough.md` — grundig steg 2: endelig vurdering med utfylt skjema
-- `dm-revise-microdata.md` — revisjon når språk er microdata eller mixed.
-  Inneholder full microdata-syntaks-cheatsheet
-- `dm-revise-pyr.md` — revisjon når språk er Python eller R. Lett prompt,
-  nevner microdata-import-blokk som hovedsted for minimering
-- `_shared-principles.md` — felles rettslig grunnlag og vurderingsdimensjoner,
-  inkluderes av de øvrige
-- `_microdata-syntax.md` — microdata-syntaks-cheatsheet, inkluderes kun av
-  `dm-revise-microdata.md`. **Kopi av `microdata-api/server_code/prompts.py`
-  sine `GRAMMAR_CHEATSHEET`, `PRIVACY_RULES`, `PSEUDONYM_RULES`, `TYPE_RULES`
-  m.fl.** Sync-merknad i topplinjen sier at filen skal holdes synkron med
-  prompts.py
-
-### Felles seksjon (`_shared-principles.md`)
+### Filstruktur
 
 ```
-RETTSLIG GRUNNLAG
-
-Vurderingen forankres i:
-- Personvernforordningen art. 5(1)(c) (dataminimering): personopplysninger
-  skal være "adekvate, relevante og begrenset til det som er nødvendig for å
-  oppnå formålene".
-- Helseregisterloven § 6: graden av personidentifikasjon skal ikke overskride
-  det som er nødvendig for formålet.
-- Personvernforordningen art. 89(1): forskning krever egnede garantier som
-  anonymisering eller pseudonymisering der det er mulig.
-- Personvernforordningen art. 5(1)(b) (formålsbegrensning): relevant når en
-  variabel virker hentet "for sikkerhets skyld".
-
-Kalibreringsregel: personvernforordningen gir ikke ett endelig svar på hva
-som er "nødvendig" — det avhenger av formålet. Formuler observasjoner som
-muligheter for minimering, ikke som lovbrudd. Endelig vurdering ligger hos
-forsker og dataansvarlig.
-
-VURDERINGSDIMENSJONER (synlig fra scriptet)
-
-1. Ubrukte variabler — importert men aldri brukt
-2. Variabel-granularitet — ICD-kode-detaljnivå, dato-oppløsning, geografi,
-   inntekt, alder
-3. Populasjons-avgrensing — `keep if`/`drop if`-filtere
-4. Tidsperiode — er tidsvinduet snevert nok
-5. Sjeldne kombinasjoner — filterkjeder som krymper til sårbar undergruppe
-6. Koblingsbehov — er alle `merge`/`import` nødvendige
-7. Aggregat vs individnivå — tidlig nok `collapse`?
-8. Direkte identifikatorer i transformasjoner
-
-IKKE VURDERT FRA SCRIPTET
-
-Følgende krever kontekst utenfor scriptet og skal ikke gjettes på:
-- Analyseplan og dokumentert begrunnelse
-- Tilgangsbegrensning og lagringstid (art. 5(1)(e))
-- Mulighet for alternativer (syntetiske data, fjernanalyse)
-- Senere gjenbruk (art. 5(1)(b))
-
-NB: Disclosure-control i resultater (T1-T8) håndteres separat av m2py.
-Fokuser på selve dataminimeringen i scriptet.
+netlify/edge-functions/prompts/
+  dm-vurder.md            — hoved-prompt med alle placeholders
+  _shared-principles.md   — rettslig grunnlag + vurderingsdimensjoner
+  _microdata-syntax.md    — full microdata-cheatsheet, inkluderes kun når
+                            revidert script er på OG språk er microdata/mixed.
+                            Kopi av prompts.py med sync-merknad.
 ```
 
-### `dm-quick.md` (kjapp)
+Inline-konstanter i `dm-vurder.ts` brukes som faktisk prompt-tekst (Deno Deploy
+bundler ikke `.md`-filer automatisk). Filene er kildedokumentasjon —
+oppdateres når TypeScript-konstantene oppdateres.
 
-Inkluderer `_shared-principles.md`, pluss:
+### Placeholders i dm-vurder.md
+
+| Placeholder | Verdi |
+| --- | --- |
+| `{{SHARED_PRINCIPLES}}` | Innhold fra _shared-principles.md |
+| `{{LANGUAGE}}` | "microdata" / "python" / "r" / "auto-detektert: <X>" |
+| `{{DETAIL_LEVEL}}` | Variant-tekst basert på "kort" eller "lang" |
+| `{{CONTEXT_SECTION}}` | Brukerens formål-tekst, eller "(ikke spesifisert)" |
+| `{{REVISION_BLOCK}}` | Tom hvis revidert script er av; ellers instrukser + microdata-syntaks (når relevant) |
+| `{{SCRIPT}}` | Scriptet selv |
+
+### Detaljnivå-varianter
+
+**Kort:**
 
 ```
-KOMMENTARER OG TIDLIGERE ERKLÆRT KONTEKST
+RAPPORT-FORMAT: KORT
 
-Scriptet kan inneholde kommentarer som beskriver formål, antakelser eller
-begrunnelser. Les og bruk alle kommentarer aktivt.
+- Maks 3–5 observasjoner, sorter etter sikkerhet (høy først).
+- Samlet vurdering: 1–2 setninger.
+- Ingen "Spørsmål til forsker"-seksjon. Hvis kontekst mangler, nevn det i
+  selve vurderingen.
+- Sensitive variabler: alltid med, selv om det betyr én ekstra observasjon.
+```
 
-Spesielt:
-- Linjer i en `// personvern blokk start ... slutt`-blokk, og enkeltlinjer
-  som starter med `// personvern: <feltnavn>:` der feltnavn er ett av
-  formål / sentrale variabler / tidsperiode / geografi / sensitive grupper /
-  alternativer vurdert, er strukturerte svar fra forskeren. Behandles som
-  forskerens autoritative erklæring.
-- Linjer som starter med `// personvern: <fritekst>` (eller fritekst inne i
-  blokk) er forskerens egne begrunnelser. Vektes sterkt mot tilsvarende
-  observasjon.
+**Lang:**
 
-Disse er trukket ut i seksjonen TIDLIGERE ERKLÆRT KONTEKST nedenfor. Hvis en
-observasjon allerede er begrunnet der, ikke gjenta den som et problem — eller
-pek heller på om begrunnelsen virker tilstrekkelig.
+```
+RAPPORT-FORMAT: LANG
 
-KATEGORISER SCRIPTET FØRST
+- Gå gjennom alle relevante vurderingsdimensjoner.
+- Samlet vurdering: 2–4 setninger med lovreferanser.
+- Inkluder "Spørsmål til forsker"-seksjon hvis kontekst mangler (maks 3
+  spørsmål).
+- Sensitive variabler: alltid med en egen seksjon hvis funnet.
+```
 
-- A) Full analyse — import + tydelig analyse
-- B) Synlig hensikt — import + transformasjon, analyse mangler
-- C) Ren import — kun import-linjer + minimale rename
+### Output-struktur
 
-SPRÅK
+Markdown, norsk. Felles for begge detaljnivåer:
 
-Detekter: microdata.no-DSL, R, Python eller mixed.
-
-OUTPUT (norsk, markdown)
-
+```
 ## Klassifisering
-Kategori: <A|B|C>
 Språk: <microdata|R|python|mixed>
 Antatt analyseintensjon: <kort, eller "ikke synlig fra scriptet">
 
 ## Samlet vurdering
-<2-4 setninger med skala (god/akseptabel/forbedringspotensial), forankret i
-relevante hjemler. Bruk typisk art. 5(1)(c) og hregl § 6 for helsedata-script;
-art. 89(1) der aggregering/pseudonymisering er aktuelt; art. 5(1)(b) der
-variabler virker hentet uten kobling til uttrykkelig formål. Ikke alle
-hjemler trenger nevnes — bare de som styrker vurderingen.>
+<forankret i relevante hjemler>
 
 ## Observasjoner
 - **<variabel, linjenr eller mønster>** — <problem>
   - Forslag: <konkret endring>
   - Sikkerhet: <høy | medium | lav>
 
-Sortér etter sikkerhet. Hopp over kategorier uten observasjoner.
+## Særlig sensitive variabler   ← kun hvis funnet
+- **<variabel>** — <kategori under GDPR art. 9>
+  - Vurdering: <om essensielt, eller om kan unngås>
 
-## Spørsmål til forsker
-Kun hvis kategori B eller C. Maks 3 spørsmål.
+## Spørsmål til forsker    ← kun i lang-modus + når kontekst mangler
 
-REGLER
-- Vær konkret. Pek på variabelnavn eller linjenummer.
-- Ikke produser forslag bare for å produsere.
-- Markér sikkerhet ærlig.
-- Du ser kun scriptet — si fra om vurderingen ville endret seg med mer kontekst.
+## Revidert script    ← kun hvis revidert script er på
+```microdata
+<revidert script>
+```
 ```
 
-### `dm-prefill.md` (grundig steg 1)
+### Direktiv-parsing fra script-kommentarer
 
-Lettere prompt:
-
-```
-Du leser et microdata.no/R/Python-script og skal utlede svar på seks
-spørsmål om dataminimering. Returner JSON med ett objekt per felt.
-
-For hvert felt, gi:
-- value: <din beste tolkning, eller null hvis ikke nok info>
-- source: "comment" | "guessed" | "empty"
-  - "comment": verdien er hentet direkte fra en personvern-kommentar
-  - "guessed": utledet fra scriptet uten eksplisitt kommentar
-  - "empty": ingen rimelig tolkning mulig
-- confidence: "høy" | "medium" | "lav"
-
-Felter (JSON-nøkler i snake_case ASCII):
-1. formaal
-2. sentrale_variabler (objekt: { eksponering, utfall, kovariater, kobling })
-3. tidsperiode
-4. geografi (bare relevant hvis script bruker geografi)
-5. sensitive_grupper (bool + begrunnelse)
-6. alternativer (liste eller null)
-
-Disse er JSON-nøklene i API-kontrakten. I script-kommentarer brukes de
-norske formene med mellomrom (formål, sentrale variabler, tidsperiode,
-geografi, sensitive grupper, alternativer vurdert) — frontend mapper
-mellom dem.
-
-Hvis personvern-kommentarer finnes, prioriter dem fremfor utledning.
-```
-
-Output skal være ren JSON, parses av frontend.
-
-### `dm-thorough.md` (grundig steg 2)
-
-Samme struktur som `dm-quick.md`, men med ekstra input-seksjon:
-
-```
-SKJEMA UTFYLT AV FORSKER
-
-Forskeren har bekreftet eller justert følgende svar på direkte spørsmål.
-Disse er autoritative og skal brukes som hovedgrunnlag for vurderingen:
-
-[felter pre-fylt og bekreftet/redigert]
-
-Tomme felter betyr at forskeren valgte å ikke svare; behandle som "ikke
-oppgitt" og spør i "Spørsmål til forsker"-seksjonen om det er kritisk.
-```
-
-Pluss output-format med en ekstra seksjon:
-
-```
-## Personvern-blokk for scriptet
-<den oppdaterte blokk-formen som skal skrives inn i scriptet>
-```
-
-Den siste seksjonen brukes av frontend til å skrive personvern-kommentarene
-tilbake.
-
-### `dm-revise-pyr.md` (Python/R-revisjon)
-
-```
-Du har lest et Python- eller R-script og en tidligere dataminimerings-
-vurdering av samme script. Din oppgave er å foreslå et revidert script
-som reduserer datamengden der det er forsvarlig og godt begrunnet.
-
-KONTEKST: MICRODATA-IMPORT-BLOKK
-
-Python/R-script på microdata.no har typisk en microdata-import-blokk
-øverst i scriptet, der variabler hentes inn fra registre. Dette er
-hovedstedet for dataminimering i Python/R-script — å fjerne variabler
-som ikke brukes senere, eller foreslå grovere alternativer der det
-holder. Du ser den eksakte syntaksen i scriptet du får; bruk den som
-mal når du foreslår endringer.
-
-Utover import-blokken er resten av scriptet vanlig Python eller R, og
-du har full evne til å vurdere det.
-
-PRINSIPPER
-
-1. Konservativ. Endre kun der du er rimelig sikker på at endringen
-   forbedrer dataminimering uten å forringe analysen. Hvis det er
-   usikkerhet, ikke endre.
-
-2. Bevar analytisk intensjon. Variabler og operasjoner som er
-   strukturelt sentrale i analysen, beholdes. Endre granularitet,
-   ikke struktur.
-
-3. Begrunn hver endring. Sett inn en `# personvern: <forklaring>`-
-   fritekst-kommentar rett over hver endret linje.
-
-4. Aldri introdusere variabler du ikke ser i scriptet eller som ikke
-   åpenbart finnes i konteksten.
-
-5. Hvis scriptet ser godt minimert ut, returner det uendret med kort note.
-
-INPUT
-- Scriptet (i sin helhet, med eksisterende kommentarer)
-- Tidligere vurdering (markdown) — primær kilde til hva som bør endres
-- Eventuell personvern-kontekst fra grundig-modus
-
-OUTPUT (JSON)
-{
-  "revised_script": "...",
-  "changes": [
-    { "line_old": ..., "line_count_old": ..., "line_new": ...,
-      "summary": "...", "rationale": "...", "confidence": "høy"|"medium" }
-  ],
-  "no_changes_explanation": null
-}
-
-REGLER
-- Bare høy eller medium sikkerhet. Aldri lav.
-- Ingen kosmetiske endringer.
-- Bevar eksisterende personvern-kommentarer (blokk og fritekst).
-- Hvis kort eller åpenbart minimalt: foreslå ingen endringer.
-```
-
-### `dm-revise-microdata.md` (microdata- og mixed-revisjon)
-
-Samme strukturelle innhold som `dm-revise-pyr.md`, men med to forskjeller:
-
-1. **Inkluderer `_microdata-syntax.md`** øverst — full cheatsheet over
-   gyldige konstruksjoner, strict-emulation-regler, disclosure-control-
-   regler, pseudonym-regler, type-regler. Denne filen holdes synkron med
-   `microdata-api/server_code/prompts.py`.
-
-2. **Strengere regler om syntaks:**
-
-```
-NÅR DU FORESLÅR ENDRINGER I ET MICRODATA-SCRIPT
-
-- Alle endringer må være gyldig microdata.no-syntaks som kjører i prod.
-  Se SYNTAKSREGLER over for autoritativ liste.
-- Respekter strict emulation: ingen `collapse (first/last)`, ingen
-  multi-key by/on, ingen for-løkke-ellipsis, ingen parens rundt
-  iterator-listen.
-- Pseudonymer (variabler med _FNR-suffiks) kun som nøkkel i
-  collapse(by) eller merge(on) — aldri i transformasjoner eller
-  sammenligninger.
-- Bruk eksisterende registervariabler — ikke oppfinn navn. Hvis du
-  foreslår grovere geografi, bruk faktiske variabler (BEFOLKNING_FYLKE,
-  etc.).
-- Sett inn `// personvern: <forklaring>` rett over hver endret linje.
-- I mixed-script: behandle microdata-DSL-delen med reglene over,
-  Python/R-delen med vanlig fluent evne.
-```
-
-`_microdata-syntax.md` topplinje:
-
-```markdown
-<!-- KOPI: microdata-syntaks-reglene i denne filen er en kopi fra
-microdata-api/server_code/prompts.py (GRAMMAR_CHEATSHEET, PRIVACY_RULES,
-PSEUDONYM_RULES, TYPE_RULES m.fl.). Endrer du regler her, oppdater også
-prompts.py — og motsatt. -->
-```
+Hvis scriptet inneholder `// personvern: revider-script: ja` (eller `#`),
+parses dette på serversiden og settes `ønsker_revidert_script: true`
+uavhengig av sjekkbokset i UI. Lar brukeren styre dette per script.
 
 ## Arkitektur (Netlify Edge Functions)
 
+Ett endepunkt. Streamet SSE.
+
 ```
-Browser (m2py/index.html, hostet på Netlify)
+Browser (m2py/index.html på Netlify)
    │
-   │ Kjapp:
-   ├──► POST /.netlify/edge-functions/dm-quick   (streamed SSE)
-   │ ◄── markdown chunks, akkumulert i modal
-   │
-   │ Grundig steg 1:
-   ├──► POST /.netlify/edge-functions/dm-prefill (vanlig JSON)
-   │ ◄── { fields: {...} }
-   │     vises i skjema-modal med forhåndsvisning
-   │
-   │ Grundig steg 2:
-   ├──► POST /.netlify/edge-functions/dm-thorough (streamed SSE)
-   │ ◄── markdown + personvern-blokk chunks
-   │     render + (opt-in) skriv blokk inn i editor
-   │
-   │ Revisjon (etter en vurdering):
-   ├──► POST /.netlify/edge-functions/dm-revise  (vanlig JSON, ~15-30s)
+   ├──► POST /api/dm-vurder
    │     │
-   │     ├── detekter språk
-   │     ├── velg prompt-variant:
-   │     │    [microdata|mixed] → dm-revise-microdata.md (full syntaks)
-   │     │    [python|r]        → dm-revise-pyr.md (lett)
-   │     └── kall Anthropic API
-   │ ◄── { revised_script, changes, ... }
-   │     vises i diff-modal, evt. erstatter editor
+   │     ├── auth-token-sjekk (M2PY_ACCESS_TOKEN)
+   │     ├── body-størrelse-sjekk (50 KB)
+   │     ├── per-IP rate limit (10/time)
+   │     ├── parse personvern-direktiver fra scriptet
+   │     ├── bygg prompt med språk + detaljnivå + revisjon
+   │     └── stream fra Anthropic API
+   │ ◄── SSE: data: {"type":"text","text":"..."} ...
+   │     data: {"type":"done","inputTokens":N,"outputTokens":N}
+   │
+   │ Etter strøm er ferdig:
+   │     - Render som markdown
+   │     - Hvis "## Revidert script"-seksjon: extract, vis i egen blokk
+   │     - Hvis "Lagre som personvern-blokk" var aktivt: skriv blokken
+   │       inn i editoren
 
 Netlify env vars:
-   ANTHROPIC_API_KEY        = sk-ant-...
-   ANTHROPIC_MODEL          = claude-sonnet-4-6
-   M2PY_ALLOWED_ORIGINS     = https://m2py.netlify.app,http://localhost:8888
+   ANTHROPIC_API_KEY     = sk-ant-...
+   ANTHROPIC_MODEL       = claude-sonnet-4-6
+   M2PY_ACCESS_TOKEN     = <delt-token-streng>
 ```
 
-**Hvorfor Edge Functions framfor vanlige Functions:**
+### Endpoint-rename
 
-- Native streaming-støtte løser timeout-problemet
-  (kjapp ~10–15s, grundig ~15–25s overgår vanlig 10s-timeout)
-- Bedre UX — tekst dukker opp gradvis
-- Gratis på alle Netlify-planer
+`dm-quick` (eksisterende fra Milepæl 1) renames til `dm-vurder` ved
+implementering av denne reviderte designen. Gammel route i `netlify.toml`
+oppdateres tilsvarende. Frontend justeres til å POST mot `/api/dm-vurder`.
 
-**Hvorfor ikke Anvil (microdata-api):**
+### Hvorfor ett endepunkt
 
-- Anvil-AI-en er for microdata.no-prod-brukere. Dataminimering er m2py-spesifikk.
-- Holder ansvars­områdene ryddig adskilt — egen prompt, egen versjonering.
-- Netlify er samme stack som m2py-hostingen, åpen for forks med egne API-nøkler.
+- En enkelt mental modell: én knapp, én forespørsel, ett svar
+- Ingen separat dm-prefill / dm-thorough / dm-revise — alt løses ved
+  variant-prompt og output-seksjon-marker
+- Lavere kostnad enn separate kall (færre runde-turer, færre input-tokens
+  pga gjenbrukt prompt-prefiks)
 
-## Datakontrakter
+## Datakontrakt
 
-### `dm-quick` (Edge Function, streaming)
+### `dm-vurder` (Edge Function, streaming)
 
 ```
-POST /.netlify/edge-functions/dm-quick
+POST /api/dm-vurder
 Content-Type: application/json
+Authorization: Bearer <M2PY_ACCESS_TOKEN>
 
 Request body:
 {
   "script": "...",
-  "active_columns": ["BEFOLKNING_KJOENN", ...]   // valgfritt
+  "kontekst": "Formål: studere...",      // valgfri, kan være tom string
+  "språk": "auto",                        // "auto" | "microdata" | "python" | "r"
+  "detaljnivå": "kort",                   // "kort" | "lang"
+  "ønsker_revidert_script": false
 }
 
 Response: text/event-stream
 data: {"type": "text", "text": "## Klassif..."}
 data: {"type": "text", "text": "ikasjon\n..."}
-data: {"type": "done", "input_tokens": 1234, "output_tokens": 567}
+data: {"type": "done", "inputTokens": 1234, "outputTokens": 567}
 ```
 
-### `dm-prefill` (Edge Function, vanlig JSON)
+### Feilrespons
 
 ```
-POST /.netlify/edge-functions/dm-prefill
-
-Request body:
-{
-  "script": "...",
-  "active_columns": [...]
-}
-
-Response: application/json
-{
-  "fields": {
-    "formaal":           { "value": "...", "source": "comment", "confidence": "høy" },
-    "sentrale_variabler":{ "value": {...},  "source": "guessed", "confidence": "medium" },
-    "tidsperiode":       { "value": "...", "source": "empty",   "confidence": "lav" },
-    "geografi":          { "value": "...", "source": "guessed", "confidence": "medium" },
-    "sensitive_grupper": { "value": "...", "source": "empty",   "confidence": "lav" },
-    "alternativer":      { "value": "...", "source": "empty",   "confidence": "lav" }
-  },
-  "model": "...",
-  "input_tokens": 1234,
-  "output_tokens": 234
-}
+401: ugyldig eller manglende M2PY_ACCESS_TOKEN
+413: body > 50 KB
+429: rate limited (header: Retry-After: <seconds>)
+500: server-konfigurasjonsfeil (manglende ANTHROPIC_API_KEY etc.)
+502: Anthropic upstream-feil
 ```
 
-### `dm-thorough` (Edge Function, streaming)
-
-```
-POST /.netlify/edge-functions/dm-thorough
-
-Request body:
-{
-  "script": "...",
-  "active_columns": [...],
-  "context": {
-    "formaal": "...",
-    "sentrale_variabler": {...},
-    "tidsperiode": "...",
-    "geografi": "...",
-    "sensitive_grupper": "...",
-    "alternativer": "..."
-  }
-}
-
-Response: text/event-stream
-data: {"type": "text", "text": "## Klassif..."}
-...
-data: {"type": "personvern-blokk", "lines": ["// personvern blokk start", ...]}
-data: {"type": "done", "input_tokens": 2345, "output_tokens": 1234}
-```
-
-### `dm-revise` (Edge Function, JSON med språkbasert promptvalg)
-
-Ikke streamet — synkron med ~15–30s svartid.
-
-```
-POST /.netlify/edge-functions/dm-revise
-
-Request body:
-{
-  "script": "...",
-  "vurdering": "...",         // markdown fra forrige kjapp/grundig
-  "context": {...}            // valgfritt, fra grundig-modus
-}
-
-Response: application/json
-{
-  "revised_script": "...",
-  "changes": [
-    {
-      "line_old": 12,
-      "line_count_old": 2,
-      "line_new": 14,
-      "summary": "ICD-koder kuttet til 3-tegnsnivå",
-      "rationale": "Scriptet skiller ikke på underkode",
-      "confidence": "høy"
-    }
-  ],
-  "no_changes_explanation": null,
-  "language_detected": "microdata",
-  "prompt_variant": "microdata",
-  "input_tokens": ...,
-  "output_tokens": ...
-}
-```
+Klient håndterer non-200 ved å vise feilmelding i status-feltet i resultat-
+modalen.
 
 ## Frontend: UI og flyt
 
 ### Knapper i hamburger-meny
 
-Ny seksjon "Personvern":
+Personvern-seksjonen har nå tre knapper:
 
 ```
-─────────────────────────────
 Personvern
-  Vurder dataminimering
-  Grundig vurdering
-─────────────────────────────
+  Vurder dataminimering    ← åpner hovedmodal
+  Sett tilgangsnøkkel      ← engangs-setup for token (se Sikkerhet)
+  Avregistrer AI-bruk      ← fjerner consent + token
 ```
 
-Begge disablet hvis editor er tom eller bruker ikke har gitt AI-consent.
+"Grundig vurdering" (fra opprinnelig design) er fjernet.
 
 ### Førstegangs-consent
 
-Ved første klikk på enten knapp, vis modal:
+Samme tekst som Milepæl 1, uendret. Vises ved første klikk hvis ikke
+allerede gitt.
 
+### Hovedmodal (Vurder dataminimering)
+
+Som beskrevet over. State i komponenten:
+
+```js
+{
+  språk: 'auto',              // dropdown
+  detaljnivå: 'kort',          // radio buttons
+  ønsker_revidert_script: false,  // checkbox
+  kontekst: ''                 // populated by secondary modal
+}
 ```
-Dataminimering-vurdering bruker AI fra Anthropic.
 
-Scriptet ditt sendes til Anthropic for vurdering. Variabelnavn og
-kommentarer overføres. Faktiske mikrodata (verdier) sendes ikke —
-m2py kjører lokalt i nettleseren, og analyse av selve dataene
-skjer ikke som del av denne funksjonen.
+"Spesifiser formål / kontekst"-knappen viser:
+- Hvis `kontekst` er tom: "Spesifiser formål / kontekst"
+- Hvis `kontekst` har innhold: "Endre formål / kontekst (<antall> tegn)"
 
-[Avbryt] [Aksepter og fortsett]
-```
+Knappen åpner sekundær modal.
 
-Lagre `microdata_dm_consent='1'` i localStorage. Mulighet for tilbakekall
-fra hamburger-meny ("Avregistrer AI-bruk").
+### Sekundær modal (spesifiser formål)
 
-### Kjapp-modus modal
+Tekstområde + sjekkboks for å lagre som blokk.
 
-Resultat-modal:
-- Tittel: "Dataminimering-vurdering"
-- Body: rendret markdown, oppdatert mens stream pågår
-- Footer: "Avbryt" (kutter stream), "Kopier", "Generer revidert script", "Lukk"
-- Trykker man Avbryt midt i stream, stoppes fetch-en og man ser delvis svar
-- "Generer revidert script" er disablet til stream er ferdig
+Pre-utfylling ved første åpning:
+- Parser eksisterende `// personvern blokk start ... slutt` fra scriptet
+- Stripper kommentartegn (` // ` → `  `, eller `# ` → `  `)
+- Hvis ingen blokk finnes: tom + placeholder med eksempler
 
-### Grundig-modus modal
+"Bruk" lukker modalen og lagrer teksten i hovedmodal-state.
 
-Trinn 1 — skjema-modal:
-- Tittel: "Grundig dataminimerings-vurdering"
-- Hjelp­tekst: "AI har lest scriptet og fylt ut det den klarte å utlede. Bekreft eller juster, og hopp over felter der spørsmålet ikke er relevant."
-- Seks felt-grupper:
-  - Hver med tekstinput/textarea (avhengig av lengde)
-  - Pre-fylt verdi
-  - Liten badge: "Fra kommentar (høy sikkerhet)" / "Utledet fra script (medium)" / "Tomt"
-  - "Hopp over"-checkbox
-- Sjekkboks: "Lagre svarene som personvern-kommentarer øverst i scriptet" (default på)
-- Forhåndsvisning av personvern-blokk, oppdateres live
-- Footer: "Avbryt", "Vurder nå"
+Sjekkboksen "Lagre som // personvern-blokk i scriptet" er **default på**.
+Effekten gjelder først etter at hovedmodalen er sendt og strøm er ferdig
+(da skriver frontend blokken inn i editoren med generator-logikken).
 
-Trinn 2 — resultat-modal (samme som kjapp):
-- Markdown med vurdering
-- Hvis sjekkboks var på: skriv personvern-blokk inn i editor ved fullført stream
-- Toast: "Personvern-svar lagret som kommentarer. Ctrl+Z for å angre."
-- "Generer revidert script"-knapp tilgjengelig som i kjapp-modal
+### Resultat-modal
 
-### Revisjons-modal (etter klikk på "Generer revidert script")
+Strømming og rendering som i Milepæl 1. Ny logikk når strøm er ferdig:
 
-Spinner med tekst "Genererer revidert script (~20s)" mens kallet kjører.
-Når svar mottatt, vis diff-modal:
+1. Hvis akkumulert tekst inneholder `## Revidert script`-seksjon:
+   - Splitt: hovedvurdering før, kodeblokk etter
+   - Render hovedvurdering som markdown i body
+   - Vis kodeblokk i en egen "Revidert script"-seksjon under, med
+     "Erstatt scriptet"-knapp som overskriver editorens innhold
+   - Toast: "Scriptet erstattet. Ctrl+Z for å angre."
+2. Hvis ikke: render hele akkumulert tekst som markdown (som Milepæl 1)
+3. Hvis "Lagre som personvern-blokk" var aktivt og brukeren spesifiserte
+   kontekst: kall generator-logikken for å skrive blokken inn i editoren
 
-- Tittel: "Foreslått revidert script"
-- Warning-banner øverst: "⚠ AI kan gjøre feil. Bekreft at endringene ikke
-  bryter analysen din."
-- Liste over endringer, hver vist som:
-  - Header: "Endring N av M (linje X–Y)"
-  - Den foreslåtte `// personvern:`-kommentar-linjen
-  - Diff-visning: rød fjernet linje + grønn ny linje
-  - Sikkerhet-badge: "Høy" / "Medium"
-  - Rationale i liten skrift under
-- Sammendrag nederst: "N endringer, X med høy sikkerhet, Y med medium"
-- Footer: "Avbryt", "Vis hele scriptet" (åpner ny modal med revidert script
-  for kopiering), "Erstatt scriptet"
+## Sikkerhet og tilgangskontroll
 
-Hvis ingen endringer foreslås:
-- Vis `no_changes_explanation` i stedet for diff
-- Footer: bare "Lukk"
+### Token-basert tilgang (delt site-token)
 
-Hvis endringer > 5, "Erstatt scriptet" krever ekstra bekreftelse:
-"Dette erstatter scriptet med {N} foreslåtte endringer. Er du sikker?"
+Erstatter Origin-sjekken fra Milepæl 1. En delt streng (M2PY_ACCESS_TOKEN
+env var) brukes som tilgangsnøkkel.
 
-Etter erstatning:
-- Toast: "Scriptet erstattet. Ctrl+Z for å angre. Anbefalt: kjør vurdering på nytt."
+**Flyt:**
 
-### Språk-vist i UI
+1. Du genererer en token og setter `M2PY_ACCESS_TOKEN` i Netlify env vars
+2. Du deler tokenen privat (FHI-epost) til folk du vil gi tilgang
+3. Bruker går til hamburger → Personvern → "Sett tilgangsnøkkel"
+4. Modal ber om å lime inn token; lagres i `localStorage` som
+   `microdata_dm_token`
+5. Hver request til `/api/dm-vurder` sender `Authorization: Bearer <token>`
+6. Edge Function sammenligner mot `M2PY_ACCESS_TOKEN`. Mismatch → 401.
 
-`language_detected` fra responsen vises diskré i diff-modalen:
-"Språk: microdata" / "Python" / "R" / "mixed". Hjelper feilsøking hvis
-revisjons-kvalitet er rar (forteller hvilken prompt-variant som ble brukt).
+**Frontend ved 401:** Tøm `localStorage` for tokenet, vis modal "Tilgangs­
+nøkkelen er ugyldig eller utløpt. Be administrator om en ny nøkkel."
 
-### Editor-modifikasjon
+**Rotasjon:** Sett ny verdi i Netlify env vars, deploy. Alle gamle tokens
+blir ugyldige umiddelbart. Du sender ny token-streng til de som skal ha
+fortsatt tilgang.
 
-Når vi skriver personvern-blokk:
-- Fjern eksisterende blokk(er) og strukturerte enkeltlinjer (matcher kjente
-  feltnavn)
-- Bevar all fritekst og frittstående blokk-fritekst (konverteres til
-  enkeltlinjer ved behov)
-- Plasser ny blokk øverst i scriptet, etter eventuell shebang og
-  `import`/`library()`/`from`-header
-- Tom linje etter blokken
-- Editorens native undo skal kunne rulle tilbake i én operasjon
+**Hvorfor ikke Origin-sjekk:** Origin-sjekken er klønete (krever vedlikehold
+av URL-liste, fungerer dårlig på branch deploys og deploy previews) og
+beskytter ikke mot scripted misbruk (Origin kan spoofes). Token er enklere
+å vedlikeholde og gir reell autentisering.
 
-## Personvern (brukernes data sendt til AI)
+### Andre sikkerhetslag
+
+Beholdt fra Milepæl 1:
+
+- **Body-størrelse-grense**: 50 KB (innkommende JSON)
+- **Per-IP rate limit**: 10 kall/time/IP via Netlify Blobs
+
+Ny:
+
+- **Anthropic budget cap**: sett i Anthropic-konsollen (anbefalt $5–10/dag som
+  sikkerhetsnett mot katastrofal misbruk)
+
+### Ikke vurdert i denne milepælen
+
+- IP-binding av tokens (kompliserer UX uten klar gevinst — IP-er endres)
+- Per-bruker-tokens med revokering (overkill for hobbyprosjekt)
+- Magic-link via epost (krever email-infrastruktur som Resend; vurder senere)
+
+## Personvern (brukerens data sendt til AI)
 
 - Scriptet sendes til Anthropic via Edge Function. Anthropic-policy:
   API-input brukes ikke til trening som default.
 - Edge Function lagrer ikke scriptet utover funksjons­kallets levetid.
-- `active_columns`-hint inneholder bare kolonnenavn fra aktivt mock-datasett
-  — ingen verdier.
-- Førstegangs-consent (se over) gjør dette eksplisitt for brukeren.
-
-## Sikkerhet og misbrukshåndtering
-
-Lagvis:
-
-1. **Origin-sjekk** i hver Edge Function — kun tillat kall fra m2py-domenet
-   (konfigurert via `M2PY_ALLOWED_ORIGINS`). Trivielt å omgå, stopper enkleste
-   misbruk.
-2. **Per-IP rate limit** — 10 vurderinger / time / IP. Implementeres med
-   Netlify Blobs eller in-memory cache for MVP.
-3. **Maks request-størrelse** — avvis scripts > 50 KB.
-4. **Daglig budsjett-cap** i Anthropic-konsollen som sikkerhetsnett.
+- Førstegangs-consent gjør dette eksplisitt for brukeren.
 
 ## Kostnader
 
-- Kjapp: ~3K input + ~1.5K output tokens med Sonnet ≈ $0.01–0.02
-- Grundig: ~4K input + ~2K output × 2 funksjons­kall ≈ $0.03–0.06
-- Revisjon (Python/R-variant): ~3K input + ~3K output ≈ $0.03–0.05
-- Revisjon (microdata-variant): ~6K input (inkluderer cheatsheet) + ~3K
-  output ≈ $0.05–0.08
+Per vurdering:
+- Kort, uten revidert script: ~3K input + ~1K output = $0.01–0.02
+- Lang, uten revidert script: ~3K input + ~2K output = $0.02–0.03
+- Kort med revidert script (microdata): ~5K input + ~2K output = $0.03–0.05
+- Lang med revidert script (microdata): ~5K input + ~3K output = $0.05–0.07
 
-Estimat ved 100 vurderinger/dag + 20 revisjoner/dag (anslag, opt-in):
-~$60–100/mnd. Overkommelig for hobbyprosjekt ved monitorering.
-Anthropic-budsjett-cap som sikkerhet.
+Estimat ved 100 vurderinger/dag (anslag, opt-in): ~$30–60/mnd ved blandet bruk.
+Anthropic-budsjettcap som sikkerhetsnett.
 
 ## Avgrensninger for MVP
 
@@ -865,68 +575,70 @@ Ikke med:
 
 - Ingen inline-markering av variabler i editoren ved observasjoner
 - Ingen vurderingshistorikk
+- Ingen per-endring accept/reject (revidert script er all-or-nothing)
 - Ingen statisk forsjekk før AI-kall
 - Ingen streaming-rendering av markdown med live formatering — rå tekst
   mens stream pågår, full render ved ferdig
 - Ingen multi-script-vurdering (kun aktivt script)
-- Soft-auth eller bruker-spesifikk API-nøkkel — vurderes hvis bruk vokser
-- Ingen per-endring accept/reject i revisjons-modalen (all-or-nothing)
-- Ingen streaming av revisjons-svar (synkron 15–30s med spinner)
+- Ingen per-bruker-tokens (delt token i v1)
+- Ingen magic-link/epost-auth (vurder senere)
 
 ## Implementeringsrekkefølge
 
-Tre milepæler. Hver kan slås sammen til én PR eller deles i flere.
+Milepæl 1 (kjapp-modus, eksisterende) er allerede levert. De resterende
+endringene leveres som **Milepæl 2 — Forenklet flyt**:
 
-### Milepæl 1 — Kjapp-modus ende-til-ende
+### Milepæl 2
 
-- Sjekk/migrere m2py til Netlify hvis ikke der allerede
-- Sett opp `dm-quick.js` Edge Function med basic prompt
-- Implementer parser-modul `parse-script-context.ts`
-- Sett opp Anthropic env-var
-- Frontend: hamburger-knapp, consent-flow, kjapp-modal med streaming
-- Test ende-til-ende, iterer på prompten
-- Origin-sjekk, rate limit, body-size-limit
+1. Backend: bytt `dm-quick.ts` til `dm-vurder.ts` (rename + utvid prompt-bygging
+   med språk/detaljnivå/revisjon)
+2. Backend: legg til token-auth, fjern Origin-sjekk
+3. Backend: parser-utvidelse for `// personvern: revider-script: ja`-direktiv
+4. Frontend: ny hovedmodal med innstillinger
+5. Frontend: sekundær modal for kontekst-spesifikasjon
+6. Frontend: token-setup modal + "Sett tilgangsnøkkel"-knapp
+7. Frontend: resultat-modal med splitting av Revidert script-seksjon og
+   "Erstatt scriptet"-knapp
+8. Frontend: generator-logikk for å skrive personvern-blokk
+9. Dokumentasjon: oppdater `hjelp.html` med ny flyt
+10. Migrasjon: existing `microdata_dm_consent` localStorage-key beholdes;
+    ny `microdata_dm_token` legges til
 
-### Milepæl 2 — Grundig-modus
-
-- `dm-prefill.js` Edge Function
-- `dm-thorough.js` Edge Function
-- Frontend: skjema-modal med pre-fylling og forhåndsvisning
-- Generator-logikk for personvern-blokk i editor
-- Test full to-stegs-flyt
-
-### Milepæl 3 — Revisjons-funksjon + polering
-
-- Lag `_microdata-syntax.md` ved å kopiere relevante deler fra
-  `microdata-api/server_code/prompts.py`. Topplinje med sync-merknad
-- Lag `dm-revise-microdata.md` og `dm-revise-pyr.md`
-- Lag `dm-revise.js` Edge Function med språkdeteksjon og prompt-valg
-- Frontend: "Generer revidert script"-knapp og diff-modal
-- Editor-erstatning + toast / undo-meldinger
-- Dokumentasjon i `hjelp.html`
-- Hjelp-tekst i UI
-- Monitorering av kostnader / bruksstatistikk
+Ingen Milepæl 3 — den opprinnelige separate revisjons-funksjonen er foldet
+inn som valgfri output i Milepæl 2.
 
 ## Åpne spørsmål
 
-- **Verifiser at m2py er på Netlify.** Hvis ikke (f.eks. GitHub Pages),
-  vurder migrasjon før Milepæl 1.
-- **Modellvalg:** Sonnet (cost-effective, raskere) eller Opus (dypere
-  vurdering, dyrere). Anbefaling: start med Sonnet og oppgrader hvis
-  vurderings­kvaliteten er for tynn.
-- **Hjemmel-felt i observasjoner:** denne speccen plasserer lov­referanser
-  i "Samlet vurdering" og ikke per observasjon. Hvis brukerne savner mer
-  konkret referanse per punkt, kan vi legge til et valgfritt
-  `Hjemmel:`-felt senere.
-- **Per-endring accept/reject i diff-modal:** ikke i MVP (all-or-nothing
-  erstatning). Vurder senere hvis forskere savner finkornet kontroll.
-- **Streaming for dm-revise:** vurderes hvis ~20s synkron føles for treg
-  i bruk.
+- **Modellvalg:** Sonnet (cost-effective) eller Opus (dypere vurdering).
+  Anbefaling: start med Sonnet og oppgrader hvis vurderings­kvaliteten er
+  for tynn.
+- **Token-distribusjon:** manuell utdeling via FHI-epost er trolig OK for
+  start. Hvis brukermassen vokser, vurder magic-link via Resend (eller
+  lignende) i en senere milepæl.
+- **Hvis Anthropic returnerer Revidert script mid-stream:** edge case der
+  AI inkluderer kode-blokken før den er ferdig. Frontend bør ikke splitte
+  før strøm er fullstendig ferdig.
 - **Sync av microdata-syntaks-regler:** `_microdata-syntax.md` (Netlify) og
-  `prompts.py` (Anvil) må holdes synkron. For MVP gjøres dette manuelt med
-  klar sync-merknad. Hvis drift blir et problem, vurder CI-sjekk eller
-  felles kildefil. Hvis microdata-revisjons-kvalitet er dårlig: vurder å
-  flytte microdata-revisjon til Anvil i runde 2.
+  `prompts.py` (Anvil) må holdes synkron. Hvis drift blir et problem,
+  vurder CI-sjekk eller felles kildefil.
+
+## Designhistorikk
+
+**Opprinnelig design (2026-05-22):**
+- To moduser: Kjapp (én-kallflyt) og Grundig (to-stegs med skjema-prefill)
+- Separat dm-revise endepunkt for revidert script
+- Origin-basert tilgangskontroll (M2PY_ALLOWED_ORIGINS)
+- Skjema med 6 felter inkludert "sentrale variabler"
+
+**Revidert design (2026-05-23) etter Milepæl 1-erfaring:**
+- Én sammenslått flyt med valgfri kontekst-spesifikasjon
+- Valgfri revidert script som output-seksjon i samme svar (ingen separat
+  endepunkt)
+- Token-basert tilgangskontroll
+- "Sentrale variabler" droppet — utledes av AI fra scriptet
+- Eksplisitt sensitiv-variabel-flagging (GDPR art. 9)
+- Detaljnivå: kort/lang
+- Eksplisitt språkvalg som dropdown i UI
 
 ## Referanser
 
@@ -935,6 +647,6 @@ Tre milepæler. Hver kan slås sammen til én PR eller deles i flere.
 - `docs/lovverk/lagringsbegrensning.md` — utdrag
 - `docs/lovverk/personvernprinsippene.md` — oversikt
 - https://www.helsedirektoratet.no/normen/personvernprinsippene-faktaark-57
-- Personvernforordningen art. 5, 89(1)
+- Personvernforordningen art. 5, 9, 89(1)
 - Helseregisterloven § 6
 - Helseforskningsloven § 32
