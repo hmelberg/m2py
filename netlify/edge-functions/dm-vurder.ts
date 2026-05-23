@@ -1,14 +1,28 @@
 import {
   detectLanguage,
   parsePersonvernComments,
+  parsePersonvernDirectives,
+  type Language,
   type ScriptContext,
 } from "./_lib/parse-script-context.ts";
 import { streamAnthropic } from "./_lib/anthropic.ts";
 import { checkRateLimit } from "./_lib/rate-limit.ts";
 
-// Prompt text inlined from ./prompts/_shared-principles.md
+interface RequestBody {
+  script: string;
+  kontekst?: string;          // user-provided context text (free-form)
+  språk?: "auto" | "microdata" | "python" | "r";
+  detaljnivå?: "kort" | "lang";
+  ønsker_revidert_script?: boolean;
+}
+
+// ====================================================================
+// PROMPT TEMPLATES — kept in sync with prompts/ directory (source docs)
+// ====================================================================
+
+// Inlined from ./prompts/_shared-principles.md
 // (Deno Deploy does not bundle .md files at runtime; source of truth is the .md file)
-const sharedPrinciples = `\
+const SHARED_PRINCIPLES = `\
 RETTSLIG GRUNNLAG
 
 Vurderingen forankres i:
@@ -21,6 +35,8 @@ Vurderingen forankres i:
   anonymisering eller pseudonymisering der det er mulig.
 - Personvernforordningen art. 5(1)(b) (formålsbegrensning): relevant når en
   variabel virker hentet "for sikkerhets skyld".
+- Personvernforordningen art. 9: særlige kategorier (sensitive opplysninger)
+  krever sterkere begrunnelse og høyere terskel.
 
 Kalibreringsregel: personvernforordningen gir ikke ett endelig svar på hva
 som er "nødvendig" — det avhenger av formålet. Formuler observasjoner som
@@ -29,30 +45,49 @@ forsker og dataansvarlig.
 
 VURDERINGSDIMENSJONER
 
-1. Ubrukte variabler — importert men aldri brukt.
+1. Ubrukte variabler — importert men aldri brukt
 2. Variabel-granularitet — ICD-kode-detaljnivå, dato-oppløsning, geografi,
-   inntekt, alder.
-3. Populasjons-avgrensing — \`keep if\`/\`drop if\`-filtere.
-4. Tidsperiode — er tidsvinduet snevert nok.
-5. Sjeldne kombinasjoner — filterkjeder som krymper til sårbar undergruppe.
-6. Koblingsbehov — er alle \`merge\`/\`import\` nødvendige.
+   inntekt, alder
+3. Populasjons-avgrensing — \`keep if\`/\`drop if\`-filtere
+4. Tidsperiode — er tidsvinduet snevert nok
+5. Sjeldne kombinasjoner — filterkjeder som krymper til sårbar undergruppe
+6. Koblingsbehov — er alle \`merge\`/\`import\` nødvendige
 7. Aggregat vs individnivå — tidlig nok \`collapse\`?
-8. Direkte identifikatorer i transformasjoner.
+8. Direkte identifikatorer i transformasjoner
+
+SENSITIV-VURDERING (separat fra vanlig minimerings-vurdering)
+
+Sjekk om scriptet bruker variabler som regnes som særlig sensitive:
+- Etnisitet, opprinnelsesland, statsborgerskap
+- Religion eller livssyn
+- Seksuell legning eller praksis
+- Helseopplysninger knyttet til særskilt sensitive temaer:
+  abort (NCSP-koder for provoserte aborter, abortdiagnoser),
+  kjønnssykdommer (HIV, syfilis, gonoré, klamydia, hepatitt),
+  rusmisbruk og psykiatri (særlige diagnoser),
+  vold, overgrep, selvmordsforsøk
+- Lov- og straffeopplysninger
+
+Dersom slike variabler brukes:
+- Påpek dem eksplisitt i en egen seksjon "Særlig sensitive variabler"
+- Vurder om de er essensielle for formålet eller kan unngås
+- Krev høyere begrunnelsesterskel i vurderingen
+- Henvis til personvernforordningen art. 9 når relevant
 
 IKKE VURDERT FRA SCRIPTET
 
 Følgende krever kontekst utenfor scriptet og skal ikke gjettes på:
-- Analyseplan og dokumentert begrunnelse.
-- Tilgangsbegrensning og lagringstid.
-- Mulighet for alternativer (syntetiske data, fjernanalyse).
-- Senere gjenbruk.
+- Analyseplan og dokumentert begrunnelse
+- Tilgangsbegrensning og lagringstid (art. 5(1)(e))
+- Mulighet for alternativer (syntetiske data, fjernanalyse)
+- Senere gjenbruk (art. 5(1)(b))
 
 NB: Disclosure-control i resultater (T1-T8) håndteres separat av m2py.
 Fokuser på selve dataminimeringen i scriptet.`;
 
-// Prompt text inlined from ./prompts/dm-quick.md
+// Inlined from ./prompts/dm-vurder.md
 // (Deno Deploy does not bundle .md files at runtime; source of truth is the .md file)
-const dmQuickTemplate = `\
+const DM_VURDER_TEMPLATE = `\
 Du vurderer om et forskningsscript som henter mikrodata fra microdata.no
 praktiserer dataminimering — prinsippet om å hente og bruke kun det minimum
 av data som trengs for problemstillingen.
@@ -62,20 +97,17 @@ av data som trengs for problemstillingen.
 KOMMENTARER OG TIDLIGERE ERKLÆRT KONTEKST
 
 Scriptet kan inneholde kommentarer som beskriver formål, antakelser eller
-begrunnelser. Les og bruk alle kommentarer aktivt.
+begrunnelser. Les og bruk alle kommentarer aktivt. Spesielt:
 
-Spesielt:
-- Linjer i en \`// personvern blokk start ... slutt\`-blokk, og enkeltlinjer
-  som starter med \`// personvern: <feltnavn>:\` der feltnavn er ett av
-  formål / sentrale variabler / tidsperiode / geografi / sensitive grupper /
-  alternativer vurdert, er strukturerte svar fra forskeren. Behandle som
-  forskerens autoritative erklæring.
-- Linjer som starter med \`// personvern: <fritekst>\` (eller fritekst inne i
-  blokk) er forskerens egne begrunnelser.
+- Linjer i en \`// personvern blokk start ... slutt\`-blokk er strukturerte
+  svar fra forskeren. Behandle som forskerens autoritative erklæring.
+- Linjer som starter med \`// personvern: <fritekst>\` er forskerens egne
+  begrunnelser. Vektes sterkt mot tilsvarende observasjon.
 
-Disse er trukket ut i seksjonen TIDLIGERE ERKLÆRT KONTEKST nedenfor. Hvis en
-observasjon allerede er begrunnet der, ikke gjenta den — pek heller på om
-begrunnelsen virker tilstrekkelig.
+Disse er trukket ut i seksjonen TIDLIGERE ERKLÆRT KONTEKST nedenfor sammen
+med formål-tekst forskeren eventuelt har spesifisert i UI-en. Hvis en
+observasjon allerede er begrunnet der, ikke gjenta den som et problem —
+vurder heller om begrunnelsen virker tilstrekkelig.
 
 {{CONTEXT_SECTION}}
 
@@ -87,7 +119,9 @@ KATEGORISER SCRIPTET FØRST
 
 SPRÅK
 
-Detektert språk: {{LANGUAGE}}
+{{LANGUAGE}}
+
+{{DETAIL_LEVEL}}
 
 OUTPUT (norsk, markdown)
 
@@ -97,11 +131,11 @@ Språk: <microdata|R|python|mixed>
 Antatt analyseintensjon: <kort, eller "ikke synlig fra scriptet">
 
 ## Samlet vurdering
-2–4 setninger med skala (god/akseptabel/forbedringspotensial), forankret i
-relevante hjemler. Bruk typisk art. 5(1)(c) og hregl § 6 for helsedata;
-art. 89(1) der aggregering/pseudonymisering er aktuelt; art. 5(1)(b) der
-variabler virker hentet uten kobling til uttrykkelig formål. Ikke alle
-hjemler trenger nevnes — bare de som styrker vurderingen.
+Setninger som plasserer scriptet på skala (god/akseptabel/forbedringspotensial),
+forankret i relevante hjemler. Bruk typisk art. 5(1)(c) og hregl § 6 for
+helsedata; art. 89(1) der aggregering/pseudonymisering er aktuelt; art. 5(1)(b)
+der variabler virker hentet uten kobling til uttrykkelig formål. Bare hjemler
+som styrker vurderingen.
 
 ## Observasjoner
 - **<variabel, linjenr eller mønster>** — <problem>
@@ -110,8 +144,13 @@ hjemler trenger nevnes — bare de som styrker vurderingen.
 
 Sortér etter sikkerhet. Hopp over kategorier uten observasjoner.
 
-## Spørsmål til forsker
-Kun hvis kategori B eller C. Maks 3 spørsmål.
+## Særlig sensitive variabler
+(Kun hvis scriptet bruker variabler under GDPR art. 9 — se SENSITIV-VURDERING.)
+
+- **<variabel>** — <kategori>
+  - Vurdering: <essensielt for formålet, eller kan unngås>
+
+{{REVISION_BLOCK}}
 
 REGLER
 - Vær konkret. Pek på variabelnavn eller linjenummer.
@@ -123,27 +162,130 @@ SCRIPT
 
 {{SCRIPT}}`;
 
-interface RequestBody {
-  script: string;
-}
+// Inlined from ./prompts/_microdata-syntax.md
+// (Deno Deploy does not bundle .md files at runtime; source of truth is the .md file)
+const MICRODATA_SYNTAX = `\
+<!-- KOPI: microdata-syntaks-reglene her er en kopi av kjernen i
+microdata-api/server_code/prompts.py (GRAMMAR_CHEATSHEET, PRIVACY_RULES,
+PSEUDONYM_RULES, TYPE_RULES m.fl.). Hold synkront. -->
 
-function renderContextSection(ctx: ScriptContext): string {
-  if (!ctx.hasAny) return "(Ingen personvern-kommentarer funnet i scriptet.)";
-  const out: string[] = ["TIDLIGERE ERKLÆRT KONTEKST"];
+MICRODATA.NO-SYNTAKS — REGLER FOR REVIDERT SCRIPT
+
+Hvis du foreslår endringer i microdata-DSL-del av scriptet, må endringene
+være gyldig prod-syntaks:
+
+GENERELLE REGLER
+- \`import all from <register>\` eller \`import variables (V1, V2) from <register>\`
+- \`keep if <expr>\` / \`drop if <expr>\` — populasjons-filter
+- \`generate <var> = <expr>\` — ny variabel
+- \`replace <var> = <expr> if <cond>\` — endre verdi
+- \`summarize <var> [if <cond>]\` — beskrivende statistikk
+- \`tabulate <var> [<var2>]\` — frekvenstabell
+- \`collapse (mean|sum|sd|count|median|min|max|p25|p75) <var>, by(<key>)\` — aggregering
+- \`merge <var-list> into <dataset> [on <key>]\` — kobling
+
+STRICT EMULATION (avvist i prod)
+- \`collapse (first|last)\` er IKKE støttet
+- Multi-key \`by(k1 k2)\` eller \`on(k1 k2)\` er IKKE støttet — bruk composite key
+- For-løkke-ellipsis (\`for y in 1998, ..., 2009\`) er IKKE støttet — bruk range \`1998:2009\`
+- Parens rundt iterator-listen er IKKE støttet
+- \`for y in 1998 : 2009\` (range) eller \`for y in 1998, 1999, 2000\` (komma) er OK
+
+PSEUDONYM-REGLER
+- Variabler med _FNR-suffiks (eller markert is_pseudonym i metadata) er
+  pseudonymer.
+- Pseudonymer kan KUN brukes som nøkkel i \`collapse(by)\` eller \`merge(on)\`.
+- Aldri i \`generate\`, \`replace\`, sammenligninger, \`string()\`, \`sysmiss()\`.
+
+TYPE-REGLER
+- Alfanumeriske (string) variabler kan IKKE brukes i numeriske operasjoner:
+  \`mean\`, \`sum\`, \`min\`, \`max\`, \`sd\`, \`median\`, persentiler — verken i
+  \`collapse\` eller \`summarize\`.
+- Bruk \`tabulate\` eller \`count\` for strenger.
+
+MISSING VALUES
+- \`generate x = .\` (tildeling til missing) er OK.
+- \`if x == .\` (sammenligning) er IKKE støttet — bruk \`if sysmiss(x)\`.
+
+REGISTERVARIABLER
+- Bruk eksisterende variabelnavn fra registrene — ikke oppfinn nye.
+- For grovere geografi: BEFOLKNING_KOMMUNENR (finest) → BEFOLKNING_FYLKE → BEFOLKNING_LANDSDEL.
+- For fødselsdato: BEFOLKNING_FOEDEAAR (år) → BEFOLKNING_FOEDSELS_AAR_MND (år+mnd) → BEFOLKNING_FOEDEDATO (full).`;
+
+const DETAIL_LEVEL_KORT = `\
+RAPPORT-FORMAT: KORT
+
+- Maks 3–5 observasjoner, sorter etter sikkerhet (høy først).
+- Samlet vurdering: 1–2 setninger.
+- Ingen "Spørsmål til forsker"-seksjon. Hvis kontekst mangler, nevn det i
+  selve vurderingen.
+- Sensitive variabler: alltid med, selv om det betyr én ekstra observasjon.`;
+
+const DETAIL_LEVEL_LANG = `\
+RAPPORT-FORMAT: LANG
+
+- Gå gjennom alle relevante vurderingsdimensjoner.
+- Samlet vurdering: 2–4 setninger med lovreferanser.
+- Inkluder "Spørsmål til forsker"-seksjon hvis kontekst mangler (maks 3 spørsmål).
+- Sensitive variabler: alltid med en egen seksjon hvis funnet.`;
+
+const REVISION_INSTRUCTION_GENERIC = `\
+
+## Revidert script
+
+Avslutt svaret med en "## Revidert script"-seksjon. Foreslå konservative
+endringer der du er rimelig sikker:
+
+- Bare endringer med høy eller medium sikkerhet
+- Bevar analytisk intensjon — endre granularitet, ikke struktur
+- Sett en "// personvern: <forklaring>"-kommentar (eller "# personvern: ..."
+  for Python/R) rett over hver endret linje
+- Hvis scriptet ser godt minimert ut, skriv kort: "Ingen endringer foreslås."
+
+Returner reviderte kode i en \`\`\`<språk>-blokk.`;
+
+const REVISION_INSTRUCTION_MICRODATA = MICRODATA_SYNTAX + "\n\n" + REVISION_INSTRUCTION_GENERIC;
+
+// ====================================================================
+// HELPER FUNCTIONS
+// ====================================================================
+
+function renderContextSection(ctx: ScriptContext, userText: string): string {
+  const parts: string[] = ["TIDLIGERE ERKLÆRT KONTEKST"];
+  if (userText && userText.trim()) {
+    parts.push("", "Bruker-spesifisert formål og bakgrunn:", userText.trim());
+  }
   if (Object.keys(ctx.structured).length > 0) {
-    out.push("", "Strukturert (fra personvern-blokk eller `personvern:<felt>:`-linjer):");
+    parts.push("", "Strukturert (fra personvern-blokk):");
     for (const [field, value] of Object.entries(ctx.structured)) {
-      out.push(`- ${field}: ${value}`);
+      parts.push(`- ${field}: ${value}`);
     }
   }
   if (ctx.freetext.length > 0) {
-    out.push("", "Fritekst (fra `personvern:`-linjer):");
+    parts.push("", "Fritekst (fra personvern:-linjer):");
     for (const f of ctx.freetext) {
-      out.push(`- (linje ${f.line}) ${f.text}`);
+      parts.push(`- (linje ${f.line}) ${f.text}`);
     }
   }
-  return out.join("\n");
+  if (parts.length === 1) {
+    return "(Ingen kontekst spesifisert. Vurder ut fra scriptet alene.)";
+  }
+  return parts.join("\n");
 }
+
+function languageInstruction(requested: string, detected: Language): string {
+  if (requested === "auto") {
+    return `Detektert språk: ${detected}. Vurder kode i dette språket.`;
+  }
+  if (requested === "microdata") return "Forskeren har eksplisitt angitt: microdata.no-DSL.";
+  if (requested === "python") return "Forskeren har eksplisitt angitt: Python.";
+  if (requested === "r") return "Forskeren har eksplisitt angitt: R.";
+  return `Detektert språk: ${detected}.`;
+}
+
+// ====================================================================
+// EDGE FUNCTION HANDLER
+// ====================================================================
 
 export default async (request: Request): Promise<Response> => {
   const expectedToken = Deno.env.get("M2PY_ACCESS_TOKEN");
@@ -196,18 +338,37 @@ export default async (request: Request): Promise<Response> => {
     return new Response("Server configuration error", { status: 500 });
   }
 
-  const ctx = parsePersonvernComments(body.script);
-  const language = detectLanguage(body.script);
-  const contextSection = renderContextSection(ctx);
+  // Detect language and parse script directives
+  const detected = detectLanguage(body.script);
+  const directives = parsePersonvernDirectives(body.script);
 
-  const prompt = dmQuickTemplate
-    .replaceAll("{{SHARED_PRINCIPLES}}", () => sharedPrinciples)
+  // Request body takes priority; directive supplements when request field absent
+  const wantRevisedScript = body.ønsker_revidert_script ?? directives.revider_script ?? false;
+  const requestedLanguage = body.språk ?? "auto";
+  const effectiveLanguage = requestedLanguage === "auto" ? detected : requestedLanguage;
+  const detailLevel = body.detaljnivå === "lang" ? DETAIL_LEVEL_LANG : DETAIL_LEVEL_KORT;
+
+  // Inject microdata syntax cheatsheet only when needed
+  const includeMicrodataSyntax =
+    wantRevisedScript && (effectiveLanguage === "microdata" || effectiveLanguage === "mixed");
+  const revisionBlock = wantRevisedScript
+    ? (includeMicrodataSyntax ? REVISION_INSTRUCTION_MICRODATA : REVISION_INSTRUCTION_GENERIC)
+    : "";
+
+  const ctx = parsePersonvernComments(body.script);
+  const contextSection = renderContextSection(ctx, body.kontekst ?? "");
+
+  const prompt = DM_VURDER_TEMPLATE
+    .replaceAll("{{SHARED_PRINCIPLES}}", () => SHARED_PRINCIPLES)
     .replaceAll("{{CONTEXT_SECTION}}", () => contextSection)
-    .replaceAll("{{LANGUAGE}}", () => language)
+    .replaceAll("{{LANGUAGE}}", () => languageInstruction(requestedLanguage, detected))
+    .replaceAll("{{DETAIL_LEVEL}}", () => detailLevel)
+    .replaceAll("{{REVISION_BLOCK}}", () => revisionBlock)
     .replaceAll("{{SCRIPT}}", () => body.script);
 
   try {
-    const stream = await streamAnthropic({ apiKey, model, prompt, maxTokens: 2000 });
+    const maxTokens = wantRevisedScript ? 3500 : 2000;
+    const stream = await streamAnthropic({ apiKey, model, prompt, maxTokens });
     return new Response(stream, {
       headers: {
         "Content-Type": "text/event-stream",
