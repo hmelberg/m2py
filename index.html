@@ -417,6 +417,25 @@
     /* Total-rad og -kolonne */
     .output-area table.output-table tr.total-row th,
     .output-area table.output-table tr.total-row td { font-weight: 700; border-top: 2px solid var(--text-muted); }
+    /* R-mode: kode-echo per top-level statement (vises rett over output) */
+    .output-area pre.m2py-stmt-code {
+      background: var(--bg-code);
+      border-left: 3px solid var(--accent);
+      padding: 4px 10px 4px 12px;
+      margin: 10px 0 2px;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .output-area pre.m2py-stmt-code:first-child { margin-top: 2px; }
+    /* R-mode: plot-bilder skal ikke dominere vertikalt */
+    .output-area img.m2py-plot {
+      max-width: 100%;
+      max-height: 60vh;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      margin: 8px 0;
+    }
     .output-area table.output-table .total-col,
     .output-area table.output-table .total-col-header { font-weight: 700; border-left: 2px solid var(--text-muted); }
     /* Rotert rad-variabelnavn fjernet — for fragilt med absolute positioning */
@@ -1420,7 +1439,7 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-24d';
+    window.M2PY_VERSION = '2026-05-25a';
 
     // One-time migration: remove obsolete localStorage keys from previous milestones
     // Safe to delete this snippet after a few months when most users have re-loaded
@@ -6377,6 +6396,11 @@ json.dumps(out)
           var d = document.createElement('div');
           d.innerHTML = p.text;
           outputArea.appendChild(d);
+        } else if (p.type === 'code') {
+          var pre = document.createElement('pre');
+          pre.className = 'm2py-stmt-code';
+          pre.textContent = p.text;
+          outputArea.appendChild(pre);
         } else if (p.type === 'error') {
           var pre = document.createElement('pre');
           pre.className = 'error';
@@ -6390,9 +6414,7 @@ json.dumps(out)
             canvas.getContext('2d').drawImage(p.bitmap, 0, 0);
             var img = document.createElement('img');
             img.src = canvas.toDataURL('image/png');
-            img.style.maxWidth = '100%';
-            img.style.display = 'block';
-            img.style.margin = '8px 0';
+            img.className = 'm2py-plot';
             outputArea.appendChild(img);
           } catch(e) {
             var pre = document.createElement('pre');
@@ -6503,23 +6525,73 @@ json.dumps(out)
         }
       }
 
-      // ── Phase 2: run R segments via captureR — text + plots ──────────────
+      // ── Phase 2: run R segments via captureR — interleaved code/output/plot
+      // For hver R-blokk: splitt i top-level statements via R-parser, kjor hver
+      // for seg, og rendrer kode-echo → resultat (HTML-tabell for data.frames,
+      // ellers tekst via print()) → eventuelle plot. Slik ser brukeren koden
+      // rett over outputen den produserer.
+      var HTML_MARK_BEGIN = 'M2PY_HTML';
+      var HTML_MARK_END   = '/M2PY_HTML';
       for (var ri = 0; ri < rSegs.length; ri++) {
+        var segText = rSegs[ri].text.trim();
+        if (!segText) continue;
+        var statements = null;
         try {
-          outputParts.push({ type: 'text', text: '\n' + rSegs[ri].text.trim() + '\n' });
-          var captured = await webRShelter.captureR(rSegs[ri].text.trim(), { withAutoprint: true });
-          var lines = (captured.output || [])
-            .filter(function(o) { return o.type === 'stdout'; })
-            .map(function(o) { return String(o.data); })
-            .join('');
-          if (lines.trim()) outputParts.push({ type: 'text', text: lines });
-          if (captured.images && captured.images.length) {
-            captured.images.forEach(function(bitmap) {
-              outputParts.push({ type: 'image', bitmap: bitmap });
-            });
+          var splitRes = await webR.evalR(
+            '.m2py_split_statements(' + JSON.stringify(segText) + ')'
+          );
+          var splitJs = await splitRes.toJs();
+          if (splitJs && Array.isArray(splitJs.values)) {
+            statements = splitJs.values.map(String).filter(function(s) { return s.trim().length > 0; });
           }
-        } catch(e) {
-          outputParts.push({ type: 'error', text: 'R-feil: ' + (e.message || e) });
+        } catch(splitErr) {
+          console.warn('R statement split failed:', splitErr);
+        }
+        if (!statements || statements.length === 0) statements = [segText];
+
+        for (var si = 0; si < statements.length; si++) {
+          var stmt = statements[si];
+          try {
+            outputParts.push({ type: 'code', text: stmt });
+            var captured = await webRShelter.captureR(
+              '.m2py_print_one(' + JSON.stringify(stmt) + ')',
+              { withAutoprint: false, captureGraphics: { width: 720, height: 480 } }
+            );
+            var stdout = (captured.output || [])
+              .filter(function(o) { return o.type === 'stdout'; })
+              .map(function(o) { return String(o.data); })
+              .join('');
+            var stderr = (captured.output || [])
+              .filter(function(o) { return o.type === 'stderr'; })
+              .map(function(o) { return String(o.data); })
+              .join('');
+            // Plukk ut evt HTML-tabell mellom kontrolltegn-markorer
+            var bIdx = stdout.indexOf(HTML_MARK_BEGIN);
+            if (bIdx !== -1) {
+              var eIdx = stdout.indexOf(HTML_MARK_END, bIdx + HTML_MARK_BEGIN.length);
+              if (eIdx !== -1) {
+                var htmlPart = stdout.substring(bIdx + HTML_MARK_BEGIN.length, eIdx);
+                var textOut = (stdout.substring(0, bIdx) + stdout.substring(eIdx + HTML_MARK_END.length))
+                  .replace(/\n+$/, '');
+                if (textOut.trim()) outputParts.push({ type: 'text', text: textOut });
+                outputParts.push({ type: 'html', text: htmlPart });
+              } else if (stdout.trim()) {
+                outputParts.push({ type: 'text', text: stdout });
+              }
+            } else if (stdout.trim()) {
+              outputParts.push({ type: 'text', text: stdout });
+            }
+            if (stderr.trim()) {
+              outputParts.push({ type: 'text', text: stderr });
+            }
+            if (captured.images && captured.images.length) {
+              captured.images.forEach(function(bitmap) {
+                outputParts.push({ type: 'image', bitmap: bitmap });
+              });
+            }
+          } catch(e) {
+            outputParts.push({ type: 'error', text: 'R-feil: ' + (e.message || e) });
+          }
         }
       }
 
@@ -6797,7 +6869,6 @@ has and "int" in (m.get_microdata_functions() or {})
         // Install arrow + base64enc for typed dataframe transfer from Pyodide
         setStatus(leftStatus, 'Installerer arrow, base64enc\u2026');
         await webR.installPackages(['base64enc'], { quiet: true });
-        webRReady = true;
         // Create a persistent Shelter for captureR (text + plot capture)
         webRShelter = await new webR.Shelter();
         // Override library() to auto-install missing packages at runtime
@@ -6811,6 +6882,96 @@ library <- function(pkg, ...) {
   base::library(pkg_name, character.only = TRUE, ...)
 }
 `);
+        // m2py R-runtime helpers: pretty data.frame som HTML-tabell,
+        // og statement-runner som velger HTML vs print() basert pa resultattype.
+        // HTML emiteres mellom kontrolltegn-markorer som JS plukker ut.
+        await webR.evalRVoid(`
+.m2py_df_to_html <- function(df, max_rows = 100) {
+  if (nrow(df) > max_rows) {
+    df_show <- head(df, max_rows)
+    truncated <- nrow(df) - max_rows
+  } else {
+    df_show <- df
+    truncated <- 0
+  }
+  esc <- function(s) {
+    s <- as.character(s)
+    s <- gsub("&", "&amp;", s, fixed = TRUE)
+    s <- gsub("<", "&lt;", s, fixed = TRUE)
+    s <- gsub(">", "&gt;", s, fixed = TRUE)
+    gsub("\\n", "<br>", s, fixed = TRUE)
+  }
+  fmt <- function(x) {
+    if (is.factor(x)) return(as.character(x))
+    if (is.numeric(x)) return(format(x, scientific = FALSE, big.mark = "", trim = TRUE))
+    if (is.logical(x)) return(as.character(x))
+    as.character(x)
+  }
+  cols <- colnames(df_show)
+  rn <- rownames(df_show)
+  default_rn <- identical(rn, as.character(seq_len(nrow(df_show))))
+  th_first <- if (default_rn) "" else "<th></th>"
+  thead <- paste0(
+    "<thead><tr>", th_first,
+    paste0("<th>", esc(cols), "</th>", collapse = ""),
+    "</tr></thead>"
+  )
+  if (nrow(df_show) == 0) {
+    body_rows <- ""
+  } else {
+    body_rows <- vapply(seq_len(nrow(df_show)), function(i) {
+      cells <- vapply(seq_along(cols), function(j) {
+        v <- df_show[[j]][i]
+        paste0("<td>", esc(fmt(v)), "</td>")
+      }, character(1))
+      rn_cell <- if (default_rn) "" else paste0("<th>", esc(rn[i]), "</th>")
+      paste0("<tr>", rn_cell, paste0(cells, collapse = ""), "</tr>")
+    }, character(1))
+  }
+  tbody <- paste0("<tbody>", paste0(body_rows, collapse = ""), "</tbody>")
+  footer <- if (truncated > 0) {
+    paste0("<div style='color:var(--text-muted);font-style:italic;font-size:.85em;padding:4px 0'>... ",
+           truncated, " flere rader skjult</div>")
+  } else ""
+  paste0("<div class='output-table-wrap'><table class='output-table'>",
+         thead, tbody, "</table>", footer, "</div>")
+}
+
+.m2py_print_one <- function(stmt_text) {
+  e <- parse(text = stmt_text)
+  if (length(e) == 0) return(invisible(NULL))
+  result <- NULL
+  visible <- FALSE
+  for (i in seq_along(e)) {
+    w <- withVisible(eval(e[[i]], envir = .GlobalEnv))
+    result <- w$value
+    visible <- w$visible
+  }
+  if (visible) {
+    if (is.data.frame(result)) {
+      cat("\\001M2PY_HTML\\001", .m2py_df_to_html(result), "\\001/M2PY_HTML\\001", sep = "")
+    } else {
+      print(result)
+    }
+  }
+  invisible(NULL)
+}
+
+.m2py_split_statements <- function(src) {
+  e <- tryCatch(parse(text = src, keep.source = TRUE),
+                error = function(err) NULL)
+  if (is.null(e) || length(e) == 0) return(character(0))
+  refs <- attr(e, "srcref")
+  if (is.null(refs)) {
+    vapply(seq_along(e), function(i) paste(deparse(e[[i]]), collapse = "\\n"),
+           character(1))
+  } else {
+    vapply(refs, function(s) paste(as.character(s), collapse = "\\n"),
+           character(1))
+  }
+}
+`);
+        webRReady = true;
         setRunButtonsUi('idle');
         setStatus(leftStatus, 'Klar (R).');
       } catch(e) {
