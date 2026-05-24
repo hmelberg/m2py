@@ -914,6 +914,7 @@
         -->
         <button type="button" id="menuClearOutput">Tøm output</button>
         <button type="button" id="menuSettings">Innstillinger&#8230;</button>
+        <button type="button" id="btnLoginWithCode">Logg inn med kode</button>
         <hr style="margin:4px 0;border-color:#334155;">
         <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Personvern</div>
         <button type="button" id="btnDmQuick">Vurder dataminimering</button>
@@ -1094,6 +1095,9 @@
         <div class="ai-modal-actions">
           <button type="button" class="ai-modal-btn" id="loginCancel">Avbryt</button>
           <button type="button" class="ai-modal-btn primary" id="loginSubmit">Send påloggings-lenke</button>
+        </div>
+        <div style="text-align: center; margin-top: 8px;">
+          <a href="#" id="loginSwitchToCode" style="font-size: 12px; color: var(--text-muted); text-decoration: underline;">Har du allerede en kode? Lim den inn her</a>
         </div>
       </div>
       <div id="loginStep2" style="display:none;">
@@ -1416,7 +1420,7 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-24c';
+    window.M2PY_VERSION = '2026-05-24d';
 
     // One-time migration: remove obsolete localStorage keys from previous milestones
     // Safe to delete this snippet after a few months when most users have re-loaded
@@ -2446,6 +2450,12 @@
           adminSec.style.display = (window.mdAuth && window.mdAuth.user && window.mdAuth.user.is_admin) ? '' : 'none';
         }
       }
+      function updateLoginMenuVisibility() {
+        const btn = document.getElementById('btnLoginWithCode');
+        if (btn) {
+          btn.style.display = (window.mdAuth && window.mdAuth.isLoggedIn) ? 'none' : '';
+        }
+      }
 
       hamburgerBtn.addEventListener('click', function(e) {
         e.stopPropagation();
@@ -2454,6 +2464,7 @@
         exportDropdown.classList.remove('open');
         if (examplesDropdown) examplesDropdown.classList.remove('open');
         updateAdminMenuVisibility();
+        updateLoginMenuVisibility();
       });
       document.addEventListener('click', function() {
         dropdown.classList.remove('open');
@@ -2891,6 +2902,16 @@
       }
       showDmOptions();
     });
+
+    const btnLoginWithCode = document.getElementById('btnLoginWithCode');
+    if (btnLoginWithCode) {
+      btnLoginWithCode.addEventListener('click', () => {
+        document.getElementById('hamburgerDropdown').classList.remove('open');
+        if (window.mdAuth && window.mdAuth.showLoginCodeStep) {
+          window.mdAuth.showLoginCodeStep();
+        }
+      });
+    }
 
     const btnAdminSharedCode = document.getElementById('btnAdminSharedCode');
     if (btnAdminSharedCode) {
@@ -7495,6 +7516,12 @@ def _run_microdata_chunk(_code):
         dom.loginBackdrop.classList.add('open');
         setTimeout(() => dom.loginEmail && dom.loginEmail.focus(), 60);
       }
+      function showLoginCodeStep() {
+        showLogin();
+        setStep(2);
+        if (dom.loginSentEmail) dom.loginSentEmail.textContent = '(ingen epost — bruker delt kode)';
+        setTimeout(() => dom.loginCode && dom.loginCode.focus(), 60);
+      }
       function hideLogin() { dom.loginBackdrop && dom.loginBackdrop.classList.remove('open'); }
 
       async function requestMagicLink(email) {
@@ -7655,6 +7682,16 @@ def _run_microdata_chunk(_code):
           if (e.target === dom.loginBackdrop) hideLogin();
         });
 
+        const switchLink = document.getElementById('loginSwitchToCode');
+        if (switchLink) {
+          switchLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            setStep(2);
+            if (dom.loginSentEmail) dom.loginSentEmail.textContent = '(ingen epost — bruker delt kode)';
+            setTimeout(() => dom.loginCode && dom.loginCode.focus(), 60);
+          });
+        }
+
         // On load: handle ?login=, then refresh /auth/me if we have a token
         handleLoginParam().then((handled) => {
           if (state.token) refreshMe();
@@ -7667,6 +7704,7 @@ def _run_microdata_chunk(_code):
         get user() { return state.user; },
         get isLoggedIn() { return !!state.token; },
         showLogin,
+        showLoginCodeStep,
         hideLogin,
         refreshMe,
         logout,
