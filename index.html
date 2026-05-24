@@ -1445,7 +1445,7 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-25d';
+    window.M2PY_VERSION = '2026-05-25e';
 
     // One-time migration: remove obsolete localStorage keys from previous milestones
     // Safe to delete this snippet after a few months when most users have re-loaded
@@ -6079,8 +6079,8 @@ def _apply_labels_to_globals(_g, _cat):
                     )
 def _exec_pyodide_block(code, g, show_commands=False):
     """REPL-style: alle Expr-setninger vises (tabell, Plotly, matplotlib PNG).
-    Hvis show_commands=True echoes hver top-level statement med `>>> ` /
-    `... ` foran, så bruker ser kommandoen rett over outputen den lager."""
+    Hvis show_commands=True echoes hver top-level statement med '>>> ' /
+    '... ' foran, sa bruker ser kommandoen rett over outputen den lager."""
     code = (code or "").strip()
     if not code:
         return
