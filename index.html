@@ -917,6 +917,11 @@
         <hr style="margin:4px 0;border-color:#334155;">
         <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Personvern</div>
         <button type="button" id="btnDmQuick">Vurder dataminimering</button>
+        <div id="adminMenuSection" style="display:none;">
+          <hr style="margin:4px 0;border-color:#334155;">
+          <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Admin</div>
+          <button type="button" id="btnAdminSharedCode">Generer tilgangskode</button>
+        </div>
       </div>
     </div>
     <input type="text" class="script-name" id="scriptName" placeholder="Script navn" value="Script navn">
@@ -1411,7 +1416,7 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-24b';
+    window.M2PY_VERSION = '2026-05-24c';
 
     // One-time migration: remove obsolete localStorage keys from previous milestones
     // Safe to delete this snippet after a few months when most users have re-loaded
@@ -1464,6 +1469,104 @@
       // Wire context button - will be implemented in M2-T6, stub for now
       document.getElementById('dmOptContextBtn').onclick = () => {
         showDmContextModal();
+      };
+    }
+
+    function showAdminSharedCode() {
+      const backdrop = document.getElementById('adminSharedCodeBackdrop');
+      const form = document.getElementById('adminSharedCodeForm');
+      const result = document.getElementById('adminSharedCodeResult');
+      const labelInput = document.getElementById('adminCodeLabel');
+      const expiresSelect = document.getElementById('adminCodeExpires');
+      const maxUsesInput = document.getElementById('adminCodeMaxUsesInput');
+      const errorDiv = document.getElementById('adminCodeError');
+
+      // Reset state
+      form.style.display = '';
+      result.style.display = 'none';
+      labelInput.value = '';
+      expiresSelect.value = '3';
+      document.querySelector('input[name="adminCodeMaxUses"][value="unlimited"]').checked = true;
+      maxUsesInput.disabled = true;
+      errorDiv.textContent = '';
+
+      backdrop.style.display = 'flex';
+      setTimeout(() => labelInput.focus(), 60);
+
+      // Enable/disable max-uses input based on radio
+      document.querySelectorAll('input[name="adminCodeMaxUses"]').forEach(r => {
+        r.onchange = () => {
+          maxUsesInput.disabled = (document.querySelector('input[name="adminCodeMaxUses"]:checked').value !== 'limited');
+        };
+      });
+
+      document.getElementById('adminCodeCancel').onclick = () => { backdrop.style.display = 'none'; };
+      document.getElementById('adminCodeClose').onclick = () => { backdrop.style.display = 'none'; };
+      document.getElementById('adminCodeNew').onclick = () => { showAdminSharedCode(); };
+
+      document.getElementById('adminCodeSubmit').onclick = async () => {
+        const label = labelInput.value.trim();
+        if (!label) {
+          errorDiv.textContent = 'Skriv inn en etikett.';
+          return;
+        }
+        const expires_days = parseInt(expiresSelect.value, 10);
+        const maxUsesType = document.querySelector('input[name="adminCodeMaxUses"]:checked').value;
+        let max_uses = null;
+        if (maxUsesType === 'limited') {
+          max_uses = parseInt(maxUsesInput.value, 10);
+          if (!max_uses || max_uses < 1) {
+            errorDiv.textContent = 'Maks bruk må være minst 1.';
+            return;
+          }
+        }
+
+        errorDiv.textContent = '';
+        const submitBtn = document.getElementById('adminCodeSubmit');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Genererer…';
+
+        try {
+          const token = window.mdAuth && window.mdAuth.token;
+          if (!token) {
+            errorDiv.textContent = 'Du må være logget inn.';
+            return;
+          }
+          const apiBase = (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app').replace(/\/+$/, '');
+          const res = await fetch(apiBase + '/_/api/admin/shared-codes/issue', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ label, expires_days, max_uses }),
+          });
+          const data = await res.json();
+          if (!res.ok || data.error) {
+            errorDiv.textContent = data.error || `Feil: ${res.status}`;
+            return;
+          }
+          // Show result
+          document.getElementById('adminCodeResultCode').textContent = data.code;
+          document.getElementById('adminCodeResultExpires').textContent = new Date(data.expires_at).toLocaleString('nb-NO');
+          document.getElementById('adminCodeResultMaxUses').textContent = data.max_uses ? String(data.max_uses) : 'ubegrenset';
+          form.style.display = 'none';
+          result.style.display = '';
+
+          document.getElementById('adminCodeCopy').onclick = async () => {
+            try {
+              await navigator.clipboard.writeText(data.code);
+              const btn = document.getElementById('adminCodeCopy');
+              btn.textContent = 'Kopiert!';
+              setTimeout(() => btn.textContent = 'Kopier', 1500);
+            } catch (_) { /* ignore */ }
+          };
+        } catch (e) {
+          errorDiv.textContent = 'Nettverksfeil: ' + (e.message || e);
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Generer';
+        }
       };
     }
 
@@ -2337,12 +2440,20 @@
       const plotSeaborn = document.getElementById('plotSeaborn');
 
       const examplesDropdown = document.getElementById('examplesDropdown');
+      function updateAdminMenuVisibility() {
+        const adminSec = document.getElementById('adminMenuSection');
+        if (adminSec) {
+          adminSec.style.display = (window.mdAuth && window.mdAuth.user && window.mdAuth.user.is_admin) ? '' : 'none';
+        }
+      }
+
       hamburgerBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         dropdown.classList.toggle('open');
         themeDropdown.classList.remove('open');
         exportDropdown.classList.remove('open');
         if (examplesDropdown) examplesDropdown.classList.remove('open');
+        updateAdminMenuVisibility();
       });
       document.addEventListener('click', function() {
         dropdown.classList.remove('open');
@@ -2780,6 +2891,14 @@
       }
       showDmOptions();
     });
+
+    const btnAdminSharedCode = document.getElementById('btnAdminSharedCode');
+    if (btnAdminSharedCode) {
+      btnAdminSharedCode.addEventListener('click', () => {
+        document.getElementById('hamburgerDropdown').classList.remove('open');
+        showAdminSharedCode();
+      });
+    }
 
     document.getElementById('helpBtn').addEventListener('click', function() {
       const overlay = document.getElementById('helpModalOverlay');
@@ -8087,6 +8206,11 @@ def _run_microdata_chunk(_code):
           dom.aiCfgLoggedIn.style.display = 'none';
           dom.aiCfgLoggedOut.style.display = '';
         }
+        // Keep admin hamburger menu section in sync
+        const adminSec = document.getElementById('adminMenuSection');
+        if (adminSec) {
+          adminSec.style.display = (user && user.is_admin) ? '' : 'none';
+        }
       }
 
       function openSettings() {
@@ -8283,6 +8407,74 @@ def _run_microdata_chunk(_code):
       <div class="ai-modal-actions" style="margin-top: 16px;">
         <button type="button" id="dmContextCancel" class="ai-modal-btn">Avbryt</button>
         <button type="button" id="dmContextSubmit" class="ai-modal-btn primary">Bruk</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminSharedCodeBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 520px;">
+      <h3 style="font-size: 1.25em;">Generer tilgangskode</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+        Lager en delt kode som hvem som helst kan lime inn for å logge inn anonymt.
+        Bruk for workshop, demo eller midlertidig tilgang.
+      </p>
+
+      <!-- Form (shown initially) -->
+      <div id="adminSharedCodeForm">
+        <div style="margin: 12px 0;">
+          <label for="adminCodeLabel">Etikett (intern, kun for deg)</label>
+          <input type="text" id="adminCodeLabel" placeholder="workshop-2026-06-15" maxlength="100" style="width: 100%; padding: 6px;">
+        </div>
+
+        <div style="margin: 12px 0;">
+          <label for="adminCodeExpires">Utløper om</label>
+          <select id="adminCodeExpires" style="padding: 6px;">
+            <option value="1">1 dag</option>
+            <option value="3" selected>3 dager</option>
+            <option value="7">1 uke</option>
+            <option value="30">30 dager</option>
+            <option value="90">90 dager</option>
+          </select>
+        </div>
+
+        <div style="margin: 12px 0;">
+          <div>Maks antall bruk</div>
+          <label style="display: block; margin: 4px 0;">
+            <input type="radio" name="adminCodeMaxUses" value="unlimited" checked> Ubegrenset
+          </label>
+          <label style="display: block;">
+            <input type="radio" name="adminCodeMaxUses" value="limited">
+            <input type="number" id="adminCodeMaxUsesInput" min="1" max="10000" value="25" style="width: 80px; padding: 4px;" disabled> bruk
+          </label>
+        </div>
+
+        <div id="adminCodeError" style="color: var(--accent-danger, #d00); font-size: 12px; min-height: 1.2em;"></div>
+
+        <div class="ai-modal-actions" style="margin-top: 16px;">
+          <button type="button" id="adminCodeCancel" class="ai-modal-btn">Avbryt</button>
+          <button type="button" id="adminCodeSubmit" class="ai-modal-btn primary">Generer</button>
+        </div>
+      </div>
+
+      <!-- Result (shown after success) -->
+      <div id="adminSharedCodeResult" style="display:none;">
+        <p style="margin: 12px 0 4px 0;">&#10003; Kode generert:</p>
+        <div style="background: var(--bg); padding: 12px; border-radius: 4px; margin: 8px 0;">
+          <code id="adminCodeResultCode" style="font-size: 18px; font-family: ui-monospace, monospace;"></code>
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0;">
+          Utløper: <span id="adminCodeResultExpires"></span><br>
+          Maks bruk: <span id="adminCodeResultMaxUses"></span>
+        </p>
+        <p style="font-size: 13px; margin: 12px 0;">
+          Gi koden til brukere via Slack, mail, eller på papir.
+          De limer den inn i login-modalen som om de fikk den på mail.
+        </p>
+        <div class="ai-modal-actions" style="margin-top: 16px;">
+          <button type="button" id="adminCodeCopy" class="ai-modal-btn">Kopier</button>
+          <button type="button" id="adminCodeNew" class="ai-modal-btn">Generer ny</button>
+          <button type="button" id="adminCodeClose" class="ai-modal-btn primary">Lukk</button>
+        </div>
       </div>
     </div>
   </div>

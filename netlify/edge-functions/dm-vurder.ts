@@ -319,7 +319,7 @@ export default async (request: Request): Promise<Response> => {
         // /auth/me returns { principal_kind: "user", user: { email, ... } }
         // or { user: null, principal_kind: "service_token", ... } for legacy
         // Accept any successful response — Anvil's whitelist gates who can log in
-        if (data && (data.user || data.principal_kind === "service_token")) {
+        if (data && (data.user || data.principal_kind === "service_token" || data.principal_kind === "anonymous")) {
           authenticated = true;
         }
       }
