@@ -1445,7 +1445,7 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-25b';
+    window.M2PY_VERSION = '2026-05-25c';
 
     // One-time migration: remove obsolete localStorage keys from previous milestones
     // Safe to delete this snippet after a few months when most users have re-loaded
@@ -6562,14 +6562,17 @@ json.dumps(out)
               withAutoprint: true,
               captureGraphics: { width: 720, height: 480 }
             });
+            // WebR sin captureR splitter output pa \n og fjerner \n fra hver
+            // line-entry (se outputconnection.c i webR). Vi ma derfor joine
+            // med '\n' for at print.data.frame etc. ikke kollapser til en linje.
             var stdout = (captured.output || [])
               .filter(function(o) { return o.type === 'stdout'; })
               .map(function(o) { return String(o.data); })
-              .join('');
+              .join('\n');
             var stderr = (captured.output || [])
               .filter(function(o) { return o.type === 'stderr'; })
               .map(function(o) { return String(o.data); })
-              .join('');
+              .join('\n');
             if (stdout.length) {
               outputParts.push({ type: 'text', text: stdout, className: 'm2py-stmt-output' });
             }
@@ -7347,9 +7350,11 @@ for _seg in _segments:
             if (!webRShelter) webRShelter = await new webR.Shelter();
             const captured = await webRShelter.captureR(block.codeTrim, { withAutoprint: true });
             const outputParts = [];
+            // WebR strips trailing \n fra hver linje-entry; join med '\n'
+            // ellers kollapser flerlinje-output (print.data.frame etc.) til en linje.
             const lines = (captured.output || [])
-              .filter(o => o.type === 'stdout').map(o => String(o.data)).join('');
-            if (lines.trim()) outputParts.push({ type: 'text', text: lines });
+              .filter(o => o.type === 'stdout').map(o => String(o.data)).join('\n');
+            if (lines.trim()) outputParts.push({ type: 'text', text: lines, className: 'm2py-stmt-output' });
             (captured.images || []).forEach(bm => outputParts.push({ type: 'image', bitmap: bm }));
             renderROutputParts(outputParts);
             if (outputParts.length) await forklarRevealOutputAnim();
