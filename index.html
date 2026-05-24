@@ -1445,7 +1445,7 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-25c';
+    window.M2PY_VERSION = '2026-05-25d';
 
     // One-time migration: remove obsolete localStorage keys from previous milestones
     // Safe to delete this snippet after a few months when most users have re-loaded
@@ -5401,6 +5401,30 @@ json.dumps(out)
       return segments;
     }
 
+    /**
+     * Parser inline-direktiver av formen `#options.<navn>=<verdi>` eller
+     * `//options.<navn>=<verdi>` (siste hele kommentar-linje vinner).
+     * Returnerer et opts-objekt: {show_commands: bool, ...}. Brukes til a
+     * styre run-flyten (f.eks. om kode-echo skal vises i output).
+     */
+    function extractScriptOptions(src) {
+      var opts = {};
+      if (!src) return opts;
+      var re = /^\s*(?:#|\/\/)\s*options\.([a-zA-Z_][\w]*)\s*=\s*(\S+)\s*$/gm;
+      var m;
+      while ((m = re.exec(src)) !== null) {
+        var key = m[1];
+        var raw = m[2];
+        var val;
+        if (/^(true|True|TRUE|T)$/.test(raw)) val = true;
+        else if (/^(false|False|FALSE|F)$/.test(raw)) val = false;
+        else if (raw !== '' && !isNaN(Number(raw))) val = Number(raw);
+        else val = raw.replace(/^["']|["']$/g, '');
+        opts[key] = val;
+      }
+      return opts;
+    }
+
     /** Parser key=value,... inne i //( ... ) for SpeechSynthesis (lang, pitch, rate, volume, voice). */
     function parseSpeechKwargs(inner) {
       const out = {};
@@ -6053,19 +6077,36 @@ def _apply_labels_to_globals(_g, _cat):
                         _mapped.where(_mapped.notna(), _v[_col].astype(str)),
                         categories=_cats
                     )
-def _exec_pyodide_block(code, g):
-    """REPL-style: alle Expr-setninger vises (tabell, Plotly, matplotlib PNG)."""
+def _exec_pyodide_block(code, g, show_commands=False):
+    """REPL-style: alle Expr-setninger vises (tabell, Plotly, matplotlib PNG).
+    Hvis show_commands=True echoes hver top-level statement med `>>> ` /
+    `... ` foran, så bruker ser kommandoen rett over outputen den lager."""
     code = (code or "").strip()
     if not code:
         return
+    def _echo(src):
+        if not show_commands:
+            return
+        if not src or not src.strip():
+            return
+        _lines = src.split("\n")
+        print(">>> " + _lines[0])
+        for _ln in _lines[1:]:
+            print("... " + _ln)
     try:
         tree = ast.parse(code, mode="exec")
     except SyntaxError:
+        _echo(code)
         exec(compile(code, "<pyodide>", "exec"), g)
         return
     if not tree.body:
         return
     for stmt in tree.body:
+        try:
+            _src = ast.get_source_segment(code, stmt) or ""
+        except Exception:
+            _src = ""
+        _echo(_src)
         if isinstance(stmt, ast.Expr):
             _v = eval(compile(ast.Expression(stmt.value), "<pyodide>", "eval"), g)
             if _v is not None:
@@ -6436,7 +6477,9 @@ json.dumps(out)
       });
     }
 
-    async function runHybridR(src, py) {
+    async function runHybridR(src, py, runOpts) {
+      runOpts = runOpts || {};
+      var showCommands = runOpts.showCommands !== false; // default true
       if (!webRReady) {
         outputArea.innerHTML = '<pre class="error">WebR er ikke klar. Vent til R er lastet og pr\u00f8v igjen.</pre>';
         setRunButtonsUi('idle');
@@ -6557,7 +6600,7 @@ json.dumps(out)
         for (var si = 0; si < statements.length; si++) {
           var stmt = statements[si];
           try {
-            outputParts.push({ type: 'code', text: stmt });
+            if (showCommands) outputParts.push({ type: 'code', text: stmt });
             var captured = await webRShelter.captureR(stmt, {
               withAutoprint: true,
               captureGraphics: { width: 720, height: 480 }
@@ -6987,9 +7030,14 @@ options(width = 200)
         if (typeof py.setStderr === 'function') {
           py.setStderr({ batched: s => { stderr += s + '\n'; } });
         }
+        // ── Parse inline-direktiver fra scriptet (f.eks.
+        //    `#options.show_commands=False`). Brukes til a styre om
+        //    kode-echo skal vises i output for R og Python.
+        var _scriptOpts = extractScriptOptions(effectiveScript);
+        var _showCmds = _scriptOpts.show_commands !== false; // default true
         // ── R mode: run natively in WebR ──────────────────────────────────
         if (activeEditorMode === 'r') {
-          await runHybridR(effectiveScript, py);
+          await runHybridR(effectiveScript, py, { showCommands: _showCmds });
           return;
         }
         // ── End R mode ────────────────────────────────────────────────────
@@ -7053,8 +7101,7 @@ for _seg in _segments:
         _apply_labels_to_globals(_g, catalog)
         _g["show"] = show
         _g["to_microdata"] = to_microdata
-        print('\\n' + _st)
-        _exec_pyodide_block(_st, _g)
+        _exec_pyodide_block(_st, _g, ${_showCmds ? 'True' : 'False'})
         e.sync_datasets_to_globals(_g)
         _apply_labels_to_globals(_g, catalog)
         _g["show"] = show
