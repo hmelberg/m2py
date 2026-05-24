@@ -1085,7 +1085,7 @@
         </div>
         <label for="loginEmail">E-post</label>
         <input type="email" id="loginEmail" placeholder="navn@fhi.no" autocomplete="email">
-        <div class="ai-modal-help">Lenken utløper om 15 minutter og kan kun brukes én gang.</div>
+        <div class="ai-modal-help">Du får en kode på e-post som er gyldig i 30 dager.</div>
         <div class="ai-modal-actions">
           <button type="button" class="ai-modal-btn" id="loginCancel">Avbryt</button>
           <button type="button" class="ai-modal-btn primary" id="loginSubmit">Send påloggings-lenke</button>
@@ -1094,10 +1094,15 @@
       <div id="loginStep2" style="display:none;">
         <p style="margin-bottom:12px;">✓ Vi har sendt en e-post til <strong id="loginSentEmail"></strong>.</p>
         <div class="ai-modal-help" style="margin-bottom:14px;">
-          Klikk lenken i e-posten for å logge inn. Du kan lukke dette vinduet — du blir logget inn automatisk når du klikker.
+          Lim inn 3-ordskoden fra e-posten, eller klikk lenken for å logge inn direkte.
+          Koden er gyldig i 30 dager og kan brukes på flere maskiner.
         </div>
-        <div class="ai-modal-actions">
-          <button type="button" class="ai-modal-btn primary" id="loginDone">Lukk</button>
+        <label for="loginCode">Kode</label>
+        <input type="text" id="loginCode" placeholder="abacus-charity-twelve" autocomplete="off" spellcheck="false" style="font-family: monospace;">
+        <div id="loginCodeError" style="color: var(--accent-danger, #d00); font-size: 12px; min-height: 1.2em; margin-top: 4px;"></div>
+        <div class="ai-modal-actions" style="margin-top: 12px;">
+          <button type="button" class="ai-modal-btn" id="loginDone">Lukk</button>
+          <button type="button" class="ai-modal-btn primary" id="loginVerify">Logg inn</button>
         </div>
       </div>
       <div id="loginStep3" style="display:none;">
@@ -7354,7 +7359,7 @@ def _run_microdata_chunk(_code):
       const dom = {};
       function cacheDom() {
         ['loginBackdrop','loginStep1','loginStep2','loginStep3',
-         'loginEmail','loginSubmit','loginCancel','loginDone','loginSentEmail'
+         'loginEmail','loginSubmit','loginCancel','loginDone','loginSentEmail','loginCode','loginVerify','loginCodeError'
         ].forEach(id => { dom[id] = $(id); });
       }
 
@@ -7398,6 +7403,26 @@ def _run_microdata_chunk(_code):
           throw new Error(text || ('HTTP ' + res.status));
         }
         return res.json();
+      }
+
+      async function verifyPastedCode() {
+        const code = (dom.loginCode.value || '').trim();
+        if (!code) {
+          dom.loginCodeError.textContent = 'Skriv inn koden.';
+          return;
+        }
+        dom.loginCodeError.textContent = '';
+        dom.loginVerify.disabled = true;
+        try {
+          const data = await verifyCode(code);
+          persistLogin(data);
+          hideLogin();
+          if (typeof refreshUserPanel === 'function') refreshUserPanel();
+        } catch (e) {
+          dom.loginCodeError.textContent = e.message || 'Koden er ugyldig eller utløpt.';
+        } finally {
+          dom.loginVerify.disabled = false;
+        }
       }
 
       async function refreshMe() {
@@ -7487,6 +7512,7 @@ def _run_microdata_chunk(_code):
             await requestMagicLink(email);
             dom.loginSentEmail.textContent = email;
             setStep(2);
+            setTimeout(() => dom.loginCode && dom.loginCode.focus(), 100);
           } catch (e) {
             alert(e.message);
           } finally {
@@ -7499,6 +7525,13 @@ def _run_microdata_chunk(_code):
         });
         dom.loginCancel.addEventListener('click', hideLogin);
         dom.loginDone.addEventListener('click', hideLogin);
+        dom.loginVerify.addEventListener('click', verifyPastedCode);
+        dom.loginCode.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            verifyPastedCode();
+          }
+        });
         dom.loginBackdrop.addEventListener('click', (e) => {
           if (e.target === dom.loginBackdrop) hideLogin();
         });
