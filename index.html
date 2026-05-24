@@ -1445,7 +1445,7 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-25f';
+    window.M2PY_VERSION = '2026-05-25g';
 
     // One-time migration: remove obsolete localStorage keys from previous milestones
     // Safe to delete this snippet after a few months when most users have re-loaded
@@ -6084,11 +6084,15 @@ def _exec_pyodide_block(code, g, show_commands=False):
     code = (code or "").strip()
     if not code:
         return
+    _seen = [False]
     def _echo(src):
         if not show_commands:
             return
         if not src or not src.strip():
             return
+        if _seen[0]:
+            print()
+        _seen[0] = True
         _lines = src.split("\\n")
         print(">>> " + _lines[0])
         for _ln in _lines[1:]:
