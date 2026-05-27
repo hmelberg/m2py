@@ -417,6 +417,31 @@
     /* Total-rad og -kolonne */
     .output-area table.output-table tr.total-row th,
     .output-area table.output-table tr.total-row td { font-weight: 700; border-top: 2px solid var(--text-muted); }
+    /* R-mode: kode-echo per top-level statement (vises rett over output) */
+    .output-area pre.m2py-stmt-code {
+      background: var(--bg-code);
+      border-left: 3px solid var(--accent);
+      padding: 4px 10px 4px 12px;
+      margin: 10px 0 2px;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .output-area pre.m2py-stmt-code:first-child { margin-top: 2px; }
+    /* R-mode: tekst-output (det R ville skrevet til konsoll) — ikke soft-wrap,
+       så kolonner i print.data.frame / table / matrix forblir innrettet. */
+    .output-area pre.m2py-stmt-output {
+      white-space: pre;
+      /* overflow-x: auto arves fra .output-area pre */
+    }
+    /* R-mode: plot-bilder skal ikke dominere vertikalt */
+    .output-area img.m2py-plot {
+      max-width: 100%;
+      max-height: 60vh;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      margin: 8px 0;
+    }
     .output-area table.output-table .total-col,
     .output-area table.output-table .total-col-header { font-weight: 700; border-left: 2px solid var(--text-muted); }
     /* Rotert rad-variabelnavn fjernet — for fragilt med absolute positioning */
@@ -914,6 +939,15 @@
         -->
         <button type="button" id="menuClearOutput">Tøm output</button>
         <button type="button" id="menuSettings">Innstillinger&#8230;</button>
+        <button type="button" id="btnLoginWithCode">Logg inn med kode</button>
+        <hr style="margin:4px 0;border-color:#334155;">
+        <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Personvern</div>
+        <button type="button" id="btnDmQuick">Vurder dataminimering</button>
+        <div id="adminMenuSection" style="display:none;">
+          <hr style="margin:4px 0;border-color:#334155;">
+          <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Admin</div>
+          <button type="button" id="btnAdminSharedCode">Generer tilgangskode</button>
+        </div>
       </div>
     </div>
     <input type="text" class="script-name" id="scriptName" placeholder="Script navn" value="Script navn">
@@ -1082,19 +1116,27 @@
         </div>
         <label for="loginEmail">E-post</label>
         <input type="email" id="loginEmail" placeholder="navn@fhi.no" autocomplete="email">
-        <div class="ai-modal-help">Lenken utløper om 15 minutter og kan kun brukes én gang.</div>
+        <div class="ai-modal-help">Du får en kode på e-post som er gyldig i 30 dager.</div>
         <div class="ai-modal-actions">
           <button type="button" class="ai-modal-btn" id="loginCancel">Avbryt</button>
           <button type="button" class="ai-modal-btn primary" id="loginSubmit">Send påloggings-lenke</button>
+        </div>
+        <div style="text-align: center; margin-top: 8px;">
+          <a href="#" id="loginSwitchToCode" style="font-size: 12px; color: var(--text-muted); text-decoration: underline;">Har du allerede en kode? Lim den inn her</a>
         </div>
       </div>
       <div id="loginStep2" style="display:none;">
         <p style="margin-bottom:12px;">✓ Vi har sendt en e-post til <strong id="loginSentEmail"></strong>.</p>
         <div class="ai-modal-help" style="margin-bottom:14px;">
-          Klikk lenken i e-posten for å logge inn. Du kan lukke dette vinduet — du blir logget inn automatisk når du klikker.
+          Lim inn 3-ordskoden fra e-posten, eller klikk lenken for å logge inn direkte.
+          Koden er gyldig i 30 dager og kan brukes på flere maskiner.
         </div>
-        <div class="ai-modal-actions">
-          <button type="button" class="ai-modal-btn primary" id="loginDone">Lukk</button>
+        <label for="loginCode">Kode</label>
+        <input type="text" id="loginCode" placeholder="abacus-charity-twelve" autocomplete="off" spellcheck="false" style="font-family: monospace;">
+        <div id="loginCodeError" style="color: var(--accent-danger, #d00); font-size: 12px; min-height: 1.2em; margin-top: 4px;"></div>
+        <div class="ai-modal-actions" style="margin-top: 12px;">
+          <button type="button" class="ai-modal-btn" id="loginDone">Lukk</button>
+          <button type="button" class="ai-modal-btn primary" id="loginVerify">Logg inn</button>
         </div>
       </div>
       <div id="loginStep3" style="display:none;">
@@ -1403,7 +1445,527 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
-    window.M2PY_VERSION = '2026-05-20b';
+    window.M2PY_VERSION = '2026-05-25g';
+
+    // One-time migration: remove obsolete localStorage keys from previous milestones
+    // Safe to delete this snippet after a few months when most users have re-loaded
+    (function migrateDmStorage() {
+      try {
+        localStorage.removeItem('microdata_dm_token');
+        localStorage.removeItem('microdata_dm_consent');
+      } catch (_e) { /* ignore */ }
+    })();
+
+    // --- Dataminimering: hovedmodal-state ---
+    const dmOptionsState = {
+      språk: 'auto',
+      detaljnivå: 'kort',
+      ønsker_revidert_script: false,
+      kontekst: '',
+      lagre_kontekst_som_blokk: true,  // updated from sekundærmodal (M2-T6)
+    };
+
+    function showDmOptions() {
+      const backdrop = document.getElementById('dmOptionsBackdrop');
+
+      // Reset transient state on each open
+      document.getElementById('dmOptLanguage').value = dmOptionsState.språk;
+      document.querySelector(`input[name="dmOptDetail"][value="${dmOptionsState.detaljnivå}"]`).checked = true;
+      document.getElementById('dmOptRevise').checked = dmOptionsState.ønsker_revidert_script;
+      updateDmOptContextStatus();
+
+      backdrop.style.display = 'flex';
+
+      document.getElementById('dmOptCancel').onclick = () => {
+        backdrop.style.display = 'none';
+      };
+      document.getElementById('dmOptSubmit').onclick = () => {
+        // Read current values into state
+        dmOptionsState.språk = document.getElementById('dmOptLanguage').value;
+        dmOptionsState.detaljnivå = document.querySelector('input[name="dmOptDetail"]:checked').value;
+        dmOptionsState.ønsker_revidert_script = document.getElementById('dmOptRevise').checked;
+        // kontekst is set by sekundærmodal (M2-T6)
+        backdrop.style.display = 'none';
+
+        const script = (document.getElementById('scriptInput')?.value || '').trim();
+        if (!script) {
+          alert('Editor er tom. Skriv et script først.');
+          return;
+        }
+        runDmVurder(script, { ...dmOptionsState });
+      };
+
+      // Wire context button - will be implemented in M2-T6, stub for now
+      document.getElementById('dmOptContextBtn').onclick = () => {
+        showDmContextModal();
+      };
+    }
+
+    function showAdminSharedCode() {
+      const backdrop = document.getElementById('adminSharedCodeBackdrop');
+      const form = document.getElementById('adminSharedCodeForm');
+      const result = document.getElementById('adminSharedCodeResult');
+      const labelInput = document.getElementById('adminCodeLabel');
+      const expiresSelect = document.getElementById('adminCodeExpires');
+      const maxUsesInput = document.getElementById('adminCodeMaxUsesInput');
+      const errorDiv = document.getElementById('adminCodeError');
+
+      // Reset state
+      form.style.display = '';
+      result.style.display = 'none';
+      labelInput.value = '';
+      expiresSelect.value = '3';
+      document.querySelector('input[name="adminCodeMaxUses"][value="unlimited"]').checked = true;
+      maxUsesInput.disabled = true;
+      errorDiv.textContent = '';
+
+      backdrop.style.display = 'flex';
+      setTimeout(() => labelInput.focus(), 60);
+
+      // Enable/disable max-uses input based on radio
+      document.querySelectorAll('input[name="adminCodeMaxUses"]').forEach(r => {
+        r.onchange = () => {
+          maxUsesInput.disabled = (document.querySelector('input[name="adminCodeMaxUses"]:checked').value !== 'limited');
+        };
+      });
+
+      document.getElementById('adminCodeCancel').onclick = () => { backdrop.style.display = 'none'; };
+      document.getElementById('adminCodeClose').onclick = () => { backdrop.style.display = 'none'; };
+      document.getElementById('adminCodeNew').onclick = () => { showAdminSharedCode(); };
+
+      document.getElementById('adminCodeSubmit').onclick = async () => {
+        const label = labelInput.value.trim();
+        if (!label) {
+          errorDiv.textContent = 'Skriv inn en etikett.';
+          return;
+        }
+        const expires_days = parseInt(expiresSelect.value, 10);
+        const maxUsesType = document.querySelector('input[name="adminCodeMaxUses"]:checked').value;
+        let max_uses = null;
+        if (maxUsesType === 'limited') {
+          max_uses = parseInt(maxUsesInput.value, 10);
+          if (!max_uses || max_uses < 1) {
+            errorDiv.textContent = 'Maks bruk må være minst 1.';
+            return;
+          }
+        }
+
+        errorDiv.textContent = '';
+        const submitBtn = document.getElementById('adminCodeSubmit');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Genererer…';
+
+        try {
+          const token = window.mdAuth && window.mdAuth.token;
+          if (!token) {
+            errorDiv.textContent = 'Du må være logget inn.';
+            return;
+          }
+          const apiBase = (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app').replace(/\/+$/, '');
+          const res = await fetch(apiBase + '/_/api/admin/shared-codes/issue', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ label, expires_days, max_uses }),
+          });
+          const data = await res.json();
+          if (!res.ok || data.error) {
+            errorDiv.textContent = data.error || `Feil: ${res.status}`;
+            return;
+          }
+          // Show result
+          document.getElementById('adminCodeResultCode').textContent = data.code;
+          document.getElementById('adminCodeResultExpires').textContent = new Date(data.expires_at).toLocaleString('nb-NO');
+          document.getElementById('adminCodeResultMaxUses').textContent = data.max_uses ? String(data.max_uses) : 'ubegrenset';
+          form.style.display = 'none';
+          result.style.display = '';
+
+          document.getElementById('adminCodeCopy').onclick = async () => {
+            try {
+              await navigator.clipboard.writeText(data.code);
+              const btn = document.getElementById('adminCodeCopy');
+              btn.textContent = 'Kopiert!';
+              setTimeout(() => btn.textContent = 'Kopier', 1500);
+            } catch (_) { /* ignore */ }
+          };
+        } catch (e) {
+          errorDiv.textContent = 'Nettverksfeil: ' + (e.message || e);
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Generer';
+        }
+      };
+    }
+
+    function updateDmOptContextStatus() {
+      const status = document.getElementById('dmOptContextStatus');
+      const btn = document.getElementById('dmOptContextBtn');
+      if (!status || !btn) return;
+      const len = (dmOptionsState.kontekst || '').length;
+      if (len > 0) {
+        btn.textContent = `Endre formål / kontekst (${len} tegn)`;
+        status.textContent = 'Konteksten er spesifisert. Klikk for å redigere.';
+      } else {
+        btn.textContent = 'Spesifiser formål / kontekst';
+        status.textContent = 'Hvis ikke spesifisert, vurderer AI ut fra scriptet alene.';
+      }
+    }
+
+    function showDmContextModal() {
+      const backdrop = document.getElementById('dmContextBackdrop');
+      const textarea = document.getElementById('dmContextTextarea');
+      const saveCheckbox = document.getElementById('dmContextSave');
+
+      // Pre-fill: priority is current state (if user opened, edited, cancelled, reopens),
+      // else extract from script's personvern-blokk if exists, else empty.
+      let prefill = dmOptionsState.kontekst || '';
+      if (!prefill) {
+        prefill = extractExistingPersonvernBlokk();
+      }
+      textarea.value = prefill;
+      saveCheckbox.checked = dmOptionsState.lagre_kontekst_som_blokk !== false;
+
+      backdrop.style.display = 'flex';
+
+      document.getElementById('dmContextCancel').onclick = () => {
+        backdrop.style.display = 'none';
+      };
+      document.getElementById('dmContextSubmit').onclick = () => {
+        dmOptionsState.kontekst = textarea.value.trim();
+        dmOptionsState.lagre_kontekst_som_blokk = saveCheckbox.checked;
+        backdrop.style.display = 'none';
+        updateDmOptContextStatus();
+      };
+
+      textarea.focus();
+    }
+
+    // Helper: extract content from existing `// personvern blokk start ... slutt`-blokk
+    // (or `# personvern blokk start ... slutt` for Python/R), stripping comment chars.
+    function extractExistingPersonvernBlokk() {
+      const script = document.getElementById('scriptInput')?.value || '';
+      const lines = script.split(/\r?\n/);
+      const startRe = /^\s*(?:\/\/+|#+)\s*personvern\s+blokk\s+start\s*$/i;
+      const endRe = /^\s*(?:\/\/+|#+)\s*personvern\s+blokk\s+slutt\s*$/i;
+      const innerRe = /^\s*(?:\/\/+|#+)\s*(.*)$/;
+
+      let inBlock = false;
+      const content = [];
+      for (const line of lines) {
+        if (startRe.test(line)) {
+          inBlock = true;
+          continue;
+        }
+        if (inBlock && endRe.test(line)) {
+          break;
+        }
+        if (inBlock) {
+          const m = line.match(innerRe);
+          if (m) {
+            content.push(m[1]);
+          }
+        }
+      }
+      return content.join('\n');
+    }
+
+    // Detect dominant comment char in script
+    function detectCommentChar(script) {
+      const lines = script.split(/\r?\n/);
+      let slashCount = 0;
+      let hashCount = 0;
+      for (const line of lines) {
+        if (/^\s*\/\//.test(line)) slashCount++;
+        else if (/^\s*#/.test(line)) hashCount++;
+      }
+      // If clearly more hash than slash, use #
+      if (hashCount > slashCount * 2) return '#';
+      return '//';  // default for microdata
+    }
+
+    // Writes/updates personvern-blokk in the script editor.
+    // Behavior:
+    //   - Removes existing // personvern blokk start ... slutt blocks
+    //   - Removes single-line // personvern: <known-field>: ... lines
+    //   - Keeps freetext // personvern: <unknown-field-or-text>: ... lines
+    //   - Writes new block at top (after shebang/imports for Python/R, at very top for microdata)
+    //   - Each input line prefixed with "// " (or "# " for Python/R)
+    function writePersonvernBlokk(contextText) {
+      const editor = document.getElementById('scriptInput');
+      if (!editor) return;
+      const text = (contextText || '').trim();
+      if (!text) return;  // nothing to write
+
+      const script = editor.value;
+      const lines = script.split(/\r?\n/);
+      const knownFields = ['formål', 'tidsperiode', 'geografi', 'sensitive grupper', 'alternativer vurdert'];
+
+      // Detect dominant comment style: // for microdata, # for Python/R
+      const commentChar = detectCommentChar(script);  // returns "//" or "#"
+
+      // First pass: filter out existing personvern-blokk(s) and structured single-lines
+      const startRe = /^\s*(?:\/\/+|#+)\s*personvern\s+blokk\s+start\s*$/i;
+      const endRe = /^\s*(?:\/\/+|#+)\s*personvern\s+blokk\s+slutt\s*$/i;
+      const singleLineRe = /^\s*(?:\/\/+|#+)\s*personvern\s*:\s*(.*)$/i;
+
+      const kept = [];
+      let inBlock = false;
+      for (const line of lines) {
+        if (startRe.test(line)) {
+          inBlock = true;
+          continue;
+        }
+        if (inBlock && endRe.test(line)) {
+          inBlock = false;
+          continue;
+        }
+        if (inBlock) {
+          // Inside a block being removed — drop all lines.
+          // If user wants to preserve freetext, they should write outside the block.
+          continue;
+        }
+        // Outside block: check single-line form
+        const m = line.match(singleLineRe);
+        if (m) {
+          const content = m[1].trim();
+          // Check if it starts with a known field name
+          const fieldMatch = content.match(/^([^:]+):/);
+          if (fieldMatch) {
+            const fieldName = fieldMatch[1].trim().toLowerCase();
+            if (knownFields.includes(fieldName)) {
+              // Strip this structured single-line
+              continue;
+            }
+          }
+          // Otherwise it's freetext — keep
+          kept.push(line);
+          continue;
+        }
+        kept.push(line);
+      }
+
+      // Where to insert the new block?
+      // For Python/R: after shebang and imports
+      // For microdata: at the very top
+      let insertIndex = 0;
+      if (commentChar === '#') {
+        // Skip shebang
+        if (kept.length > 0 && /^\s*#!/.test(kept[0])) {
+          insertIndex = 1;
+        }
+        // Skip leading import / library / from blocks
+        while (insertIndex < kept.length) {
+          const ln = kept[insertIndex];
+          if (/^\s*(import\s+|from\s+\w+\s+import\s+|library\s*\(|require\s*\()/.test(ln)) {
+            insertIndex++;
+          } else if (/^\s*$/.test(ln) || /^\s*#/.test(ln)) {
+            insertIndex++;
+          } else {
+            break;
+          }
+        }
+      }
+      // For microdata: insertIndex = 0 (very top)
+
+      // Build the block lines
+      const userLines = text.split(/\r?\n/);
+      const blockLines = [
+        `${commentChar} personvern blokk start`,
+        ...userLines.map(l => `${commentChar} ${l}`),
+        `${commentChar} personvern blokk slutt`,
+        '',  // blank line after
+      ];
+
+      // Insert and join
+      const finalLines = [
+        ...kept.slice(0, insertIndex),
+        ...blockLines,
+        ...kept.slice(insertIndex),
+      ];
+      const newScript = finalLines.join('\n');
+
+      editor.value = newScript;
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    async function runDmVurder(script, options) {
+      const backdrop = document.getElementById('dmResultBackdrop');
+      const body = document.getElementById('dmResultBody');
+      const status = document.getElementById('dmResultStatus');
+      const cancelBtn = document.getElementById('dmResultCancel');
+      const copyBtn = document.getElementById('dmResultCopy');
+      const closeBtn = document.getElementById('dmResultClose');
+
+      body.textContent = '';
+      status.textContent = 'Henter vurdering…';
+      backdrop.style.display = 'flex';
+      cancelBtn.disabled = false;
+      copyBtn.disabled = true;
+      const revisedSection = document.getElementById('dmResultRevisedSection');
+      if (revisedSection) revisedSection.style.display = 'none';
+
+      const controller = new AbortController();
+      cancelBtn.onclick = () => controller.abort();
+      closeBtn.onclick = () => { backdrop.style.display = 'none'; };
+
+      let accumulated = '';
+      let inputTokens = 0;
+      let outputTokens = 0;
+
+      try {
+        // Get Anvil session token from mdAuth module
+        const token = window.mdAuth && window.mdAuth.token;
+        if (!token) {
+          status.textContent = 'Du må være logget inn for å bruke dataminimering. Klikk Logg inn øverst.';
+          cancelBtn.disabled = true;
+          return;
+        }
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        };
+        const resp = await fetch('/api/dm-vurder', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            script,
+            kontekst: options.kontekst || '',
+            språk: options.språk || 'auto',
+            detaljnivå: options.detaljnivå || 'kort',
+            ønsker_revidert_script: options.ønsker_revidert_script || false,
+          }),
+          signal: controller.signal,
+        });
+        if (resp.status === 401) {
+          status.textContent = 'Innloggingen er utløpt. Logg inn på nytt og prøv igjen.';
+          return;
+        }
+        if (!resp.ok || !resp.body) {
+          status.textContent = `Feil: ${resp.status} ${await resp.text()}`;
+          return;
+        }
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let nl;
+          while ((nl = buffer.indexOf('\n\n')) >= 0) {
+            const event = buffer.slice(0, nl);
+            buffer = buffer.slice(nl + 2);
+            const dataLine = event.split('\n').find(l => l.startsWith('data:'));
+            if (!dataLine) continue;
+            try {
+              const obj = JSON.parse(dataLine.slice(5).trim());
+              if (obj.type === 'text') {
+                accumulated += obj.text;
+                body.textContent = accumulated;
+              } else if (obj.type === 'done') {
+                inputTokens = obj.inputTokens || 0;
+                outputTokens = obj.outputTokens || 0;
+              } else if (obj.type === 'error') {
+                status.textContent = `Feil fra server: ${obj.message}`;
+              }
+            } catch (_) { /* ignore */ }
+          }
+        }
+        // Split out "## Revidert script" section if present
+        let mainText = accumulated;
+        let revisedScript = null;
+        let revisedMatch = null;
+
+        const revisedMatchResult = accumulated.match(/\n##\s+Revidert script\s*\n([\s\S]+)$/i);
+        if (revisedMatchResult) {
+          revisedMatch = revisedMatchResult;
+          mainText = accumulated.slice(0, revisedMatchResult.index);
+          // Extract code from fenced code block in the revised section
+          const codeBlockMatch = revisedMatchResult[1].match(/```[\w]*\n([\s\S]+?)\n```/);
+          if (codeBlockMatch) {
+            revisedScript = codeBlockMatch[1];
+          } else {
+            // No code block — the section may contain "Ingen endringer foreslås"
+            revisedScript = revisedMatchResult[1].trim();
+          }
+        }
+
+        // Render markdown when stream is complete
+        if (typeof window.markdownit === 'function') {
+          try {
+            const md = window.markdownit({ html: false, linkify: true, breaks: true });
+            body.innerHTML = md.render(mainText);
+            body.style.fontFamily = '';  // remove monospace styling
+            body.style.whiteSpace = '';  // remove pre-wrap
+          } catch (e) {
+            // Fall back to text rendering on parser error
+          }
+        }
+
+        // Show revised script section if present
+        const revisedCode = document.getElementById('dmResultRevisedCode');
+        if (revisedScript && revisedScript.length > 0) {
+          revisedCode.textContent = revisedScript;
+          revisedSection.style.display = 'block';
+        } else {
+          revisedSection.style.display = 'none';
+        }
+
+        // Wire up revised-script buttons
+        const copyRevisedBtn = document.getElementById('dmResultCopyRevised');
+        const replaceScriptBtn = document.getElementById('dmResultReplaceScript');
+
+        copyRevisedBtn.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(revisedScript || '');
+            copyRevisedBtn.textContent = 'Kopiert!';
+            setTimeout(() => copyRevisedBtn.textContent = 'Kopier revidert', 1500);
+          } catch (_) { /* ignore */ }
+        };
+
+        replaceScriptBtn.onclick = () => {
+          if (!revisedScript) return;
+          if (revisedScript.toLowerCase().includes('ingen endringer foreslås')) {
+            alert('AI fant ingen endringer å foreslå.');
+            return;
+          }
+          const editor = document.getElementById('scriptInput');
+          if (!editor) return;
+          const proceed = confirm('Erstatt scriptet med den reviderte versjonen?\n\nDu kan angre med Ctrl+Z etter at det er erstattet.');
+          if (!proceed) return;
+          editor.value = revisedScript;
+          editor.dispatchEvent(new Event('input', { bubbles: true }));
+          backdrop.style.display = 'none';
+          setTimeout(() => alert('Scriptet er erstattet. Anbefalt: kjør vurdering på nytt.'), 100);
+        };
+
+        status.textContent = `Ferdig. ${inputTokens} input / ${outputTokens} output tokens.`;
+        cancelBtn.disabled = true;
+        copyBtn.disabled = false;
+
+        // If user spesifiserte kontekst AND opted to save it, write back to editor
+        if (options.kontekst && options.lagre_kontekst_som_blokk !== false) {
+          writePersonvernBlokk(options.kontekst);
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') {
+          status.textContent = 'Avbrutt.';
+        } else {
+          status.textContent = `Feil: ${e.message}`;
+        }
+      }
+
+      copyBtn.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(accumulated);
+          copyBtn.textContent = 'Kopiert!';
+          setTimeout(() => copyBtn.textContent = 'Kopier', 1500);
+        } catch (_) { /* ignore */ }
+      };
+    }
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function (err) {
@@ -1907,12 +2469,27 @@
       const plotSeaborn = document.getElementById('plotSeaborn');
 
       const examplesDropdown = document.getElementById('examplesDropdown');
+      function updateAdminMenuVisibility() {
+        const adminSec = document.getElementById('adminMenuSection');
+        if (adminSec) {
+          adminSec.style.display = (window.mdAuth && window.mdAuth.user && window.mdAuth.user.is_admin) ? '' : 'none';
+        }
+      }
+      function updateLoginMenuVisibility() {
+        const btn = document.getElementById('btnLoginWithCode');
+        if (btn) {
+          btn.style.display = (window.mdAuth && window.mdAuth.isLoggedIn) ? 'none' : '';
+        }
+      }
+
       hamburgerBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         dropdown.classList.toggle('open');
         themeDropdown.classList.remove('open');
         exportDropdown.classList.remove('open');
         if (examplesDropdown) examplesDropdown.classList.remove('open');
+        updateAdminMenuVisibility();
+        updateLoginMenuVisibility();
       });
       document.addEventListener('click', function() {
         dropdown.classList.remove('open');
@@ -2331,6 +2908,43 @@
         exportDropdown.classList.remove('open');
       });
     })();
+
+    document.getElementById('btnDmQuick').addEventListener('click', () => {
+      document.getElementById('hamburgerDropdown').classList.remove('open');
+      const script = (document.getElementById('scriptInput')?.value || '').trim();
+      if (!script) {
+        alert('Editor er tom. Skriv et script først.');
+        return;
+      }
+      // Require Anvil login
+      if (!window.mdAuth || !window.mdAuth.isLoggedIn) {
+        if (window.mdAuth && typeof window.mdAuth.showLogin === 'function') {
+          window.mdAuth.showLogin();
+        } else {
+          alert('Du må være logget inn for å bruke dataminimering. Bruk Logg inn-knappen øverst.');
+        }
+        return;
+      }
+      showDmOptions();
+    });
+
+    const btnLoginWithCode = document.getElementById('btnLoginWithCode');
+    if (btnLoginWithCode) {
+      btnLoginWithCode.addEventListener('click', () => {
+        document.getElementById('hamburgerDropdown').classList.remove('open');
+        if (window.mdAuth && window.mdAuth.showLoginCodeStep) {
+          window.mdAuth.showLoginCodeStep();
+        }
+      });
+    }
+
+    const btnAdminSharedCode = document.getElementById('btnAdminSharedCode');
+    if (btnAdminSharedCode) {
+      btnAdminSharedCode.addEventListener('click', () => {
+        document.getElementById('hamburgerDropdown').classList.remove('open');
+        showAdminSharedCode();
+      });
+    }
 
     document.getElementById('helpBtn').addEventListener('click', function() {
       const overlay = document.getElementById('helpModalOverlay');
@@ -4787,6 +5401,30 @@ json.dumps(out)
       return segments;
     }
 
+    /**
+     * Parser inline-direktiver av formen `#options.<navn>=<verdi>` eller
+     * `//options.<navn>=<verdi>` (siste hele kommentar-linje vinner).
+     * Returnerer et opts-objekt: {show_commands: bool, ...}. Brukes til a
+     * styre run-flyten (f.eks. om kode-echo skal vises i output).
+     */
+    function extractScriptOptions(src) {
+      var opts = {};
+      if (!src) return opts;
+      var re = /^\s*(?:#|\/\/)\s*options\.([a-zA-Z_][\w]*)\s*=\s*(\S+)\s*$/gm;
+      var m;
+      while ((m = re.exec(src)) !== null) {
+        var key = m[1];
+        var raw = m[2];
+        var val;
+        if (/^(true|True|TRUE|T)$/.test(raw)) val = true;
+        else if (/^(false|False|FALSE|F)$/.test(raw)) val = false;
+        else if (raw !== '' && !isNaN(Number(raw))) val = Number(raw);
+        else val = raw.replace(/^["']|["']$/g, '');
+        opts[key] = val;
+      }
+      return opts;
+    }
+
     /** Parser key=value,... inne i //( ... ) for SpeechSynthesis (lang, pitch, rate, volume, voice). */
     function parseSpeechKwargs(inner) {
       const out = {};
@@ -5439,19 +6077,40 @@ def _apply_labels_to_globals(_g, _cat):
                         _mapped.where(_mapped.notna(), _v[_col].astype(str)),
                         categories=_cats
                     )
-def _exec_pyodide_block(code, g):
-    """REPL-style: alle Expr-setninger vises (tabell, Plotly, matplotlib PNG)."""
+def _exec_pyodide_block(code, g, show_commands=False):
+    """REPL-style: alle Expr-setninger vises (tabell, Plotly, matplotlib PNG).
+    Hvis show_commands=True echoes hver top-level statement med '>>> ' /
+    '... ' foran, sa bruker ser kommandoen rett over outputen den lager."""
     code = (code or "").strip()
     if not code:
         return
+    _seen = [False]
+    def _echo(src):
+        if not show_commands:
+            return
+        if not src or not src.strip():
+            return
+        if _seen[0]:
+            print()
+        _seen[0] = True
+        _lines = src.split("\\n")
+        print(">>> " + _lines[0])
+        for _ln in _lines[1:]:
+            print("... " + _ln)
     try:
         tree = ast.parse(code, mode="exec")
     except SyntaxError:
+        _echo(code)
         exec(compile(code, "<pyodide>", "exec"), g)
         return
     if not tree.body:
         return
     for stmt in tree.body:
+        try:
+            _src = ast.get_source_segment(code, stmt) or ""
+        except Exception:
+            _src = ""
+        _echo(_src)
         if isinstance(stmt, ast.Expr):
             _v = eval(compile(ast.Expression(stmt.value), "<pyodide>", "eval"), g)
             if _v is not None:
@@ -5788,6 +6447,11 @@ json.dumps(out)
           var d = document.createElement('div');
           d.innerHTML = p.text;
           outputArea.appendChild(d);
+        } else if (p.type === 'code') {
+          var pre = document.createElement('pre');
+          pre.className = 'm2py-stmt-code';
+          pre.textContent = p.text;
+          outputArea.appendChild(pre);
         } else if (p.type === 'error') {
           var pre = document.createElement('pre');
           pre.className = 'error';
@@ -5801,9 +6465,7 @@ json.dumps(out)
             canvas.getContext('2d').drawImage(p.bitmap, 0, 0);
             var img = document.createElement('img');
             img.src = canvas.toDataURL('image/png');
-            img.style.maxWidth = '100%';
-            img.style.display = 'block';
-            img.style.margin = '8px 0';
+            img.className = 'm2py-plot';
             outputArea.appendChild(img);
           } catch(e) {
             var pre = document.createElement('pre');
@@ -5812,13 +6474,16 @@ json.dumps(out)
           }
         } else {
           var pre = document.createElement('pre');
+          if (p.className) pre.className = p.className;
           pre.textContent = p.text;
           outputArea.appendChild(pre);
         }
       });
     }
 
-    async function runHybridR(src, py) {
+    async function runHybridR(src, py, runOpts) {
+      runOpts = runOpts || {};
+      var showCommands = runOpts.showCommands !== false; // default true
       if (!webRReady) {
         outputArea.innerHTML = '<pre class="error">WebR er ikke klar. Vent til R er lastet og pr\u00f8v igjen.</pre>';
         setRunButtonsUi('idle');
@@ -5914,23 +6579,61 @@ json.dumps(out)
         }
       }
 
-      // ── Phase 2: run R segments via captureR — text + plots ──────────────
+      // ── Phase 2: run R segments via captureR — interleaved code/output/plot
+      // For hver R-blokk: splitt i top-level statements via R-parser, kjor hver
+      // for seg med autoprint, og rendrer kode-echo → R sin konsoll-output (rett
+      // som det ville sett ut i en R-IDE) → eventuelle plot. Ingen HTML-konvert
+      // — print.data.frame, print.tbl, summary() etc. far snakke selv.
       for (var ri = 0; ri < rSegs.length; ri++) {
+        var segText = rSegs[ri].text.trim();
+        if (!segText) continue;
+        var statements = null;
         try {
-          outputParts.push({ type: 'text', text: '\n' + rSegs[ri].text.trim() + '\n' });
-          var captured = await webRShelter.captureR(rSegs[ri].text.trim(), { withAutoprint: true });
-          var lines = (captured.output || [])
-            .filter(function(o) { return o.type === 'stdout'; })
-            .map(function(o) { return String(o.data); })
-            .join('');
-          if (lines.trim()) outputParts.push({ type: 'text', text: lines });
-          if (captured.images && captured.images.length) {
-            captured.images.forEach(function(bitmap) {
-              outputParts.push({ type: 'image', bitmap: bitmap });
-            });
+          var splitRes = await webR.evalR(
+            '.m2py_split_statements(' + JSON.stringify(segText) + ')'
+          );
+          var splitJs = await splitRes.toJs();
+          if (splitJs && Array.isArray(splitJs.values)) {
+            statements = splitJs.values.map(String).filter(function(s) { return s.trim().length > 0; });
           }
-        } catch(e) {
-          outputParts.push({ type: 'error', text: 'R-feil: ' + (e.message || e) });
+        } catch(splitErr) {
+          console.warn('R statement split failed:', splitErr);
+        }
+        if (!statements || statements.length === 0) statements = [segText];
+
+        for (var si = 0; si < statements.length; si++) {
+          var stmt = statements[si];
+          try {
+            if (showCommands) outputParts.push({ type: 'code', text: stmt });
+            var captured = await webRShelter.captureR(stmt, {
+              withAutoprint: true,
+              captureGraphics: { width: 720, height: 480 }
+            });
+            // WebR sin captureR splitter output pa \n og fjerner \n fra hver
+            // line-entry (se outputconnection.c i webR). Vi ma derfor joine
+            // med '\n' for at print.data.frame etc. ikke kollapser til en linje.
+            var stdout = (captured.output || [])
+              .filter(function(o) { return o.type === 'stdout'; })
+              .map(function(o) { return String(o.data); })
+              .join('\n');
+            var stderr = (captured.output || [])
+              .filter(function(o) { return o.type === 'stderr'; })
+              .map(function(o) { return String(o.data); })
+              .join('\n');
+            if (stdout.length) {
+              outputParts.push({ type: 'text', text: stdout, className: 'm2py-stmt-output' });
+            }
+            if (stderr.trim()) {
+              outputParts.push({ type: 'text', text: stderr, className: 'm2py-stmt-output' });
+            }
+            if (captured.images && captured.images.length) {
+              captured.images.forEach(function(bitmap) {
+                outputParts.push({ type: 'image', bitmap: bitmap });
+              });
+            }
+          } catch(e) {
+            outputParts.push({ type: 'error', text: 'R-feil: ' + (e.message || e) });
+          }
         }
       }
 
@@ -6208,7 +6911,6 @@ has and "int" in (m.get_microdata_functions() or {})
         // Install arrow + base64enc for typed dataframe transfer from Pyodide
         setStatus(leftStatus, 'Installerer arrow, base64enc\u2026');
         await webR.installPackages(['base64enc'], { quiet: true });
-        webRReady = true;
         // Create a persistent Shelter for captureR (text + plot capture)
         webRShelter = await new webR.Shelter();
         // Override library() to auto-install missing packages at runtime
@@ -6222,6 +6924,30 @@ library <- function(pkg, ...) {
   base::library(pkg_name, character.only = TRUE, ...)
 }
 `);
+        // m2py R-runtime helpers:
+        //  - .m2py_split_statements: deler R-kildekode i top-level statements
+        //    (basert pa srcref fra R-parseren) sa vi kan vise kode rett over
+        //    outputen den produserer.
+        //  - options(width=...): bredere enn console-default 80 sa
+        //    print.data.frame ikke deler kolonner i stablede grupper. Wide
+        //    output handteres med horisontal scroll i output-panelet.
+        await webR.evalRVoid(`
+.m2py_split_statements <- function(src) {
+  e <- tryCatch(parse(text = src, keep.source = TRUE),
+                error = function(err) NULL)
+  if (is.null(e) || length(e) == 0) return(character(0))
+  refs <- attr(e, "srcref")
+  if (is.null(refs)) {
+    vapply(seq_along(e), function(i) paste(deparse(e[[i]]), collapse = "\\n"),
+           character(1))
+  } else {
+    vapply(refs, function(s) paste(as.character(s), collapse = "\\n"),
+           character(1))
+  }
+}
+options(width = 200)
+`);
+        webRReady = true;
         setRunButtonsUi('idle');
         setStatus(leftStatus, 'Klar (R).');
       } catch(e) {
@@ -6308,9 +7034,14 @@ library <- function(pkg, ...) {
         if (typeof py.setStderr === 'function') {
           py.setStderr({ batched: s => { stderr += s + '\n'; } });
         }
+        // ── Parse inline-direktiver fra scriptet (f.eks.
+        //    `#options.show_commands=False`). Brukes til a styre om
+        //    kode-echo skal vises i output for R og Python.
+        var _scriptOpts = extractScriptOptions(effectiveScript);
+        var _showCmds = _scriptOpts.show_commands !== false; // default true
         // ── R mode: run natively in WebR ──────────────────────────────────
         if (activeEditorMode === 'r') {
-          await runHybridR(effectiveScript, py);
+          await runHybridR(effectiveScript, py, { showCommands: _showCmds });
           return;
         }
         // ── End R mode ────────────────────────────────────────────────────
@@ -6374,8 +7105,7 @@ for _seg in _segments:
         _apply_labels_to_globals(_g, catalog)
         _g["show"] = show
         _g["to_microdata"] = to_microdata
-        print('\\n' + _st)
-        _exec_pyodide_block(_st, _g)
+        _exec_pyodide_block(_st, _g, ${_showCmds ? 'True' : 'False'})
         e.sync_datasets_to_globals(_g)
         _apply_labels_to_globals(_g, catalog)
         _g["show"] = show
@@ -6671,9 +7401,11 @@ for _seg in _segments:
             if (!webRShelter) webRShelter = await new webR.Shelter();
             const captured = await webRShelter.captureR(block.codeTrim, { withAutoprint: true });
             const outputParts = [];
+            // WebR strips trailing \n fra hver linje-entry; join med '\n'
+            // ellers kollapser flerlinje-output (print.data.frame etc.) til en linje.
             const lines = (captured.output || [])
-              .filter(o => o.type === 'stdout').map(o => String(o.data)).join('');
-            if (lines.trim()) outputParts.push({ type: 'text', text: lines });
+              .filter(o => o.type === 'stdout').map(o => String(o.data)).join('\n');
+            if (lines.trim()) outputParts.push({ type: 'text', text: lines, className: 'm2py-stmt-output' });
             (captured.images || []).forEach(bm => outputParts.push({ type: 'image', bitmap: bm }));
             renderROutputParts(outputParts);
             if (outputParts.length) await forklarRevealOutputAnim();
@@ -6910,7 +7642,7 @@ def _run_microdata_chunk(_code):
       const dom = {};
       function cacheDom() {
         ['loginBackdrop','loginStep1','loginStep2','loginStep3',
-         'loginEmail','loginSubmit','loginCancel','loginDone','loginSentEmail'
+         'loginEmail','loginSubmit','loginCancel','loginDone','loginSentEmail','loginCode','loginVerify','loginCodeError'
         ].forEach(id => { dom[id] = $(id); });
       }
 
@@ -6926,6 +7658,12 @@ def _run_microdata_chunk(_code):
         setStep(1);
         dom.loginBackdrop.classList.add('open');
         setTimeout(() => dom.loginEmail && dom.loginEmail.focus(), 60);
+      }
+      function showLoginCodeStep() {
+        showLogin();
+        setStep(2);
+        if (dom.loginSentEmail) dom.loginSentEmail.textContent = '(ingen epost — bruker delt kode)';
+        setTimeout(() => dom.loginCode && dom.loginCode.focus(), 60);
       }
       function hideLogin() { dom.loginBackdrop && dom.loginBackdrop.classList.remove('open'); }
 
@@ -6954,6 +7692,26 @@ def _run_microdata_chunk(_code):
           throw new Error(text || ('HTTP ' + res.status));
         }
         return res.json();
+      }
+
+      async function verifyPastedCode() {
+        const code = (dom.loginCode.value || '').trim();
+        if (!code) {
+          dom.loginCodeError.textContent = 'Skriv inn koden.';
+          return;
+        }
+        dom.loginCodeError.textContent = '';
+        dom.loginVerify.disabled = true;
+        try {
+          const data = await verifyCode(code);
+          persistLogin(data);
+          hideLogin();
+          if (typeof refreshUserPanel === 'function') refreshUserPanel();
+        } catch (e) {
+          dom.loginCodeError.textContent = e.message || 'Koden er ugyldig eller utløpt.';
+        } finally {
+          dom.loginVerify.disabled = false;
+        }
       }
 
       async function refreshMe() {
@@ -7043,6 +7801,7 @@ def _run_microdata_chunk(_code):
             await requestMagicLink(email);
             dom.loginSentEmail.textContent = email;
             setStep(2);
+            setTimeout(() => dom.loginCode && dom.loginCode.focus(), 100);
           } catch (e) {
             alert(e.message);
           } finally {
@@ -7055,9 +7814,26 @@ def _run_microdata_chunk(_code):
         });
         dom.loginCancel.addEventListener('click', hideLogin);
         dom.loginDone.addEventListener('click', hideLogin);
+        dom.loginVerify.addEventListener('click', verifyPastedCode);
+        dom.loginCode.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            verifyPastedCode();
+          }
+        });
         dom.loginBackdrop.addEventListener('click', (e) => {
           if (e.target === dom.loginBackdrop) hideLogin();
         });
+
+        const switchLink = document.getElementById('loginSwitchToCode');
+        if (switchLink) {
+          switchLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            setStep(2);
+            if (dom.loginSentEmail) dom.loginSentEmail.textContent = '(ingen epost — bruker delt kode)';
+            setTimeout(() => dom.loginCode && dom.loginCode.focus(), 60);
+          });
+        }
 
         // On load: handle ?login=, then refresh /auth/me if we have a token
         handleLoginParam().then((handled) => {
@@ -7071,6 +7847,7 @@ def _run_microdata_chunk(_code):
         get user() { return state.user; },
         get isLoggedIn() { return !!state.token; },
         showLogin,
+        showLoginCodeStep,
         hideLogin,
         refreshMe,
         logout,
@@ -7610,6 +8387,11 @@ def _run_microdata_chunk(_code):
           dom.aiCfgLoggedIn.style.display = 'none';
           dom.aiCfgLoggedOut.style.display = '';
         }
+        // Keep admin hamburger menu section in sync
+        const adminSec = document.getElementById('adminMenuSection');
+        if (adminSec) {
+          adminSec.style.display = (user && user.is_admin) ? '' : 'none';
+        }
       }
 
       function openSettings() {
@@ -7709,5 +8491,173 @@ def _run_microdata_chunk(_code):
       }
     })();
   </script>
+
+  <div id="dmResultBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 780px; max-height: 80vh; display: flex; flex-direction: column;">
+      <h3 style="font-size: 1.25em;">Dataminimering-vurdering</h3>
+      <div id="dmResultBody" style="flex: 1; overflow-y: auto; padding: 8px 0; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.5;"></div>
+      <div id="dmResultStatus" style="font-size: 12px; color: var(--text-muted); padding: 4px 0;"></div>
+      <div id="dmResultRevisedSection" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+        <h4 style="margin: 0 0 8px 0;">Revidert script</h4>
+        <pre id="dmResultRevisedCode" style="background: var(--bg); padding: 10px; border-radius: 4px; max-height: 240px; overflow-y: auto; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; margin: 0;"></pre>
+        <div style="margin-top: 8px; display: flex; gap: 8px;">
+          <button type="button" id="dmResultCopyRevised" class="ai-modal-btn">Kopier revidert</button>
+          <button type="button" id="dmResultReplaceScript" class="ai-modal-btn primary">Erstatt scriptet</button>
+        </div>
+      </div>
+      <div class="ai-modal-actions" style="margin-top: 8px;">
+        <button type="button" id="dmResultCancel" class="ai-modal-btn">Avbryt</button>
+        <button type="button" id="dmResultCopy" class="ai-modal-btn">Kopier</button>
+        <button type="button" id="dmResultClose" class="ai-modal-btn primary">Lukk</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dmOptionsBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 540px;">
+      <h3 style="font-size: 1.25em;">Vurder dataminimering</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+        AI vurderer om scriptet ditt henter og bruker minimum nødvendig data.
+      </p>
+
+      <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;">
+        <label for="dmOptLanguage" style="min-width: 80px;">Språk:</label>
+        <select id="dmOptLanguage" style="flex: 1; padding: 6px;">
+          <option value="auto">Automatisk</option>
+          <option value="microdata">microdata.no</option>
+          <option value="r">R</option>
+          <option value="python">Python</option>
+        </select>
+      </div>
+
+      <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;">
+        <span style="min-width: 80px;">Rapport:</span>
+        <label style="margin-right: 16px;">
+          <input type="radio" name="dmOptDetail" value="kort" checked> Kort
+        </label>
+        <label>
+          <input type="radio" name="dmOptDetail" value="lang"> Lang
+        </label>
+      </div>
+
+      <div style="margin: 12px 0;">
+        <label>
+          <input type="checkbox" id="dmOptRevise"> Generer også revidert script
+        </label>
+      </div>
+
+      <div style="margin: 16px 0 12px 0; padding-top: 12px; border-top: 1px solid var(--border);">
+        <div style="margin-bottom: 6px;">Formål og bakgrunn:</div>
+        <button type="button" id="dmOptContextBtn" class="ai-modal-btn" style="width: 100%; text-align: left;">Spesifiser formål / kontekst</button>
+        <p id="dmOptContextStatus" style="font-size: 12px; color: var(--text-muted); margin: 6px 0 0 0;">
+          Hvis ikke spesifisert, vurderer AI ut fra scriptet alene.
+        </p>
+      </div>
+
+      <div class="ai-modal-actions" style="margin-top: 16px;">
+        <button type="button" id="dmOptCancel" class="ai-modal-btn">Avbryt</button>
+        <button type="button" id="dmOptSubmit" class="ai-modal-btn primary">Vurder</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dmContextBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 600px;">
+      <h3 style="font-size: 1.25em;">Formål og kontekst</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+        Beskriv formålet og bakgrunnen for analysen. AI bruker dette for å gjøre
+        en mer presis vurdering. Alt er valgfritt.
+      </p>
+      <textarea id="dmContextTextarea"
+                style="width: 100%; min-height: 200px; padding: 10px; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.5; box-sizing: border-box;"
+                placeholder="Eksempler på hva som er nyttig:
+- Formålet med analysen
+- Hvorfor denne tidsperioden
+- Hvorfor dette geografiske detaljnivået
+- Hvilke sensitive grupper inngår i analysen
+- Alternativer du har vurdert (SSB-tabeller, syntetiske data, ...)"></textarea>
+      <div style="margin-top: 12px;">
+        <label>
+          <input type="checkbox" id="dmContextSave" checked>
+          Lagre dette som <code>// personvern</code>-blokk i scriptet
+        </label>
+        <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0 22px;">
+          Da plukker neste vurdering opp konteksten automatisk.
+        </p>
+      </div>
+      <div class="ai-modal-actions" style="margin-top: 16px;">
+        <button type="button" id="dmContextCancel" class="ai-modal-btn">Avbryt</button>
+        <button type="button" id="dmContextSubmit" class="ai-modal-btn primary">Bruk</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminSharedCodeBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 520px;">
+      <h3 style="font-size: 1.25em;">Generer tilgangskode</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+        Lager en delt kode som hvem som helst kan lime inn for å logge inn anonymt.
+        Bruk for workshop, demo eller midlertidig tilgang.
+      </p>
+
+      <!-- Form (shown initially) -->
+      <div id="adminSharedCodeForm">
+        <div style="margin: 12px 0;">
+          <label for="adminCodeLabel">Etikett (intern, kun for deg)</label>
+          <input type="text" id="adminCodeLabel" placeholder="workshop-2026-06-15" maxlength="100" style="width: 100%; padding: 6px;">
+        </div>
+
+        <div style="margin: 12px 0;">
+          <label for="adminCodeExpires">Utløper om</label>
+          <select id="adminCodeExpires" style="padding: 6px;">
+            <option value="1">1 dag</option>
+            <option value="3" selected>3 dager</option>
+            <option value="7">1 uke</option>
+            <option value="30">30 dager</option>
+            <option value="90">90 dager</option>
+          </select>
+        </div>
+
+        <div style="margin: 12px 0;">
+          <div>Maks antall bruk</div>
+          <label style="display: block; margin: 4px 0;">
+            <input type="radio" name="adminCodeMaxUses" value="unlimited" checked> Ubegrenset
+          </label>
+          <label style="display: block;">
+            <input type="radio" name="adminCodeMaxUses" value="limited">
+            <input type="number" id="adminCodeMaxUsesInput" min="1" max="10000" value="25" style="width: 80px; padding: 4px;" disabled> bruk
+          </label>
+        </div>
+
+        <div id="adminCodeError" style="color: var(--accent-danger, #d00); font-size: 12px; min-height: 1.2em;"></div>
+
+        <div class="ai-modal-actions" style="margin-top: 16px;">
+          <button type="button" id="adminCodeCancel" class="ai-modal-btn">Avbryt</button>
+          <button type="button" id="adminCodeSubmit" class="ai-modal-btn primary">Generer</button>
+        </div>
+      </div>
+
+      <!-- Result (shown after success) -->
+      <div id="adminSharedCodeResult" style="display:none;">
+        <p style="margin: 12px 0 4px 0;">&#10003; Kode generert:</p>
+        <div style="background: var(--bg); padding: 12px; border-radius: 4px; margin: 8px 0;">
+          <code id="adminCodeResultCode" style="font-size: 18px; font-family: ui-monospace, monospace;"></code>
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0;">
+          Utløper: <span id="adminCodeResultExpires"></span><br>
+          Maks bruk: <span id="adminCodeResultMaxUses"></span>
+        </p>
+        <p style="font-size: 13px; margin: 12px 0;">
+          Gi koden til brukere via Slack, mail, eller på papir.
+          De limer den inn i login-modalen som om de fikk den på mail.
+        </p>
+        <div class="ai-modal-actions" style="margin-top: 16px;">
+          <button type="button" id="adminCodeCopy" class="ai-modal-btn">Kopier</button>
+          <button type="button" id="adminCodeNew" class="ai-modal-btn">Generer ny</button>
+          <button type="button" id="adminCodeClose" class="ai-modal-btn primary">Lukk</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

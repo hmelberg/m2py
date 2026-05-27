@@ -24,3 +24,4 @@ Thumbs.db
 
 # Local env
 .env
+.netlify/
