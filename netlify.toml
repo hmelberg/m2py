@@ -31,3 +31,7 @@
 [[edge_functions]]
   function = "dm-vurder"
   path = "/api/dm-vurder"
+
+[[edge_functions]]
+  function = "kode-svar"
+  path = "/api/kode-svar"

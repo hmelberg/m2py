@@ -875,6 +875,15 @@
     body[data-theme="dark"] .ai-send-btn { color: #1a1b26; }
     .ai-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .ai-send-btn:hover:not(:disabled) { filter: brightness(1.1); }
+    .ai-send-fast-btn {
+      height: 32px; padding: 0 9px; border: 1px solid var(--accent); background: transparent;
+      color: var(--accent); border-radius: 8px; cursor: pointer; display: inline-flex;
+      align-items: center; gap: 4px; font-size: 12px; font-weight: 600; flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .ai-send-fast-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .ai-send-fast-btn:hover:not(:disabled) { background: var(--accent); color: #fff; }
+    body[data-theme="dark"] .ai-send-fast-btn:hover:not(:disabled) { color: #1a1b26; }
 
     .ai-modal-backdrop {
       position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.4);
@@ -1056,8 +1065,11 @@
       </label>
       <div class="ai-input-wrap">
         <textarea id="aiInput" class="ai-input" rows="1"
-          placeholder="Spør om noe... (Enter for å sende, Shift+Enter for ny linje)"></textarea>
-        <button type="button" class="ai-send-btn" id="aiSendBtn" title="Send" aria-label="Send">
+          placeholder="Spør om noe... (Enter = Spør, Shift+Enter = ny linje)"></textarea>
+        <button type="button" class="ai-send-fast-btn" id="aiSendFastBtn"
+          title="Spør raskt — enkelt AI-svar uten reparasjonsloop (eksperimentell, ny AI). Svaret valideres lokalt."
+          aria-label="Spør raskt">⚡ Raskt</button>
+        <button type="button" class="ai-send-btn" id="aiSendBtn" title="Spør (full vurdering via Anvil-API)" aria-label="Spør">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
         </button>
       </div>
@@ -7881,7 +7893,7 @@ def _run_microdata_chunk(_code):
       const dom = {};
       function cacheDom() {
         ['aiToggleBtn','aiSidebar','aiCloseBtn','aiSettingsBtn','aiClearBtn',
-         'aiThread','aiInput','aiSendBtn','aiIncludeScript',
+         'aiThread','aiInput','aiSendBtn','aiSendFastBtn','aiIncludeScript',
          'aiSettingsBackdrop','aiCfgBaseUrl','aiCfgApiKey','aiCfgSave','aiCfgCancel',
          'aiCfgLoggedIn','aiCfgLoggedOut','aiCfgUserEmail','aiCfgUserMeta',
          'aiCfgLogout','aiCfgAdmin','aiCfgLogin',
@@ -8123,6 +8135,13 @@ def _run_microdata_chunk(_code):
         if (meta.intent) parts.push(meta.intent);
         if (meta.model) parts.push(meta.model);
         if (typeof meta.latency_ms === 'number') parts.push((meta.latency_ms / 1000).toFixed(1) + 's');
+        if (meta.tokens) {
+          const t = meta.tokens;
+          let tok = (t.input || 0) + '→' + (t.output || 0) + ' tok';
+          if (t.cacheRead) tok += ' · cache ' + t.cacheRead;
+          else if (t.cacheCreate) tok += ' · cache-skriv ' + t.cacheCreate;
+          parts.push(tok);
+        }
         if (meta.validation && meta.validation.passed === false) {
           parts.push('⚠ valideringsfeil (' + (meta.validation.errors || []).length + ')');
         }
@@ -8261,7 +8280,7 @@ def _run_microdata_chunk(_code):
         return 'no';
       }
 
-      async function sendMessage() {
+      async function sendMessage(fast) {
         if (state.sending) return;
         const text = dom.aiInput.value.trim();
         if (!text) return;
@@ -8274,6 +8293,7 @@ def _run_microdata_chunk(_code):
         }
         state.sending = true;
         dom.aiSendBtn.disabled = true;
+        if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = true;
 
         // Clear empty state on first message
         if (state.history.length === 0) dom.aiThread.innerHTML = '';
@@ -8287,6 +8307,23 @@ def _run_microdata_chunk(_code):
         const lang = detectLang(text);
 
         const includeScript = dom.aiIncludeScript.checked && dom.scriptInput && dom.scriptInput.value.trim();
+
+        // Fast path: single-shot, no-repair edge function. Streams markdown;
+        // the result is validated locally via Pyodide+m2py (see runFastQuery).
+        if (fast) {
+          try {
+            const meta = await runFastQuery(text, lang, includeScript ? dom.scriptInput.value : '', thinkingNode);
+            state.history.push({ role: 'assistant', meta });
+          } catch (e) {
+            appendError(thinkingNode, '✗ ' + e.message);
+          } finally {
+            state.sending = false;
+            dom.aiSendBtn.disabled = false;
+            if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = false;
+            dom.aiInput.focus();
+          }
+          return;
+        }
 
         try {
           let resp, intent, result;
@@ -8354,8 +8391,224 @@ def _run_microdata_chunk(_code):
         } finally {
           state.sending = false;
           dom.aiSendBtn.disabled = false;
+          if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = false;
           dom.aiInput.focus();
         }
+      }
+
+      // ── Fast path: stream from the /api/kode-svar edge function (single-shot,
+      //    no repair), render markdown live, then validate the emitted script
+      //    locally in Pyodide+m2py and show a pass/⚠ badge. Returns meta.
+      async function runFastQuery(text, lang, scriptContext, thinkingNode) {
+        const auth = window.mdAuth;
+        const token = auth && auth.token;
+        const headers = token
+          ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+          : { 'X-API-Key': state.apiKey, 'Content-Type': 'application/json' };
+        const t0 = Date.now();
+        const resp = await fetch('/api/kode-svar', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ question: text, lang, script: scriptContext || '' }),
+        });
+        if (resp.status === 401) {
+          if (token && auth) { auth.logout(); auth.showLogin(); }
+          throw new Error('Innloggingen er utløpt. Logg inn på nytt.');
+        }
+        if (!resp.ok || !resp.body) {
+          throw new Error('HTTP ' + resp.status + ' ' + (await resp.text()));
+        }
+
+        // Render incrementally into an assistant bubble.
+        thinkingNode.innerHTML = '';
+        const bubble = document.createElement('div');
+        bubble.className = 'ai-bubble';
+        thinkingNode.appendChild(bubble);
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let accumulated = '';
+        let inputTokens = 0, outputTokens = 0, cacheRead = 0, cacheCreate = 0;
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let nl;
+          while ((nl = buffer.indexOf('\n\n')) >= 0) {
+            const event = buffer.slice(0, nl);
+            buffer = buffer.slice(nl + 2);
+            const dataLine = event.split('\n').find(l => l.startsWith('data:'));
+            if (!dataLine) continue;
+            let obj;
+            try { obj = JSON.parse(dataLine.slice(5).trim()); }
+            catch (_) { continue; }   // ignore non-JSON keep-alive lines
+            if (obj.type === 'text') {
+              accumulated += obj.text;
+              bubble.textContent = accumulated;   // plain text while streaming
+              scrollToBottom();
+            } else if (obj.type === 'done') {
+              inputTokens = obj.inputTokens || 0;
+              outputTokens = obj.outputTokens || 0;
+              cacheRead = obj.cacheReadTokens || 0;
+              cacheCreate = obj.cacheCreationTokens || 0;
+            } else if (obj.type === 'error') {
+              throw new Error(obj.message || 'Ukjent feil fra server');
+            }
+          }
+        }
+
+        // Final markdown render + code-block action buttons (reuse existing).
+        if (md) {
+          try { bubble.innerHTML = md.render(accumulated || ''); }
+          catch (_) { bubble.textContent = accumulated; }
+        } else {
+          bubble.textContent = accumulated;
+        }
+        attachCodeBlockActions(bubble);
+
+        const meta = {
+          intent: 'raskt',
+          model: 'kode-svar',
+          latency_ms: Date.now() - t0,
+          tokens: { input: inputTokens, output: outputTokens, cacheRead, cacheCreate },
+        };
+        appendMeta(thinkingNode, meta);
+
+        // Validate the first microdata code block locally (non-blocking).
+        const script = extractFirstMicrodataBlock(accumulated);
+        if (script) {
+          const badge = document.createElement('div');
+          badge.className = 'ai-msg-meta';
+          badge.textContent = '⏳ Validerer lokalt…';
+          thinkingNode.appendChild(badge);
+          validateMicrodataLocal(script).then(vr => {
+            if (vr.skipped) { badge.remove(); return; }
+            if (vr.passed) {
+              badge.textContent = '✓ Validert lokalt (kjørt på testdata)';
+              badge.style.color = 'var(--ok, #2e7d32)';
+            } else {
+              badge.remove();
+              const warn = renderValidationWarnings(vr);
+              if (warn) bubble.appendChild(warn);
+            }
+          }).catch(() => { badge.remove(); });
+        }
+        return meta;
+      }
+
+      // Pull the first ```microdata / ``` code block that looks like a
+      // microdata script out of streamed markdown.
+      function extractFirstMicrodataBlock(textMd) {
+        if (!textMd) return '';
+        const re = /```(\w*)\s*\n([\s\S]*?)```/g;
+        let m;
+        while ((m = re.exec(textMd)) !== null) {
+          const lang = (m[1] || '').toLowerCase();
+          const body = (m[2] || '').trim();
+          if (lang === 'python' || lang === 'py' || lang === 'r') continue;
+          if (/\b(require|create-dataset|import\s+\w+\/|use\s+\w)/.test(body)) return body;
+          if (lang === 'microdata') return body;
+        }
+        return '';
+      }
+
+      // Run the script through a throwaway m2py interpreter on synthetic data
+      // (disclosure control off, so only structural/runtime errors surface).
+      // Returns {passed, errors:[{kind,message}]} or {skipped:true}.
+      async function validateMicrodataLocal(script) {
+        let py;
+        try { py = await loadPyodideAndM2py(); }
+        catch (_) { return { skipped: true }; }
+        if (!py) return { skipped: true };
+        const base = window.location.href.replace(/[^/]+$/, '');
+        const catalogJson = (typeof microdataCatalog !== 'undefined' && microdataCatalog && microdataCatalog.variables)
+          ? JSON.stringify(microdataCatalog.variables) : null;
+        const pyCode =
+          'import json, sys\n' +
+          '_script = ' + JSON.stringify(script) + '\n' +
+          '_catalog_json = ' + (catalogJson !== null ? JSON.stringify(catalogJson) : 'None') + '\n' +
+          '_base = ' + JSON.stringify(base) + '\n' +
+          '_m = sys.modules.get("m2py")\n' +
+          '_prev_dc = getattr(_m, "M2PY_DISCLOSURE_CONTROL", "1") if _m is not None else "1"\n' +
+          '_out = json.dumps({"passed": False, "errors": [{"kind": "runtime", "message": "validator unavailable"}]})\n' +
+          'try:\n' +
+          '    if _m is not None:\n' +
+          '        _m.M2PY_DISCLOSURE_CONTROL = "0"\n' +
+          '    from m2py import MicroInterpreter\n' +
+          '    _cat = json.loads(_catalog_json) if _catalog_json else None\n' +
+          '    _vi = MicroInterpreter(catalog=_cat, metadata_base_url=_base)\n' +
+          '    try:\n' +
+          '        _vi.data_engine.default_rows = 200\n' +
+          '    except Exception:\n' +
+          '        pass\n' +
+          '    _err = None\n' +
+          '    try:\n' +
+          '        if hasattr(_vi, "run_script_async"):\n' +
+          '            _err = "ASYNC"\n' +
+          '        else:\n' +
+          '            _vi.run_script(_script)\n' +
+          '    except Exception as _ex:\n' +
+          '        _err = f"{type(_ex).__name__}: {_ex}"\n' +
+          '    if _err == "ASYNC":\n' +
+          '        _out = json.dumps({"async": True})\n' +
+          '    elif _err is None:\n' +
+          '        _out = json.dumps({"passed": True, "errors": []})\n' +
+          '    else:\n' +
+          '        _out = json.dumps({"passed": False, "errors": [{"kind": "runtime", "message": _err}]})\n' +
+          'except Exception as _ex2:\n' +
+          '    _out = json.dumps({"skipped": True, "error": f"{type(_ex2).__name__}: {_ex2}"})\n' +
+          'finally:\n' +
+          '    if _m is not None:\n' +
+          '        _m.M2PY_DISCLOSURE_CONTROL = _prev_dc\n' +
+          '_out\n';
+        let raw;
+        try { raw = await py.runPythonAsync(pyCode); }
+        catch (_) { return { skipped: true }; }
+        let parsed;
+        try { parsed = JSON.parse(raw); } catch (_) { return { skipped: true }; }
+        if (parsed.skipped) return { skipped: true };
+        // Async interpreter variant — run via the async API and re-check.
+        if (parsed.async) {
+          return await validateMicrodataLocalAsync(py, script, catalogJson, base);
+        }
+        return parsed;
+      }
+
+      async function validateMicrodataLocalAsync(py, script, catalogJson, base) {
+        const setup =
+          'import json, sys\n' +
+          '_script = ' + JSON.stringify(script) + '\n' +
+          '_catalog_json = ' + (catalogJson !== null ? JSON.stringify(catalogJson) : 'None') + '\n' +
+          '_base = ' + JSON.stringify(base) + '\n' +
+          '_m = sys.modules.get("m2py")\n' +
+          'globals()["_prev_dc"] = getattr(_m, "M2PY_DISCLOSURE_CONTROL", "1") if _m is not None else "1"\n' +
+          'if _m is not None:\n' +
+          '    _m.M2PY_DISCLOSURE_CONTROL = "0"\n' +
+          'from m2py import MicroInterpreter\n' +
+          '_cat = json.loads(_catalog_json) if _catalog_json else None\n' +
+          '_vi = MicroInterpreter(catalog=_cat, metadata_base_url=_base)\n' +
+          'try:\n' +
+          '    _vi.data_engine.default_rows = 200\n' +
+          'except Exception:\n' +
+          '    pass\n' +
+          'globals()["_vi"] = _vi\n';
+        try { await py.runPythonAsync(setup); } catch (_) { return { skipped: true }; }
+        let raw;
+        try {
+          raw = await py.runPythonAsync(
+            '_err = None\n' +
+            'try:\n' +
+            '    await _vi.run_script_async(_script)\n' +
+            'except Exception as _ex:\n' +
+            '    _err = f"{type(_ex).__name__}: {_ex}"\n' +
+            'finally:\n' +
+            '    if _m is not None:\n' +
+            '        _m.M2PY_DISCLOSURE_CONTROL = _prev_dc\n' +
+            'json.dumps({"passed": _err is None, "errors": [] if _err is None else [{"kind": "runtime", "message": _err}]})\n'
+          );
+        } catch (_) { return { skipped: true }; }
+        try { return JSON.parse(raw); } catch (_) { return { skipped: true }; }
       }
 
       function autoresize() {
@@ -8451,12 +8704,13 @@ def _run_microdata_chunk(_code):
           });
         }
 
-        dom.aiSendBtn.addEventListener('click', sendMessage);
+        dom.aiSendBtn.addEventListener('click', () => sendMessage(false));
+        if (dom.aiSendFastBtn) dom.aiSendFastBtn.addEventListener('click', () => sendMessage(true));
         dom.aiInput.addEventListener('input', autoresize);
         dom.aiInput.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            sendMessage();
+            sendMessage(e.ctrlKey || e.metaKey);   // Ctrl/Cmd+Enter = Spør raskt
           }
         });
 
