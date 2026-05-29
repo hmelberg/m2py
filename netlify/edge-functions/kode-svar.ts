@@ -327,17 +327,40 @@ Mange SSB-dato-variabler lagres som **heltall**, ikke ISO-datoer:
 const PRIVACY_RULES = `\
 ## Personvern / avsløringskontroll (plattformen håndhever disse)
 
-Plattformen håndhever tallgrenser. Et script som trigger en av dem STOPPER med
-feil. Planlegg rundt dem:
-- **T1** — min. 1000 enheter per populasjon etter \`keep if\`/\`drop if\`/\`sample\`.
-- **T5** — \`tabulate\` skjules hvis >50% av cellene har frekvens < 5. Bruk
-  grovere kategorier (aldersbånd, ikke enkeltår).
-- **T6** — \`generate\`/\`replace\`/\`recode\` blokkeres hvis de påvirker 1–9 rader
-  (eller lar bare 1–9 stå uendret). Bygg flagg med nok prevalens.
-- **T7** — \`summarize\`/\`correlate\`/\`ci\`/\`anova\` krever ≥ 10 obs.
-- **T8** — medianer/persentiler rundes til 3 signifikante siffer.
-- **T2** — 1%/99% winsorisering på viste mean/sd og i plott.
-- **Inspeksjon forbudt:** aldri \`list\`/\`browse\`/\`print\`/\`head\`/\`tail\`/\`show\`.`;
+Plattformen stopper scripts som bryter disse reglene med feilmelding. Forutse
+og unngå dem i generert kode:
+
+**T1 — Minimum 1 000 enheter per populasjon.** Etter \`keep if\`/\`drop if\`/\`sample\`
+må populasjonen ha ≥ 1000 enheter. Stratifiserte analyser på sjeldne grupper:
+kombiner betingelser for å holde N oppe, eller anbefal brukeren å utvide.
+
+**T2 — \`collapse\` og winsorisering.** Aggregering med ikke-pseudonymisert
+\`by()\`-nøkkel (f.eks. \`by(kommune)\`, \`by(fylke)\`) winsoriseres (1%/99%) i
+selve collapse-steget. Aggregering til pseudonymisert enhet (\`by(pid)\` osv.)
+winsoriseres IKKE.
+
+**T4 — \`scatter\` finnes ikke**; bruk \`histogram\` eller andre plottkommandoer.
+
+**T5 — \`tabulate\` skjules hvis > 50% av cellene har frekvens < 5.** Løsning:
+bruk grovere inndelinger. Recode til færre kategorier FØR tabellering:
+- Alder → aldersgrupper: \`recode alder (0/17=1)(18/29=2)(30/44=3)(45/59=4)(60/100=5)\`
+- Utdanning → grove nivåer (grunnskole / vgs / høyere)
+- Inntekt → kvintiler via \`xtile\` eller breie intervaller via \`recode\`
+
+**T6 — \`generate\`/\`replace\`/\`recode\` blokkeres om endringen berører 1–9 enheter
+(eller lar bare 1–9 stå uendret).** Unngå flagg som fanger sjeldne kategorier alene.
+Kombiner til grupper ≥ 10 — eller kode til verdier som dekker alle eller ingen.
+Unntak: endringer som berører alle eller ingen enheter er alltid tillatt.
+Ved \`recode\` gjelder grensen per omkodingsledd.
+
+**T7 — \`summarize\`/\`correlate\`/\`ci\`/\`anova\` krever ≥ 10 observasjoner** i
+undergruppen (T1 sikrer ≥ 1000 totalt, men subgrupper kan ha < 10).
+
+**T9 — Konstantledd i regresjon skjules** dersom kombinasjoner av kategoriske
+forklaringsvariabler gir < 5 enheter med samme verdikombo. Løsning: grovere
+kategorier, færre kategoriske dummies, eller større populasjon.
+
+**Inspeksjon av enkeltobservasjoner er alltid forbudt:** aldri \`list\`/\`browse\`/\`print\`/\`head\`/\`tail\`/\`show\`.`;
 
 const NPR_RULES = `\
 ## NPR (Norsk pasientregister) — fallgruver
@@ -888,7 +911,7 @@ export default async (request: Request): Promise<Response> => {
       prompt: userTurn,
       system,
       cacheTtl: "1h",
-      maxTokens: 2500,
+      maxTokens: 8192,
     });
     return new Response(stream, {
       headers: {
