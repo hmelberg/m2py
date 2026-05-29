@@ -1323,6 +1323,15 @@
           <p class="settings-hint">Antall desimaler i tabellutdata. Tall mindre enn 1 f&#229;r automatisk ekstra desimaler for &#229; vise signifikante siffer.</p>
         </div>
         <div class="settings-field">
+          <label for="settingLabelFormat">Etiketter i tabulate</label>
+          <select id="settingLabelFormat">
+            <option value="both" selected>Kode og etikett (standard)</option>
+            <option value="label">Bare etikett</option>
+            <option value="code">Bare kode</option>
+          </select>
+          <p class="settings-hint">Standardvisning i <code>tabulate</code>. Kan overstyres per kommando med opsjonene <code>nolabels</code> / <code>novalues</code>, eller per script med <code>// m2py: label-format=both|label|code</code>.</p>
+        </div>
+        <div class="settings-field">
           <label for="settingFontSize">Skriftstørrelse</label>
           <select id="settingFontSize">
             <option value="small">Liten</option>
@@ -3161,6 +3170,8 @@
     const TTS_RATE_KEY     = 'microdata_tts_rate';
     const BLOCK_PAUSE_KEY  = 'microdata_block_pause_ms';
     const DECIMALS_KEY     = 'microdata_decimals';
+    const LABEL_FORMAT_KEY = 'microdata_label_format';
+    const LABEL_FORMAT_VALUES = ['both', 'label', 'code'];
 
     function getImportLimit() {
       try { var v = parseInt(localStorage.getItem(IMPORT_LIMIT_KEY), 10); if (v >= 10) return v; } catch(e) {}
@@ -3178,6 +3189,13 @@
       try { var v = parseInt(localStorage.getItem(DECIMALS_KEY), 10); if (!isNaN(v) && v >= 0 && v <= 8) return v; } catch(e) {}
       return 2;
     }
+    function getLabelFormat() {
+      try {
+        var v = localStorage.getItem(LABEL_FORMAT_KEY);
+        if (LABEL_FORMAT_VALUES.indexOf(v) >= 0) return v;
+      } catch(e) {}
+      return 'both';
+    }
 
     (function initSettings() {
       var overlay   = document.getElementById('settingsOverlay');
@@ -3187,6 +3205,7 @@
       var rateVal   = document.getElementById('settingTtsRateVal');
       var pauseIn    = document.getElementById('settingBlockPause');
       var decimalsEl = document.getElementById('settingDecimals');
+      var labelFmtEl = document.getElementById('settingLabelFormat');
       var saveBtn   = document.getElementById('settingsSaveBtn');
       var cancelBtn = document.getElementById('settingsCancelBtn');
       if (!overlay) return;
@@ -3202,6 +3221,7 @@
         rateVal.textContent = parseFloat(rateIn.value).toFixed(1) + '\u00d7';
         pauseIn.value = getBlockPauseSec();
         if (decimalsEl) decimalsEl.value = getDecimals();
+        if (labelFmtEl) labelFmtEl.value = getLabelFormat();
         overlay.classList.add('open');
       }
       function closeSettings() { overlay.classList.remove('open'); }
@@ -3229,6 +3249,12 @@
           var dec = parseInt(decimalsEl.value, 10);
           if (!isNaN(dec) && dec >= 0 && dec <= 8) {
             try { localStorage.setItem(DECIMALS_KEY, String(dec)); } catch(e2) {}
+          }
+        }
+        if (labelFmtEl) {
+          var lf = labelFmtEl.value;
+          if (LABEL_FORMAT_VALUES.indexOf(lf) >= 0) {
+            try { localStorage.setItem(LABEL_FORMAT_KEY, lf); } catch(e2) {}
           }
         }
         closeSettings();
@@ -5983,6 +6009,7 @@ json.dumps(out)
         : '';
       return `
 from m2py import MicroInterpreter
+import m2py as _m2py_mod
 import ast
 import json
 import numpy as np
@@ -5994,6 +6021,11 @@ e = MicroInterpreter(catalog=catalog, metadata_base_url=${JSON.stringify(pageBas
 e.data_engine.default_rows = ${getImportLimit()}
 e.default_decimals = ${getDecimals()}
 e._apply_float_format()
+try:
+    if isinstance(getattr(_m2py_mod, 'M2PY_DEFAULTS', None), dict):
+        _m2py_mod.M2PY_DEFAULTS['label_format'] = ${JSON.stringify(getLabelFormat())}
+except Exception:
+    pass
 import __main__
 __main__.micro_interpreter = e
 ${segAssign}_EMBED_S = "__micro_transform_start_"

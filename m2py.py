@@ -23,6 +23,27 @@ _DC_TABULATE_LOW_CELL = 5        # T5: celle-frekvenser <5 telles som "lave"
 _DC_TABULATE_LOW_RATIO = 0.5     # T5: >50% lave celler stopper tabellen
 _DC_PERCENTILE_SIG_DIGITS = 3    # T8: signifikante sifre for median/persentiler
 
+# ─── Sentrale brukerstillinger ─────────────────────────────────────────────
+# Globale defaults samles her. Lookup går ALLTID via _get_default(key) som
+# har innbakt hardkodet fallback — så ting virker også hvis dicten er slettet
+# eller mangler en nøkkel. Direktiv-systemet (// m2py: key=value) muterer
+# entries her midlertidig og restaurerer etter script-kjøring.
+M2PY_DEFAULTS = {
+    'label_format': 'both',      # 'both' | 'label' | 'code' — tabulate-output
+    # Framtidige defaults legges til her.
+}
+
+_M2PY_HARDCODED_FALLBACKS = {
+    'label_format': 'both',
+}
+
+def _get_default(key):
+    """Hent default-verdi. Robust mot at M2PY_DEFAULTS er slettet eller mangler key."""
+    d = globals().get('M2PY_DEFAULTS')
+    if isinstance(d, dict) and key in d:
+        return d[key]
+    return _M2PY_HARDCODED_FALLBACKS.get(key)
+
 # Variabelnavn-mønstre som identifiserer pseudonymer i microdata.no.
 # Bruker disse som backup når metadata mangler eksplisitt is_pseudonym.
 _PSEUDONYM_NAME_SUFFIXES = ('_FNR', '_PERSON_ID', '_PSEUDONYM')
@@ -3872,70 +3893,109 @@ class LabelManager:
             pass
         return None
 
-    def format_value(self, var_name, value):
-        """Returnerer label for verdi, eller råverdi hvis ingen label."""
+    @staticmethod
+    def _code_to_str(v):
+        """Konverter kodeverdi til streng for 'both'-visning. 301.0 → '301'."""
+        if isinstance(v, float):
+            try:
+                if math.isfinite(v) and v == int(v):
+                    return str(int(v))
+            except (ValueError, OverflowError):
+                pass
+        return str(v)
+
+    def format_value(self, var_name, value, fmt='label'):
+        """Returnerer formatert verdi etter fmt-modus.
+
+        fmt='label' (default — bakoverkompat): returner label, eller kode hvis ingen label.
+        fmt='code': returner kode (ingen lookup).
+        fmt='both': returner "kode - label", eller bare kode hvis ingen label.
+        Total-rader (verdi == 'Total') og NaN passerer uendret.
+        """
         if pd.isna(value):
+            return value
+        if fmt == 'code':
             return value
         cl = self.get_codelist_for_var(var_name)
         if cl is None:
             return value
         lbl = self._lookup_label_in_codelist(cl, value, var_name)
-        if lbl is not None:
+        if lbl is None:
+            return value
+        if fmt == 'label':
             return lbl
-        return value
+        # fmt == 'both'
+        return f"{self._code_to_str(value)} - {lbl}"
 
-    def apply_labels_to_series(self, series, var_name):
-        """Mapper series index/values til labels. Returnerer ny Series."""
+    def apply_labels_to_series(self, series, var_name, fmt='label'):
+        """Mapper series index til formatert visning. Returnerer ny Series."""
         cl = self.get_codelist_for_var(var_name)
-        if not cl:
+        if not cl and fmt != 'code':
             return series
         def _lookup(v):
             if pd.isna(v):
                 return v
+            # Bevar Total-rad
+            if isinstance(v, str) and v == 'Total':
+                return v
+            if fmt == 'code':
+                return v
+            if cl is None:
+                return v
             lbl = self._lookup_label_in_codelist(cl, v, var_name)
-            if lbl is not None:
+            if lbl is None:
+                try:
+                    sv = str(v)
+                    if sv in cl:
+                        lbl = cl[sv]
+                except (ValueError, TypeError):
+                    pass
+            if lbl is None:
+                return v
+            if fmt == 'label':
                 return lbl
-            try:
-                sv = str(v)
-                if sv in cl:
-                    return cl[sv]
-            except (ValueError, TypeError):
-                pass
-            return v
+            return f"{self._code_to_str(v)} - {lbl}"
         if hasattr(series, 'index'):
             new_index = [_lookup(x) for x in series.index]
             return pd.Series(series.values, index=new_index)
         return series
 
-    def apply_labels_to_frame(self, obj, var1, var2=None):
-        """Mapper DataFrame/Series indeks og kolonner til labels."""
+    def apply_labels_to_frame(self, obj, var1, var2=None, fmt='label'):
+        """Mapper DataFrame/Series indeks og kolonner til formatert visning."""
         cl1 = self.get_codelist_for_var(var1)
         cl2 = self.get_codelist_for_var(var2) if var2 else None
-        if not cl1 and not cl2:
+        if not cl1 and not cl2 and fmt != 'code':
             return obj
         def _lookup(cl, val, vname):
-            if cl is None:
-                return val
             if pd.isna(val):
                 return val
+            if isinstance(val, str) and val == 'Total':
+                return val
+            if fmt == 'code':
+                return val
+            if cl is None:
+                return val
             lbl = self._lookup_label_in_codelist(cl, val, vname)
-            if lbl is not None:
+            if lbl is None:
+                try:
+                    sv = str(val)
+                    if sv in cl:
+                        lbl = cl[sv]
+                except (ValueError, TypeError):
+                    pass
+            if lbl is None:
+                return val
+            if fmt == 'label':
                 return lbl
-            try:
-                sv = str(val)
-                if sv in cl:
-                    return cl[sv]
-            except (ValueError, TypeError):
-                pass
-            return val
+            return f"{self._code_to_str(val)} - {lbl}"
         if isinstance(obj, pd.Series):
-            idx = [_lookup(cl1, x, var1) for x in obj.index] if cl1 else obj.index.tolist()
+            idx = [_lookup(cl1, x, var1) for x in obj.index] if (cl1 or fmt == 'code') else obj.index.tolist()
             return pd.Series(obj.values, index=idx)
         if isinstance(obj, pd.DataFrame):
             df = obj.copy()
-            if cl1 and hasattr(df.index, 'tolist'):
+            if (cl1 or fmt == 'code') and hasattr(df.index, 'tolist'):
                 df.index = [_lookup(cl1, x, var1) for x in df.index]
-            if cl2 and hasattr(df.columns, 'tolist'):
+            if (cl2 or fmt == 'code') and hasattr(df.columns, 'tolist'):
                 df.columns = [_lookup(cl2, x, var2) for x in df.columns]
             return df
         return obj
@@ -4223,6 +4283,120 @@ class StatsEngine:
             var2 = args[1] if len(args) > 1 else None
             dropna = 'missing' not in options
 
+            # Label-format: per-kommando-opsjon → script-direktiv/UI → modul-default
+            if 'nolabels' in options:
+                label_fmt = 'code'
+            elif 'novalues' in options:
+                label_fmt = 'label'
+            else:
+                label_fmt = _get_default('label_format') or 'both'
+
+            def _parse_sort_arg(opt_val):
+                """Parse argument til rowsort()/colsort(). Returnerer kodeverdi eller None."""
+                if opt_val is True or opt_val is None:
+                    return None
+                s = str(opt_val).strip()
+                if not s:
+                    return None
+                # 2D-tabeller: bruk første token (multidim-tabeller støttes ikke her)
+                first = s.split(',')[0].strip()
+                if (first.startswith("'") and first.endswith("'")) or \
+                   (first.startswith('"') and first.endswith('"')):
+                    return first[1:-1]
+                for caster in (int, float):
+                    try:
+                        return caster(first)
+                    except (ValueError, TypeError):
+                        pass
+                return first
+
+            def _find_key_in_index(idx, key):
+                """Finn key i en pandas Index — prøv as-is, str, int, float."""
+                if key in idx:
+                    return key
+                s_key = str(key)
+                if s_key in idx:
+                    return s_key
+                try:
+                    i_key = int(key)
+                    if i_key in idx:
+                        return i_key
+                except (ValueError, TypeError):
+                    pass
+                try:
+                    f_key = float(key)
+                    if f_key in idx:
+                        return f_key
+                except (ValueError, TypeError):
+                    pass
+                return None
+
+            def _sort_tab_frame(df_in, opts):
+                """Sortér DataFrame-tabell ved rowsort()/colsort(). Bevarer Total-rad/kol."""
+                if 'rowsort' not in opts and 'colsort' not in opts:
+                    return df_in
+                has_total_row = 'Total' in df_in.index
+                has_total_col = 'Total' in df_in.columns
+                total_row_saved = df_in.loc[['Total']] if has_total_row else None
+                data = df_in.drop(index='Total') if has_total_row else df_in.copy()
+
+                if 'rowsort' in opts:
+                    key = _parse_sort_arg(opts.get('rowsort'))
+                    if key is None:
+                        target = 'Total' if has_total_col else (data.columns[-1] if len(data.columns) else None)
+                    else:
+                        target = _find_key_in_index(data.columns, key)
+                    if target is not None and target in data.columns:
+                        # Konverter til numerisk for stabil sortering hvis mulig
+                        sort_vals = pd.to_numeric(data[target], errors='coerce')
+                        order = sort_vals.sort_values(kind='stable').index
+                        data = data.loc[order]
+
+                if 'colsort' in opts:
+                    key = _parse_sort_arg(opts.get('colsort'))
+                    sort_series_for_cols = None
+                    if key is None:
+                        if has_total_row:
+                            sort_series_for_cols = total_row_saved.iloc[0]
+                    else:
+                        row_label = _find_key_in_index(data.index, key)
+                        if row_label is not None:
+                            sort_series_for_cols = data.loc[row_label]
+                    if sort_series_for_cols is not None:
+                        non_total_cols = [c for c in data.columns if c != 'Total']
+                        numeric_vals = pd.to_numeric(sort_series_for_cols, errors='coerce')
+                        sorted_cols = sorted(non_total_cols,
+                                             key=lambda c: (numeric_vals.get(c) if pd.notna(numeric_vals.get(c)) else float('inf')))
+                        if 'Total' in data.columns:
+                            sorted_cols.append('Total')
+                        data = data[sorted_cols]
+
+                if total_row_saved is not None:
+                    # Sortér Total-rad-kolonner i samme rekkefølge som data
+                    total_row_saved = total_row_saved[data.columns]
+                    data = pd.concat([data, total_row_saved])
+                return data
+
+            def _sort_tab_series(s, opts):
+                """Sortér Series-tabell ved rowsort()/colsort(). Bevarer Total."""
+                if 'rowsort' not in opts and 'colsort' not in opts:
+                    return s
+                has_total = 'Total' in s.index
+                if has_total:
+                    total_val = s['Total']
+                    data = s.drop('Total')
+                else:
+                    data = s
+                if 'rowsort' in opts:
+                    # rowsort på 1D Series → sortér på verdiene (snittinntekt, frekvens, …)
+                    data = data.sort_values(kind='stable')
+                elif 'colsort' in opts:
+                    # colsort på 1D Series → sortér på indeks (kodeverdi)
+                    data = data.sort_index(kind='stable')
+                if has_total:
+                    data = pd.concat([data, pd.Series([total_val], index=['Total'])])
+                return data
+
             if 'summarize' in options:
                 # Volumtabell: summarize(var [, var2 ...]) [mean|std|sum|p50|p25|p75|gini|iqr]
                 # summarize kan inneholde én eller flere komma-separerte variabler
@@ -4254,6 +4428,11 @@ class StatsEngine:
                         else:
                             total_val = getattr(df[val_var], agg_func)()
                         tb = pd.concat([tb, pd.Series([total_val], index=['Total'])])
+                # rowsort() / colsort() — bevar Total
+                if isinstance(tb, pd.DataFrame):
+                    tb = _sort_tab_frame(tb, options)
+                elif isinstance(tb, pd.Series):
+                    tb = _sort_tab_series(tb, options)
                 # top(n) / bottom(n) — bevar Total-rad/kolonne
                 def _parse_n(opt_val, default=10):
                     if opt_val is True: return default
@@ -4295,9 +4474,9 @@ class StatsEngine:
                     tb = tb.to_frame().reset_index()
                 lm = options.get('_label_manager')
                 if lm and var2:
-                    return lm.apply_labels_to_frame(tb, var1, var2)
+                    return lm.apply_labels_to_frame(tb, var1, var2, fmt=label_fmt)
                 if lm:
-                    return lm.apply_labels_to_frame(tb, var1)
+                    return lm.apply_labels_to_frame(tb, var1, fmt=label_fmt)
                 return tb
 
             # Frekvenstabell: rowpct, colpct, cellpct, chi2
@@ -4330,6 +4509,8 @@ class StatsEngine:
             if var2:
                 ct = pd.crosstab(df[var1], df[var2], normalize=normalize, dropna=dropna,
                                  margins=True, margins_name='Total')
+                # rowsort() / colsort() — kjøres FØR chi2 (chi2 caster til string)
+                ct = _sort_tab_frame(ct, options)
                 if 'chi2' in options:
                     from scipy.stats import chi2_contingency
                     ct_raw = pd.crosstab(df[var1], df[var2], dropna=dropna)
@@ -4365,11 +4546,13 @@ class StatsEngine:
                     ct = ct.reset_index()
                 lm = options.get('_label_manager')
                 if lm:
-                    ct = lm.apply_labels_to_frame(ct, var1, var2)
+                    ct = lm.apply_labels_to_frame(ct, var1, var2, fmt=label_fmt)
                 return ct
             else:
                 vc = df[var1].value_counts(normalize=normalize, dropna=not dropna)
                 total = vc.sum()
+                # rowsort() / colsort() FØR top/bottom og før Total legges til
+                vc = _sort_tab_series(vc, options)
                 if 'top' in options:
                     n = int(options.get('top', 10))
                     vc = vc.head(n)
@@ -4379,7 +4562,7 @@ class StatsEngine:
                 vc = pd.concat([vc, pd.Series([total], index=['Total'])])
                 lm = options.get('_label_manager')
                 if lm:
-                    vc = lm.apply_labels_to_series(vc, var1)
+                    vc = lm.apply_labels_to_series(vc, var1, fmt=label_fmt)
                 return vc
 
         if cmd == 'tabulate-panel':
@@ -5913,7 +6096,7 @@ class MicroInterpreter:
         pd.options.display.float_format = lambda x: _smart_float_fmt(x, dec)
 
     # ─── Script-direktiver (// m2py: key=value) ─────────────────────────────
-    # Brukes for å overstyre avsløringskontroll per script. Direktivene leses
+    # Brukes for å overstyre globale innstillinger per script. Direktivene leses
     # før scriptet kjøres og restaureres etterpå, slik at f.eks. en API-konsument
     # kan kjøre to scripts på rad uten at det ene "lekker" innstilling til neste.
     _DIRECTIVE_RE = re.compile(
@@ -5922,8 +6105,22 @@ class MicroInterpreter:
     _DIRECTIVE_TRUTHY = ('on', 'true', '1', 'yes', 'pa', 'på')
     _DIRECTIVE_FALSY  = ('off', 'false', '0', 'no', 'av')
 
+    # Direktiv-aliaser → (storage_kind, storage_key)
+    # storage_kind='global' → muterer modul-global (legacy: disclosure-control)
+    # storage_kind='default' → muterer M2PY_DEFAULTS[key]
+    _DIRECTIVE_TARGETS = {
+        'disclosure-control': ('global', 'M2PY_DISCLOSURE_CONTROL'),
+        'disclosurecontrol':  ('global', 'M2PY_DISCLOSURE_CONTROL'),
+        'dc':                 ('global', 'M2PY_DISCLOSURE_CONTROL'),
+        'label-format':       ('default', 'label_format'),
+        'labelformat':        ('default', 'label_format'),
+    }
+    _DIRECTIVE_ENUM_VALUES = {
+        'label_format': ('both', 'label', 'code'),
+    }
+
     def _apply_script_directives(self, script_text):
-        """Skann scriptet etter // m2py: <key>=<value>-linjer og mut globalen
+        """Skann scriptet etter // m2py: <key>=<value>-linjer og mut innstillinger
         deretter. Returner dict med opprinnelige verdier som skal gjenopprettes."""
         saved = {}
         for raw in script_text.splitlines():
@@ -5932,33 +6129,65 @@ class MicroInterpreter:
                 continue
             key = m.group(1).lower()
             val = m.group(2).lower().strip(';,')
-            if key in ('disclosure-control', 'disclosurecontrol', 'dc'):
-                global_name = 'M2PY_DISCLOSURE_CONTROL'
-            else:
-                # Ukjent direktiv — logg en advarsel og hopp over
+            target = self._DIRECTIVE_TARGETS.get(key)
+            if target is None:
                 self._log(f"// m2py: ukjent direktiv '{key}' — ignorert")
                 continue
-            new_val = (
-                '1' if val in self._DIRECTIVE_TRUTHY else
-                '0' if val in self._DIRECTIVE_FALSY else None
-            )
-            if new_val is None:
-                self._log(f"// m2py: ugyldig verdi '{val}' for '{key}' — ignorert (bruk on/off)")
-                continue
-            if global_name not in saved:
-                saved[global_name] = globals().get(global_name, '1')
-            globals()[global_name] = new_val
-            self._log(
-                f"// m2py: disclosure-control = "
-                f"{'PÅ' if new_val == '1' else 'AV'} (satt fra script-direktiv)"
-            )
+            kind, storage_key = target
+            if kind == 'global':
+                # Truthy/falsy → '1'/'0' (kun disclosure-control bruker dette)
+                new_val = (
+                    '1' if val in self._DIRECTIVE_TRUTHY else
+                    '0' if val in self._DIRECTIVE_FALSY else None
+                )
+                if new_val is None:
+                    self._log(f"// m2py: ugyldig verdi '{val}' for '{key}' — ignorert (bruk on/off)")
+                    continue
+                saved_key = ('global', storage_key)
+                if saved_key not in saved:
+                    saved[saved_key] = globals().get(storage_key, '1')
+                globals()[storage_key] = new_val
+                self._log(
+                    f"// m2py: {key} = "
+                    f"{'PÅ' if new_val == '1' else 'AV'} (satt fra script-direktiv)"
+                )
+            elif kind == 'default':
+                allowed = self._DIRECTIVE_ENUM_VALUES.get(storage_key)
+                if allowed and val not in allowed:
+                    self._log(
+                        f"// m2py: ugyldig verdi '{val}' for '{key}' — ignorert "
+                        f"(tillatt: {', '.join(allowed)})"
+                    )
+                    continue
+                d = globals().get('M2PY_DEFAULTS')
+                if not isinstance(d, dict):
+                    d = {}
+                    globals()['M2PY_DEFAULTS'] = d
+                saved_key = ('default', storage_key)
+                if saved_key not in saved:
+                    saved[saved_key] = d.get(storage_key, _M2PY_HARDCODED_FALLBACKS.get(storage_key))
+                d[storage_key] = val
+                self._log(f"// m2py: {key} = {val} (satt fra script-direktiv)")
         return saved
 
     def _restore_script_directives(self, saved):
-        """Gjenopprett globaler etter at scriptet er ferdig (uansett om det
+        """Gjenopprett innstillinger etter at scriptet er ferdig (uansett om det
         feilet eller fullførte)."""
-        for key, old_val in saved.items():
-            globals()[key] = old_val
+        for storage_ref, old_val in saved.items():
+            # Bakoverkompatibilitet: gamle saved-dict-er brukte rene strenger som nøkler
+            if isinstance(storage_ref, tuple) and len(storage_ref) == 2:
+                kind, storage_key = storage_ref
+                if kind == 'global':
+                    globals()[storage_key] = old_val
+                elif kind == 'default':
+                    d = globals().get('M2PY_DEFAULTS')
+                    if isinstance(d, dict):
+                        if old_val is None:
+                            d.pop(storage_key, None)
+                        else:
+                            d[storage_key] = old_val
+            else:
+                globals()[storage_ref] = old_val
 
     # ─── Streng-emulering: metadata-oppslag for kolonner ────────────────────
     def _lookup_var_meta(self, colname):
