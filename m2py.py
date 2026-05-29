@@ -7569,6 +7569,22 @@ class MicroInterpreter:
                 if _ds_entity is None and _vshort:
                     self.dataset_entity_types[self.active_name] = _var_entity
 
+                # Temporalitet-sjekk: Tverrsnitt/Akkumulert/Forløp krever importdato
+                if cmd in ('import', 'import-event') and isinstance(args, dict):
+                    _temp = _vmeta.get('temporalitet', '')
+                    _date1 = args.get('date1')
+                    if _temp and _temp.lower() != 'fast' and not _date1:
+                        _vpath_disp = args.get('var', _vshort)
+                        self._log(
+                            f"FEIL: «{_vshort}» er en {_temp}-variabel og krever en importdato.\n"
+                            f"Legg til dato i kommandoen: import {_vpath_disp} ÅÅÅÅ-MM-DD"
+                        )
+                        return
+                    if _temp.lower() == 'fast' and _date1:
+                        self._log(
+                            f"ADVARSEL: «{_vshort}» er en Fast-variabel — dato ignoreres."
+                        )
+
                 new_data = self.data_engine.generate(cmd, args, df_target)
                 # Omdøp unit_id → enhetstype-korrekt nøkkelkolonne (f.eks. PERSONID_1 for persondata)
                 _id_col = _ENTITY_ID_COL.get(_var_entity, 'unit_id')
