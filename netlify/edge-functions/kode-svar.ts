@@ -318,10 +318,10 @@ ALLTID hvilken kode du antar i en kommentar (\`// antar NUS 7 = mastergrad\`) og
 velg grove, robuste filtre framfor presise enkeltkoder du er usikker på. Er du
 usikker, si det heller enn å gjette i stillhet.
 
-**\`inlabels()\` — bruk kun etiketter som er eksplisitt vist i katalogen.**
-Katalogen viser etiketter bare for variabler med ≤12 kategorier. Hvis
-etikettene ikke vises, bruk numerisk kode + \`destring\`, eller kjør
-\`tabulate <var>\` for å utforske kodene. Gjett aldri etiketttekst.`;
+**Foretrekk numerisk kode fremfor etikett.** Bruk \`destring\` + numerisk
+sammenligning som standard. \`inlabels()\` er kun aktuelt når etikettene er
+eksplisitt vist i katalogen (≤12 kategorier) og koden er ukjent. Gjett
+aldri etiketttekst.`;
 
 const DATE_QUIRKS = `\
 ## Dato-format-fallgruver
