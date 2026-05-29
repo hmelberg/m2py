@@ -8128,7 +8128,7 @@ def _run_microdata_chunk(_code):
           bubble.appendChild(intro);
           const list = document.createElement('ul');
           list.style.margin = '0'; list.style.paddingLeft = '18px';
-          variables.slice(0, 12).forEach(v => {
+          variables.forEach(v => {
             const li = document.createElement('li');
             li.style.marginBottom = '4px';
             li.innerHTML = '<code>' + escapeHtml(v.name) + '</code> — ' + escapeHtml(v.short_title || '');
