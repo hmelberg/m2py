@@ -115,8 +115,8 @@ FIRE verdier (ingen "Event"-temporalitet):
   inn i et paneldatasett.
 
 Importerer du en Tverrsnitt/Akkumulert-variabel uten dato, feiler scriptet.
-**Sjekk alltid katalog-taggen for hver variabel du importerer** — `[tverrsnitt]`
-og `[akkumulert]` krever alltid dato; `[fast]` skal ikke ha dato.`;
+**Sjekk alltid katalog-taggen for hver variabel du importerer** — \`[tverrsnitt]\`
+og \`[akkumulert]\` krever alltid dato; \`[fast]\` skal ikke ha dato.`;
 
 const STATA_DIFFERENCES = `\
 ## VIKTIG: microdata.no er IKKE Stata
