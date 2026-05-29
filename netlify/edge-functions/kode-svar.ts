@@ -114,7 +114,9 @@ FIRE verdier (ingen "Event"-temporalitet):
 - \`Forløp\` — hendelses-/forløpsdata; \`import-event db/VAR <fra> to <til>\`
   inn i et paneldatasett.
 
-Importerer du en Tverrsnitt/Akkumulert-variabel uten dato, feiler scriptet.`;
+Importerer du en Tverrsnitt/Akkumulert-variabel uten dato, feiler scriptet.
+**Sjekk alltid katalog-taggen for hver variabel du importerer** — `[tverrsnitt]`
+og `[akkumulert]` krever alltid dato; `[fast]` skal ikke ha dato.`;
 
 const STATA_DIFFERENCES = `\
 ## VIKTIG: microdata.no er IKKE Stata
@@ -155,6 +157,10 @@ bil/...): hvert slikt datasett har en person-ref-kolonne som peker tilbake til
 personen (f.eks. NPR \`NPRID\`, jobb \`ARBEIDSFORHOLD_PERSON\`, kurs
 \`NUDB_KURS_FNR\`). Importer alltid person-ref-kolonnen. Hold ulike enhetstyper
 i SEPARATE datasett.
+
+**Variabelomfang.** Etter \`use <datasett>\` er bare variablene i det aktive
+datasettet tilgjengelige. Variabler fra andre datasett må merges inn FØR de
+kan brukes — å referere til dem direkte er en kjøretidsfeil.
 
 **Tre import-moduser** (avhenger av temporalitet, se Databank-oppsett):
 tverrsnitt (\`import\` med/uten dato — én verdi per enhet); event/forløp
@@ -310,7 +316,12 @@ yrke) ser du ikke kodene. Da: bruk allmennkunnskap om standard-kodeverket der du
 er rimelig sikker (f.eks. kjønn, grove ICD-kapitler, utdanningsnivå), men SI
 ALLTID hvilken kode du antar i en kommentar (\`// antar NUS 7 = mastergrad\`) og
 velg grove, robuste filtre framfor presise enkeltkoder du er usikker på. Er du
-usikker, si det heller enn å gjette i stillhet.`;
+usikker, si det heller enn å gjette i stillhet.
+
+**\`inlabels()\` — bruk kun etiketter som er eksplisitt vist i katalogen.**
+Katalogen viser etiketter bare for variabler med ≤12 kategorier. Hvis
+etikettene ikke vises, bruk numerisk kode + \`destring\`, eller kjør
+\`tabulate <var>\` for å utforske kodene. Gjett aldri etiketttekst.`;
 
 const DATE_QUIRKS = `\
 ## Dato-format-fallgruver
@@ -322,7 +333,10 @@ Mange SSB-dato-variabler lagres som **heltall**, ikke ISO-datoer:
 - Trekk ut år: \`gen year = int(date_var/10000)\` (YYYYMMDD) eller
   \`int(date_var/100)\` (YYYYMM). Filtrering som \`keep if uh <= 2009\` på et
   YYYYMM-felt dropper ALLE rader — bruk \`<= 200912\` eller trekk ut året.
-- Katalog-feltet \`data_type\` viser formatet (\`date:yyyymm\`, \`date:yyyymmdd\`).`;
+- Katalog-feltet \`data_type\` viser formatet (\`date:yyyymm\`, \`date:yyyymmdd\`).
+**Gyldighetsperiode.** Katalog-beskrivelsen angir gyldighetsperioden for
+variabelen. Velg alltid en importdato innenfor denne perioden — en dato
+utenfor gir kjøretidsfeil.`;
 
 const PRIVACY_RULES = `\
 ## Personvern / avsløringskontroll (plattformen håndhever disse)
