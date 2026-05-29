@@ -321,7 +321,9 @@ usikker, si det heller enn å gjette i stillhet.
 **Foretrekk numerisk kode fremfor etikett.** Bruk \`destring\` + numerisk
 sammenligning som standard. \`inlabels()\` er kun aktuelt når etikettene er
 eksplisitt vist i katalogen (≤12 kategorier) og koden er ukjent. Gjett
-aldri etiketttekst.`;
+aldri etiketttekst. Legg alltid til en kommentar med etiketten slik at
+det fremgår hva koden betyr:
+\`keep if kjonn == 1  // 1 = Mann\``;
 
 const DATE_QUIRKS = `\
 ## Dato-format-fallgruver
