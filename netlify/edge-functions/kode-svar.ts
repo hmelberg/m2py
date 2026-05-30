@@ -330,21 +330,49 @@ Mange registre har egen kommune-variabel (Alfanumerisk kommunekode — bruk
 \`BEFOLKNING_KOMMNR_FORMELL\`. Fylke: \`generate fylke = substr(komm, 1, 2)\`.`;
 
 const PSEUDONYM_RULES = `\
-## Pseudonym-variabler — kun nøkler, aldri analyse
+## Nøkkelvariabler — kun for kobling, aldri analyse
 
-Variabler som identifiserer individer lagres som krypterte pseudonymer. De ser
-ut som heltall, men plattformen nekter å behandle dem som tall.
+Plattformen avviser bruk av nøkkelvariabler i analyse/transformasjons-
+kommandoer med feilmeldingen *"Variabelen X er en nøkkelvariabel og kan
+ikke brukes i analyser og transformasjoner"*. Tre kilder til nøkkelstatus:
 
-**Navnekonvensjon:** variabler som ender på \`_FNR\` er pseudonymer
-(\`BEFOLKNING_MOR_FNR\`, \`NUDB_KURS_FNR\`, ...). Behandle alt markert
-\`is_pseudonym\` likt.
+### 1. Importerte pseudonymer
+Variabler som identifiserer individer er krypterte pseudonymer. Ser ut som
+heltall, men er ikke tall. Navnekonvensjon: ender på \`_FNR\`
+(\`BEFOLKNING_MOR_FNR\`, \`NUDB_KURS_FNR\`, ...). Også alt markert
+\`is_pseudonym\` i katalogen.
 
-**Lov:** som \`by()\`-nøkkel i \`collapse\`; som \`on\`-nøkkel i \`merge\`.
-**Forbudt (scriptet feiler):** aritmetikk, sammenligninger, \`string()\`,
-\`sysmiss()\`, \`summarize\`, \`tabulate\`, eller som forklaringsvariabel i regresjon.
+### 2. by-variabelen i et collapsed datasett
+Etter \`collapse (stat) v -> w, by(K)\` blir K rad-identifikatoren i det nye
+datasettet og arver nøkkelstatus. Også \`rename K NYTT_NAVN\` etterpå
+endrer ikke statusen — den nye kolonnen er fortsatt nøkkel.
 
-Trenger du å vite om en person har forelder/ektefelle i data, bruk \`sysmiss()\`
-på en ikke-pseudonym attributt (f.eks. mors fødselsår).`;
+### 3. Eneste kolonne etter clone-units
+\`clone-units A B\` lager B med kun populasjons-ID-en. Den kolonnen ER
+nøkkelen.
+
+### Tillatt
+- som \`by()\`-nøkkel i \`collapse\` / \`aggregate\`
+- som \`on\`-nøkkel i \`merge\`
+- som radidentifikator i sin egen rolle
+
+### Forbudt (scriptet feiler)
+- aritmetikk, sammenligninger, \`string()\`, \`sysmiss()\`
+- \`summarize\`, \`tabulate\`, \`generate\` med nøkkelen i uttrykket
+- som forklaringsvariabel i regresjon
+
+### Vanlige feilmønstre
+- \`tabulate K\` etter \`collapse ..., by(K)\` — K er nå nøkkel, ikke en
+  kategori. Vil du beskrive K-fordelingen, gjør det FØR \`collapse\`, eller
+  i et ikke-collapsed søsterdatasett (\`clone-dataset\` først).
+- \`generate ny = K + 1\` eller \`replace ny = K\` — pseudonymer kan ikke
+  brukes i uttrykk.
+- \`tabulate <variabel som er klonet/renamed fra en nøkkel>\` — sjekk
+  hvordan variabelen ble skapt; nøkkelstatusen følger med.
+
+### Sjekke om en person har en relasjon/hendelse
+Bruk \`sysmiss()\` på en ikke-pseudonym attributt for den relaterte enheten
+(f.eks. mors fødselsår), ikke selve FNR-en.`;
 
 const TYPE_RULES = `\
 ## Alfanumeriske vs numeriske variabler
