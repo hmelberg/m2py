@@ -175,23 +175,83 @@ panel (\`import-panel\` — long-format, én rad per (enhet, tidspunkt)).
   mange). Velg dette når analyse-enheten er hendelsen.`;
 
 const MERGE_CHEATSHEET = `\
-## Kobling (merge)
+## Merge og flere datasett
 
-Plattformen støtter ÉN merge-syntaks:
+### Det aktive datasettet
+Hver kommando jobber mot ÉN dataset — det aktive. \`create-dataset X\` gjør X
+aktivt; \`use Y\` bytter til Y. \`import\`, \`generate\`, \`summarize\`,
+\`regress\` osv. ser KUN variabler i det aktive. En variabel som ligger i et
+annet datasett kan IKKE refereres direkte — det er en kjøretidsfeil.
 
-    merge <var-liste> into <mål_datasett> [on <nøkkel>]
+**Konsekvens:** Trenger du flere variabler fra samme register på samme
+enhetstype, importér dem rett inn i samme datasett. Ikke splitt i flere
+datasett bare for å merge dem igjen.
 
-Den dytter variabler FRA det aktive datasettet INN i det navngitte målet. Så før
-\`merge ... into Y\` må du \`use X\` for å gjøre kilden aktiv:
+### merge-syntaksen
 
-    use npr_astma
-    merge astma into personer on pid
+    merge <var-liste> into <mål> [on <nøkkel>]
 
-\`on <var>\` navngir join-nøkkelen; variabelen må finnes i BEGGE datasett.
-**Kun ÉN variabel i \`on\`** — for sammensatt join bygg en composite key først.
+Merge DYTTER fra det aktive datasettet INN i \`<mål>\`. Du kan ikke "pulle"
+fra mål-siden ved å være i målet. Hjelpemiddel: \`merge X into Y\` betyr "fra
+her (aktiv) inn til Y med X".
 
-**Vanlige feil — IKKE skriv:** \`merge astma from npr on pid\` (from finnes ikke);
-\`merge ... into personer\` mens personer er aktivt; \`merge x into ds on k1 k2\`.`;
+\`on <var>\` — felles nøkkel som finnes i BEGGE datasett. Bare ÉN variabel
+i \`on\`; for sammensatt join bygg en composite key først.
+
+### Standardsekvens for merge
+
+    use kilde              // gjør datasettet SOM HAR variabelen aktivt
+    merge x into mål on k  // dyttes inn i mål
+    use mål                // bytt tilbake for å analysere mål videre
+
+### Den vanligste merge-feilen
+Å skrive \`merge x into mål\` mens \`x\` ligger i et ANNET datasett enn det
+aktive. Da finnes ikke \`x\` å dytte. Symptom: feilmelding om at variabelen
+ikke finnes.
+
+**Sjekkliste FØR hver \`merge\`:**
+1. Hvilket datasett HAR variabelen jeg merger? → \`use\` det først.
+2. Hva er målet? → \`into <det>\`.
+3. Hva er den felles nøkkelen? → \`on <nøkkel>\` (én variabel, finnes i begge).
+4. Trenger jeg å analysere målet etterpå? → \`use <mål>\` etter merge.
+
+**Andre vanlige feil — IKKE skriv:**
+- \`merge x from kilde\` (\`from\` finnes ikke i syntaksen)
+- \`merge x into mål\` når \`x\` ikke er i aktiv (samme feil som over)
+- \`merge x into mål on k1 k2\` (kun én nøkkel i \`on\`)
+
+### Når du faktisk trenger flere datasett
+- Ulike enhetstyper (Person vs Jobb vs Hendelse) — hold separat, collapse til
+  enhetstypen du analyserer på, så merge.
+- Variabler om relaterte personer (foreldre/barn/ektefelle) — hent variablene
+  for "den andre personen" i et eget datasett, så merge på relasjonsnøkkelen.
+
+### clone-units — start ny gren fra samme populasjon
+Når du vil analysere en delpopulasjon med ANDRE variabler enn originalen, uten
+å ødelegge originalen:
+
+    use stor_populasjon
+    keep if alder >= 65
+    clone-units stor_populasjon eldre  // 'eldre' = bare ID-er for filtrert pop
+    use eldre
+    import db/HELSE_KAT as helsekat    // andre variabler for samme personer
+
+### clone-dataset — snapshot før destruktiv operasjon
+\`collapse\`, \`keep if\`, \`drop if\` endrer det aktive datasettet permanent.
+Vil du beholde originalen:
+
+    clone-dataset persondata persondata_kopi
+    collapse (mean) inntekt, by(kommune)  // kopien er urørt
+
+### collapse vs aggregate (lett å forveksle)
+- \`collapse (stat) var -> navn, by(grp)\` ERSTATTER det aktive datasettet med
+  én rad per by-gruppe. Bare aggregerte kolonner + by-variabelen overlever.
+  \`->\` navngir utdata-VARIABELEN, ikke et nytt datasett.
+- \`aggregate (stat) var -> navn, by(grp)\` BEVARER alle rader og legger til en
+  ny kolonne med aggregatet broadcast til alle radene i gruppen.
+
+Trenger du både et aggregert datasett OG originalen: \`clone-dataset\` først,
+deretter \`collapse\`.`;
 
 const RELATIONS_LINKS = `\
 ## Relasjoner og koblinger (nøkkelvariabler)
