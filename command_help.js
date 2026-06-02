@@ -27,6 +27,140 @@ window.MICRODATA_COMMAND_HELP = {
     "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#transitions-panel"
   },
 
+  // Regresjon
+  "regress": {
+    "syntax": "regress var-name var-list [if] [, options]",
+    "description": "Ordinær lineær regresjon (OLS). Første variabel er avhengig, resten uavhengige. Faktorsyntaks: i.var (dummyer), c.var (kontinuerlig), a#b (interaksjon), a##b (full kryssing). Opsjoner: robust, cluster(), level(), noconstant, control(), standardize, ov/vif/het_bp (diagnostikk), margins().",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#regress"
+  },
+  "regress-predict": {
+    "syntax": "regress-predict var-name var-list [if] [, options]",
+    "description": "Som regress, men genererer nye variabler: predikerte verdier (predicted()), residualer (residuals()) og/eller Cooks distance (cooksd()).",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#regress-predict"
+  },
+  "regress-panel": {
+    "syntax": "regress-panel var-name var-list [if] [, options]",
+    "description": "Lineær regresjon for paneldata (krever paneldatasett bygd med import-panel/import-event/reshape-to-panel). Modelltype: fe (fixed effects, standard), re (random), be (between), pooled. Opsjoner: robust, cluster(), level(), noconstant.",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#regress-panel"
+  },
+  "regress-panel-diff": {
+    "syntax": "regress-panel-diff var-name group-var treated-var var-list [if] [, options]",
+    "description": "Diff-in-diff-regresjon. group-var = 1 for behandlingsgruppe / 0 kontroll; treated-var = 1 fra og med behandlingstidspunkt / 0 før. ATET er koeffisienten til interaksjonsleddet (group#treated). Opsjoner: robust, cluster(), level().",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#regress-panel-diff"
+  },
+  "regress-panel-predict": {
+    "syntax": "regress-panel-predict var-name var-list [if] [, options]",
+    "description": "Som regress-panel, men genererer predikerte verdier (predicted()), residualer (residuals()) og/eller enhetseffekter (effects()). Modelltype fe/re/be/pooled.",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#regress-panel-predict"
+  },
+  "regress-mml": {
+    "syntax": "regress-mml response-var var-list by group-var-1 [group-var-2] [if] [, options]",
+    "description": "Lineær flernivåanalyse (mixed model) med inntil tre nivåer. Gruppevariabler angis etter by-leddet (høyeste nivå først). Standardestimering REML. Opsjoner: control(), noconstant, level().",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#regress-mml"
+  },
+  "regress-mml-predict": {
+    "syntax": "regress-mml-predict response-var var-list by group-var-1 [group-var-2] [if] [, options]",
+    "description": "Henter predikerte verdier (predicted()) og residualer (residuals()) fra en regress-mml-modell. Modelluttrykket må være identisk med regress-mml.",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#regress-mml-predict"
+  },
+  "hausman": {
+    "syntax": "hausman var-name var-list [if] [, options]",
+    "description": "Hausman spesifikasjonstest som sammenligner en regress-panel med fixed effects mot en med random effects. P-verdi < 0.05 ⇒ bruk FE, ellers RE. Variabler og opsjoner som i regress-panel.",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#hausman"
+  },
+  "ivregress": {
+    "syntax": "ivregress var-name var-list [( var-list = var-list )] var-list [if] [, options]",
+    "description": "Lineær regresjon med instrumentvariabler. Endogen(e) variabler og instrumenter angis i parentes: (endog = instrumenter). Estimator: tsls (standard), liml, gmm. Opsjoner: firststage, endog, overid, robust, cluster(), level(), noconstant.",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#ivregress"
+  },
+  "ivregress-predict": {
+    "syntax": "ivregress-predict var-name var-list [( var-list = var-list )] var-list [if] [, options]",
+    "description": "Som ivregress, men genererer predikerte verdier (predicted()) og/eller residualer (residuals()).",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#ivregress-predict"
+  },
+  "logit": {
+    "syntax": "logit var-name var-list [if] [, options]",
+    "description": "Logistisk regresjon; avhengig variabel må være binær (0/1). Opsjoner: or (oddsratio), mfx()/mfx_at() (marginaleffekter), margins(), robust, cluster(), control(), level().",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#logit"
+  },
+  "logit-predict": {
+    "syntax": "logit-predict var-name var-list [if] [, options]",
+    "description": "Som logit, men genererer sannsynligheter (probabilities()), lineære prediksjoner (predicted()) og/eller residualer (residuals()).",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#logit-predict"
+  },
+  "probit": {
+    "syntax": "probit var-name var-list [if] [, options]",
+    "description": "Probit-regresjon; avhengig variabel må være binær. Opsjoner: mfx()/mfx_at(), margins(), robust, cluster(), control(), level().",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#probit"
+  },
+  "probit-predict": {
+    "syntax": "probit-predict var-name var-list [if] [, options]",
+    "description": "Som probit, men genererer sannsynligheter (probabilities()) og/eller predikerte verdier (predicted()).",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#probit-predict"
+  },
+  "mlogit": {
+    "syntax": "mlogit var-name var-list [if] [, options]",
+    "description": "Multinomisk logit-regresjon; avhengig variabel må ha flere enn to kategorier. Støtter faktorvariabler og interaksjoner. Opsjoner: mfx()/mfx_at(), robust, cluster(), control(), level().",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#mlogit"
+  },
+  "mlogit-predict": {
+    "syntax": "mlogit-predict var-name var-list [if] [, options]",
+    "description": "Som mlogit, men genererer sannsynligheter (probabilities()) og/eller predikerte verdier (predicted()) per kategori av avhengig variabel.",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#mlogit-predict"
+  },
+  "poisson": {
+    "syntax": "poisson var-name var-list [if] [, options]",
+    "description": "Poisson telleregresjon; avhengig variabel er en tellevariabel (ikke-negative heltall). Velg poisson når forventning ≈ varians, ellers negative-binomial. Opsjoner: irr (rate-ratio), exposure(), robust, cluster(), control(), level().",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#poisson"
+  },
+  "poisson-predict": {
+    "syntax": "poisson-predict var-name var-list [if] [, options]",
+    "description": "Som poisson, men genererer predikerte verdier (predicted()) og/eller residualer (residuals()).",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#poisson-predict"
+  },
+  "negative-binomial": {
+    "syntax": "negative-binomial var-name var-list [if] [, options]",
+    "description": "Negativ binomial telleregresjon; generalisering av poisson for overdispergerte tellinger (varians > forventning). Estimerer dispersjonsparameteren alpha. Opsjoner: irr, exposure(), robust, cluster(), control(), level().",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#negative-binomial"
+  },
+  "negative-binomial-predict": {
+    "syntax": "negative-binomial-predict var-name var-list [if] [, options]",
+    "description": "Som negative-binomial, men genererer predikerte verdier (predicted()) og/eller residualer (residuals()).",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#negative-binomial-predict"
+  },
+  "oaxaca": {
+    "syntax": "oaxaca var-name var-list by var-name [if] [, options]",
+    "description": "Blinder-Oaxaca-dekomponering av forskjellen i gjennomsnittlig avhengig variabel mellom to grupper (angitt med by) i forklart og uforklart komponent. Opsjoner: pool (pooled two-fold), robust, noconstant.",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#oaxaca"
+  },
+  "rdd": {
+    "syntax": "rdd var-name runvar var-list [if] [, options]",
+    "description": "Regression Discontinuity Design (RDD): estimerer effekten av en behandling som tildeles etter en terskel i en kontinuerlig running-variabel. Første variabel er avhengig, andre er running-variabel (terskel), øvrige er kovariater. Opsjoner: cutoff() (standard 0), polynomial() (standard 1), fuzzy(treatment-dummy) for fuzzy RDD, derivate(), cluster(), level().",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#rdd"
+  },
+  "coefplot": {
+    "syntax": "coefplot reg-cmd var-name var-list",
+    "description": "Visualiser koeffisientestimater (med konfidensintervall) fra en regresjon. Angi regresjonskommandoen først, deretter modelluttrykket, f.eks. coefplot regress depvar var1 var2. Støtter regress/logit/probit/poisson.",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#coefplot"
+  },
+
+  // Overlevelsesanalyse
+  "cox": {
+    "syntax": "cox event-var duration-var [var-list] [if] [, options]",
+    "description": "Cox proporsjonal hasard-regresjon for forløps-/overlevelsesdata. Første variabel er hendelse (0/1), andre er varighet/tid; øvrige er kovariater (i.var støttes). Opsjon hazard viser hazard ratios; level() setter konfidensnivå.",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#cox"
+  },
+  "kaplan-meier": {
+    "syntax": "kaplan-meier event-var duration-var [if]",
+    "description": "Kaplan-Meier-estimat av overlevelsesfunksjonen. Første variabel er hendelse (0/1), andre er varighet/tid.",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#kaplan-meier"
+  },
+  "weibull": {
+    "syntax": "weibull event-var duration-var [if]",
+    "description": "Weibull parametrisk overlevelsesmodell. Første variabel er hendelse (0/1), andre er varighet/tid.",
+    "source": "https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer#weibull"
+  },
+
   // Bindinger
   "let": {
     "syntax": "let name = expression",

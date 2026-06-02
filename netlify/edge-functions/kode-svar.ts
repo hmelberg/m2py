@@ -535,6 +535,38 @@ use persondata
 regress inntekt inntekt_far inntekt_mor
 \`\`\``;
 
+const INFERENCE_RULES = `\
+## Inferens og kausal analyse
+
+Når spørsmålet gjelder **effekt, årsak, virkning eller sammenheng**: still deg i rollen som ekspert på kvasi-eksperimentelle metoder i observasjonsdata. Velg den enkleste metoden som identifikasjonsstrategien tillater, og oppgi den sentrale antakelsen.
+
+**Faktor- og interaksjonssyntaks** (regress, regress-panel, logit, probit, poisson, negative-binomial, mlogit):
+- \`i.var\` — kategorisk → dummyer (referansekategori droppes). \`c.var\` — behandle kategorisk som kontinuerlig.
+- \`a#b\` — interaksjon; \`a##b\` — full kryssing (hovedeffekter + interaksjon). \`c.x#c.y\` for to metriske.
+- \`if\`-uttrykk støttes: \`regress y x if inntekt > 500000\`.
+- Vanlige opsjoner (etter komma): \`robust\`, \`cluster(v)\`, \`level(90)\`, \`noconstant\`, \`control(...)\`.
+
+**OLS:** \`regress depvar varliste\` — også \`ov\`/\`vif\`/\`het_bp\` (diagnostikk), \`standardize\`, \`margins()\`. Predikering: \`regress-predict ..., predicted(p) residuals(r) cooksd(c)\`.
+
+**Faste effekter / panel** (krever paneldatasett — \`import-panel\`/\`import-event\`/\`reshape-to-panel\`):
+- \`regress-panel depvar varliste\` — \`fe\` (standard), \`re\`, \`be\`, \`pooled\`. \`hausman depvar varliste\` velger FE vs RE (P<0.05 ⇒ FE). FE antar streng eksogenitet; fjerner all tidskonstant forveksling per enhet.
+
+**Diff-in-diff:** \`regress-panel-diff depvar gruppe behandling [varliste]\` — \`gruppe\`=1 behandlingsgruppe/0 kontroll, \`behandling\`=1 fra og med behandlingstidspunkt/0 før. ATET = interaksjonskoeffisienten. Antar **parallelle trender**. (Ekvivalent: \`regress-panel depvar gruppe##behandling ..., pooled\`.)
+
+**Instrumentvariabler:** \`ivregress depvar exog (endog = instrumenter) exog\` — f.eks. \`ivregress innt05 mann gift (formuehøy = alder)\`. Opsjoner: \`tsls\` (standard), \`liml\`, \`gmm\`, \`firststage\`, \`endog\`, \`overid\`. Sjekk førstetrinns-F (svakt instrument < ~10). Antar instrumentet **relevant og eksogent**.
+
+**Regresjonsdiskontinuitet:** \`rdd depvar runvar [varliste]\` med \`cutoff(0)\`, \`polynomial(1)\`, \`fuzzy(treat_dummy)\`. Antar at enheter ikke kan manipulere seg presist over terskelen.
+
+**Binært utfall:** \`logit\`/\`probit depvar varliste\` — \`or\` (oddsratio, logit), \`mfx(dydx)\`, \`margins(dummy)\`. **Telledata:** \`poisson\` (forventning≈varians) eller \`negative-binomial\` (overdispersjon); \`irr\` (rate-ratio), \`exposure(v)\`. **Nominelt >2 kat.:** \`mlogit\`. Alle har \`…-predict\` (\`probabilities()\`/\`predicted()\`/\`residuals()\`).
+
+**Lønnsgap-dekomponering:** \`oaxaca depvar varliste by gruppevar\` (Blinder-Oaxaca). **Flernivå:** \`regress-mml depvar varliste by nivå2 [nivå1]\` (opptil 3 nivåer).
+
+**Forløp/overlevelse:** \`cox hendelse varighet [varliste]\` (+ \`hazard\`), \`kaplan-meier\`, \`weibull\`.
+
+**Visualisering:** \`coefplot\` etter regress/logit/probit/poisson.
+
+Personvern (T9): regresjonskonstanten skjules hvis kategorikombinasjoner gir < 5 enheter — hold kategoriene grove.`;
+
 const RULE_BLOCKS = [
   SYSTEM_INTRO,
   GRAMMAR_CHEATSHEET,
@@ -547,6 +579,7 @@ const RULE_BLOCKS = [
   TYPE_RULES,
   DATE_QUIRKS,
   PRIVACY_RULES,
+  INFERENCE_RULES,
   NPR_RULES,
   OUTPUT_INSTRUCTION,
 ].join("\n\n");
@@ -728,20 +761,40 @@ function renderKommuneCodes(meta: unknown): string {
 // `https://` in "source" values is mid-line and untouched) and trailing commas.
 function renderCommands(jsText: string): string {
   const start = jsText.indexOf("{");
-  const end = jsText.lastIndexOf("}");
-  if (start < 0 || end <= start) return "";
-  let objText = jsText.slice(start, end + 1);
-  objText = objText.replace(/^\s*\/\/.*$/gm, "");      // full-line comments
-  objText = objText.replace(/,(\s*[}\]])/g, "$1");      // trailing commas
+  if (start < 0) return "";
+  // Filen inneholder et nr. 2 objekt (MICRODATA_FUNCTION_HELP) — brace-match
+  // KUN det første objektet. lastIndexOf("}") ville spenne over begge og få
+  // JSON.parse til å feile (→ tom kommando-referanse).
+  let depth = 0, end = -1, instr: string | null = null, esc = false;
+  for (let k = start; k < jsText.length; k++) {
+    const ch = jsText[k];
+    if (instr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === instr) instr = null;
+    } else if (ch === '"' || ch === "'") {
+      instr = ch;
+    } else if (ch === "{") {
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0) { end = k; break; }
+    }
+  }
+  if (end <= start) return "";
+  const rawObj = jsText.slice(start, end + 1);
+  const objText = rawObj
+    .replace(/^\s*\/\/.*$/gm, "")    // full-line comments (// Kategori)
+    .replace(/,(\s*[}\]])/g, "$1");  // trailing commas
   let help: Record<string, { syntax?: string; description?: string; options?: string[] }>;
   try {
     help = JSON.parse(objText);
   } catch {
     return "";   // graceful: grammar cheatsheet still covers core commands
   }
-  const names = Object.keys(help).sort();
+
   const lines: string[] = ["## Kommando-referanse (syntaks — beskrivelse)", ""];
-  for (const name of names) {
+  const renderRow = (name: string) => {
     const row = help[name] || {};
     const syntax = row.syntax || name;
     let desc = (row.description || "").replace(/\s+/g, " ").trim();
@@ -757,6 +810,21 @@ function renderCommands(jsText: string): string {
         lines.push(`  - opsjoner: ${optLine}`);
       }
     }
+  };
+
+  // Gå gjennom objektet i fil-rekkefølge: "// Kategori"-kommentarer blir
+  // overskrifter (###), og hver "navn": { ... } blir en kommando-rad. Bevarer
+  // den semantiske grupperingen fra command_help.js i referansen.
+  const seen = new Set<string>();
+  for (const line of rawObj.split("\n")) {
+    const hm = line.match(/^\s*\/\/\s*(.+?)\s*$/);
+    if (hm) { lines.push("", `### ${hm[1]}`); continue; }
+    const km = line.match(/^\s*"([\w-]+)"\s*:\s*\{/);
+    if (km && help[km[1]] && !seen.has(km[1])) { seen.add(km[1]); renderRow(km[1]); }
+  }
+  // Sikkerhetsnett: kommandoer uten kategori-kommentar havner til slutt.
+  for (const name of Object.keys(help)) {
+    if (!seen.has(name)) renderRow(name);
   }
   return lines.join("\n");
 }
