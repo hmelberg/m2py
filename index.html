@@ -2543,26 +2543,35 @@
         }
       }
 
+      // Re-entrancy-vakt: programmatiske scrollTop-endringer utløser en scroll-event
+      // på mottakeren. Uten vakt blir tekstfelt↔linjenumre en sløyfe som aldri
+      // stabiliserer seg (proporsjonal omregning + heltalls-avrunding når linjer brytes).
+      var syncingScroll = false;
+      function setScrollTopSilently(el, top) {
+        syncingScroll = true;
+        el.scrollTop = top;
+        requestAnimationFrame(function() { syncingScroll = false; });
+      }
       function syncScrollFromInput() {
         if (highlightLayer) highlightLayer.scrollTop = scriptInput.scrollTop;
         var sh = scriptInput.scrollHeight - scriptInput.clientHeight;
         var lh = lineNumbers.scrollHeight - lineNumbers.clientHeight;
-        if (sh <= 0 || lh <= 0) { lineNumbers.scrollTop = scriptInput.scrollTop; return; }
-        lineNumbers.scrollTop = (scriptInput.scrollTop / sh) * lh;
+        var target = (sh <= 0 || lh <= 0) ? scriptInput.scrollTop : (scriptInput.scrollTop / sh) * lh;
+        setScrollTopSilently(lineNumbers, target);
       }
       function syncScrollFromLineNumbers() {
         var sh = scriptInput.scrollHeight - scriptInput.clientHeight;
         var lh = lineNumbers.scrollHeight - lineNumbers.clientHeight;
-        if (sh <= 0 || lh <= 0) { scriptInput.scrollTop = lineNumbers.scrollTop; return; }
-        scriptInput.scrollTop = (lineNumbers.scrollTop / lh) * sh;
+        var target = (sh <= 0 || lh <= 0) ? lineNumbers.scrollTop : (lineNumbers.scrollTop / lh) * sh;
+        setScrollTopSilently(scriptInput, target);
       }
       scriptInput.addEventListener('input', function() {
         updateLineNumbers();
         renderScriptHighlight();
         syncScrollFromInput();
       });
-      scriptInput.addEventListener('scroll', syncScrollFromInput);
-      lineNumbers.addEventListener('scroll', syncScrollFromLineNumbers);
+      scriptInput.addEventListener('scroll', function() { if (!syncingScroll) syncScrollFromInput(); });
+      lineNumbers.addEventListener('scroll', function() { if (!syncingScroll) syncScrollFromLineNumbers(); });
       const codeWrapEl = document.querySelector('.code-wrap');
       const autocompleteListEl = document.getElementById('autocompleteList');
       if (codeWrapEl) {
