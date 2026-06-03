@@ -1550,6 +1550,7 @@
       språk: 'auto',
       detaljnivå: 'kort',
       ønsker_revidert_script: false,
+      bruk_scrub: false,   // foreslå scrub-kommandoer i revidert script (kun når revider er på)
       kontekst: '',
       lagre_kontekst_som_blokk: true,  // updated from sekundærmodal (M2-T6)
     };
@@ -1561,6 +1562,15 @@
       document.getElementById('dmOptLanguage').value = dmOptionsState.språk;
       document.querySelector(`input[name="dmOptDetail"][value="${dmOptionsState.detaljnivå}"]`).checked = true;
       document.getElementById('dmOptRevise').checked = dmOptionsState.ønsker_revidert_script;
+      const _scrubCb = document.getElementById('dmOptUseScrub');
+      const _reviseCb = document.getElementById('dmOptRevise');
+      if (_scrubCb && _reviseCb) {
+        _scrubCb.checked = dmOptionsState.bruk_scrub;
+        // Scrub-forslag er kun relevant når man ber om revidert script.
+        const syncScrubEnabled = () => { _scrubCb.disabled = !_reviseCb.checked; };
+        syncScrubEnabled();
+        _reviseCb.onchange = syncScrubEnabled;
+      }
       updateDmOptContextStatus();
 
       backdrop.style.display = 'flex';
@@ -1573,6 +1583,8 @@
         dmOptionsState.språk = document.getElementById('dmOptLanguage').value;
         dmOptionsState.detaljnivå = document.querySelector('input[name="dmOptDetail"]:checked').value;
         dmOptionsState.ønsker_revidert_script = document.getElementById('dmOptRevise').checked;
+        dmOptionsState.bruk_scrub = !!(document.getElementById('dmOptUseScrub') || {}).checked
+          && dmOptionsState.ønsker_revidert_script;
         // kontekst is set by sekundærmodal (M2-T6)
         backdrop.style.display = 'none';
 
@@ -1924,6 +1936,7 @@
             språk: options.språk || 'auto',
             detaljnivå: options.detaljnivå || 'kort',
             ønsker_revidert_script: options.ønsker_revidert_script || false,
+            bruk_scrub: options.bruk_scrub || false,
           }),
           signal: controller.signal,
         });
@@ -3189,7 +3202,11 @@
       'regress', 'probit', 'logit', 'poisson', 'mlogit', 'regress-panel', 'hausman',
       'regress-predict', 'probit-predict', 'logit-predict', 'mlogit-predict',
       'regress-panel-predict', 'regress-panel-diff', 'ivregress', 'ivregress-predict', 'rdd',
-      'create-dataset', 'use', 'merge', 'variables', 'clone-dataset', 'clone-units'
+      'create-dataset', 'use', 'merge', 'variables', 'clone-dataset', 'clone-units',
+      // Dataminimering / de-identifisering (protect-pakken)
+      'scrub-jitter', 'scrub-noise', 'scrub-winsorize', 'scrub-bin', 'scrub-coarsen',
+      'scrub-year', 'scrub-month', 'scrub-diff', 'scrub-shorten', 'scrub-collapse',
+      'scrub-pseudonymize', 'scrub-swap', 'scrub-auto', 'scrub-risk'
     ];
 
     // ── Python/R autocomplete static data ──────────────────────────────────
@@ -3282,13 +3299,16 @@
       smf: ['ols','glm','logit','probit','poisson','mixedlm','wls','gls'],
       plt: ['plot','scatter','hist','bar','barh','show','figure','subplots','xlabel','ylabel','title','legend','savefig','xlim','ylim'],
       sns: ['scatterplot','lineplot','barplot','histplot','kdeplot','boxplot','violinplot','heatmap','pairplot','regplot','countplot','catplot','displot'],
+      // Dataminimering / de-identifisering (protect-pakken, eksponert som `scrub`)
+      scrub: ['noise','jitter','winsorize','bin','coarsen','year','month','diff','shorten','collapse','pseudonymize','insert','eliminate','swap','suppress','risk','protect','profile'],
     };
+    PY_NS_FUNCS.protect = PY_NS_FUNCS.scrub;  // alias
     // Felles forslag for delords-fullføring i Python.
     const PY_COMPLETION_POOL = [].concat(
       PYTHON_KEYWORDS.map(function(k){ return { label:k, kind:'keyword' }; }),
       PYTHON_BUILTINS.map(function(b){ return { label:b, kind:'builtin' }; }),
       PANDAS_DF_METHODS.map(function(m){ return { label:m, kind:'method' }; }),
-      ['pd','np','px','plt','sns','sm','smf'].map(function(a){ return { label:a, kind:'package' }; })
+      ['pd','np','px','plt','sns','sm','smf','scrub'].map(function(a){ return { label:a, kind:'package' }; })
     );
 
     function escHl(s){ return escapeHtmlOutput(s); }
@@ -5039,6 +5059,16 @@ json.dumps(out)
         const firstWord = ctx.firstWordOnLine;
         const isCommand = MICRODATA_COMMANDS.some(c => c.toLowerCase() === firstWord.toLowerCase());
 
+        // Rule 0a: scrub-verb hvor som helst på linja (også som import-suffiks).
+        const scrubM = lineSoFar.match(/(scrub[a-z-]*)$/i);
+        if (scrubM) {
+          const sp = scrubM[1].toLowerCase(), sStart = pos - scrubM[1].length;
+          const sg = MICRODATA_COMMANDS
+            .filter(function(c) { return c.indexOf('scrub-') === 0 && c.indexOf(sp) === 0; }).sort()
+            .map(function(c) { return { label: c, kind: 'command' }; });
+          if (sg.length) { showAutocomplete(sg, sStart, pos); return; }
+        }
+
         // Rule 0: import db/VARIABEL <mellomrom> → foreslå gyldige importdatoer
         // (kun for Tverrsnitt/Akkumulert/Forløp-variabler; Fast trenger ingen dato).
         const importDate = lineSoFar.match(
@@ -5229,7 +5259,9 @@ json.dumps(out)
         'define-labels assign-labels drop-labels list-labels reshape-to-panel reshape-from-panel require delete-dataset rename-dataset ' +
         'textblock endblock let sample barchart histogram boxplot scatter piechart hexbin sankey cox create-dataset use clone-dataset merge variables ' +
         'summarize normaltest correlate ci anova summarize-panel tabulate tabulate-panel transitions-panel regress probit logit poisson ' +
-        'regress-panel hausman regress-predict kaplan-meier weibull').split(/\s+/);
+        'regress-panel hausman regress-predict kaplan-meier weibull ' +
+        'scrub-jitter scrub-noise scrub-winsorize scrub-bin scrub-coarsen scrub-year scrub-month ' +
+        'scrub-diff scrub-shorten scrub-collapse scrub-pseudonymize scrub-swap scrub-auto scrub-risk').split(/\s+/);
       var o = {};
       for (var z = 0; z < a.length; z++) if (a[z]) o[a[z]] = 1;
       return o;
@@ -5317,6 +5349,9 @@ json.dumps(out)
           } else if (wordTokenIndex === 0) {
             // Første ord på linja er (nesten) alltid en kommando → mørk farge,
             // også mens man fortsatt skriver og ordet ikke er fullført ennå.
+            cls = 'md-out-cmd';
+          } else if (low.indexOf('scrub-') === 0) {
+            // scrub-verb hvor som helst (f.eks. som import-suffiks) → kommandofarge.
             cls = 'md-out-cmd';
           } else if (MD_CMD_TAB_OPTS[low]) {
             cls = 'md-out-kw-brown';
@@ -6455,6 +6490,12 @@ def to_microdata(df, name=None, make_active=True):
 _g = {"__name__": "__main__", "__builtins__": builtins, "e": e, "micro_interpreter": e, "pd": pd, "np": np, "numpy": np, "pandas": pd}
 _g["show"] = show
 _g["to_microdata"] = to_microdata
+try:
+    import protect as _scrub_mod
+    _g["scrub"] = _scrub_mod
+    _g["protect"] = _scrub_mod
+except Exception:
+    pass
 def _apply_labels_to_globals(_g, _cat):
     if not _cat:
         return
@@ -7166,12 +7207,13 @@ await micropip.install('plotly')
       setStatus(leftStatus, 'Fetching m2py, functions, mockdata modules and variable_metadata...');
       const base = window.location.href.replace(/[^/]+$/, '');
       const _cb = '?v=' + (window.M2PY_VERSION || '1');
-      const [m2pyResp, funcResp, metaResp, coreResp, realismResp] = await Promise.all([
+      const [m2pyResp, funcResp, metaResp, coreResp, realismResp, protectResp] = await Promise.all([
         fetch(base + 'm2py.py' + _cb),
         fetch(base + 'functions.py' + _cb),
         fetch(base + 'variable_metadata.json' + _cb),
         fetch(base + 'mockdata_core.py' + _cb),
-        fetch(base + 'mockdata_realism.py' + _cb)
+        fetch(base + 'mockdata_realism.py' + _cb),
+        fetch(base + 'protect.py' + _cb).catch(function() { return { ok: false }; })
       ]);
       if (!m2pyResp.ok || !funcResp.ok) {
         throw new Error('Could not load m2py.py or functions.py. Run from a local server (e.g. python -m http.server) from the microdata folder.');
@@ -7204,6 +7246,22 @@ func_mod = importlib.util.module_from_spec(spec)
 sys.modules["functions"] = func_mod
 exec(compile(func_code, "functions.py", "exec"), func_mod.__dict__)
 `);
+      // Register protect (dataminimering-verktøy) — valgfri, ikke-fatal hvis filen mangler.
+      // Tilgjengelig som modulen `protect` i Pyodide; eksponeres som `beskytt` ved kjøring.
+      if (protectResp && protectResp.ok) {
+        try {
+          const protectCode = await protectResp.text();
+          setStatus(leftStatus, 'Registering protect...');
+          await pyodide.runPythonAsync(`
+import sys, importlib.util
+protect_code = ${JSON.stringify(protectCode)}
+spec_p = importlib.util.spec_from_loader("protect", loader=None)
+sys.modules["protect"] = importlib.util.module_from_spec(spec_p)
+exec(compile(protect_code, "protect.py", "exec"), sys.modules["protect"].__dict__)
+`);
+          window.__protectLoaded = true;
+        } catch (e) { console.warn('protect register:', e); }
+      }
       // Register mockdata_core and mockdata_realism (used by m2py's realism dispatch).
       // Load order: mockdata_core (no deps) -> mockdata_realism (depends on core) -> m2py.
       if (coreResp.ok && realismResp.ok) {
@@ -9255,6 +9313,9 @@ def _run_microdata_chunk(_code):
       <div style="margin: 12px 0;">
         <label>
           <input type="checkbox" id="dmOptRevise"> Generer også revidert script
+        </label>
+        <label style="display:block; margin: 6px 0 0 22px; font-size: 13px; color: var(--text-muted);">
+          <input type="checkbox" id="dmOptUseScrub"> Bruk scrub-kommandoer (dataminimering) i forslaget
         </label>
       </div>
 

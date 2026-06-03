@@ -132,6 +132,52 @@ def _smart_float_fmt(x, base_dec):
         dec = base_dec
     return f'{x:.{dec}f}'
 
+
+# ── scrub-kommandoer (dataminimering via protect) ──────────────────────────────
+def _scrub_split_commas(s):
+    """Del på komma kun på topp-nivå (ikke inne i (), [] eller {})."""
+    out, buf, depth = [], [], 0
+    for ch in s:
+        if ch in '([{':
+            depth += 1; buf.append(ch)
+        elif ch in ')]}':
+            depth = max(0, depth - 1); buf.append(ch)
+        elif ch == ',' and depth == 0:
+            out.append(''.join(buf)); buf = []
+        else:
+            buf.append(ch)
+    if buf:
+        out.append(''.join(buf))
+    return out
+
+
+def _scrub_parse_value(v):
+    """Type-inferens for kwarg-verdier: tuple/liste, streng, bool, None, tall, bareword."""
+    v = v.strip()
+    if not v:
+        return v
+    if (v[0], v[-1]) in (('(', ')'), ('[', ']')):
+        inner = v[1:-1]
+        parts = [p for p in _scrub_split_commas(inner) if p.strip() != '']
+        return tuple(_scrub_parse_value(p) for p in parts)
+    if (v[0], v[-1]) in (('"', '"'), ("'", "'")):
+        return v[1:-1]
+    low = v.lower()
+    if low in ('true', 'false'):
+        return low == 'true'
+    if low in ('none', 'null'):
+        return None
+    try:
+        return int(v)
+    except ValueError:
+        pass
+    try:
+        return float(v)
+    except ValueError:
+        pass
+    return v  # bareword (f.eks. auto, random, pid)
+
+
 class MicroParser:
     def __init__(self):
         # Regex for 'aggregate' mønster: (stat) var -> ny_var
@@ -226,6 +272,22 @@ class MicroParser:
         if not line:
             return None
 
+        # 0. Scrub-kommandoer: scrub-VERB(var[, var2 …][, key=value …]). Parser
+        #    parentes-innholdet selv, så generisk komma/if-splitting hoppes over
+        #    (komma inne i parentesen er argument-skille, ikke opsjons-skille).
+        _m_scrub = re.match(r'^(scrub-[a-z_]+)\s*\((.*)\)\s*$', line, re.IGNORECASE)
+        if _m_scrub:
+            return {
+                "command": _m_scrub.group(1).lower(),
+                "args": self._parse_scrub_args(_m_scrub.group(2)),
+                "condition": None,
+                "options": {},
+            }
+        if re.fullmatch(r'scrub-auto', line, re.IGNORECASE):
+            return {"command": "scrub-auto",
+                    "args": {"columns": [], "kwargs": {}},
+                    "condition": None, "options": {}}
+
         # 1. Skill ut opsjoner (alt etter første komma), men IKKE for kommandoer der komma
         #    kan forekomme i argumenter/etiketter (generate, recode, define-labels, …).
         #    NB: Naiv split(',') knekker f.eks. recode … (1/3 = 1 "Jordbruk, skogbruk, fiske")
@@ -235,6 +297,8 @@ class MicroParser:
             'generate', 'recode', 'define-labels', 'keep', 'drop', 'replace',
             # `for x in v1, v2, ...` har komma i iterator-listen, ikke opsjoner.
             'for',
+            # import … scrub-winsorize(limits=(0.01,0.99)) — komma i scrub-kwargs.
+            'import', 'import-event',
         })
         options_dict = {}
         first_word = line.split(maxsplit=1)[0].lower() if line else ''
@@ -269,6 +333,20 @@ class MicroParser:
             "condition": condition.strip() if condition else None,
             "options": options_dict
         }
+
+    def _parse_scrub_args(self, inside):
+        """Parse innholdet i scrub-VERB(...): posisjonelle variabler + key=value-kwargs."""
+        columns, kwargs = [], {}
+        for tok in _scrub_split_commas(inside):
+            tok = tok.strip()
+            if not tok:
+                continue
+            m = re.match(r'^([A-Za-z_]\w*)\s*=\s*(.*)$', tok, re.DOTALL)
+            if m:
+                kwargs[m.group(1)] = _scrub_parse_value(m.group(2))
+            else:
+                columns.append(tok.strip().strip('"\''))
+        return {"columns": columns, "kwargs": kwargs}
 
     def _parse_command_logic(self, cmd, remainder):
         if cmd == 'aggregate':
@@ -333,6 +411,14 @@ class MicroParser:
             return toks if toks else []
 
         if cmd in ['import', 'import-event']:
+            # Valgfritt scrub-suffiks: `… as alias scrub-VERB[(kwargs)]` (dataminimering
+            # ved import). Trekk det ut FØR import_pattern, så alias-deteksjonen er ren.
+            scrub_spec = None
+            m_scrub = re.search(r'\s+(scrub-[a-z_]+)(?:\((.*)\))?\s*$', remainder, re.IGNORECASE)
+            if m_scrub:
+                scrub_spec = {"verb": m_scrub.group(1).lower()[len('scrub-'):],
+                              "args_raw": m_scrub.group(2) or ""}
+                remainder = remainder[:m_scrub.start()].rstrip()
             match = self.import_pattern.search(remainder)
             if not match:
                 return {"raw": remainder}
@@ -345,6 +431,8 @@ class MicroParser:
                 alias = result.get('alias') or ''
                 if after and after != alias:
                     result['_alias_raw'] = after
+            if scrub_spec:
+                result['scrub'] = scrub_spec
             return result
         if cmd == 'import-panel':
             # import-panel var1 var2 ... time1 time2 ...
@@ -7339,6 +7427,120 @@ class MicroInterpreter:
         lines.append(f'{comment} (ukjent kommando)')
         return lines
 
+    def _execute_scrub(self, cmd, args):
+        """Kjør en scrub-VERB(...)-kommando: dataminimering via protect på aktivt datasett.
+
+        Kolonne-verb (jitter, noise, …) erstatter variabelen(e) in-place. unit_id
+        settes automatisk til datasettets person/enhets-nøkkel (konsistent per enhet)
+        hvis ikke oppgitt. `scrub-auto` velger default ut fra variabeltype.
+        """
+        verb = cmd[len('scrub-'):].lower()
+        if not isinstance(args, dict):
+            args = {"columns": [], "kwargs": {}}
+        columns = list(args.get('columns') or [])
+        kwargs = dict(args.get('kwargs') or {})
+        if not self.active_name or self.active_name not in self.datasets:
+            self._log("FEIL: scrub krever et aktivt datasett.")
+            return
+        try:
+            import protect
+        except Exception:
+            self._log("FEIL: protect-modulen (dataminimering) er ikke tilgjengelig.")
+            return
+        df = self.datasets[self.active_name]
+        key = _get_df_key_col(df)
+        COLUMN_VERBS = {'noise', 'jitter', 'winsorize', 'bin', 'coarsen', 'year',
+                        'month', 'diff', 'shorten', 'collapse', 'pseudonymize', 'swap'}
+        try:
+            if verb == 'auto':
+                self._scrub_auto(df, columns, kwargs, key)
+                return
+            if verb == 'risk':
+                rep = protect.risk(df, **kwargs)
+                self._log(rep.describe() if hasattr(rep, 'describe') else str(rep))
+                return
+            if verb in COLUMN_VERBS:
+                if not columns:
+                    self._log(f"FEIL: scrub-{verb} krever minst én variabel, f.eks. scrub-{verb}(VARIABEL).")
+                    return
+                missing = [c for c in columns if c not in df.columns]
+                if missing:
+                    self._log(f"FEIL: ukjent(e) variabel(er) i scrub-{verb}: {', '.join(missing)}")
+                    return
+                fn = getattr(protect, verb, None)
+                if fn is None:
+                    self._log(f"FEIL: ukjent scrub-verb: {verb}")
+                    return
+                if key and 'unit_id' not in kwargs and verb != 'pseudonymize':
+                    kwargs['unit_id'] = key
+                res = fn(df, columns, **kwargs)
+                if isinstance(res, tuple):
+                    res = res[0]
+                self.datasets[self.active_name] = res
+                self._log(f"scrub-{verb} brukt på {', '.join(columns)}.")
+                return
+            self._log(
+                f"FEIL: scrub-{verb} støttes ikke i microdata ennå. Tilgjengelig: "
+                "jitter, noise, winsorize, bin, coarsen, year, month, diff, shorten, "
+                "collapse, pseudonymize, swap, auto, risk."
+            )
+        except Exception as ex:
+            self._log(f"FEIL i scrub-{verb}: {ex}")
+
+    def _scrub_auto(self, df, columns, kwargs, key):
+        """Type-bevisst default-minimering: dato→year, numerisk→jitter, ellers→collapse."""
+        import protect
+        cols = columns or [c for c in df.columns if c != key]
+        recipe = {}
+        for col in cols:
+            if col == key or col not in df.columns:
+                continue
+            s = df[col]
+            if pd.api.types.is_datetime64_any_dtype(s):
+                recipe[col] = {'year': {}}
+            elif pd.api.types.is_numeric_dtype(s):
+                recipe[col] = {'jitter': {}}
+            else:
+                recipe[col] = {'collapse': {'rare_below': 5}}
+        if not recipe:
+            self._log("scrub-auto: fant ingen variabler å beskytte.")
+            return
+        kw = dict(kwargs)
+        if key and 'unit_id' not in kw:
+            kw['unit_id'] = key
+        res = protect.protect(df, recipe=recipe, **kw)
+        log = None
+        if isinstance(res, tuple):
+            new_df, log = res[0], (res[1] if len(res) > 1 else None)
+        else:
+            new_df = res
+        self.datasets[self.active_name] = new_df
+        self._log("scrub-auto brukt på: " + ", ".join(recipe.keys()))
+        if log is not None and hasattr(log, 'to_text'):
+            try:
+                self._log(log.to_text())
+            except Exception:
+                pass
+
+    def _apply_import_scrub(self, spec, alias):
+        """Anvend et scrub-suffiks fra en import-linje på den nyimporterte kolonnen.
+
+        Kun kolonne-lokale verb. Datasett-avhengige verb (collapse/swap/risk) hopper
+        over med en advarsel — de bør kjøres som egen linje på det ferdige datasettet.
+        """
+        verb = (spec.get('verb') or '').lower()
+        if verb in ('collapse', 'swap', 'risk'):
+            self._log(
+                f"ADVARSEL: scrub-{verb} kjøres ikke ved import (avhenger av hele "
+                "datasettet). Kjør det som egen linje etter at datasettet er bygd."
+            )
+            return
+        try:
+            parsed = self.parser._parse_scrub_args(spec.get('args_raw', '') or '')
+        except Exception:
+            parsed = {"columns": [], "kwargs": {}}
+        self._execute_scrub('scrub-' + verb, {"columns": [alias], "kwargs": parsed.get('kwargs', {})})
+
     def _execute_instruction(self, instr):
         cmd = instr['command']
         args = instr['args']
@@ -7384,6 +7586,11 @@ class MicroInterpreter:
                 except ValueError as _strict_err:
                     self._log(f"FEIL: {_strict_err}")
                     return
+
+            # 0b. Scrub-kommandoer (dataminimering via protect)
+            if cmd.startswith('scrub-'):
+                self._execute_scrub(cmd, args)
+                return
 
             # 1. Globale/Sesjons-kommandoer
             if cmd == 'create-dataset':
@@ -7978,6 +8185,10 @@ class MicroInterpreter:
                     msg = base
 
                 self._log(msg)
+                # Valgfri scrub ved import (kun single import/import-event, kolonne-lokale verb)
+                _scrub_spec = args.get('scrub') if isinstance(args, dict) else None
+                if _scrub_spec and cmd in ('import', 'import-event'):
+                    self._apply_import_scrub(_scrub_spec, alias)
                 return
 
             # 4. Statistikk og Transformasjon
