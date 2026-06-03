@@ -113,6 +113,7 @@
     body.forklar-session #rightStatus { display: none !important; }
     body.forklar-session .bottombar-right { justify-content: flex-end; }
     body.forklar-session .bottombar-right #btnRunFooter,
+    body.forklar-session .bottombar-right #btnTolkFooter,
     body.forklar-session .bottombar-right #btnForklarFooter { display: none !important; }
     .forklar-dock-btn {
       width: 36px;
@@ -161,6 +162,8 @@
     .btn-primary.btn-run.btn-run--running:hover { opacity: 1; }
     .btn-primary { background: var(--accent); color: #fff; }
     body[data-theme="light"] .btn-primary { color: #fff; }
+    .btn-tolk { display: inline-flex; align-items: center; padding: 5px 14px; background: var(--bg-code); color: var(--text); border: 1px solid var(--border); }
+    .btn-tolk:hover { border-color: var(--accent); color: var(--accent); }
     .btn-primary:hover { opacity: 0.9; }
     .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; background: var(--text-muted); }
     .btn-secondary { background: var(--border); color: var(--text); }
@@ -1298,6 +1301,7 @@
     </div>
     <div class="bottombar-right">
       <span class="status" id="rightStatus"></span>
+      <button type="button" class="btn btn-tolk" id="btnTolkFooter" style="display:none" title="Tolk resultatene (output) med AI i sidemenyen">Tolk resultat</button>
       <button class="btn btn-primary btn-run" id="btnRunFooter" type="button" disabled>
         <span class="btn-run-inner">
           <span class="btn-run-icon-slot" aria-hidden="true"><span class="btn-run-spinner"></span></span>
@@ -3112,22 +3116,24 @@
       showDmOptions();
     });
 
+    function triggerTolkResultat() {
+      document.getElementById('hamburgerDropdown').classList.remove('open');
+      var outEl = document.getElementById('outputArea');
+      var outText = (outEl ? (outEl.innerText || '') : '').trim() || (lastOutput || '').trim();
+      if (!outText) { alert('Ingen output å tolke. Kjør et script først.'); return; }
+      if (outText.length > 30000) outText = outText.slice(0, 30000) + '\n…(forkortet)';
+      var si = document.getElementById('scriptInput');
+      var script = (si && si.value || '').trim().slice(0, 20000);
+      var lang = (typeof activeEditorMode !== 'undefined' && activeEditorMode) ? activeEditorMode : 'auto';
+      if (typeof window.mdInterpretResults === 'function') {
+        window.mdInterpretResults({ script: script, output: outText, lang: lang });
+      }
+    }
     (function initTolkResultat() {
-      var btn = document.getElementById('menuTolkResultat');
-      if (!btn) return;
-      btn.addEventListener('click', function() {
-        document.getElementById('hamburgerDropdown').classList.remove('open');
-        var outEl = document.getElementById('outputArea');
-        var outText = (outEl ? (outEl.innerText || '') : '').trim() || (lastOutput || '').trim();
-        if (!outText) { alert('Ingen output å tolke. Kjør et script først.'); return; }
-        if (outText.length > 30000) outText = outText.slice(0, 30000) + '\n…(forkortet)';
-        var si = document.getElementById('scriptInput');
-        var script = (si && si.value || '').trim().slice(0, 20000);
-        var lang = (typeof activeEditorMode !== 'undefined' && activeEditorMode) ? activeEditorMode : 'auto';
-        if (typeof window.mdInterpretResults === 'function') {
-          window.mdInterpretResults({ script: script, output: outText, lang: lang });
-        }
-      });
+      var menuBtn = document.getElementById('menuTolkResultat');
+      if (menuBtn) menuBtn.addEventListener('click', triggerTolkResultat);
+      var footBtn = document.getElementById('btnTolkFooter');
+      if (footBtn) footBtn.addEventListener('click', triggerTolkResultat);
     })();
 
     const btnLoginWithCode = document.getElementById('btnLoginWithCode');
@@ -3934,7 +3940,10 @@
       // Kun synlig når innlogget. Oppdateres fra persistLogin/logoutLocal (alle
       // innloggingsveier) og én gang etter at auth-modulen har lastet token.
       function updateVisible() {
-        ask.style.display = (window.mdAuth && window.mdAuth.isLoggedIn) ? '' : 'none';
+        const loggedIn = !!(window.mdAuth && window.mdAuth.isLoggedIn);
+        ask.style.display = loggedIn ? '' : 'none';
+        const tolk = document.getElementById('btnTolkFooter');
+        if (tolk) tolk.style.display = loggedIn ? '' : 'none';
       }
       window.mdUpdateAskVisibility = updateVisible;
       setTimeout(updateVisible, 0);
@@ -9097,6 +9106,18 @@ def _run_microdata_chunk(_code):
           bubble.textContent = accumulated;
         }
         bubble._rawMd = accumulated;
+        // Kopier-knapp for tolkningen.
+        const actions = document.createElement('div');
+        actions.className = 'ai-codeblock-actions';
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'ai-codeblock-btn';
+        copyBtn.textContent = '📋 Kopier tolkning';
+        copyBtn.addEventListener('click', () => {
+          navigator.clipboard.writeText(accumulated).then(() => flash(copyBtn, '✓ Kopiert')).catch(() => {});
+        });
+        actions.appendChild(copyBtn);
+        thinkingNode.appendChild(actions);
         state.history.push({ role: 'assistant', meta: { intent: 'tolkning' } });
       }
 
