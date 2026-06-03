@@ -2485,7 +2485,21 @@
           } else {
             const lines = text.split('\n');
             const buf = [];
-            for (let i = 0; i < lines.length; i++) buf.push(highlightCommandTokens(lines[i]));
+            let inTextblock = false;
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i];
+              const trimmedLow = line.trim().toLowerCase();
+              if (inTextblock) {
+                // Innhold i en tekstblokk er en utvidet kommentar → kommentarfarge.
+                buf.push('<span class="md-out-comment">' + escapeHtmlOutput(line) + '</span>');
+                if (trimmedLow === 'endblock') inTextblock = false;
+              } else if (trimmedLow.split(/\s+/)[0] === 'textblock') {
+                buf.push('<span class="md-out-comment">' + escapeHtmlOutput(line) + '</span>');
+                inTextblock = true;
+              } else {
+                buf.push(highlightCommandTokens(line));
+              }
+            }
             html = buf.join('\n');
           }
         } catch (e) {
