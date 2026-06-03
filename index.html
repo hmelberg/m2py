@@ -8925,6 +8925,16 @@ def _run_microdata_chunk(_code):
       // ── Fast path: stream from the /api/kode-svar edge function (single-shot,
       //    no repair), render markdown live, then validate the emitted script
       //    locally in Pyodide+m2py and show a pass/⚠ badge. Returns meta.
+      // Render markdown inn i boblen under streaming (faller tilbake til ren
+      // tekst hvis markdown-it mangler eller parsing feiler på ufullstendig md).
+      function streamRenderMd(bubble, textMd) {
+        if (md) {
+          try { bubble.innerHTML = md.render(textMd || ''); return; }
+          catch (_) { /* fall through */ }
+        }
+        bubble.textContent = textMd || '';
+      }
+
       async function runFastQuery(text, lang, scriptContext, thinkingNode, signal) {
         const auth = window.mdAuth;
         const token = auth && auth.token;
@@ -8956,6 +8966,7 @@ def _run_microdata_chunk(_code):
         const decoder = new TextDecoder();
         let buffer = '';
         let accumulated = '';
+        let _lastRender = 0;
         let inputTokens = 0, outputTokens = 0, cacheRead = 0, cacheCreate = 0;
         while (true) {
           const { value, done } = await reader.read();
@@ -8972,8 +8983,13 @@ def _run_microdata_chunk(_code):
             catch (_) { continue; }   // ignore non-JSON keep-alive lines
             if (obj.type === 'text') {
               accumulated += obj.text;
-              bubble.textContent = accumulated;   // plain text while streaming
-              scrollToBottom();
+              // Render markdown live (lett strupet) i stedet for rå tekst.
+              const _now = Date.now();
+              if (_now - _lastRender > 70) {
+                _lastRender = _now;
+                streamRenderMd(bubble, accumulated);
+                scrollToBottom();
+              }
             } else if (obj.type === 'done') {
               inputTokens = obj.inputTokens || 0;
               outputTokens = obj.outputTokens || 0;
@@ -9048,7 +9064,7 @@ def _run_microdata_chunk(_code):
         thinkingNode.appendChild(bubble);
         const reader = resp.body.getReader();
         const decoder = new TextDecoder();
-        let buffer = '', accumulated = '';
+        let buffer = '', accumulated = '', _lastRender = 0;
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
@@ -9063,8 +9079,12 @@ def _run_microdata_chunk(_code):
             try { obj = JSON.parse(dataLine.slice(5).trim()); } catch (_) { continue; }
             if (obj.type === 'text') {
               accumulated += obj.text;
-              bubble.textContent = accumulated;
-              scrollToBottom();
+              const _now = Date.now();
+              if (_now - _lastRender > 70) {
+                _lastRender = _now;
+                streamRenderMd(bubble, accumulated);
+                scrollToBottom();
+              }
             } else if (obj.type === 'error') {
               throw new Error(obj.message || 'Ukjent feil fra server');
             }
