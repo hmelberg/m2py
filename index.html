@@ -783,6 +783,20 @@
       color: var(--accent); border-color: var(--accent); }
     .ai-codeblock-btn.flash { background: color-mix(in srgb, var(--accent) 25%, transparent); color: var(--accent); }
 
+    .ai-response-actions {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);
+    }
+    .ai-response-actions .ai-include-row { margin-bottom: 0; }
+    .ai-response-insert-btn {
+      padding: 5px 14px; border: 1px solid var(--accent); background: var(--accent);
+      color: #fff; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+    }
+    body[data-theme="dark"] .ai-response-insert-btn { color: #1a1b26; }
+    .ai-response-insert-btn:hover { filter: brightness(1.1); }
+    .ai-response-insert-btn.flash { background: color-mix(in srgb, var(--accent) 70%, #2e7d32); }
+
     .ai-validation-warning {
       margin-top: 10px; padding: 8px 10px; border-radius: 6px;
       background: color-mix(in srgb, #d97706 8%, var(--bg-panel));
@@ -876,14 +890,14 @@
     .ai-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .ai-send-btn:hover:not(:disabled) { filter: brightness(1.1); }
     .ai-send-fast-btn {
-      height: 32px; padding: 0 9px; border: 1px solid var(--accent); background: transparent;
-      color: var(--accent); border-radius: 8px; cursor: pointer; display: inline-flex;
-      align-items: center; gap: 4px; font-size: 12px; font-weight: 600; flex-shrink: 0;
+      height: 32px; padding: 0 16px; border: 1px solid var(--accent); background: var(--accent);
+      color: #fff; border-radius: 8px; cursor: pointer; display: inline-flex;
+      align-items: center; gap: 4px; font-size: 13px; font-weight: 600; flex-shrink: 0;
       white-space: nowrap;
     }
+    body[data-theme="dark"] .ai-send-fast-btn { color: #1a1b26; }
     .ai-send-fast-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .ai-send-fast-btn:hover:not(:disabled) { background: var(--accent); color: #fff; }
-    body[data-theme="dark"] .ai-send-fast-btn:hover:not(:disabled) { color: #1a1b26; }
+    .ai-send-fast-btn:hover:not(:disabled) { filter: brightness(1.1); }
     .ai-abort-btn {
       height: 32px; padding: 0 9px; border: 1px solid #c0392b; background: transparent;
       color: #c0392b; border-radius: 8px; cursor: pointer; display: inline-flex;
@@ -945,6 +959,7 @@
         <button type="button" id="menuWebExamples">Web-eksempler&#8230;</button>
         <button type="button" id="menuUploadData">Last opp data&#8230;</button>
         <hr style="margin:4px 0;border-color:#334155;">
+        <button type="button" id="menuForklar" title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">Kj&#248;r skrittvis</button>
         <button type="button" id="menuRunnerMode" style="display:none">Kjøremodus: Microdata</button>
         <button type="button" id="menuToggleOutputMode" style="display:none">Output-modus: String</button>
         <button type="button" id="menuDisclosureControl" title="Når PÅ: matcher microdata.no — pseudonym-validering, type-sjekk, min populasjon 1000, små celler skjules, winsorisering, persentiler avrundes. Når AV: alle regler er slått av og du ser rå tall.">Avsløringskontroll: PÅ</button>
@@ -956,6 +971,9 @@
         <button type="button" id="menuClearOutput">Tøm output</button>
         <button type="button" id="menuSettings">Innstillinger&#8230;</button>
         <button type="button" id="btnLoginWithCode">Logg inn med kode</button>
+        <hr style="margin:4px 0;border-color:#334155;">
+        <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">AI</div>
+        <button type="button" id="menuAiMode" title="Velg om Send-knappen bruker rask AI (enkelt svar) eller Anvil-AI (full vurdering med reparasjonsloop)">AI-svar: Rask</button>
         <hr style="margin:4px 0;border-color:#334155;">
         <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Personvern</div>
         <button type="button" id="btnDmQuick">Vurder dataminimering</button>
@@ -1070,20 +1088,13 @@
         <input type="checkbox" id="aiIncludeScript">
         Inkluder skript fra editor (revider)
       </label>
-      <label class="ai-include-row">
-        <input type="checkbox" id="aiIncludeComments">
-        Inkluder forklaring som kommentarer ved innsetting
-      </label>
       <div class="ai-input-wrap">
         <textarea id="aiInput" class="ai-input" rows="1"
-          placeholder="Spør om noe... (Enter = Spør raskt, Shift+Enter = ny linje)"></textarea>
+          placeholder="Spør om noe... (Enter = send, Shift+Enter = ny linje)"></textarea>
         <button type="button" class="ai-abort-btn" id="aiAbortBtn" style="display:none;" title="Avbryt pågående svar" aria-label="Avbryt">⏹ Avbryt</button>
         <button type="button" class="ai-send-fast-btn" id="aiSendFastBtn"
-          title="Spør raskt — enkelt AI-svar uten reparasjonsloop (eksperimentell, ny AI). Svaret valideres lokalt."
-          aria-label="Spør raskt">⚡ Raskt</button>
-        <button type="button" class="ai-send-btn" id="aiSendBtn" title="Spør (full vurdering via Anvil-API)" aria-label="Spør">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
-        </button>
+          title="Send spørsmål til AI (AI-modus velges i menyen)"
+          aria-label="Send">Send</button>
       </div>
     </div>
   </aside>
@@ -1235,12 +1246,6 @@
     </div>
     <div class="bottombar-right">
       <span class="status" id="rightStatus"></span>
-      <button type="button" class="btn btn-primary btn-run" id="btnForklarFooter" disabled title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">
-        <span class="btn-run-inner">
-          <span class="btn-run-icon-slot" aria-hidden="true"><span class="btn-forklar-icon">&#128266;</span></span>
-          <span class="btn-run-label">Kj&#248;r skrittvis</span>
-        </span>
-      </button>
       <button class="btn btn-primary btn-run" id="btnRunFooter" type="button" disabled>
         <span class="btn-run-inner">
           <span class="btn-run-icon-slot" aria-hidden="true"><span class="btn-run-spinner"></span></span>
@@ -2910,6 +2915,14 @@
         clearOutput();
         dropdown.classList.remove('open');
       });
+      (function() {
+        var menuForklar = document.getElementById('menuForklar');
+        if (menuForklar) menuForklar.addEventListener('click', function() {
+          dropdown.classList.remove('open');
+          var b = document.getElementById('btnForklar');
+          if (b && !b.disabled) b.click();
+        });
+      })();
       var clearTopBtn = document.getElementById('clearOutputTopBtn');
       if (clearTopBtn) clearTopBtn.addEventListener('click', clearOutput);
 
@@ -7922,6 +7935,7 @@ def _run_microdata_chunk(_code):
     (function aiModule() {
       const LS_KEY_BASE = 'md_ai_api_base';
       const LS_KEY_APIKEY = 'md_ai_api_key';
+      const LS_KEY_AIMODE = 'md_ai_mode';   // 'fast' | 'anvil'
       const DEFAULT_BASE = 'https://mdataapi.anvil.app';
 
       const state = {
@@ -7929,6 +7943,9 @@ def _run_microdata_chunk(_code):
         history: [],   // {role, html|text, raw}
         get apiBase() { return (localStorage.getItem(LS_KEY_BASE) || DEFAULT_BASE).replace(/\/+$/, ''); },
         get apiKey()  { return localStorage.getItem(LS_KEY_APIKEY) || ''; },
+        // AI mode: 'fast' = rask edge-funksjon, 'anvil' = full vurdering via Anvil-API
+        get anvilMode() { return localStorage.getItem(LS_KEY_AIMODE) === 'anvil'; },
+        set anvilMode(v) { localStorage.setItem(LS_KEY_AIMODE, v ? 'anvil' : 'fast'); },
       };
 
       const md = (window.markdownit ? window.markdownit({ breaks: true, linkify: true }) : null);
@@ -7937,8 +7954,8 @@ def _run_microdata_chunk(_code):
       const dom = {};
       function cacheDom() {
         ['aiToggleBtn','aiSidebar','aiCloseBtn','aiSettingsBtn','aiClearBtn',
-         'aiThread','aiInput','aiSendBtn','aiSendFastBtn','aiAbortBtn',
-         'aiIncludeScript','aiIncludeComments',
+         'aiThread','aiInput','aiSendFastBtn','aiAbortBtn',
+         'aiIncludeScript','menuAiMode',
          'aiSettingsBackdrop','aiCfgBaseUrl','aiCfgApiKey','aiCfgSave','aiCfgCancel',
          'aiCfgLoggedIn','aiCfgLoggedOut','aiCfgUserEmail','aiCfgUserMeta',
          'aiCfgLogout','aiCfgAdmin','aiCfgLogin',
@@ -8035,9 +8052,11 @@ def _run_microdata_chunk(_code):
         const bubble = document.createElement('div');
         bubble.className = 'ai-bubble';
         bubble.innerHTML = md ? md.render(text || '') : escapeHtml(text || '').replace(/\n/g, '<br>');
+        bubble._rawMd = text || '';
         node.appendChild(bubble);
         if (meta) appendMeta(node, meta);
         attachCodeBlockActions(bubble);
+        attachResponseInsertBar(node, text || '');
         scrollToBottom();
       }
 
@@ -8060,9 +8079,7 @@ def _run_microdata_chunk(_code):
         const actions = document.createElement('div');
         actions.className = 'ai-codeblock-actions';
         actions.innerHTML =
-          '<button type="button" class="ai-codeblock-btn" data-act="copy">📋 Kopier</button>' +
-          '<button type="button" class="ai-codeblock-btn" data-act="replace">⬇ Erstatt skript</button>' +
-          '<button type="button" class="ai-codeblock-btn" data-act="append">+ Legg til</button>';
+          '<button type="button" class="ai-codeblock-btn" data-act="copy">📋 Kopier</button>';
         cbWrap.appendChild(actions);
         bubble.appendChild(cbWrap);
         actions.addEventListener('click', (e) => {
@@ -8075,6 +8092,10 @@ def _run_microdata_chunk(_code):
         if (warning) bubble.appendChild(warning);
         node.appendChild(bubble);
         if (meta) appendMeta(node, meta);
+        // Response-level "Sett inn" bar (synthesize markdown from rationale + code)
+        const rawMd = (rationale ? rationale + '\n\n' : '') + '```microdata\n' + script + '\n```';
+        bubble._rawMd = rawMd;
+        attachResponseInsertBar(node, rawMd);
         scrollToBottom();
       }
 
@@ -8194,37 +8215,79 @@ def _run_microdata_chunk(_code):
         node.appendChild(m);
       }
 
-      function extractProse(rawMd) {
-        const segments = rawMd.split(/```[\s\S]*?```/);
-        const prose = segments.map(s => s.trim()).filter(Boolean).join('\n\n');
-        if (!prose) return '';
-        return prose.split('\n').map(l => '// ' + l).join('\n');
+      function commentize(text) {
+        return String(text).split('\n').map(l => '// ' + l).join('\n');
+      }
+
+      // Build editor content from a full markdown response, preserving document
+      // order ("legg de etter hverandre"). includeComments=false → only the code
+      // blocks; true → prose rendered as // comments interleaved with the code.
+      function buildInsertContent(rawMd, includeComments) {
+        if (!rawMd) return '';
+        const re = /```[^\n]*\r?\n([\s\S]*?)```/g;
+        const parts = [];
+        let last = 0, m;
+        while ((m = re.exec(rawMd)) !== null) {
+          if (includeComments) {
+            const prose = rawMd.slice(last, m.index).trim();
+            if (prose) parts.push(commentize(prose));
+          }
+          const code = (m[1] || '').replace(/\s+$/, '');
+          if (code.trim()) parts.push(code);
+          last = re.lastIndex;
+        }
+        if (includeComments) {
+          const tail = rawMd.slice(last).trim();
+          if (tail) parts.push(commentize(tail));
+        }
+        // No fenced code at all: comment the whole thing when asked, else nothing.
+        if (parts.length === 0 && includeComments) {
+          const all = rawMd.trim();
+          if (all) parts.push(commentize(all));
+        }
+        return parts.join('\n\n');
+      }
+
+      function hasCodeBlock(rawMd) {
+        return !!rawMd && /```[\s\S]*?```/.test(rawMd);
+      }
+
+      // Response-level action bar shown under the whole answer: an "include
+      // explanation as comment" checkbox and a single "Sett inn" button that
+      // replaces the editor content.
+      function attachResponseInsertBar(node, rawMd) {
+        if (!dom.scriptInput || !hasCodeBlock(rawMd)) return;
+        const bar = document.createElement('div');
+        bar.className = 'ai-response-actions';
+
+        const lbl = document.createElement('label');
+        lbl.className = 'ai-include-row';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(' Inkluder forklaring som kommentar'));
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'ai-response-insert-btn';
+        btn.textContent = 'Sett inn';
+        btn.title = 'Sett svaret inn i editoren (erstatter innholdet)';
+        btn.addEventListener('click', () => {
+          const content = buildInsertContent(rawMd, cb.checked);
+          if (!content) return;
+          dom.scriptInput.value = content;
+          dom.scriptInput.dispatchEvent(new Event('input', { bubbles: true }));
+          flash(btn, '✓ Satt inn');
+        });
+
+        bar.appendChild(lbl);
+        bar.appendChild(btn);
+        node.appendChild(bar);
       }
 
       function handleCodeAction(act, script, btn) {
-        if (!dom.scriptInput) return;
         if (act === 'copy') {
           navigator.clipboard.writeText(script).then(() => flash(btn, '✓ Kopiert'));
-          return;
-        }
-        let finalScript = script;
-        if (dom.aiIncludeComments && dom.aiIncludeComments.checked) {
-          const bubble = btn.closest('.ai-bubble');
-          if (bubble && bubble._rawMd) {
-            const prose = extractProse(bubble._rawMd);
-            if (prose) finalScript = prose + '\n\n' + script;
-          }
-        }
-        if (act === 'replace') {
-          dom.scriptInput.value = finalScript;
-          dom.scriptInput.dispatchEvent(new Event('input', { bubbles: true }));
-          flash(btn, '✓ Satt inn');
-        } else if (act === 'append') {
-          const cur = dom.scriptInput.value;
-          const sep = (cur && !cur.endsWith('\n')) ? '\n\n' : (cur ? '\n' : '');
-          dom.scriptInput.value = cur + sep + finalScript;
-          dom.scriptInput.dispatchEvent(new Event('input', { bubbles: true }));
-          flash(btn, '✓ Lagt til');
         }
       }
 
@@ -8249,9 +8312,7 @@ def _run_microdata_chunk(_code):
           const actions = document.createElement('div');
           actions.className = 'ai-codeblock-actions';
           actions.innerHTML =
-            '<button type="button" class="ai-codeblock-btn" data-act="copy">📋 Kopier</button>' +
-            '<button type="button" class="ai-codeblock-btn" data-act="replace">⬇ Erstatt skript</button>' +
-            '<button type="button" class="ai-codeblock-btn" data-act="append">+ Legg til</button>';
+            '<button type="button" class="ai-codeblock-btn" data-act="copy">📋 Kopier</button>';
           wrap.appendChild(actions);
           actions.addEventListener('click', (e) => {
             const btn = e.target.closest('.ai-codeblock-btn');
@@ -8352,7 +8413,6 @@ def _run_microdata_chunk(_code):
           return;
         }
         state.sending = true;
-        dom.aiSendBtn.disabled = true;
         if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = true;
 
         // Clear empty state on first message
@@ -8383,7 +8443,6 @@ def _run_microdata_chunk(_code):
             state.abortCtrl = null;
             if (dom.aiAbortBtn) dom.aiAbortBtn.style.display = 'none';
             state.sending = false;
-            dom.aiSendBtn.disabled = false;
             if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = false;
             dom.aiInput.focus();
           }
@@ -8455,7 +8514,6 @@ def _run_microdata_chunk(_code):
           appendError(thinkingNode, '✗ ' + e.message);
         } finally {
           state.sending = false;
-          dom.aiSendBtn.disabled = false;
           if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = false;
           dom.aiInput.focus();
         }
@@ -8541,6 +8599,7 @@ def _run_microdata_chunk(_code):
           tokens: { input: inputTokens, output: outputTokens, cacheRead, cacheCreate },
         };
         appendMeta(thinkingNode, meta);
+        attachResponseInsertBar(thinkingNode, accumulated);
 
         // Validate the first microdata code block locally (non-blocking).
         const script = extractFirstMicrodataBlock(accumulated);
@@ -8771,16 +8830,34 @@ def _run_microdata_chunk(_code):
           });
         }
 
-        dom.aiSendBtn.addEventListener('click', () => sendMessage(false));
-        if (dom.aiSendFastBtn) dom.aiSendFastBtn.addEventListener('click', () => sendMessage(true));
+        // Send uses the AI mode chosen in the hamburger menu: fast edge-fn or
+        // full Anvil-path (sendMessage(fast) — fast=true => rask).
+        function sendCurrent() { sendMessage(!state.anvilMode); }
+        if (dom.aiSendFastBtn) dom.aiSendFastBtn.addEventListener('click', sendCurrent);
         if (dom.aiAbortBtn) dom.aiAbortBtn.addEventListener('click', () => { if (state.abortCtrl) state.abortCtrl.abort(); });
         dom.aiInput.addEventListener('input', autoresize);
         dom.aiInput.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            sendMessage(true);   // Enter = Spør raskt; Ctrl/Cmd+Enter = full Anvil-path
+            sendCurrent();   // Enter = send (modus fra menyen); Shift+Enter = ny linje
           }
         });
+
+        // AI-modus-bryter i hamburgermenyen
+        function updateAiModeLabel() {
+          if (dom.menuAiMode) {
+            dom.menuAiMode.textContent = 'AI-svar: ' + (state.anvilMode ? 'Anvil (full vurdering)' : 'Rask');
+          }
+        }
+        if (dom.menuAiMode) {
+          dom.menuAiMode.addEventListener('click', () => {
+            state.anvilMode = !state.anvilMode;
+            updateAiModeLabel();
+            const dd = document.getElementById('hamburgerDropdown');
+            if (dd) dd.classList.remove('open');
+          });
+        }
+        updateAiModeLabel();
 
         // Keyboard shortcut Ctrl+I
         document.addEventListener('keydown', (e) => {
