@@ -291,8 +291,53 @@
       from { opacity: 0.2; }
       to { opacity: 1; }
     }
-    #scriptInput { width: 100%; flex: 1 1 auto; min-height: 120px; margin: 0; border-radius: 0; padding: 8px 0 0 8px; display: block; background: var(--bg-panel); color: var(--text); border: none !important; border-width: 0 !important; outline: none; resize: none; font-size: var(--base-font-size); line-height: var(--line-h); -webkit-appearance: none; appearance: none; text-decoration: none; background-image: none !important; overflow-y: auto; overflow-x: hidden; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; }
+    #scriptInput { width: 100%; flex: 1 1 auto; min-height: 120px; margin: 0; border-radius: 0; padding: 8px 0 0 8px; display: block; background: transparent; color: transparent; caret-color: var(--text); border: none !important; border-width: 0 !important; outline: none; resize: none; font-size: var(--base-font-size); line-height: var(--line-h); -webkit-appearance: none; appearance: none; text-decoration: none; background-image: none !important; overflow-y: auto; overflow-x: hidden; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; position: relative; z-index: 1; scrollbar-gutter: stable; }
     textarea#scriptInput:focus { outline: none; box-shadow: none; }
+    /* Markør-kilde og syntaks-backdrop: gjennomsiktig seleksjon slik at farget tekst bak vises */
+    #scriptInput::selection { background: rgba(37, 99, 235, 0.28); }
+    #scriptInput::-moz-selection { background: rgba(37, 99, 235, 0.28); }
+    .code-input-wrap { background: var(--bg-panel); }
+    /* Syntaks-fargelag bak textarea — må matche textarea-typografi/padding/ombrekking eksakt */
+    .code-hl {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      margin: 0; padding: 8px 0 0 8px; border: 0;
+      box-sizing: border-box; pointer-events: none; z-index: 0;
+      overflow: hidden; scrollbar-gutter: stable;
+      font-family: 'Fira Code', 'Consolas', monospace;
+      font-size: var(--base-font-size); line-height: var(--line-h);
+      white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;
+      color: var(--text); background: transparent;
+    }
+    /* Token-farger i editor — speiler output (.output-area pre .md-out-*) */
+    .code-hl .md-out-comment { color: rgba(75, 85, 99, 0.7); font-style: italic; }
+    .code-hl .md-out-cmd { color: #4b5563; font-weight: 600; }
+    .code-hl .md-out-var { color: #2563eb; }
+    .code-hl .md-out-num { color: #ca8a04; }
+    .code-hl .md-out-paren, .code-hl .md-out-kw-calm { color: #BDB76B; }
+    .code-hl .md-out-func { color: #15803d; }
+    .code-hl .md-out-kw-brown { color: #9acd32; }
+    .code-hl .md-out-op, .code-hl .md-out-path-prefix, .code-hl .md-out-aggopt { color: #7c3aed; }
+    .code-hl .md-out-str { color: #0f766e; }
+    body[data-theme="dark"] .code-hl .md-out-comment { color: rgba(156, 163, 175, 0.72); }
+    body[data-theme="dark"] .code-hl .md-out-cmd { color: #9ca3af; }
+    body[data-theme="dark"] .code-hl .md-out-var { color: #7aa2f7; }
+    body[data-theme="dark"] .code-hl .md-out-num { color: #fcd34d; }
+    body[data-theme="dark"] .code-hl .md-out-func { color: #86efac; }
+    body[data-theme="dark"] .code-hl .md-out-str { color: #5eead4; }
+    body[data-theme="dark"] .code-hl .md-out-op,
+    body[data-theme="dark"] .code-hl .md-out-path-prefix,
+    body[data-theme="dark"] .code-hl .md-out-aggopt { color: #c4b5fd; }
+    @media (prefers-color-scheme: dark) {
+      body[data-theme="auto"] .code-hl .md-out-comment { color: rgba(156, 163, 175, 0.72); }
+      body[data-theme="auto"] .code-hl .md-out-cmd { color: #9ca3af; }
+      body[data-theme="auto"] .code-hl .md-out-var { color: #7aa2f7; }
+      body[data-theme="auto"] .code-hl .md-out-num { color: #fcd34d; }
+      body[data-theme="auto"] .code-hl .md-out-func { color: #86efac; }
+      body[data-theme="auto"] .code-hl .md-out-str { color: #5eead4; }
+      body[data-theme="auto"] .code-hl .md-out-op,
+      body[data-theme="auto"] .code-hl .md-out-path-prefix,
+      body[data-theme="auto"] .code-hl .md-out-aggopt { color: #c4b5fd; }
+    }
     textarea#scriptInput, .output-area { font-family: 'Fira Code', 'Consolas', monospace; }
     .output-area {
       width: 100%;
@@ -469,6 +514,7 @@
     .autocomplete-list .kind-dataset  { color: #10b981; }
     .autocomplete-list .kind-package  { color: #ec4899; }
     .autocomplete-list .kind-function { color: #06b6d4; }
+    .autocomplete-list .kind-date     { color: #14b8a6; }
     .bottombar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 90; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 10px; background: var(--topbar-bg); border-top: 1px solid var(--border); }
     .bottombar-left { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
     .bottombar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -1034,6 +1080,7 @@
         <div class="code-wrap">
           <div class="line-numbers" id="lineNumbers"></div>
           <div class="code-input-wrap">
+            <pre class="code-hl" id="scriptHighlight" aria-hidden="true"></pre>
             <textarea id="scriptInput"></textarea>
             <div class="forklar-line-highlight" id="forklarLineHighlight" aria-hidden="true"></div>
             <ul class="autocomplete-list" id="autocompleteList" role="listbox" aria-hidden="true"></ul>
@@ -2418,7 +2465,37 @@
     (function initLineNumbersAndBreakpoints() {
       const lineNumbers = document.getElementById('lineNumbers');
       const scriptInput = document.getElementById('scriptInput');
+      const highlightLayer = document.getElementById('scriptHighlight');
       let breakpoints = new Set();
+
+      // Maler syntaks-backdroppet bak textarea. Gjenbruker output-tokenizeren
+      // (highlightCommandTokens) per linje i microdata-modus; ren tekst ellers.
+      // Defensiv mot tidlige kall (TDZ/var ikke initialisert ennå).
+      function renderScriptHighlight() {
+        if (!highlightLayer) return;
+        const text = scriptInput.value;
+        let html;
+        try {
+          const mode = activeEditorMode;
+          if ((mode && mode !== 'microdata') ||
+              typeof MD_CMD_SET === 'undefined' ||
+              typeof highlightCommandTokens !== 'function' ||
+              text.length > 60000) {
+            html = escapeHtmlOutput(text);
+          } else {
+            const lines = text.split('\n');
+            const buf = [];
+            for (let i = 0; i < lines.length; i++) buf.push(highlightCommandTokens(lines[i]));
+            html = buf.join('\n');
+          }
+        } catch (e) {
+          try { html = escapeHtmlOutput(text); } catch (_) { html = ''; }
+        }
+        // +'\n' kompenserer for at <pre> spiser én etterfølgende linjeskift,
+        // slik at backdroppet får nøyaktig samme høyde/linjer som textarea.
+        highlightLayer.innerHTML = html + '\n';
+      }
+      window.renderScriptHighlight = renderScriptHighlight;
 
       function updateLineNumbers() {
         const lines = scriptInput.value.split('\n');
@@ -2453,6 +2530,7 @@
       }
 
       function syncScrollFromInput() {
+        if (highlightLayer) highlightLayer.scrollTop = scriptInput.scrollTop;
         var sh = scriptInput.scrollHeight - scriptInput.clientHeight;
         var lh = lineNumbers.scrollHeight - lineNumbers.clientHeight;
         if (sh <= 0 || lh <= 0) { lineNumbers.scrollTop = scriptInput.scrollTop; return; }
@@ -2466,6 +2544,7 @@
       }
       scriptInput.addEventListener('input', function() {
         updateLineNumbers();
+        renderScriptHighlight();
         syncScrollFromInput();
       });
       scriptInput.addEventListener('scroll', syncScrollFromInput);
@@ -2490,8 +2569,11 @@
       };
       window.updateLineNumbers = function() {
         updateLineNumbers();
+        renderScriptHighlight();
         if (typeof syncScrollFromInput === 'function') syncScrollFromInput();
       };
+      // Initial maling etter at all synkron init er ferdig (consts/modus klare).
+      setTimeout(renderScriptHighlight, 0);
     })();
 
     var applyFontSize; // hoisted — assigned inside initHamburgerAndMenu
@@ -4062,6 +4144,60 @@
       return d.length > 58 ? d.slice(0, 55) + '...' : d;
     }
 
+    // ── Dato-forslag for import (Tverrsnitt/Akkumulert/Forløp krever importdato) ──
+    function resolveCatalogVar(name) {
+      if (!name || !microdataCatalog || !microdataCatalog.variables) return null;
+      if (microdataCatalog.variables[name]) return name;
+      const lo = name.toLowerCase();
+      return microdataVariableNames.find(v => v.toLowerCase() === lo) || null;
+    }
+
+    // Hent gyldighetsperiode fra beskrivelsen. Støtter "ÅÅÅÅ-MM-DD – ÅÅÅÅ-MM-DD"
+    // og "ÅÅÅÅ – ÅÅÅÅ". Faller tilbake til et fornuftig intervall hvis ukjent.
+    function parseValidityRange(desc) {
+      desc = desc || '';
+      let m = desc.match(/Gyldighetsperiode:\s*(\d{4}-\d{2}-\d{2})\s*[–—-]\s*(\d{4}-\d{2}-\d{2})/);
+      if (m) return { start: m[1], end: m[2] };
+      m = desc.match(/Gyldighetsperiode:\s*(\d{4})\s*[–—-]\s*(\d{4})/);
+      if (m) return { start: m[1] + '-01-01', end: m[2] + '-12-31' };
+      return { start: '2010-01-01', end: '2023-12-31' };
+    }
+
+    // Lag en liste gyldige datoer innenfor [start, end]. Bruker dag/måned fra
+    // sluttdatoen som årlig mønster, og inkluderer alltid start- og sluttdato.
+    function buildDateList(start, end) {
+      const sy = parseInt(start.slice(0, 4), 10), ey = parseInt(end.slice(0, 4), 10);
+      if (isNaN(sy) || isNaN(ey)) return [];
+      const endMMDD = end.slice(4); // '-MM-DD'
+      const seen = new Set(), out = [];
+      const add = (d) => { if (d && !seen.has(d)) { seen.add(d); out.push(d); } };
+      add(end);
+      for (let y = ey - 1; y > sy && out.length < 11; y--) add(y + endMMDD);
+      add(start);
+      return out;
+    }
+
+    // Forslag til importdato for en katalogvariabel. Tom liste hvis variabelen
+    // er Fast (ingen dato kreves) eller ikke finnes i katalogen.
+    function getDateSuggestionsForVar(catalogName, prefix) {
+      const key = resolveCatalogVar(catalogName);
+      if (!key) return [];
+      const meta = microdataCatalog.variables[key];
+      const temp = ((meta && meta.temporalitet) || '').trim();
+      if (!temp || temp.toLowerCase() === 'fast') return [];
+      let dates;
+      if (Array.isArray(meta.available_years) && meta.available_years.length) {
+        dates = meta.available_years
+          .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).slice().sort().reverse();
+      } else {
+        const range = parseValidityRange(meta.description || '');
+        dates = buildDateList(range.start, range.end);
+      }
+      const p = (prefix || '').trim();
+      if (p) dates = dates.filter(d => d.startsWith(p));
+      return dates.map(d => ({ label: d, kind: 'date', detail: temp.toLowerCase(), insertText: d }));
+    }
+
     function stripMerDokumentasjonLine(message) {
       if (!message || typeof message !== 'string') return { text: message || '', url: null };
       const marker = 'Mer dokumentasjon:';
@@ -4729,6 +4865,16 @@ json.dumps(out)
         const endsWithSpace = /\s$/.test(lineSoFar);
         const firstWord = ctx.firstWordOnLine;
         const isCommand = MICRODATA_COMMANDS.some(c => c.toLowerCase() === firstWord.toLowerCase());
+
+        // Rule 0: import db/VARIABEL <mellomrom> → foreslå gyldige importdatoer
+        // (kun for Tverrsnitt/Akkumulert/Forløp-variabler; Fast trenger ingen dato).
+        const importDate = lineSoFar.match(
+          /^\s*(?:import|import-event)\s+(?:[A-Za-z0-9_.]+\/)?([A-Za-z0-9_]+)\s+([0-9-]*)$/);
+        if (importDate) {
+          const partial = importDate[2];
+          const dateSuggs = getDateSuggestionsForVar(importDate[1], partial);
+          if (dateSuggs.length) { showAutocomplete(dateSuggs, pos - partial.length, pos); return; }
+        }
 
         // Rule 1: after / → microdata variables (all modes)
         const slashMicro = lineSoFar.match(/\/([A-Za-z0-9_]*)$/);
