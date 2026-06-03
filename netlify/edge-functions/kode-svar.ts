@@ -116,7 +116,15 @@ FIRE verdier (ingen "Event"-temporalitet):
 
 Importerer du en Tverrsnitt/Akkumulert-variabel uten dato, feiler scriptet.
 **Sjekk alltid katalog-taggen for hver variabel du importerer** — \`[tverrsnitt]\`
-og \`[akkumulert]\` krever alltid dato; \`[fast]\` skal ikke ha dato.`;
+og \`[akkumulert]\` krever alltid dato; \`[fast]\` skal ikke ha dato.
+
+**Ikke gjett temporalitet ut fra navnet.** Et navn som ser ut som en konstant
+identifikator kan likevel være Tverrsnitt. Relasjoner som ikke endres er Fast
+(\`BEFOLKNING_FAR_FNR\`, \`BEFOLKNING_MOR_FNR\` → ingen dato), men relasjoner som
+kan endre seg over tid er Tverrsnitt og KREVER dato: \`BEFOLKNING_EKT_FNR\`
+(ektefelle), \`BEFOLKNING_SAMB_FNR\` (samboer), bosted, arbeidsgiver. Les
+katalog-taggen for nettopp den variabelen — ikke kopier dato-bruk fra et
+beslektet eksempel.`;
 
 const STATA_DIFFERENCES = `\
 ## VIKTIG: microdata.no er IKKE Stata
@@ -277,7 +285,7 @@ Mønster (foreldreinntekt på barn):
 \`\`\`microdata
 create-dataset persondata
 import db/INNTEKT_WLONN 2019-01-01 as inntekt
-import db/BEFOLKNING_FAR_FNR as fnr_far
+import db/BEFOLKNING_FAR_FNR as fnr_far   // Fast → ingen dato (EKT_FNR/SAMB_FNR er derimot Tverrsnitt → krever dato)
 import db/BEFOLKNING_MOR_FNR as fnr_mor
 
 create-dataset foreldredata
@@ -522,7 +530,7 @@ collapse (mean) inntekt -> snitt_innt (count) inntekt -> antall, by(aldersgruppe
 require no.ssb.fdb:53 as db
 create-dataset persondata
 import db/INNTEKT_WLONN 2019-01-01 as inntekt
-import db/BEFOLKNING_FAR_FNR as fnr_far
+import db/BEFOLKNING_FAR_FNR as fnr_far   // Fast → ingen dato (EKT_FNR/SAMB_FNR er derimot Tverrsnitt → krever dato)
 import db/BEFOLKNING_MOR_FNR as fnr_mor
 
 create-dataset foreldredata
