@@ -2481,10 +2481,12 @@
         let html;
         try {
           const mode = activeEditorMode;
-          if ((mode && mode !== 'microdata') ||
-              typeof MD_CMD_SET === 'undefined' ||
-              typeof highlightCommandTokens !== 'function' ||
-              text.length > 60000) {
+          if (text.length > 60000) {
+            html = escapeHtmlOutput(text);
+          } else if (mode === 'python' || mode === 'r') {
+            html = highlightScriptPyR(text, mode);
+          } else if (typeof MD_CMD_SET === 'undefined' ||
+              typeof highlightCommandTokens !== 'function') {
             html = escapeHtmlOutput(text);
           } else {
             const lines = text.split('\n');
@@ -3261,6 +3263,92 @@
       'os','sys','json','re','math','datetime','pathlib',
       'itertools','functools','collections','typing'
     ];
+
+    // ── Python/R syntaks-farging (backdrop) + autocomplete-data ──────────────
+    const PY_HL_KW = new Set(PYTHON_KEYWORDS);
+    const PY_HL_FN = new Set(PYTHON_BUILTINS);
+    const R_HL_KW  = new Set(['if','else','for','while','repeat','function','return',
+      'break','next','in','TRUE','FALSE','NULL','NA','Inf','NaN','T','F']);
+    const R_HL_FN  = new Set(R_FUNCTIONS);
+    const PY_HL_CFG = { commentChar: '#', triple: true,  identStart: /[A-Za-z_]/,  identPart: /[A-Za-z0-9_]/,  kw: PY_HL_KW, fn: PY_HL_FN };
+    const R_HL_CFG  = { commentChar: '#', triple: false, identStart: /[A-Za-z_.]/, identPart: /[A-Za-z0-9_.]/, kw: R_HL_KW,  fn: R_HL_FN  };
+
+    // Modul-namespace → funksjoner (for `px.`, `pd.`, `np.`, `sm.` i autocomplete).
+    const PY_NS_FUNCS = {
+      px:  ['scatter','line','bar','histogram','box','violin','pie','area','scatter_3d','density_heatmap','imshow','ecdf','strip','sunburst','treemap','funnel','choropleth'],
+      pd:  ['DataFrame','Series','read_csv','read_excel','concat','merge','to_datetime','to_numeric','cut','qcut','get_dummies','pivot_table','crosstab','date_range','isna','notna'],
+      np:  ['array','arange','linspace','zeros','ones','mean','median','std','var','sum','min','max','where','log','log10','exp','sqrt','abs','round','random','percentile','quantile','unique','concatenate','dot','isnan','nan'],
+      sm:  ['OLS','GLM','Logit','Probit','Poisson','MNLogit','add_constant','qqplot'],
+      smf: ['ols','glm','logit','probit','poisson','mixedlm','wls','gls'],
+      plt: ['plot','scatter','hist','bar','barh','show','figure','subplots','xlabel','ylabel','title','legend','savefig','xlim','ylim'],
+      sns: ['scatterplot','lineplot','barplot','histplot','kdeplot','boxplot','violinplot','heatmap','pairplot','regplot','countplot','catplot','displot'],
+    };
+    // Felles forslag for delords-fullføring i Python.
+    const PY_COMPLETION_POOL = [].concat(
+      PYTHON_KEYWORDS.map(function(k){ return { label:k, kind:'keyword' }; }),
+      PYTHON_BUILTINS.map(function(b){ return { label:b, kind:'builtin' }; }),
+      PANDAS_DF_METHODS.map(function(m){ return { label:m, kind:'method' }; }),
+      ['pd','np','px','plt','sns','sm','smf'].map(function(a){ return { label:a, kind:'package' }; })
+    );
+
+    function escHl(s){ return escapeHtmlOutput(s); }
+    // Tokeniser én linje Python/R-kode → farget HTML. Returnerer { html, openTriple }
+    // der openTriple er satt hvis en trippel-streng åpnes uten å lukkes på linja.
+    function highlightCodeLine(line, cfg) {
+      var out = '', i = 0, n = line.length;
+      while (i < n) {
+        var c = line[i];
+        if (c === cfg.commentChar) { out += '<span class="md-out-comment">' + escHl(line.slice(i)) + '</span>'; return { html: out, openTriple: null }; }
+        if (cfg.triple && (c === '"' || c === "'") && line[i+1] === c && line[i+2] === c) {
+          var delim = c + c + c, tclose = line.indexOf(delim, i + 3);
+          if (tclose === -1) { out += '<span class="md-out-str">' + escHl(line.slice(i)) + '</span>'; return { html: out, openTriple: delim }; }
+          out += '<span class="md-out-str">' + escHl(line.slice(i, tclose + 3)) + '</span>'; i = tclose + 3; continue;
+        }
+        if (c === '"' || c === "'") {
+          var j = i + 1;
+          while (j < n) { if (line[j] === '\\') { j += 2; continue; } if (line[j] === c) { j++; break; } j++; }
+          out += '<span class="md-out-str">' + escHl(line.slice(i, j)) + '</span>'; i = j; continue;
+        }
+        if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(line[i+1] || ''))) {
+          var k = i; while (k < n && /[0-9_]/.test(line[k])) k++;
+          if (line[k] === '.') { k++; while (k < n && /[0-9_]/.test(line[k])) k++; }
+          if (line[k] === 'e' || line[k] === 'E') { k++; if (line[k] === '+' || line[k] === '-') k++; while (k < n && /[0-9]/.test(line[k])) k++; }
+          out += '<span class="md-out-num">' + escHl(line.slice(i, k)) + '</span>'; i = k; continue;
+        }
+        if (cfg.identStart.test(c)) {
+          var s = i; while (i < n && cfg.identPart.test(line[i])) i++;
+          var word = line.slice(s, i);
+          var m = i; while (m < n && /\s/.test(line[m])) m++;
+          var isCall = line[m] === '(';
+          var cls = cfg.kw.has(word) ? 'md-out-cmd' : (cfg.fn.has(word) || isCall) ? 'md-out-func' : null;
+          out += cls ? '<span class="' + cls + '">' + escHl(word) + '</span>' : escHl(word);
+          continue;
+        }
+        if ('()[]{}'.indexOf(c) >= 0) { out += '<span class="md-out-paren">' + escHl(c) + '</span>'; i++; continue; }
+        if ('+-*/%=<>!&|~^'.indexOf(c) >= 0) { out += '<span class="md-out-op">' + escHl(c) + '</span>'; i++; continue; }
+        out += escHl(c); i++;
+      }
+      return { html: out, openTriple: null };
+    }
+    // Hele Python/R-scriptet → farget HTML, med trippel-streng-tilstand over linjer.
+    function highlightScriptPyR(text, mode) {
+      var cfg = mode === 'r' ? R_HL_CFG : PY_HL_CFG;
+      var lines = text.split('\n'), buf = [], triple = null;
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        if (triple) {
+          var close = line.indexOf(triple);
+          if (close === -1) { buf.push('<span class="md-out-str">' + escHl(line) + '</span>'); continue; }
+          var r = highlightCodeLine(line.slice(close + 3), cfg);
+          buf.push('<span class="md-out-str">' + escHl(line.slice(0, close + 3)) + '</span>' + r.html);
+          triple = r.openTriple;
+          continue;
+        }
+        var res = highlightCodeLine(line, cfg);
+        buf.push(res.html); triple = res.openTriple;
+      }
+      return buf.join('\n');
+    }
 
     let microdataFunctions = [];
     let microdataVariableNames = [];
@@ -4816,9 +4904,25 @@ json.dumps(out)
             .map(function(c) { return { label: c, kind: 'column' }; });
           if (suggs.length) { showAutocomplete(suggs, rStart, pos); return; }
         }
+        // Modul-namespace (px./pd./np./sm./smf./plt./sns.) → funksjoner
+        if (PY_NS_FUNCS[objName]) {
+          const nsSuggs = PY_NS_FUNCS[objName].filter(function(m) { return m.toLowerCase().startsWith(pfx); })
+            .map(function(m) { return { label: m, kind: 'function' }; });
+          if (nsSuggs.length) { showAutocomplete(nsSuggs, rStart, pos); return; }
+        }
         const suggs = PANDAS_DF_METHODS.filter(function(m) { return m.toLowerCase().startsWith(pfx); })
           .map(function(m) { return { label: m, kind: 'method' }; });
         if (suggs.length) { showAutocomplete(suggs, rStart, pos); return; }
+      }
+
+      // Rule 5b: delvis ord → python-nøkkelord/innebygde/pandas-metoder/aliaser
+      {
+        const w = getWordBeforeCursor();
+        if (w.prefix && w.prefix.length >= 1 && w.prefix.indexOf('/') < 0) {
+          const p = w.prefix.toLowerCase();
+          const suggs = PY_COMPLETION_POOL.filter(function(o) { return o.label.toLowerCase().startsWith(p); });
+          if (suggs.length) { showAutocomplete(suggs, w.start, w.end); return; }
+        }
       }
 
       // Rule 6: no match → all known column names (filtered by any partial word typed)
@@ -4883,6 +4987,17 @@ json.dumps(out)
         const suggs = cols.filter(function(c) { return c.toLowerCase().startsWith(pfx); })
           .map(function(c) { return { label: c, kind: 'column' }; });
         if (suggs.length) { showAutocomplete(suggs, rStart, pos); return; }
+      }
+
+      // Rule 5b: delvis ord → R-funksjoner (base + tidyverse)
+      {
+        const w = getWordBeforeCursorR();
+        if (w.prefix && w.prefix.length >= 1 && w.prefix.indexOf('/') < 0) {
+          const p = w.prefix.toLowerCase();
+          const suggs = R_FUNCTIONS.filter(function(f) { return f.toLowerCase().startsWith(p); })
+            .map(function(f) { return { label: f, kind: 'function' }; });
+          if (suggs.length) { showAutocomplete(suggs, w.start, w.end); return; }
+        }
       }
 
       // Rule 6: no match → all known column names (filtered by any partial word typed)
