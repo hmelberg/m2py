@@ -5137,7 +5137,9 @@ json.dumps(out)
           var cls = 'md-out-var';
           if (isWordBeforeSlash) {
             cls = 'md-out-path-prefix';
-          } else if (wordTokenIndex === 0 && MD_CMD_SET[low]) {
+          } else if (wordTokenIndex === 0) {
+            // Første ord på linja er (nesten) alltid en kommando → mørk farge,
+            // også mens man fortsatt skriver og ordet ikke er fullført ennå.
             cls = 'md-out-cmd';
           } else if (MD_CMD_TAB_OPTS[low]) {
             cls = 'md-out-kw-brown';
