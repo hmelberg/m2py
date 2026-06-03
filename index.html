@@ -1023,6 +1023,7 @@
         <hr style="margin:4px 0;border-color:#334155;">
         <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">AI</div>
         <button type="button" id="menuAiMode" title="Velg om Send-knappen bruker rask AI (enkelt svar) eller Anvil-AI (full vurdering med reparasjonsloop)">AI-svar: Rask</button>
+        <button type="button" id="menuTolkResultat" title="Send output (kommandoer + resultater) til AI for en tolkning i AI-sidemenyen">Tolk resultatene</button>
         <hr style="margin:4px 0;border-color:#334155;">
         <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Personvern</div>
         <button type="button" id="btnDmQuick">Vurder dataminimering</button>
@@ -1557,6 +1558,19 @@
 
     function showDmOptions() {
       const backdrop = document.getElementById('dmOptionsBackdrop');
+
+      // Avansert-seksjon skjult som standard; «Flere valg» avslører den.
+      const _advanced = document.getElementById('dmOptAdvanced');
+      const _toggleBtn = document.getElementById('dmOptToggleAdvanced');
+      if (_advanced && _toggleBtn) {
+        _advanced.style.display = 'none';
+        _toggleBtn.textContent = '⚙ Flere valg';
+        _toggleBtn.onclick = () => {
+          const open = _advanced.style.display !== 'none';
+          _advanced.style.display = open ? 'none' : '';
+          _toggleBtn.textContent = open ? '⚙ Flere valg' : '⚙ Færre valg';
+        };
+      }
 
       // Reset transient state on each open
       document.getElementById('dmOptLanguage').value = dmOptionsState.språk;
@@ -3097,6 +3111,24 @@
       }
       showDmOptions();
     });
+
+    (function initTolkResultat() {
+      var btn = document.getElementById('menuTolkResultat');
+      if (!btn) return;
+      btn.addEventListener('click', function() {
+        document.getElementById('hamburgerDropdown').classList.remove('open');
+        var outEl = document.getElementById('outputArea');
+        var outText = (outEl ? (outEl.innerText || '') : '').trim() || (lastOutput || '').trim();
+        if (!outText) { alert('Ingen output å tolke. Kjør et script først.'); return; }
+        if (outText.length > 30000) outText = outText.slice(0, 30000) + '\n…(forkortet)';
+        var si = document.getElementById('scriptInput');
+        var script = (si && si.value || '').trim().slice(0, 20000);
+        var lang = (typeof activeEditorMode !== 'undefined' && activeEditorMode) ? activeEditorMode : 'auto';
+        if (typeof window.mdInterpretResults === 'function') {
+          window.mdInterpretResults({ script: script, output: outText, lang: lang });
+        }
+      });
+    })();
 
     const btnLoginWithCode = document.getElementById('btnLoginWithCode');
     if (btnLoginWithCode) {
@@ -8985,6 +9017,69 @@ def _run_microdata_chunk(_code):
         return meta;
       }
 
+      // Tolk resultater: strøm en tolkning av output (kommandoer + resultater)
+      // inn i en assistent-boble. Speiler runFastQuery, men mot /api/tolk-resultat.
+      async function runInterpretQuery(payload, thinkingNode, signal) {
+        const auth = window.mdAuth;
+        const token = auth && auth.token;
+        const headers = token
+          ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+          : { 'X-API-Key': state.apiKey, 'Content-Type': 'application/json' };
+        const resp = await fetch('/api/tolk-resultat', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            script: payload.script || '',
+            output: payload.output || '',
+            språk: payload.lang || 'auto',
+          }),
+          signal,
+        });
+        if (resp.status === 401) {
+          if (token && auth) { auth.logout(); auth.showLogin(); }
+          throw new Error('Innloggingen er utløpt. Logg inn på nytt.');
+        }
+        if (!resp.ok || !resp.body) {
+          throw new Error('HTTP ' + resp.status + ' ' + (await resp.text()));
+        }
+        thinkingNode.innerHTML = '';
+        const bubble = document.createElement('div');
+        bubble.className = 'ai-bubble';
+        thinkingNode.appendChild(bubble);
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '', accumulated = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let nl;
+          while ((nl = buffer.indexOf('\n\n')) >= 0) {
+            const event = buffer.slice(0, nl);
+            buffer = buffer.slice(nl + 2);
+            const dataLine = event.split('\n').find(l => l.startsWith('data:'));
+            if (!dataLine) continue;
+            let obj;
+            try { obj = JSON.parse(dataLine.slice(5).trim()); } catch (_) { continue; }
+            if (obj.type === 'text') {
+              accumulated += obj.text;
+              bubble.textContent = accumulated;
+              scrollToBottom();
+            } else if (obj.type === 'error') {
+              throw new Error(obj.message || 'Ukjent feil fra server');
+            }
+          }
+        }
+        if (md) {
+          try { bubble.innerHTML = md.render(accumulated || ''); }
+          catch (_) { bubble.textContent = accumulated; }
+        } else {
+          bubble.textContent = accumulated;
+        }
+        bubble._rawMd = accumulated;
+        state.history.push({ role: 'assistant', meta: { intent: 'tolkning' } });
+      }
+
       // Pull the first ```microdata / ``` code block that looks like a
       // microdata script out of streamed markdown.
       function extractFirstMicrodataBlock(textMd) {
@@ -9252,6 +9347,35 @@ def _run_microdata_chunk(_code):
           autoresize();
           sendMessage(!state.anvilMode);
         };
+
+        // Offentlig: åpne AI-panelet og tolk resultatene (output) fra forrige kjøring.
+        window.mdInterpretResults = function(payload) {
+          payload = payload || {};
+          if (!payload.output || !payload.output.trim()) return;
+          if (state.sending) return;
+          const auth = window.mdAuth;
+          const isAuthed = (auth && auth.token) || state.apiKey;
+          if (!isAuthed) { if (auth) auth.showLogin(); return; }
+          setOpen(true);
+          if (state.history.length === 0) dom.aiThread.innerHTML = '';
+          appendUserMessage('Tolk resultatene fra forrige kjøring.');
+          state.history.push({ role: 'user', text: 'Tolk resultatene' });
+          const thinkingNode = appendThinking();
+          state.sending = true;
+          if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = true;
+          const ctrl = new AbortController();
+          state.abortCtrl = ctrl;
+          if (dom.aiAbortBtn) dom.aiAbortBtn.style.display = '';
+          runInterpretQuery(payload, thinkingNode, ctrl.signal)
+            .catch(e => { if (e.name !== 'AbortError') appendError(thinkingNode, '✗ ' + e.message); })
+            .finally(() => {
+              state.abortCtrl = null;
+              if (dom.aiAbortBtn) dom.aiAbortBtn.style.display = 'none';
+              state.sending = false;
+              if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = false;
+              if (dom.aiInput) dom.aiInput.focus();
+            });
+        };
       }
 
       if (document.readyState === 'loading') {
@@ -9290,46 +9414,57 @@ def _run_microdata_chunk(_code):
         AI vurderer om scriptet ditt henter og bruker minimum nødvendig data.
       </p>
 
-      <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;">
-        <label for="dmOptLanguage" style="min-width: 80px;">Språk:</label>
-        <select id="dmOptLanguage" style="flex: 1; padding: 6px;">
-          <option value="auto">Automatisk</option>
-          <option value="microdata">microdata.no</option>
-          <option value="r">R</option>
-          <option value="python">Python</option>
-        </select>
-      </div>
+      <button type="button" id="dmOptToggleAdvanced" class="ai-modal-btn"
+        title="Vis valg for språk, rapportlengde, revidert script og formål"
+        style="width: 100%; text-align: left; margin: 8px 0;">⚙ Flere valg</button>
 
-      <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;">
-        <span style="min-width: 80px;">Rapport:</span>
-        <label style="margin-right: 16px;">
-          <input type="radio" name="dmOptDetail" value="kort" checked> Kort
-        </label>
-        <label>
-          <input type="radio" name="dmOptDetail" value="lang"> Lang
-        </label>
-      </div>
+      <div id="dmOptAdvanced" style="display:none;">
+        <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;"
+          title="Hvilket språk scriptet er i. «Automatisk» lar AI gjette ut fra koden.">
+          <label for="dmOptLanguage" style="min-width: 80px;">Språk:</label>
+          <select id="dmOptLanguage" style="flex: 1; padding: 6px;">
+            <option value="auto">Automatisk</option>
+            <option value="microdata">microdata.no</option>
+            <option value="r">R</option>
+            <option value="python">Python</option>
+          </select>
+        </div>
 
-      <div style="margin: 12px 0;">
-        <label>
-          <input type="checkbox" id="dmOptRevise"> Generer også revidert script
-        </label>
-        <label style="display:block; margin: 6px 0 0 22px; font-size: 13px; color: var(--text-muted);">
-          <input type="checkbox" id="dmOptUseScrub"> Bruk scrub-kommandoer (dataminimering) i forslaget
-        </label>
-      </div>
+        <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;"
+          title="Kort: de 3–5 viktigste observasjonene. Lang: full gjennomgang av alle dimensjoner med lovreferanser.">
+          <span style="min-width: 80px;">Rapport:</span>
+          <label style="margin-right: 16px;">
+            <input type="radio" name="dmOptDetail" value="kort" checked> Kort
+          </label>
+          <label>
+            <input type="radio" name="dmOptDetail" value="lang"> Lang
+          </label>
+        </div>
 
-      <div style="margin: 16px 0 12px 0; padding-top: 12px; border-top: 1px solid var(--border);">
-        <div style="margin-bottom: 6px;">Formål og bakgrunn:</div>
-        <button type="button" id="dmOptContextBtn" class="ai-modal-btn" style="width: 100%; text-align: left;">Spesifiser formål / kontekst</button>
-        <p id="dmOptContextStatus" style="font-size: 12px; color: var(--text-muted); margin: 6px 0 0 0;">
-          Hvis ikke spesifisert, vurderer AI ut fra scriptet alene.
-        </p>
+        <div style="margin: 12px 0;">
+          <label title="AI foreslår en konkret, minimert versjon av scriptet som du kan sette rett inn i editoren.">
+            <input type="checkbox" id="dmOptRevise"> Generer også revidert script
+          </label>
+          <label style="display:block; margin: 6px 0 0 22px; font-size: 13px; color: var(--text-muted);"
+            title="Lar det reviderte scriptet foreslå scrub-kommandoer (jitter, winsorize, collapse …) for å minimere/de-identifisere data. Krever at «revidert script» er på.">
+            <input type="checkbox" id="dmOptUseScrub"> Bruk scrub-kommandoer (dataminimering) i forslaget
+          </label>
+        </div>
+
+        <div style="margin: 16px 0 12px 0; padding-top: 12px; border-top: 1px solid var(--border);">
+          <div style="margin-bottom: 6px;">Formål og bakgrunn:</div>
+          <button type="button" id="dmOptContextBtn" class="ai-modal-btn" style="width: 100%; text-align: left;"
+            title="Beskriv formålet med analysen, så vurderer AI ut fra det — ikke bare koden. Reduserer falske «unødvendig variabel»-treff.">Spesifiser formål / kontekst</button>
+          <p id="dmOptContextStatus" style="font-size: 12px; color: var(--text-muted); margin: 6px 0 0 0;">
+            Hvis ikke spesifisert, vurderer AI ut fra scriptet alene.
+          </p>
+        </div>
       </div>
 
       <div class="ai-modal-actions" style="margin-top: 16px;">
         <button type="button" id="dmOptCancel" class="ai-modal-btn">Avbryt</button>
-        <button type="button" id="dmOptSubmit" class="ai-modal-btn primary">Vurder</button>
+        <button type="button" id="dmOptSubmit" class="ai-modal-btn primary"
+          title="Send scriptet til AI for vurdering med valgene over (eller standardvalg).">Start vurderingen</button>
       </div>
     </div>
   </div>
