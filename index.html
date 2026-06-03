@@ -4860,21 +4860,31 @@ json.dumps(out)
       return true;
     }
 
+    // Microdata-variabelforslag etter «.../» (slash) — virker i ALLE moduser, slik at
+    // man kan importere microdata-variabler også i Python/R. Brukes på Tab (broad) og
+    // live mens man skriver (requireWord=true krever tegn før slashen, så vi ikke
+    // popper på enhver «/», f.eks. divisjon med tall).
+    function microdataSlashSuggest(lineSoFar, pos, requireWord) {
+      const m = lineSoFar.match(requireWord ? /[A-Za-z][A-Za-z0-9_.]+\/([A-Za-z0-9_]*)$/ : /\/([A-Za-z0-9_]*)$/);
+      if (!m) return false;
+      const captured = m[1] || '';
+      const pfx = captured.toLowerCase(), rStart = pos - captured.length;
+      const suggs = microdataVariableNames
+        .filter(function(v) { return v.toLowerCase().startsWith(pfx); }).sort()
+        .map(function(v) { return { label: v, kind: 'variable', detail: getVariableShortDescription(v) || 'variable' }; });
+      if (!suggs.length) return false;
+      showAutocomplete(suggs, rStart, pos);
+      return true;
+    }
+
     function handlePythonTab(e) {
       e.preventDefault();
       if (autocompleteState) { acceptSelection(); return; }
       const ta = scriptInput, pos = ta.selectionStart, text = ta.value;
       const lineSoFar = getLeftContext().beforeCursor;
 
-      // Rule 1: after / → microdata variables (replace the part after /)
-      const slashPy = lineSoFar.match(/\/([A-Za-z0-9_]*)$/);
-      if (slashPy) {
-        const pfx = slashPy[1].toLowerCase(), rStart = pos - slashPy[1].length;
-        const suggs = microdataVariableNames
-          .filter(function(v) { return v.toLowerCase().startsWith(pfx); }).sort()
-          .map(function(v) { return { label: v, kind: 'variable', detail: getVariableShortDescription(v) || 'variable' }; });
-        if (suggs.length) { showAutocomplete(suggs, rStart, pos); return; }
-      }
+      // Rule 1: after / → microdata variables (all modes)
+      if (microdataSlashSuggest(lineSoFar, pos, false)) return;
 
       // Rule 2: nothing to left → Python keywords + builtins
       if (lineSoFar === '') {
@@ -4942,15 +4952,8 @@ json.dumps(out)
       const ta = scriptInput, pos = ta.selectionStart, text = ta.value;
       const lineSoFar = getLeftContext().beforeCursor;
 
-      // Rule 1: after / → microdata variables (replace the part after /)
-      const slashR = lineSoFar.match(/\/([A-Za-z0-9_]*)$/);
-      if (slashR) {
-        const pfx = slashR[1].toLowerCase(), rStart = pos - slashR[1].length;
-        const suggs = microdataVariableNames
-          .filter(function(v) { return v.toLowerCase().startsWith(pfx); }).sort()
-          .map(function(v) { return { label: v, kind: 'variable', detail: getVariableShortDescription(v) || 'variable' }; });
-        if (suggs.length) { showAutocomplete(suggs, rStart, pos); return; }
-      }
+      // Rule 1: after / → microdata variables (all modes)
+      if (microdataSlashSuggest(lineSoFar, pos, false)) return;
 
       // Rule 2: nothing to left → R functions
       if (lineSoFar === '') {
@@ -5178,6 +5181,13 @@ json.dumps(out)
     });
 
     scriptInput.addEventListener('input', function() {
+      // I Python/R: vis microdata-variabler live så snart man skriver «navn/…».
+      // Det er signalet (jf. import .../) på at man vil ha en variabel, ikke en
+      // Python-import. Microdata-modus beholder Tab-utløst forslag som før.
+      if (activeEditorMode === 'python' || activeEditorMode === 'r') {
+        const ctx = getLeftContext();
+        if (microdataSlashSuggest(ctx.beforeCursor, scriptInput.selectionStart, true)) return;
+      }
       if (autocompleteState) hideAutocomplete();
     });
     scriptInput.addEventListener('blur', function() {
