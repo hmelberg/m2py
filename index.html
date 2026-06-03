@@ -18,8 +18,8 @@
     .topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; align-items: center; padding: 0 12px; height: 44px; background: var(--topbar-bg); border-bottom: 1px solid var(--border); }
     .topbar .hamburger { background: none; border: none; color: var(--text); cursor: pointer; padding: 8px; font-size: 20px; line-height: 1; }
     .topbar .hamburger:hover { color: var(--accent); }
-    .topbar .script-name { flex: 1; margin: 0 16px; max-width: 400px; background: var(--bg-code); border: none; border-radius: 4px; padding: 6px 10px; color: var(--text); font-size: 14px; -webkit-appearance: none; appearance: none; }
-    .topbar .topbar-ask { flex: 0 1 300px; min-width: 150px; margin: 0 8px 0 0; background: var(--bg-code); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; color: var(--text); font-size: 14px; -webkit-appearance: none; appearance: none; }
+    .topbar .script-name { flex: 0 1 170px; margin: 0 12px; background: var(--bg-code); border: none; border-radius: 4px; padding: 6px 10px; color: var(--text); font-size: 14px; -webkit-appearance: none; appearance: none; }
+    .topbar .topbar-ask { flex: 1 1 auto; min-width: 120px; margin: 0 12px 0 0; background: var(--bg-code); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; color: var(--text); font-size: 14px; -webkit-appearance: none; appearance: none; }
     .topbar .topbar-ask:focus { outline: none; border-color: var(--accent); }
     .topbar .topbar-ask::placeholder { color: var(--text-muted); }
     .topbar .script-name:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
@@ -1034,7 +1034,7 @@
       </div>
     </div>
     <input type="text" class="script-name" id="scriptName" placeholder="Script navn" value="Script navn">
-    <input type="text" class="topbar-ask" id="topbarAsk" placeholder="Hva vil du unders&#248;ke?" aria-label="Spør AI" autocomplete="off" title="Skriv et spørsmål og trykk Enter — AI-panelet åpnes og svarer">
+    <input type="text" class="topbar-ask" id="topbarAsk" placeholder="Hva vil du unders&#248;ke?" aria-label="Spør AI" autocomplete="off" title="Skriv et spørsmål og trykk Enter — AI-panelet åpnes og svarer" style="display:none">
     <button type="button" class="help-icon" id="helpBtn" aria-label="Hjelp" title="Hjelp" style="margin-left:auto">&#63;</button>
     <button type="button" class="help-icon" id="clearOutputTopBtn" aria-label="Tøm output" title="Tøm output"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg></button>
     <div class="topbar-export-wrap">
@@ -3791,6 +3791,13 @@
           }
         }
       });
+      // Kun synlig når innlogget. Oppdateres fra persistLogin/logoutLocal (alle
+      // innloggingsveier) og én gang etter at auth-modulen har lastet token.
+      function updateVisible() {
+        ask.style.display = (window.mdAuth && window.mdAuth.isLoggedIn) ? '' : 'none';
+      }
+      window.mdUpdateAskVisibility = updateVisible;
+      setTimeout(updateVisible, 0);
     })();
 
     const outputScrollWrap = document.getElementById('outputScrollWrap');
@@ -8002,6 +8009,7 @@ def _run_microdata_chunk(_code):
         state.user = null;
         localStorage.removeItem(LS_TOKEN);
         localStorage.removeItem(LS_USER);
+        if (window.mdUpdateAskVisibility) window.mdUpdateAskVisibility();
       }
 
       async function logout() {
@@ -8019,6 +8027,7 @@ def _run_microdata_chunk(_code):
         state.user = data.user;
         localStorage.setItem(LS_TOKEN, state.token);
         localStorage.setItem(LS_USER, JSON.stringify(state.user));
+        if (window.mdUpdateAskVisibility) window.mdUpdateAskVisibility();
       }
 
       async function handleLoginParam() {
