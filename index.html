@@ -19,6 +19,9 @@
     .topbar .hamburger { background: none; border: none; color: var(--text); cursor: pointer; padding: 8px; font-size: 20px; line-height: 1; }
     .topbar .hamburger:hover { color: var(--accent); }
     .topbar .script-name { flex: 1; margin: 0 16px; max-width: 400px; background: var(--bg-code); border: none; border-radius: 4px; padding: 6px 10px; color: var(--text); font-size: 14px; -webkit-appearance: none; appearance: none; }
+    .topbar .topbar-ask { flex: 0 1 300px; min-width: 150px; margin: 0 8px 0 0; background: var(--bg-code); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; color: var(--text); font-size: 14px; -webkit-appearance: none; appearance: none; }
+    .topbar .topbar-ask:focus { outline: none; border-color: var(--accent); }
+    .topbar .topbar-ask::placeholder { color: var(--text-muted); }
     .topbar .script-name:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
     .topbar .help-icon { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 8px; font-size: 18px; }
     .topbar .help-icon:hover { color: var(--accent); }
@@ -925,7 +928,7 @@
     .ai-input {
       flex: 1; border: none; background: transparent; resize: none; outline: none;
       color: var(--text); font-family: inherit; font-size: 14px; line-height: 1.4;
-      padding: 6px 0; max-height: 160px; min-height: 24px;
+      padding: 6px 0; max-height: 120px; min-height: 24px; overflow-y: auto;
     }
     .ai-send-btn {
       width: 32px; height: 32px; border: none; background: var(--accent); color: #fff;
@@ -1031,6 +1034,7 @@
       </div>
     </div>
     <input type="text" class="script-name" id="scriptName" placeholder="Script navn" value="Script navn">
+    <input type="text" class="topbar-ask" id="topbarAsk" placeholder="Hva vil du unders&#248;ke?" aria-label="Spør AI" autocomplete="off" title="Skriv et spørsmål og trykk Enter — AI-panelet åpnes og svarer">
     <button type="button" class="help-icon" id="helpBtn" aria-label="Hjelp" title="Hjelp" style="margin-left:auto">&#63;</button>
     <button type="button" class="help-icon" id="clearOutputTopBtn" aria-label="Tøm output" title="Tøm output"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg></button>
     <div class="topbar-export-wrap">
@@ -3771,6 +3775,24 @@
     scriptInput.scrollTop = 0;
     scriptInput.selectionStart = scriptInput.selectionEnd = 0;
     scriptInput.focus();
+
+    // ── Hurtigspør-boks i toppen: Enter åpner AI-panelet og sender spørsmålet ──
+    (function initTopbarAsk() {
+      const ask = document.getElementById('topbarAsk');
+      if (!ask) return;
+      ask.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          const q = ask.value.trim();
+          if (!q) return;
+          if (typeof window.mdAskAi === 'function') {
+            window.mdAskAi(q);
+            ask.value = '';
+          }
+        }
+      });
+    })();
+
     const outputScrollWrap = document.getElementById('outputScrollWrap');
     const outputJumpLastBtn = document.getElementById('outputJumpLastBtn');
     (function initOutputScrollChrome() {
@@ -8368,24 +8390,7 @@ def _run_microdata_chunk(_code):
       }
 
       function appendMeta(node, meta) {
-        const m = document.createElement('div');
-        m.className = 'ai-msg-meta';
-        const parts = [];
-        if (meta.intent) parts.push(meta.intent);
-        if (meta.model) parts.push(meta.model);
-        if (typeof meta.latency_ms === 'number') parts.push((meta.latency_ms / 1000).toFixed(1) + 's');
-        if (meta.tokens) {
-          const t = meta.tokens;
-          let tok = (t.input || 0) + '→' + (t.output || 0) + ' tok';
-          if (t.cacheRead) tok += ' · cache ' + t.cacheRead;
-          else if (t.cacheCreate) tok += ' · cache-skriv ' + t.cacheCreate;
-          parts.push(tok);
-        }
-        if (meta.validation && meta.validation.passed === false) {
-          parts.push('⚠ valideringsfeil (' + (meta.validation.errors || []).length + ')');
-        }
-        m.textContent = parts.join(' · ');
-        node.appendChild(m);
+        // Meta-linja (intent · modell · tid · tokens · cache) er støy for brukeren — vises ikke.
       }
 
       function commentize(text) {
@@ -8453,8 +8458,9 @@ def _run_microdata_chunk(_code):
           flash(btn, '✓ Satt inn');
         });
 
-        bar.appendChild(lbl);
+        // Knapp før checkbox (horisontalt).
         bar.appendChild(btn);
+        bar.appendChild(lbl);
         node.appendChild(bar);
       }
 
@@ -8774,24 +8780,15 @@ def _run_microdata_chunk(_code):
         appendMeta(thinkingNode, meta);
         attachResponseInsertBar(thinkingNode, accumulated);
 
-        // Validate the first microdata code block locally (non-blocking).
+        // Valider første microdata-kodeblokk lokalt (ikke-blokkerende).
+        // Vi viser ingen «validert»-tekst ved suksess (støy) — kun advarsler ved feil.
         const script = extractFirstMicrodataBlock(accumulated);
         if (script) {
-          const badge = document.createElement('div');
-          badge.className = 'ai-msg-meta';
-          badge.textContent = '⏳ Validerer lokalt…';
-          thinkingNode.appendChild(badge);
           validateMicrodataLocal(script).then(vr => {
-            if (vr.skipped) { badge.remove(); return; }
-            if (vr.passed) {
-              badge.textContent = '✓ Validert lokalt (kjørt på testdata)';
-              badge.style.color = 'var(--ok, #2e7d32)';
-            } else {
-              badge.remove();
-              const warn = renderValidationWarnings(vr);
-              if (warn) bubble.appendChild(warn);
-            }
-          }).catch(() => { badge.remove(); });
+            if (vr.skipped || vr.passed) return;
+            const warn = renderValidationWarnings(vr);
+            if (warn) bubble.appendChild(warn);
+          }).catch(() => {});
         }
         return meta;
       }
@@ -8913,7 +8910,7 @@ def _run_microdata_chunk(_code):
       function autoresize() {
         const ta = dom.aiInput;
         ta.style.height = 'auto';
-        ta.style.height = Math.min(ta.scrollHeight, 160) + 'px';
+        ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';  // ~5 linjer maks, så scroller den
       }
 
       function categoryLabel(cat) {
@@ -9054,6 +9051,15 @@ def _run_microdata_chunk(_code):
 
         // Auth gate is in sendMessage; no auto-open of settings on first AI-panel
         // toggle. Users see the panel and the empty state; only Send triggers login.
+
+        // Offentlig: åpne AI-panelet og send et spørsmål (brukes av hurtigspør-boksen i toppen).
+        window.mdAskAi = function(question) {
+          if (!question || !question.trim()) return;
+          setOpen(true);
+          dom.aiInput.value = question;
+          autoresize();
+          sendMessage(!state.anvilMode);
+        };
       }
 
       if (document.readyState === 'loading') {
