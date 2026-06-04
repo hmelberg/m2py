@@ -9668,7 +9668,7 @@ def _run_microdata_chunk(_code):
         // Migrer fra gammelt enkelt-oppsett (pat/repo/branch) til én profil
         const oldPat = localStorage.getItem(LS_PAT), oldRepo = localStorage.getItem(LS_REPO);
         if (oldPat || oldRepo) {
-          a = [{ label: oldRepo || 'Standard', pat: oldPat || '', repo: oldRepo || '', branch: localStorage.getItem(LS_BRANCH) || 'main' }];
+          a = [{ pat: oldPat || '', repo: oldRepo || '', branch: localStorage.getItem(LS_BRANCH) || 'main' }];
           saveProfiles(a, 0);
           return a;
         }
@@ -9697,23 +9697,46 @@ def _run_microdata_chunk(_code):
         try { localStorage.setItem(LS_CURRENT, JSON.stringify(c)); } catch (_) {}
         updateCurrentIndicator();
       }
-      function updateCurrentIndicator() {
-        let el = $('ghCurrentLabel');
+      // Outline-ikoner (Feather-stil) ved siden av filnavnet: floppy = shortcut
+      // til «Lagre», sky = indikator for at man jobber med en GitHub-fil.
+      const SVG_SAVE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>';
+      const SVG_CLOUD = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 0-9 6 6 0 0 0-11.6 1.5A3.5 3.5 0 0 0 6.5 19h11z"/></svg>';
+      function ghIconHost() {
+        let host = $('ghIndicatorHost');
+        if (host) return host;
         const name = $('scriptName');
-        if (!el) {
-          if (!name || !name.parentNode) return;
-          el = document.createElement('span');
-          el.id = 'ghCurrentLabel';
-          el.style.cssText = 'font-size:15px;margin-left:6px;padding-right:6px;vertical-align:middle;cursor:default;';
-          name.parentNode.insertBefore(el, name.nextSibling);
-        }
+        if (!name || !name.parentNode) return null;
+        host = document.createElement('span');
+        host.id = 'ghIndicatorHost';
+        host.style.cssText = 'display:inline-flex;align-items:center;vertical-align:middle;';
+        const save = document.createElement('span');
+        save.id = 'ghSaveIcon';
+        save.title = 'Lagre til GitHub';
+        save.style.cssText = 'display:none;align-items:center;margin-left:8px;color:var(--accent,#2563eb);cursor:pointer;';
+        save.innerHTML = SVG_SAVE;
+        save.addEventListener('click', function () { doSave(); });
+        const cloud = document.createElement('span');
+        cloud.id = 'ghCurrentLabel';
+        cloud.style.cssText = 'display:none;align-items:center;margin-left:4px;padding-right:16px;color:var(--text-muted);cursor:default;';
+        cloud.innerHTML = SVG_CLOUD;
+        host.appendChild(save);
+        host.appendChild(cloud);
+        name.parentNode.insertBefore(host, name.nextSibling);
+        return host;
+      }
+      function updateCurrentIndicator() {
+        if (!ghIconHost()) return;
         const cur = getCurrent();
+        const save = $('ghSaveIcon'), cloud = $('ghCurrentLabel');
         if (cur && cur.path) {
-          el.textContent = '☁';
-          el.title = 'GitHub: ' + cur.repo + '/' + cur.path + (cur.branch && cur.branch !== 'main' ? '@' + cur.branch : '') + ' — «Lagre» skriver hit';
-          el.style.display = '';
+          if (save) save.style.display = 'inline-flex';
+          if (cloud) {
+            cloud.style.display = 'inline-flex';
+            cloud.title = 'GitHub: ' + cur.repo + '/' + cur.path + (cur.branch && cur.branch !== 'main' ? '@' + cur.branch : '');
+          }
         } else {
-          el.style.display = 'none';
+          if (save) save.style.display = 'none';
+          if (cloud) cloud.style.display = 'none';
         }
       }
 
@@ -9727,15 +9750,15 @@ def _run_microdata_chunk(_code):
         } else {
           a.forEach((p, idx) => {
             const o = document.createElement('option');
-            o.value = String(idx); o.textContent = p.label || p.repo || ('Profil ' + (idx + 1));
+            o.value = String(idx);
+            o.textContent = (p.repo || '(ny profil)') + (p.branch && p.branch !== 'main' ? '@' + p.branch : '');
             sel.appendChild(o);
           });
           sel.value = String(active);
         }
       }
       function loadProfileIntoFields(i) {
-        const p = getProfiles()[i] || { label: '', pat: '', repo: '', branch: 'main' };
-        $('ghProfileLabel').value = p.label || '';
+        const p = getProfiles()[i] || { pat: '', repo: '', branch: 'main' };
         $('ghPat').value = p.pat || '';
         $('ghRepo').value = p.repo || '';
         $('ghBranch').value = p.branch || 'main';
@@ -9752,7 +9775,6 @@ def _run_microdata_chunk(_code):
       }
       function settingsRead() {
         return {
-          label: $('ghProfileLabel').value.trim(),
           pat: $('ghPat').value.trim(),
           repo: $('ghRepo').value.trim(),
           branch: $('ghBranch').value.trim() || 'main'
@@ -9762,7 +9784,6 @@ def _run_microdata_chunk(_code):
         const err = $('ghError'); err.textContent = '';
         if (!f.pat) { err.textContent = 'Mangler token.'; return false; }
         if (!/^[^/\s]+\/[^/\s]+$/.test(f.repo)) { err.textContent = 'Repo må være på formen eier/navn.'; return false; }
-        if (!f.label) f.label = f.repo; // standard navn = repo
         return true;
       }
       function settingsSave() {
@@ -9778,19 +9799,19 @@ def _run_microdata_chunk(_code):
       }
       function profileNew() {
         const a = getProfiles();
-        a.push({ label: 'Ny profil', pat: '', repo: '', branch: 'main' });
+        a.push({ pat: '', repo: '', branch: 'main' });
         const i = a.length - 1;
         saveProfiles(a, i);
         renderProfileSelect();
         loadProfileIntoFields(i);
         $('ghError').textContent = ''; $('ghStatus').textContent = '';
-        const lab = $('ghProfileLabel'); if (lab) { lab.focus(); lab.select(); }
+        const repo = $('ghRepo'); if (repo) repo.focus();
       }
       function profileDelete() {
         const a = getProfiles();
         if (!a.length) return;
         const i = getActiveIndex();
-        const name = a[i].label || a[i].repo || ('Profil ' + (i + 1));
+        const name = a[i].repo || ('Profil ' + (i + 1));
         if (!confirm('Slette profilen «' + name + '»?')) return;
         a.splice(i, 1);
         const ni = Math.max(0, Math.min(i, a.length - 1));
@@ -10289,10 +10310,6 @@ def _run_microdata_chunk(_code):
         </div>
         <button type="button" id="ghProfileNew" class="ai-modal-btn">Ny</button>
         <button type="button" id="ghProfileDelete" class="ai-modal-btn">Slett</button>
-      </div>
-      <div style="margin:10px 0;">
-        <label for="ghProfileLabel">Navn (kun for deg)</label>
-        <input type="text" id="ghProfileLabel" placeholder="f.eks. Jobb" style="width:100%; padding:6px;">
       </div>
       <div style="margin:10px 0;">
         <label for="ghPat">Token (PAT)</label>
