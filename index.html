@@ -1006,13 +1006,23 @@
         <div class="topbar-examples-wrap" style="position:relative">
           <button type="button" id="menuExamplesBtn">Eksempler</button>
           <div class="examples-dropdown" id="examplesDropdown">
-            <div class="examples-dropdown-title">Last inn eksempel</div>
-            <button type="button" data-example="01_beskrivende_statistikk.txt">Beskrivende statistikk</button>
-            <button type="button" data-example="02_tabeller_og_kategorier.txt">Tabeller og kategorier</button>
-            <button type="button" data-example="03_visualiseringer.txt">Visualiseringer</button>
-            <button type="button" data-example="04_aggregat_og_generate.txt">Aggregat og nye variabler</button>
-            <button type="button" data-example="05_regresjon.txt">Regresjon</button>
-            <button type="button" data-example="06_avansert_analyse.txt">Avansert analyse</button>
+            <div class="examples-dropdown-title">Microdata</div>
+            <button type="button" data-example="01_beskrivende_statistikk.txt" data-mode="microdata">Beskrivende statistikk</button>
+            <button type="button" data-example="02_tabeller_og_kategorier.txt" data-mode="microdata">Tabeller og kategorier</button>
+            <button type="button" data-example="03_visualiseringer.txt" data-mode="microdata">Visualiseringer</button>
+            <button type="button" data-example="04_aggregat_og_generate.txt" data-mode="microdata">Aggregat og nye variabler</button>
+            <button type="button" data-example="05_regresjon.txt" data-mode="microdata">Regresjon</button>
+            <button type="button" data-example="06_avansert_analyse.txt" data-mode="microdata">Avansert analyse</button>
+            <hr style="margin:4px 0;border-color:#334155;">
+            <div class="examples-dropdown-title">Python</div>
+            <button type="button" data-example="py01_pandas_basics.txt" data-mode="python">pandas &mdash; grunnleggende</button>
+            <button type="button" data-example="py02_pandas_microdata.txt" data-mode="python">pandas + #micro</button>
+            <button type="button" data-example="py03_statsmodels_regression.txt" data-mode="python">statsmodels &mdash; OLS-regresjon</button>
+            <hr style="margin:4px 0;border-color:#334155;">
+            <div class="examples-dropdown-title">R</div>
+            <button type="button" data-example="r01_base_basics.txt" data-mode="r">base R &mdash; grunnleggende</button>
+            <button type="button" data-example="r02_tidyverse_groupby.txt" data-mode="r">tidyverse &mdash; gruppestatistikk</button>
+            <button type="button" data-example="r03_tidyverse_microdata.txt" data-mode="r">tidyverse + #micro</button>
             <hr style="margin:4px 0;border-color:#334155;">
             <button type="button" id="menuWebExamples">Flere eksempler p&#229; web</button>
           </div>
@@ -2709,11 +2719,18 @@
         btn.addEventListener('click', function() {
           var file = this.getAttribute('data-example');
           var title = this.textContent.trim();
+          var mode = this.getAttribute('data-mode');
           var base = window.location.href.replace(/[^/]+$/, '');
           fetch(base + 'examples/' + file).then(function(r) {
             if (!r.ok) throw new Error(r.status);
             return r.text();
           }).then(function(text) {
+            if (mode && (mode === 'microdata' || mode === 'python' || mode === 'r')
+                && typeof switchEditorMode === 'function'
+                && typeof activeEditorMode !== 'undefined') {
+              if (typeof editorContent !== 'undefined') editorContent[mode] = text;
+              if (mode !== activeEditorMode) switchEditorMode(mode);
+            }
             scriptInput.value = text;
             scriptName.value = title;
             if (window.mdGithubClearCurrent) window.mdGithubClearCurrent();
