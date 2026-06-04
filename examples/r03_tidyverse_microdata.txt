@@ -1,0 +1,20 @@
+# Eksempel: tidyverse på microdata-datasett
+# Førsteblokk importerer variabler via microdata.
+# Andre blokk bruker dplyr på datasettet 'folk'.
+
+#micro
+require no.ssb.fdb:54 as fd
+create-dataset folk
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+
+#r
+library(dplyr)
+
+folk %>%
+  group_by(kjonn) %>%
+  summarise(
+    snitt  = mean(inntekt, na.rm = TRUE),
+    median = median(inntekt, na.rm = TRUE),
+    antall = n()
+  )
