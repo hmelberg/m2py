@@ -5480,6 +5480,30 @@ json.dumps(out)
       }
       return s;
     }
+    // Strip inline-kommentar etter et kommentartegn (f.eks. '#'), med enkel
+    // streng-bevissthet så «"a#b"» ikke kuttes. Brukes på kode-ekko (R/Python).
+    function stripInlineCodeComment(s, ch) {
+      var inS = false, inD = false;
+      for (var i = 0; i < s.length; i++) {
+        var c = s.charAt(i);
+        if (inS) { if (c === "'") inS = false; continue; }
+        if (inD) { if (c === '"') inD = false; continue; }
+        if (c === "'") { inS = true; continue; }
+        if (c === '"') { inD = true; continue; }
+        if (c === ch) { return s.slice(0, i).replace(/\s+$/, ''); }
+      }
+      return s;
+    }
+    // Fjern hele kommentar-linjer + inline-kommentarer fra en kode-blokk.
+    function stripCodeComments(text, ch) {
+      var lines = (text || '').split('\n');
+      var out = [];
+      for (var i = 0; i < lines.length; i++) {
+        if (lines[i].replace(/^\s+/, '').indexOf(ch) === 0) continue; // hel kommentar-linje
+        out.push(stripInlineCodeComment(lines[i], ch));
+      }
+      return out.join('\n').replace(/\s+$/, '');
+    }
     function formatPreBlockWithCommandHighlight(content) {
       var lines = content.split('\n');
       var buf = [];
@@ -7122,7 +7146,10 @@ json.dumps(out)
         for (var si = 0; si < statements.length; si++) {
           var stmt = statements[si];
           try {
-            if (showCommands) outputParts.push({ type: 'code', text: stmt });
+            if (showCommands) {
+              var _echoStmt = stripCodeComments(stmt, '#'); // ikke vis #-kommentarer i output
+              if (_echoStmt) outputParts.push({ type: 'code', text: _echoStmt });
+            }
             var captured = await webRShelter.captureR(stmt, {
               withAutoprint: true,
               captureGraphics: { width: 720, height: 480 }
