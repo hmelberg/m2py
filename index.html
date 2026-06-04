@@ -1027,7 +1027,7 @@
             <button type="button" id="ghMenuOpen">&#197;pne fil</button>
             <button type="button" id="ghMenuSave">Lagre</button>
             <button type="button" id="ghMenuSaveAs">Lagre som</button>
-            <button type="button" id="ghMenuRefresh">Oppdater</button>
+            <button type="button" id="ghMenuRefresh" title="Hent gjeldende fil p&#229; nytt fra GitHub og forkast ulagrede lokale endringer. Dette henter (leser) &mdash; det lagrer ikke.">Hent p&#229; nytt</button>
           </div>
         </div>
         <button type="button" id="menuForklar" title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">Kj&#248;r skrittvis</button>
@@ -1303,8 +1303,9 @@
           <button type="button" data-mode="r">R</button>
         </div>
       </div>
-      <button type="button" class="bottombar-icon-btn" id="btnDmQuick" style="display:none" title="Vurder personvern: sjekk om scriptet henter mer detaljerte data enn n&#248;dvendig (dataminimering), og f&#229; forslag til &#229; aggregere/forenkle. Krever innlogging.">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/></svg>
+      <button type="button" class="btn btn-tolk" id="btnDmQuick" style="display:none" title="Vurder personvern: sjekk om scriptet henter mer detaljerte data enn n&#248;dvendig (dataminimering), og f&#229; forslag til &#229; aggregere/forenkle. Krever innlogging.">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;flex-shrink:0" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/></svg>
+        Vurder personvern
       </button>
       <button type="button" class="oversett-btn" id="oversettBtn" style="display:none">Oversett</button>
     </div>
@@ -9752,17 +9753,28 @@ def _run_microdata_chunk(_code):
         const menu = $('ghRecentMenu'); if (!menu) return;
         const a = getRecentFiles();
         menu.innerHTML = '<div class="examples-dropdown-title">Nylige filer</div>';
-        if (!a.length) { menu.innerHTML += '<div style="padding:6px 14px;color:var(--text-muted);font-size:13px;">Ingen nylige.</div>'; return; }
-        a.forEach((e) => {
-          const b = document.createElement('button'); b.type = 'button';
-          const base = e.kind === 'github'
-            ? (e.path.split('/').pop() || e.path)
-            : decodeURIComponent((e.url || '').split('?')[0].split('/').pop() || e.url);
-          b.textContent = base;
-          b.title = e.kind === 'github' ? ('GitHub: ' + e.repo + '/' + e.path) : e.url;
-          b.onclick = () => { menu.classList.remove('open'); reopenRecent(e); };
-          menu.appendChild(b);
-        });
+        if (!a.length) {
+          menu.innerHTML += '<div style="padding:6px 14px;color:var(--text-muted);font-size:13px;">Ingen nylige.</div>';
+        } else {
+          a.forEach((e) => {
+            const b = document.createElement('button'); b.type = 'button';
+            const base = e.kind === 'github'
+              ? (e.path.split('/').pop() || e.path)
+              : decodeURIComponent((e.url || '').split('?')[0].split('/').pop() || e.url);
+            b.textContent = base;
+            b.title = e.kind === 'github' ? ('GitHub: ' + e.repo + '/' + e.path) : e.url;
+            b.onclick = () => { menu.classList.remove('open'); reopenRecent(e); };
+            menu.appendChild(b);
+          });
+        }
+        const hr = document.createElement('hr');
+        hr.style.cssText = 'margin:4px 0;border-color:#334155;';
+        menu.appendChild(hr);
+        const more = document.createElement('button'); more.type = 'button';
+        more.textContent = 'Flere filer (GitHub)';
+        more.title = 'Bla gjennom alle filene i GitHub-repoet';
+        more.onclick = () => { menu.classList.remove('open'); openPicker(); };
+        menu.appendChild(more);
       }
       async function reopenRecent(e) {
         if (e.kind === 'url') { await fetchUrl(e.url); return; }
@@ -9801,14 +9813,13 @@ def _run_microdata_chunk(_code):
         host.style.cssText = 'display:inline-flex;align-items:center;vertical-align:middle;';
         const save = document.createElement('span');
         save.id = 'ghSaveIcon';
-        save.style.cssText = 'display:none;align-items:center;margin-left:8px;cursor:pointer;';
+        save.style.cssText = 'display:none;align-items:center;margin-left:6px;cursor:pointer;';
         save.innerHTML = SVG_SAVE;
         save.addEventListener('click', function () { doSave(); });
-        host.appendChild(save);
         // Chevron: nylig brukte filer
         const recentWrap = document.createElement('span');
         recentWrap.id = 'ghRecentWrap';
-        recentWrap.style.cssText = 'position:relative;display:none;align-items:center;margin-left:2px;';
+        recentWrap.style.cssText = 'position:relative;display:none;align-items:center;margin-left:10px;';
         const recentBtn = document.createElement('span');
         recentBtn.id = 'ghRecentBtn';
         recentBtn.title = 'Nylige filer';
@@ -9827,7 +9838,9 @@ def _run_microdata_chunk(_code):
         document.addEventListener('click', function () { recentMenu.classList.remove('open'); });
         recentWrap.appendChild(recentBtn);
         recentWrap.appendChild(recentMenu);
+        // Rekkefølge: nylige (▾) først, så lagre (floppy) — nærmest filnavnet til høyre.
         host.appendChild(recentWrap);
+        host.appendChild(save);
         name.parentNode.insertBefore(host, name.nextSibling);
         return host;
       }
@@ -10117,7 +10130,7 @@ def _run_microdata_chunk(_code):
           const data = await resp.json();
           setEditor(b64ToUtf8(data.content), langFromPath(cur.path));
           markSaved();
-          toast('Oppdatert fra GitHub: ' + cur.path);
+          toast('Hentet på nytt fra GitHub: ' + cur.path);
         } catch (e) { alert('Kunne ikke oppdatere: ' + (e.message || e)); }
       }
 
