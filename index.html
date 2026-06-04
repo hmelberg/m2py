@@ -9618,6 +9618,7 @@ def _run_microdata_chunk(_code):
             if (fn) nameEl.value = fn.replace(/\.(txt|py|r)$/i, '');
           }
           pushRecent(normalized);
+          pushRecentFile({ kind: 'url', url: normalized });
           $('openUrlBackdrop').style.display = 'none';
           toast('Script hentet fra URL');
         } catch (e) {
@@ -9724,6 +9725,61 @@ def _run_microdata_chunk(_code):
         ghSavedSnapshot = si ? si.value : '';
         updateCurrentIndicator();
       }
+
+      // Nylig brukte filer (GitHub + URL) for hurtig gjenåpning
+      const LS_RECENT_FILES = 'm2py_recent_files';
+      const SVG_CHEVRON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+      function getRecentFiles() {
+        try { const a = JSON.parse(localStorage.getItem(LS_RECENT_FILES) || '[]'); return Array.isArray(a) ? a : []; } catch (_) { return []; }
+      }
+      function recentKey(e) { return e.kind === 'github' ? 'gh:' + e.repo + '@' + e.branch + '/' + e.path : 'url:' + e.url; }
+      function pushRecentFile(e) {
+        let a = getRecentFiles().filter((x) => recentKey(x) !== recentKey(e));
+        a.unshift(e);
+        try { localStorage.setItem(LS_RECENT_FILES, JSON.stringify(a.slice(0, 5))); } catch (_) {}
+        updateRecentChevron();
+      }
+      function updateRecentChevron() {
+        const wrap = $('ghRecentWrap');
+        if (wrap) wrap.style.display = getRecentFiles().length ? 'inline-flex' : 'none';
+      }
+      function getPatForRepo(repo) {
+        const m = getProfiles().find((p) => p.repo === repo);
+        if (m && m.pat) return m.pat;
+        return ghSettings().pat || '';
+      }
+      function renderRecentMenu() {
+        const menu = $('ghRecentMenu'); if (!menu) return;
+        const a = getRecentFiles();
+        menu.innerHTML = '<div class="examples-dropdown-title">Nylige filer</div>';
+        if (!a.length) { menu.innerHTML += '<div style="padding:6px 14px;color:var(--text-muted);font-size:13px;">Ingen nylige.</div>'; return; }
+        a.forEach((e) => {
+          const b = document.createElement('button'); b.type = 'button';
+          const base = e.kind === 'github'
+            ? (e.path.split('/').pop() || e.path)
+            : decodeURIComponent((e.url || '').split('?')[0].split('/').pop() || e.url);
+          b.textContent = base;
+          b.title = e.kind === 'github' ? ('GitHub: ' + e.repo + '/' + e.path) : e.url;
+          b.onclick = () => { menu.classList.remove('open'); reopenRecent(e); };
+          menu.appendChild(b);
+        });
+      }
+      async function reopenRecent(e) {
+        if (e.kind === 'url') { await fetchUrl(e.url); return; }
+        const pat = getPatForRepo(e.repo);
+        if (!pat) { openSettings('Sett opp GitHub-tilgang for ' + e.repo + ' først.'); return; }
+        try {
+          const resp = await fetch(ghContentsUrlFor(e.repo, e.path) + '?ref=' + encodeURIComponent(e.branch), { headers: ghHeaders(pat) });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          const data = await resp.json();
+          setEditor(b64ToUtf8(data.content), langFromPath(e.path));
+          const nameEl = $('scriptName');
+          if (nameEl) nameEl.value = (e.path.split('/').pop() || '').replace(/\.(txt|py|r)$/i, '');
+          setCurrent({ repo: e.repo, branch: e.branch, path: e.path });
+          markSaved();
+          toast('Hentet fra GitHub: ' + e.path);
+        } catch (err) { alert('Kunne ikke åpne: ' + (err.message || err)); }
+      }
       function ghIconHost() {
         let host = $('ghIndicatorHost');
         if (host) return host;
@@ -9754,11 +9810,35 @@ def _run_microdata_chunk(_code):
         cloud.innerHTML = SVG_CLOUD;
         host.appendChild(save);
         host.appendChild(cloud);
+        // Chevron: nylig brukte filer
+        const recentWrap = document.createElement('span');
+        recentWrap.id = 'ghRecentWrap';
+        recentWrap.style.cssText = 'position:relative;display:none;align-items:center;margin-left:2px;';
+        const recentBtn = document.createElement('span');
+        recentBtn.id = 'ghRecentBtn';
+        recentBtn.title = 'Nylige filer';
+        recentBtn.style.cssText = 'display:inline-flex;align-items:center;color:var(--text-muted);cursor:pointer;';
+        recentBtn.innerHTML = SVG_CHEVRON;
+        const recentMenu = document.createElement('div');
+        recentMenu.id = 'ghRecentMenu';
+        recentMenu.className = 'examples-dropdown';
+        recentBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          const willOpen = !recentMenu.classList.contains('open');
+          recentMenu.classList.remove('open');
+          if (willOpen) { renderRecentMenu(); recentMenu.classList.add('open'); }
+        });
+        recentMenu.addEventListener('click', function (e) { e.stopPropagation(); });
+        document.addEventListener('click', function () { recentMenu.classList.remove('open'); });
+        recentWrap.appendChild(recentBtn);
+        recentWrap.appendChild(recentMenu);
+        host.appendChild(recentWrap);
         name.parentNode.insertBefore(host, name.nextSibling);
         return host;
       }
       function updateCurrentIndicator() {
         if (!ghIconHost()) return;
+        updateRecentChevron();
         const cur = getCurrent();
         const save = $('ghSaveIcon'), cloud = $('ghCurrentLabel');
         if (cur && cur.path) {
@@ -9949,6 +10029,7 @@ def _run_microdata_chunk(_code):
           if (nameEl) nameEl.value = (path.split('/').pop() || '').replace(/\.(txt|py|r)$/i, '');
           setCurrent({ repo: s.repo, branch: s.branch, path: path });
           markSaved();
+          pushRecentFile({ kind: 'github', repo: s.repo, branch: s.branch, path: path });
           $('ghPickerBackdrop').style.display = 'none';
           toast('Hentet fra GitHub: ' + path);
         } catch (e) {
@@ -10027,6 +10108,7 @@ def _run_microdata_chunk(_code):
           await putFile(s, path, si ? si.value : '');
           setCurrent({ repo: s.repo, branch: s.branch, path: path });
           markSaved();
+          pushRecentFile({ kind: 'github', repo: s.repo, branch: s.branch, path: path });
           const nameEl = $('scriptName');
           if (nameEl) nameEl.value = (path.split('/').pop() || '').replace(/\.(txt|py|r)$/i, '');
           $('ghSaveAsBackdrop').style.display = 'none';
