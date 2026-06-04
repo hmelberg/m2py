@@ -994,17 +994,17 @@
       <button type="button" class="hamburger" id="hamburgerBtn" aria-label="Meny" title="Meny">&#9776;</button>
       <div class="hamburger-dropdown" id="hamburgerDropdown">
         <div class="topbar-examples-wrap" style="position:relative">
-          <button type="button" id="menuFilBtn">Fil&#8230;</button>
+          <button type="button" id="menuFilBtn">Fil</button>
           <div class="examples-dropdown" id="filSubmenu">
             <button type="button" id="menuNew">Nytt script</button>
-            <button type="button" id="menuOpenUrl">&#197;pne fra URL&#8230;</button>
-            <button type="button" id="menuLoad">&#197;pne lokal fil&#8230;</button>
+            <button type="button" id="menuOpenUrl">&#197;pne fra URL</button>
+            <button type="button" id="menuLoad">&#197;pne lokal fil</button>
             <button type="button" id="menuShareLink">Del (kopier lenke)</button>
             <button type="button" id="menuSave">Last ned kode</button>
           </div>
         </div>
         <div class="topbar-examples-wrap" style="position:relative">
-          <button type="button" id="menuExamplesBtn">Eksempler&#8230;</button>
+          <button type="button" id="menuExamplesBtn">Eksempler</button>
           <div class="examples-dropdown" id="examplesDropdown">
             <div class="examples-dropdown-title">Last inn eksempel</div>
             <button type="button" data-example="01_beskrivende_statistikk.txt">Beskrivende statistikk</button>
@@ -1014,19 +1014,19 @@
             <button type="button" data-example="05_regresjon.txt">Regresjon</button>
             <button type="button" data-example="06_avansert_analyse.txt">Avansert analyse</button>
             <hr style="margin:4px 0;border-color:#334155;">
-            <button type="button" id="menuWebExamples">Flere eksempler p&#229; web&#8230;</button>
+            <button type="button" id="menuWebExamples">Flere eksempler p&#229; web</button>
           </div>
         </div>
-        <button type="button" id="menuUploadData">Last opp data&#8230;</button>
+        <button type="button" id="menuUploadData">Last opp data</button>
         <hr style="margin:4px 0;border-color:#334155;">
         <div class="topbar-examples-wrap" style="position:relative">
-          <button type="button" id="menuGithubBtn">GitHub&#8230;</button>
+          <button type="button" id="menuGithubBtn">GitHub</button>
           <div class="examples-dropdown" id="githubSubmenu">
             <div class="examples-dropdown-title">GitHub</div>
-            <button type="button" id="ghMenuSettings">Innstillinger&#8230;</button>
-            <button type="button" id="ghMenuOpen">&#197;pne fil&#8230;</button>
+            <button type="button" id="ghMenuSettings">Innstillinger</button>
+            <button type="button" id="ghMenuOpen">&#197;pne fil</button>
             <button type="button" id="ghMenuSave">Lagre</button>
-            <button type="button" id="ghMenuSaveAs">Lagre som&#8230;</button>
+            <button type="button" id="ghMenuSaveAs">Lagre som</button>
             <button type="button" id="ghMenuRefresh">Oppdater</button>
           </div>
         </div>
@@ -1034,11 +1034,7 @@
         <button type="button" id="menuRunnerMode" style="display:none">Kjøremodus: Microdata</button>
         <button type="button" id="menuToggleOutputMode" style="display:none">Output-modus: String</button>
         <hr style="margin:4px 0;border-color:#334155;">
-        <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">AI</div>
-        <button type="button" id="menuTolkResultat" title="Send output (kommandoer + resultater) til AI for en tolkning i AI-sidemenyen">Tolk resultatene</button>
-        <button type="button" id="btnDmQuick">Vurder dataminimering</button>
-        <hr style="margin:4px 0;border-color:#334155;">
-        <button type="button" id="menuSettings">Innstillinger&#8230;</button>
+        <button type="button" id="menuSettings">Innstillinger</button>
         <button type="button" id="btnLoginWithCode">Logg inn med kode</button>
         <div id="adminMenuSection" style="display:none;">
           <hr style="margin:4px 0;border-color:#334155;">
@@ -1307,6 +1303,9 @@
           <button type="button" data-mode="r">R</button>
         </div>
       </div>
+      <button type="button" class="bottombar-icon-btn" id="btnDmQuick" style="display:none" title="Vurder personvern: sjekk om scriptet henter mer detaljerte data enn n&#248;dvendig (dataminimering), og f&#229; forslag til &#229; aggregere/forenkle. Krever innlogging.">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/></svg>
+      </button>
       <button type="button" class="oversett-btn" id="oversettBtn" style="display:none">Oversett</button>
     </div>
     <div class="bottombar-right">
@@ -3968,6 +3967,8 @@
         ask.style.display = loggedIn ? '' : 'none';
         const tolk = document.getElementById('btnTolkFooter');
         if (tolk) tolk.style.display = loggedIn ? '' : 'none';
+        const dm = document.getElementById('btnDmQuick');
+        if (dm) dm.style.display = loggedIn ? '' : 'none';
       }
       window.mdUpdateAskVisibility = updateVisible;
       setTimeout(updateVisible, 0);
@@ -9713,9 +9714,8 @@ def _run_microdata_chunk(_code):
         updateCurrentIndicator();
       }
       // Outline-ikoner (Feather-stil) ved siden av filnavnet: floppy = shortcut
-      // til «Lagre», sky = indikator for at man jobber med en GitHub-fil.
+      // til «Lagre» (vises kun når man jobber med en GitHub-fil).
       const SVG_SAVE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>';
-      const SVG_CLOUD = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 0-9 6 6 0 0 0-11.6 1.5A3.5 3.5 0 0 0 6.5 19h11z"/></svg>';
       function ghIsDirty() {
         const si = $('scriptInput');
         return ghSavedSnapshot != null && si && si.value !== ghSavedSnapshot;
@@ -9804,12 +9804,7 @@ def _run_microdata_chunk(_code):
         save.style.cssText = 'display:none;align-items:center;margin-left:8px;cursor:pointer;';
         save.innerHTML = SVG_SAVE;
         save.addEventListener('click', function () { doSave(); });
-        const cloud = document.createElement('span');
-        cloud.id = 'ghCurrentLabel';
-        cloud.style.cssText = 'display:none;align-items:center;margin-left:4px;padding-right:16px;color:var(--text-muted);cursor:default;';
-        cloud.innerHTML = SVG_CLOUD;
         host.appendChild(save);
-        host.appendChild(cloud);
         // Chevron: nylig brukte filer
         const recentWrap = document.createElement('span');
         recentWrap.id = 'ghRecentWrap';
@@ -9840,22 +9835,17 @@ def _run_microdata_chunk(_code):
         if (!ghIconHost()) return;
         updateRecentChevron();
         const cur = getCurrent();
-        const save = $('ghSaveIcon'), cloud = $('ghCurrentLabel');
+        const save = $('ghSaveIcon');
         if (cur && cur.path) {
           const dirty = ghIsDirty();
           if (save) {
             save.style.display = 'inline-flex';
             save.classList.toggle('dirty', dirty);
-            save.title = dirty ? 'Ulagrede endringer — klikk for å lagre til GitHub'
-                               : 'Lagret til GitHub — klikk for å lagre igjen';
-          }
-          if (cloud) {
-            cloud.style.display = 'inline-flex';
-            cloud.title = 'GitHub: ' + cur.repo + '/' + cur.path + (cur.branch && cur.branch !== 'main' ? '@' + cur.branch : '');
+            const loc = cur.repo + '/' + cur.path + (cur.branch && cur.branch !== 'main' ? '@' + cur.branch : '');
+            save.title = 'GitHub: ' + loc + (dirty ? ' — ulagrede endringer, klikk for å lagre' : ' — lagret, klikk for å lagre igjen');
           }
         } else {
           if (save) save.style.display = 'none';
-          if (cloud) cloud.style.display = 'none';
         }
       }
 
@@ -10136,6 +10126,41 @@ def _run_microdata_chunk(_code):
       // DOM-en er ferdig parset før vi kobler på lyttere.
       function wire() {
         function on(id, fn) { const el = $(id); if (el) el.addEventListener('click', fn); }
+
+        // Små outline-ikoner på menyvalgene (samme stil overalt).
+        (function addMenuIcons() {
+          const wrapSvg = (inner) => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px;flex-shrink:0">' + inner + '</svg>';
+          const FOLDER = '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>';
+          const SETTINGS = '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>';
+          const SAVE = '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>';
+          const map = {
+            menuFilBtn: FOLDER,
+            menuExamplesBtn: '<path d="M2 4h7a3 3 0 0 1 3 3v13a2.5 2.5 0 0 0-2.5-2.5H2z"/><path d="M22 4h-7a3 3 0 0 0-3 3v13a2.5 2.5 0 0 1 2.5-2.5H22z"/>',
+            menuUploadData: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+            menuGithubBtn: '<line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+            menuForklar: '<polygon points="5 3 19 12 5 21 5 3"/>',
+            menuSettings: SETTINGS,
+            menuNew: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>',
+            menuOpenUrl: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+            menuLoad: FOLDER,
+            menuShareLink: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>',
+            menuSave: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+            menuWebExamples: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+            ghMenuSettings: SETTINGS,
+            ghMenuOpen: FOLDER,
+            ghMenuSave: SAVE,
+            ghMenuSaveAs: SAVE,
+            ghMenuRefresh: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>'
+          };
+          Object.keys(map).forEach((id) => {
+            const btn = $(id);
+            if (!btn || btn.querySelector('svg')) return;
+            btn.insertAdjacentHTML('afterbegin', wrapSvg(map[id]));
+            btn.style.display = 'flex';
+            btn.style.alignItems = 'center';
+          });
+        })();
+
         on('menuShareLink', shareLink);
         on('menuOpenUrl', openUrlModal);
 
