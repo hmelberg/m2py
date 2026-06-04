@@ -6565,6 +6565,31 @@ import __main__
 __main__.micro_interpreter = e
 ${segAssign}_EMBED_S = "__micro_transform_start_"
 _EMBED_E = "__micro_transform_end__"
+def _m2py_flush_pyplot_figs():
+    pass
+try:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as _plt_mod
+    def _m2py_emit_fig(_fig):
+        import base64, io
+        _buf = io.BytesIO()
+        _fig.savefig(_buf, format="png", bbox_inches="tight")
+        _b64 = base64.standard_b64encode(_buf.getvalue()).decode("ascii")
+        print(_EMBED_S + "png__" + chr(10) + _b64 + chr(10) + _EMBED_E)
+    def _m2py_flush_pyplot_figs():
+        try:
+            for _num in list(_plt_mod.get_fignums()):
+                _fig = _plt_mod.figure(_num)
+                _m2py_emit_fig(_fig)
+                _plt_mod.close(_fig)
+        except Exception:
+            pass
+    def _m2py_plt_show(*args, **kwargs):
+        _m2py_flush_pyplot_figs()
+    _plt_mod.show = _m2py_plt_show
+except Exception:
+    pass
 def _show_one(obj):
     import base64
     import io
@@ -6581,30 +6606,18 @@ def _show_one(obj):
     try:
         from matplotlib.figure import Figure as _MplFigure
         from matplotlib.axes import Axes as _MplAxes
-        _fig = None
-        if isinstance(obj, _MplFigure):
-            _fig = obj
-        elif isinstance(obj, _MplAxes):
-            _fig = obj.figure
-        elif getattr(obj, "figure", None) is not None and hasattr(obj.figure, "savefig"):
-            _fig = obj.figure
-        if _fig is not None:
-            import matplotlib
-            matplotlib.use("Agg")
-            _buf = io.BytesIO()
-            _fig.savefig(_buf, format="png", bbox_inches="tight")
-            _b64 = base64.standard_b64encode(_buf.getvalue()).decode("ascii")
-            print(_EMBED_S + "png__" + chr(10) + _b64 + chr(10) + _EMBED_E)
-            try:
-                import matplotlib.pyplot as _plt
-                _plt.close(_fig)
-            except Exception:
-                pass
+        # Matplotlib-objekter rendres ikke direkte fra return-verdien.
+        # plt.show() (monkey-patched) eller end-of-block-flush tar seg av rendringen,
+        # slik at flere setninger (df.plot.hist(), plt.title(), plt.xlabel(), ...)
+        # bygger opp samme figur i stedet for å produsere én ny tom figur per kall.
+        if isinstance(obj, (_MplFigure, _MplAxes)):
+            return
+        if getattr(obj, "figure", None) is not None and hasattr(obj.figure, "savefig"):
             return
     except ImportError:
         pass
-    except Exception as _ex:
-        print("show(matplotlib):", _ex)
+    except Exception:
+        pass
     try:
         if isinstance(obj, (pd.DataFrame, pd.Series)):
             print(obj)
@@ -6695,25 +6708,31 @@ def _exec_pyodide_block(code, g, show_commands=False):
         for _ln in _lines[1:]:
             print("... " + _ln)
     try:
-        tree = ast.parse(code, mode="exec")
-    except SyntaxError:
-        _echo(code)
-        exec(compile(code, "<pyodide>", "exec"), g)
-        return
-    if not tree.body:
-        return
-    for stmt in tree.body:
         try:
-            _src = ast.get_source_segment(code, stmt) or ""
-        except Exception:
-            _src = ""
-        _echo(_src)
-        if isinstance(stmt, ast.Expr):
-            _v = eval(compile(ast.Expression(stmt.value), "<pyodide>", "eval"), g)
-            if _v is not None:
-                _show_one(_v)
-        else:
-            exec(compile(ast.Module(body=[stmt], type_ignores=[]), "<pyodide>", "exec"), g)
+            tree = ast.parse(code, mode="exec")
+        except SyntaxError:
+            _echo(code)
+            exec(compile(code, "<pyodide>", "exec"), g)
+            return
+        if not tree.body:
+            return
+        for stmt in tree.body:
+            try:
+                _src = ast.get_source_segment(code, stmt) or ""
+            except Exception:
+                _src = ""
+            _echo(_src)
+            if isinstance(stmt, ast.Expr):
+                _v = eval(compile(ast.Expression(stmt.value), "<pyodide>", "eval"), g)
+                if _v is not None:
+                    _show_one(_v)
+            else:
+                exec(compile(ast.Module(body=[stmt], type_ignores=[]), "<pyodide>", "exec"), g)
+    finally:
+        # Render og lukk eventuelle åpne pyplot-figurer som brukeren ikke har
+        # vist med plt.show() — slik at f.eks. df.plot.hist() uten plt.show()
+        # likevel kommer ut som én PNG i output.
+        _m2py_flush_pyplot_figs()
 `;
     }
 
