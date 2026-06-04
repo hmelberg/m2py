@@ -12,4 +12,4 @@ import statsmodels.formula.api as smf
 
 reg["inntekt_tusen"] = reg["inntekt"] / 1000
 modell = smf.ols("inntekt_tusen ~ C(kjonn)", data=reg).fit()
-print(modell.summary())
+modell.summary()

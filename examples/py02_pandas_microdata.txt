@@ -9,6 +9,6 @@ import fd/BEFOLKNING_KJOENN as kjonn
 import fd/INNTEKT_WLONN 2022-01-01 as inntekt
 
 #python
-print(folk.head())
-print()
-print(folk.groupby("kjonn")["inntekt"].agg(["mean", "median", "count"]))
+folk.head()
+
+folk.groupby("kjonn")["inntekt"].agg(["mean", "median", "count"])

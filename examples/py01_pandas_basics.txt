@@ -8,6 +8,6 @@ df = pd.DataFrame({
     "alder":   [34, 41, 29, 52, 38, 45],
 })
 
-print(df.describe())
-print()
-print(df.groupby("kjonn")["inntekt"].agg(["mean", "median", "count"]))
+df.describe()
+
+df.groupby("kjonn")["inntekt"].agg(["mean", "median", "count"])

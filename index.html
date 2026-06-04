@@ -1006,24 +1006,29 @@
         <div class="topbar-examples-wrap" style="position:relative">
           <button type="button" id="menuExamplesBtn">Eksempler</button>
           <div class="examples-dropdown" id="examplesDropdown">
-            <div class="examples-dropdown-title">Microdata</div>
-            <button type="button" data-example="01_beskrivende_statistikk.txt" data-mode="microdata">Beskrivende statistikk</button>
-            <button type="button" data-example="02_tabeller_og_kategorier.txt" data-mode="microdata">Tabeller og kategorier</button>
-            <button type="button" data-example="03_visualiseringer.txt" data-mode="microdata">Visualiseringer</button>
-            <button type="button" data-example="04_aggregat_og_generate.txt" data-mode="microdata">Aggregat og nye variabler</button>
-            <button type="button" data-example="05_regresjon.txt" data-mode="microdata">Regresjon</button>
-            <button type="button" data-example="06_avansert_analyse.txt" data-mode="microdata">Avansert analyse</button>
-            <hr style="margin:4px 0;border-color:#334155;">
-            <div class="examples-dropdown-title">Python</div>
-            <button type="button" data-example="py01_pandas_basics.txt" data-mode="python">pandas &mdash; grunnleggende</button>
-            <button type="button" data-example="py02_pandas_microdata.txt" data-mode="python">pandas + #micro</button>
-            <button type="button" data-example="py03_statsmodels_regression.txt" data-mode="python">statsmodels &mdash; OLS-regresjon</button>
-            <hr style="margin:4px 0;border-color:#334155;">
-            <div class="examples-dropdown-title">R</div>
-            <button type="button" data-example="r01_base_basics.txt" data-mode="r">base R &mdash; grunnleggende</button>
-            <button type="button" data-example="r02_tidyverse_groupby.txt" data-mode="r">tidyverse &mdash; gruppestatistikk</button>
-            <button type="button" data-example="r03_tidyverse_microdata.txt" data-mode="r">tidyverse + #micro</button>
-            <hr style="margin:4px 0;border-color:#334155;">
+            <div class="examples-section" data-section-mode="microdata">
+              <button type="button" data-example="01_beskrivende_statistikk.txt" data-mode="microdata">Beskrivende statistikk</button>
+              <button type="button" data-example="02_tabeller_og_kategorier.txt" data-mode="microdata">Tabeller og kategorier</button>
+              <button type="button" data-example="03_visualiseringer.txt" data-mode="microdata">Visualiseringer</button>
+              <button type="button" data-example="04_aggregat_og_generate.txt" data-mode="microdata">Aggregat og nye variabler</button>
+              <button type="button" data-example="05_regresjon.txt" data-mode="microdata">Regresjon</button>
+              <button type="button" data-example="06_avansert_analyse.txt" data-mode="microdata">Avansert analyse</button>
+              <hr style="margin:4px 0;border-color:#334155;">
+            </div>
+            <div class="examples-section" data-section-mode="python">
+              <button type="button" data-example="py01_pandas_basics.txt" data-mode="python">pandas &mdash; grunnleggende</button>
+              <button type="button" data-example="py02_pandas_microdata.txt" data-mode="python">pandas + #micro</button>
+              <button type="button" data-example="py03_statsmodels_regression.txt" data-mode="python">statsmodels &mdash; OLS-regresjon</button>
+              <button type="button" data-example="py04_pandas_plot.txt" data-mode="python">matplotlib + #micro</button>
+              <hr style="margin:4px 0;border-color:#334155;">
+            </div>
+            <div class="examples-section" data-section-mode="r">
+              <button type="button" data-example="r01_base_basics.txt" data-mode="r">base R &mdash; grunnleggende</button>
+              <button type="button" data-example="r02_tidyverse_groupby.txt" data-mode="r">tidyverse &mdash; gruppestatistikk</button>
+              <button type="button" data-example="r03_tidyverse_microdata.txt" data-mode="r">tidyverse + #micro</button>
+              <button type="button" data-example="r04_ggplot_microdata.txt" data-mode="r">ggplot2 + #micro</button>
+              <hr style="margin:4px 0;border-color:#334155;">
+            </div>
             <button type="button" id="menuWebExamples">Flere eksempler p&#229; web</button>
           </div>
         </div>
@@ -2708,9 +2713,19 @@
         if (examplesDropdown) examplesDropdown.classList.remove('open');
       });
       dropdown.addEventListener('click', function(e) { e.stopPropagation(); });
+      function updateExamplesVisibility() {
+        if (!examplesDropdown) return;
+        var mode = (typeof activeEditorMode !== 'undefined') ? activeEditorMode : 'microdata';
+        examplesDropdown.querySelectorAll('.examples-section').forEach(function(sec) {
+          sec.style.display = (sec.getAttribute('data-section-mode') === mode) ? '' : 'none';
+        });
+      }
       document.getElementById('menuExamplesBtn').addEventListener('click', function(e) {
         e.stopPropagation();
-        if (examplesDropdown) examplesDropdown.classList.toggle('open');
+        if (examplesDropdown) {
+          updateExamplesVisibility();
+          examplesDropdown.classList.toggle('open');
+        }
         themeDropdown.classList.remove('open');
         exportDropdown.classList.remove('open');
       });
