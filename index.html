@@ -162,7 +162,7 @@
     .btn-primary.btn-run.btn-run--running:hover { opacity: 1; }
     .btn-primary { background: var(--accent); color: #fff; }
     body[data-theme="light"] .btn-primary { color: #fff; }
-    .btn-tolk { display: inline-flex; align-items: center; padding: 5px 14px; background: var(--bg-code); color: var(--text); border: 1px solid var(--border); }
+    .btn-tolk { display: inline-flex; align-items: center; padding: 5px 14px; background: var(--bg-code); color: var(--text); border: 1px solid var(--border); font-size: 12px; }
     .btn-tolk:hover { border-color: var(--accent); color: var(--accent); }
     .btn-primary:hover { opacity: 0.9; }
     .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; background: var(--text-muted); }
@@ -1303,7 +1303,7 @@
           <button type="button" data-mode="r">R</button>
         </div>
       </div>
-      <button type="button" class="oversett-btn" id="btnDmQuick" style="display:none;align-items:center;gap:6px" title="Vurder personvern: sjekk om scriptet henter mer detaljerte data enn n&#248;dvendig (dataminimering), og f&#229; forslag til &#229; aggregere/forenkle. Krever innlogging.">
+      <button type="button" class="btn btn-tolk" id="btnDmQuick" style="display:none;gap:6px" title="Vurder personvern: sjekk om scriptet henter mer detaljerte data enn n&#248;dvendig (dataminimering), og f&#229; forslag til &#229; aggregere/forenkle. Krever innlogging.">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/></svg>
         Vurder personvern
       </button>
@@ -5467,6 +5467,19 @@ json.dumps(out)
     }
     var CMD_ECHO_LINE_RE = /^(?:(\S+)\s+)?(?:>>|\u226b)\s+(.*)$/;
     var CMD_ECHO_GLYPH = '>>';
+    // Fjern inline //-kommentar (KODE // KOMMENTAR) fra en kommando i output.
+    // Samme regel som tokenizeren: // ved start eller etter mellomrom, ikke etter ':'.
+    function stripInlineMdComment(s) {
+      for (var i = 0; i < s.length - 1; i++) {
+        if (s.charAt(i) === '/' && s.charAt(i + 1) === '/') {
+          var prev = i > 0 ? s.charAt(i - 1) : '';
+          if ((i === 0 || /\s/.test(prev)) && prev !== ':') {
+            return s.slice(0, i).replace(/\s+$/, '');
+          }
+        }
+      }
+      return s;
+    }
     function formatPreBlockWithCommandHighlight(content) {
       var lines = content.split('\n');
       var buf = [];
@@ -5475,6 +5488,7 @@ json.dumps(out)
         var m = line.match(CMD_ECHO_LINE_RE);
         if (m) {
           var rest = m[2] !== undefined && m[2] !== null ? m[2] : '';
+          rest = stripInlineMdComment(rest); // ikke vis inline //-kommentar i output
           var prefixHtml;
           if (m[1]) {
             prefixHtml = '<span class="md-out-cmd-prefix"><span class="md-out-cmd-dsname">' + escapeHtmlOutput(m[1]) + '</span> <span class="md-out-cmd-glyph">' + escapeHtmlOutput(CMD_ECHO_GLYPH) + '</span> </span>';
@@ -5488,7 +5502,7 @@ json.dumps(out)
         } else {
           var t = line.replace(/^\s+/, '');
           if (t.indexOf('//') === 0) {
-            buf.push('<span class="md-out-comment">' + escapeHtmlOutput(line) + '</span>');
+            continue; // dropp hele kommentar-linjer i output
           } else if (/^\s*FEIL\b/i.test(line)) {
             buf.push('<span class="md-out-msg-error">' + escapeHtmlOutput(line) + '</span>');
           } else {
