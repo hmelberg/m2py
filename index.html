@@ -1303,8 +1303,8 @@
           <button type="button" data-mode="r">R</button>
         </div>
       </div>
-      <button type="button" class="btn btn-tolk" id="btnDmQuick" style="display:none" title="Vurder personvern: sjekk om scriptet henter mer detaljerte data enn n&#248;dvendig (dataminimering), og f&#229; forslag til &#229; aggregere/forenkle. Krever innlogging.">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;flex-shrink:0" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/></svg>
+      <button type="button" class="oversett-btn" id="btnDmQuick" style="display:none;align-items:center;gap:6px" title="Vurder personvern: sjekk om scriptet henter mer detaljerte data enn n&#248;dvendig (dataminimering), og f&#229; forslag til &#229; aggregere/forenkle. Krever innlogging.">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/></svg>
         Vurder personvern
       </button>
       <button type="button" class="oversett-btn" id="oversettBtn" style="display:none">Oversett</button>
@@ -3969,7 +3969,7 @@
         const tolk = document.getElementById('btnTolkFooter');
         if (tolk) tolk.style.display = loggedIn ? '' : 'none';
         const dm = document.getElementById('btnDmQuick');
-        if (dm) dm.style.display = loggedIn ? '' : 'none';
+        if (dm) dm.style.display = loggedIn ? 'inline-flex' : 'none';
       }
       window.mdUpdateAskVisibility = updateVisible;
       setTimeout(updateVisible, 0);
@@ -9813,13 +9813,13 @@ def _run_microdata_chunk(_code):
         host.style.cssText = 'display:inline-flex;align-items:center;vertical-align:middle;';
         const save = document.createElement('span');
         save.id = 'ghSaveIcon';
-        save.style.cssText = 'display:none;align-items:center;margin-left:6px;cursor:pointer;';
+        save.style.cssText = 'display:none;align-items:center;margin-left:4px;cursor:pointer;';
         save.innerHTML = SVG_SAVE;
         save.addEventListener('click', function () { doSave(); });
         // Chevron: nylig brukte filer
         const recentWrap = document.createElement('span');
         recentWrap.id = 'ghRecentWrap';
-        recentWrap.style.cssText = 'position:relative;display:none;align-items:center;margin-left:10px;';
+        recentWrap.style.cssText = 'position:relative;display:none;align-items:center;margin-left:4px;';
         const recentBtn = document.createElement('span');
         recentBtn.id = 'ghRecentBtn';
         recentBtn.title = 'Nylige filer';

@@ -178,3 +178,39 @@ GitHub ▸
 
 - Mappe-*browser* med klikk-navigering (rekursivt tre + filter dekker behovet).
 - «Del» som egen GitHub-knapp (for offentlig repo = bare kopier rå-lenken).
+
+---
+
+# Planlagt: kontekstuelt kilde-ikon ved filnavnet (ikke bygget ennå)
+
+Ikonet ved filnavnet skal vise kildens *primærhandling*:
+
+- **GitHub-fil (lese/skrive)** → 💾 **Lagre** (floppy), med amber farge ved
+  ulagrede endringer. Klikk = lagre tilbake.
+- **URL-fil (kun lese)** → ⟳ **Hent på nytt** (re-fetch). Klikk = hent URL-en
+  på nytt (bekreft; forkaster lokale endringer). Ingen lagring mulig.
+- **Nytt script / lokal fil / delelenke** → ingen kilde → intet ikon.
+
+«Hent på nytt» **fjernes fra GitHub-undermenyen** og blir kun URL-ikonet.
+GitHub-re-fetch skjer ev. via «Åpne fil» / «Nylige» (anbefalt variant —
+unngår ordlyd-forvirringen). GitHub-menyen står igjen med: Innstillinger,
+Åpne fil, Lagre, Lagre som.
+
+## Implementeringssteg
+
+1. Generaliser `m2py_github_current` → `currentSource` med `kind`
+   (`github` | `url`); migrer gammel verdi.
+2. Bygg om indikatoren til å vise floppy vs. refresh etter `kind`.
+3. `fetchUrl` / recent-URL: sett kilde = `url` (i stedet for å nullstille).
+   Fragment / lokal / nytt: kilde = ingen.
+4. Koble refresh-ikonet → hent gjeldende URL på nytt (gjenbruk `fetchUrl`,
+   med bekreftelse).
+5. Fjern `ghMenuRefresh` fra GitHub-menyen (knapp + wiring + ikon-map + hjelp).
+6. Behold ulagret/lagret-farge kun for GitHub (floppy); URL = nøytralt
+   refresh-ikon.
+7. Verifiser + oppdater hjelp.
+
+## Avveiing
+
+Mister ettklikks «pull/forkast» for GitHub; fortsatt mulig via «Åpne fil» /
+«Nylige». Akseptert i anbefalt variant.
