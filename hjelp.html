@@ -468,15 +468,15 @@ summarize kjonn</code></pre>
     <h2>Lagre, dele og hente scripts</h2>
     <p>Alle valgene under ligger i <strong>hamburgermenyen</strong> øverst til venstre. De kjører i sin helhet i nettleseren din — vi lagrer aldri scriptene dine på en server.</p>
 
-    <h3>Lagre script / Last inn script</h3>
-    <p><strong>Lagre script</strong> laster ned scriptet som en <code>.txt</code>-fil til maskinen din. <strong>Last inn script</strong> åpner en slik fil igjen. Dette er ren lokal fil-håndtering.</p>
+    <h3>Last ned kode / Last inn fil</h3>
+    <p><strong>Last ned kode</strong> laster ned scriptet som en <code>.txt</code>-fil til maskinen din. <strong>Last inn fil (lokal)</strong> åpner en slik fil igjen. Dette er ren lokal fil-håndtering.</p>
 
     <h3>Del (kopier lenke)</h3>
     <p>Lager en lenke som inneholder <em>hele scriptet</em>, komprimert inn i selve adressen (etter <code>#</code>). Lenken kopieres til utklippstavlen — send den i e-post, Slack eller lim den inn hvor du vil. Den som åpner lenken får scriptet rett inn i editoren.</p>
     <ul>
       <li>Ingenting lagres hos oss, og mottakeren trenger ikke å logge inn.</li>
       <li>Lenken er et <strong>frosset øyeblikksbilde</strong> — endrer du scriptet etterpå, må du dele en ny lenke.</li>
-      <li>Passer for scripts opp til noen tusen tegn. Er scriptet for stort for en URL, får du beskjed — bruk «Lagre script» (fil) eller GitHub i stedet.</li>
+      <li>Passer for scripts opp til noen tusen tegn. Er scriptet for stort for en URL, får du beskjed — bruk «Last ned kode» (fil) eller GitHub i stedet.</li>
     </ul>
 
     <h3>Åpne fra URL</h3>
@@ -487,10 +487,22 @@ summarize kjonn</code></pre>
       <li>Filendelsen styrer modus: <code>.py</code> → Python, <code>.r</code> → R, ellers Microdata.</li>
     </ul>
 
-    <h3>Koble til GitHub (for viderekomne)</h3>
-    <p>Lar deg <strong>lagre og hente</strong> scripts direkte i ditt eget GitHub-repo — med versjonshistorikk og mulighet for samarbeid. Du fyller inn et personlig tilgangstoken (PAT), repo (<code>eier/navn</code>), branch og filsti én gang; opplysningene huskes lokalt i nettleseren.</p>
+    <h3>GitHub (for viderekomne)</h3>
+    <p>Lar deg <strong>lagre og hente</strong> scripts direkte i ditt eget GitHub-repo — med versjonshistorikk og mulighet for samarbeid. Alt ligger under <strong>GitHub-undermenyen</strong> i hamburgermenyen.</p>
+
+    <p><strong>1. Innstillinger (engangs).</strong> Fyll inn personlig tilgangstoken (PAT), repo (<code>eier/navn</code>) og branch. Trykk <strong>Test tilkobling</strong> for å bekrefte, og <strong>Lagre</strong>. Opplysningene huskes lokalt i nettleseren. Du trenger <em>ikke</em> oppgi noen filsti her — det er repoet du kobler til, ikke en enkeltfil.</p>
     <p><strong>Slik lager du et token:</strong> GitHub → Settings → Developer settings → Fine-grained tokens → Generate new token. Gi det tilgang til <em>kun</em> det aktuelle repoet, og sett <strong>Repository permissions → Contents → Read and write</strong>. Kopier tokenet (vises bare én gang) og lim det inn i appen. Sett gjerne en utløpsdato; du kan når som helst trekke tokenet tilbake på samme side.</p>
+
+    <p><strong>2. Daglig bruk.</strong> Når tilkoblingen er satt opp:</p>
     <ul>
+      <li><strong>Åpne fil…</strong> viser en <em>filvelger</em> med alle filene i repoet. Filtrer i søkefeltet og klikk en fil for å hente den inn i editoren.</li>
+      <li><strong>Lagre</strong> skriver til den filen du sist åpnet eller lagret (den <em>gjeldende</em> filen, vist ved siden av scriptnavnet). Har du ikke en gjeldende fil ennå, oppfører den seg som «Lagre som».</li>
+      <li><strong>Lagre som…</strong> lar deg skrive en ny filsti (eksisterende mapper foreslås) og lagrer dit.</li>
+      <li><strong>Oppdater</strong> henter den gjeldende filen på nytt fra GitHub. Ulagrede lokale endringer går tapt, så du blir bedt om å bekrefte.</li>
+    </ul>
+
+    <ul>
+      <li><strong>Ett token, mange filer:</strong> tokenet gjelder hele repoet — du trenger ikke et token per fil.</li>
       <li><strong>Offentlig vs. privat</strong> styrer du via repoets egen innstilling på GitHub — ikke i appen.</li>
       <li><strong>Deling:</strong> ligger scriptet i et offentlig repo, deler du bare den rå fil-lenken; mottakeren bruker «Åpne fra URL».</li>
       <li><strong>Tokenet er en hemmelighet</strong> og lagres i klartekst i nettleseren din. Bruk en delt maskin med omhu, og trekk tilbake tokenet hvis du mister tilgang til maskinen.</li>

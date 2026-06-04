@@ -994,11 +994,21 @@
       <button type="button" class="hamburger" id="hamburgerBtn" aria-label="Meny" title="Meny">&#9776;</button>
       <div class="hamburger-dropdown" id="hamburgerDropdown">
         <button type="button" id="menuNew">Nytt script</button>
-        <button type="button" id="menuSave">Lagre script</button>
-        <button type="button" id="menuLoad">Last inn script</button>
+        <button type="button" id="menuSave">Last ned kode</button>
+        <button type="button" id="menuLoad">Last inn fil&#8230; (lokal)</button>
         <button type="button" id="menuShareLink">Del (kopier lenke)</button>
         <button type="button" id="menuOpenUrl">&#197;pne fra URL&#8230;</button>
-        <button type="button" id="menuGithub">Koble til GitHub&#8230;</button>
+        <div class="topbar-examples-wrap" style="position:relative">
+          <button type="button" id="menuGithubBtn">GitHub&#8230;</button>
+          <div class="examples-dropdown" id="githubSubmenu">
+            <div class="examples-dropdown-title">GitHub</div>
+            <button type="button" id="ghMenuSettings">Innstillinger&#8230;</button>
+            <button type="button" id="ghMenuOpen">&#197;pne fil&#8230;</button>
+            <button type="button" id="ghMenuSave">Lagre</button>
+            <button type="button" id="ghMenuSaveAs">Lagre som&#8230;</button>
+            <button type="button" id="ghMenuRefresh">Oppdater</button>
+          </div>
+        </div>
         <div class="topbar-examples-wrap" style="position:relative">
           <button type="button" id="menuExamplesBtn">Eksempler</button>
           <div class="examples-dropdown" id="examplesDropdown">
@@ -9433,7 +9443,11 @@ def _run_microdata_chunk(_code):
     (function initScriptSharing() {
       const $ = (id) => document.getElementById(id);
       const dropdown = $('hamburgerDropdown');
-      const closeMenu = () => dropdown && dropdown.classList.remove('open');
+      const closeMenu = () => {
+        if (dropdown) dropdown.classList.remove('open');
+        const gs = $('githubSubmenu');
+        if (gs) gs.classList.remove('open');
+      };
 
       function currentLang() {
         return (typeof activeEditorMode !== 'undefined') ? activeEditorMode : 'microdata';
@@ -9515,7 +9529,7 @@ def _run_microdata_chunk(_code):
           const packed = await gzip(payload);
           const link = location.origin + location.pathname + '#s=' + packed;
           if (link.length > 8000) {
-            alert('Scriptet er for stort for en delelenke (' + link.length + ' tegn i URL). Bruk «Lagre script» (fil) eller GitHub i stedet.');
+            alert('Scriptet er for stort for en delelenke (' + link.length + ' tegn i URL). Bruk «Last ned kode» (fil) eller GitHub i stedet.');
             return;
           }
           await navigator.clipboard.writeText(link);
@@ -9603,37 +9617,12 @@ def _run_microdata_chunk(_code):
         setTimeout(() => { const i = $('openUrlInput'); if (i) i.focus(); }, 50);
       }
 
-      // --- Verb 3: Koble til GitHub (PAT) ---
-      const LS_PAT = 'm2py_github_pat', LS_REPO = 'm2py_github_repo', LS_BRANCH = 'm2py_github_branch', LS_GHPATH = 'm2py_github_path';
-      function ghLoadSettings() {
-        $('ghPat').value = localStorage.getItem(LS_PAT) || '';
-        $('ghRepo').value = localStorage.getItem(LS_REPO) || '';
-        $('ghBranch').value = localStorage.getItem(LS_BRANCH) || 'main';
-        $('ghPath').value = localStorage.getItem(LS_GHPATH) || '';
-      }
-      function ghSaveSettings(f) {
-        try {
-          localStorage.setItem(LS_PAT, f.pat);
-          localStorage.setItem(LS_REPO, f.repo);
-          localStorage.setItem(LS_BRANCH, f.branch);
-          localStorage.setItem(LS_GHPATH, f.path);
-        } catch (_) {}
-      }
-      function ghFields() {
-        return {
-          pat: $('ghPat').value.trim(),
-          repo: $('ghRepo').value.trim(),
-          branch: $('ghBranch').value.trim() || 'main',
-          path: $('ghPath').value.trim()
-        };
-      }
-      function ghValidate(f) {
-        const err = $('ghError'); err.textContent = '';
-        if (!f.pat) { err.textContent = 'Mangler token.'; return false; }
-        if (!/^[^/\s]+\/[^/\s]+$/.test(f.repo)) { err.textContent = 'Repo må være på formen eier/navn.'; return false; }
-        if (!f.path) { err.textContent = 'Mangler filsti.'; return false; }
-        return true;
-      }
+      // --- Verb 3: GitHub som filbasert lager ─────────────────────────────────
+      // Oppsett (pat/repo/branch) skilles fra gjeldende fil (m2py_github_current).
+      const LS_PAT = 'm2py_github_pat', LS_REPO = 'm2py_github_repo', LS_BRANCH = 'm2py_github_branch', LS_CURRENT = 'm2py_github_current';
+      const TEXT_EXT = /\.(txt|py|r|md|csv|json|sql|do)$/i;
+      let lastTree = null; // hurtigbuffer av filstier fra siste tre-henting
+
       function ghHeaders(pat) {
         return { 'Authorization': 'Bearer ' + pat, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
       }
@@ -9649,67 +9638,240 @@ def _run_microdata_chunk(_code):
         for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
         return new TextDecoder().decode(bytes);
       }
-      function ghContentsUrl(f) {
-        return 'https://api.github.com/repos/' + f.repo + '/contents/' +
-          f.path.split('/').map(encodeURIComponent).join('/');
+      function ghContentsUrlFor(repo, path) {
+        return 'https://api.github.com/repos/' + repo + '/contents/' +
+          path.split('/').map(encodeURIComponent).join('/');
       }
-      async function ghLoad() {
-        const f = ghFields();
-        if (!ghValidate(f)) return;
-        ghSaveSettings(f);
-        const status = $('ghStatus'), err = $('ghError');
-        err.textContent = ''; status.textContent = 'Henter…';
-        try {
-          const resp = await fetch(ghContentsUrl(f) + '?ref=' + encodeURIComponent(f.branch), { headers: ghHeaders(f.pat) });
-          if (!resp.ok) throw new Error('HTTP ' + resp.status + (resp.status === 404 ? ' (fant ikke filen)' : ''));
-          const data = await resp.json();
-          setEditor(b64ToUtf8(data.content), langFromPath(f.path));
-          const nameEl = $('scriptName');
-          if (nameEl) nameEl.value = (f.path.split('/').pop() || '').replace(/\.(txt|py|r)$/i, '');
-          status.textContent = '';
-          $('githubBackdrop').style.display = 'none';
-          toast('Hentet fra GitHub: ' + f.path);
-        } catch (e) {
-          status.textContent = '';
-          err.textContent = 'Kunne ikke hente: ' + (e.message || e);
+
+      // Oppsett
+      function ghSettings() {
+        return {
+          pat: localStorage.getItem(LS_PAT) || '',
+          repo: localStorage.getItem(LS_REPO) || '',
+          branch: localStorage.getItem(LS_BRANCH) || 'main'
+        };
+      }
+      function ghConfigured() {
+        const s = ghSettings();
+        return !!s.pat && /^[^/\s]+\/[^/\s]+$/.test(s.repo);
+      }
+      // Gjeldende fil
+      function getCurrent() {
+        try { return JSON.parse(localStorage.getItem(LS_CURRENT) || 'null'); } catch (_) { return null; }
+      }
+      function setCurrent(c) {
+        try { localStorage.setItem(LS_CURRENT, JSON.stringify(c)); } catch (_) {}
+        updateCurrentIndicator();
+      }
+      function updateCurrentIndicator() {
+        let el = $('ghCurrentLabel');
+        const name = $('scriptName');
+        if (!el) {
+          if (!name || !name.parentNode) return;
+          el = document.createElement('span');
+          el.id = 'ghCurrentLabel';
+          el.style.cssText = 'font-size:11px;color:var(--text-muted);margin-left:8px;white-space:nowrap;vertical-align:middle;';
+          name.parentNode.insertBefore(el, name.nextSibling);
+        }
+        const cur = getCurrent();
+        if (cur && cur.path) {
+          el.textContent = '☁ ' + cur.repo + '/' + cur.path + (cur.branch && cur.branch !== 'main' ? '@' + cur.branch : '');
+          el.title = 'Gjeldende GitHub-fil — «Lagre» skriver hit';
+          el.style.display = '';
+        } else {
+          el.style.display = 'none';
         }
       }
-      async function ghSave() {
-        const f = ghFields();
-        if (!ghValidate(f)) return;
-        ghSaveSettings(f);
-        const status = $('ghStatus'), err = $('ghError');
-        const si = $('scriptInput');
-        err.textContent = ''; status.textContent = 'Lagrer…';
-        try {
-          // Hent eksisterende sha (kreves for å overskrive en fil som allerede finnes)
-          let sha = null;
-          const head = await fetch(ghContentsUrl(f) + '?ref=' + encodeURIComponent(f.branch), { headers: ghHeaders(f.pat) });
-          if (head.ok) { sha = (await head.json()).sha; }
-          const body = {
-            message: 'Update ' + f.path + ' via Microdata Script Runner',
-            content: utf8ToB64(si ? si.value : ''),
-            branch: f.branch
-          };
-          if (sha) body.sha = sha;
-          const resp = await fetch(ghContentsUrl(f), { method: 'PUT', headers: ghHeaders(f.pat), body: JSON.stringify(body) });
-          if (!resp.ok) {
-            let msg = 'HTTP ' + resp.status;
-            try { const ej = await resp.json(); if (ej.message) msg += ' – ' + ej.message; } catch (_) {}
-            throw new Error(msg);
-          }
-          status.textContent = '';
-          toast('Lagret til GitHub: ' + f.repo + '/' + f.path);
-        } catch (e) {
-          status.textContent = '';
-          err.textContent = 'Kunne ikke lagre: ' + (e.message || e);
-        }
-      }
-      function ghModal() {
+
+      // Innstillinger-dialog
+      function openSettings(msg) {
         closeMenu();
-        ghLoadSettings();
-        $('ghError').textContent = ''; $('ghStatus').textContent = '';
+        const s = ghSettings();
+        $('ghPat').value = s.pat; $('ghRepo').value = s.repo; $('ghBranch').value = s.branch || 'main';
+        $('ghError').textContent = msg || ''; $('ghStatus').textContent = '';
         $('githubBackdrop').style.display = 'flex';
+      }
+      function settingsRead() {
+        return { pat: $('ghPat').value.trim(), repo: $('ghRepo').value.trim(), branch: $('ghBranch').value.trim() || 'main' };
+      }
+      function settingsValidate(f) {
+        const err = $('ghError'); err.textContent = '';
+        if (!f.pat) { err.textContent = 'Mangler token.'; return false; }
+        if (!/^[^/\s]+\/[^/\s]+$/.test(f.repo)) { err.textContent = 'Repo må være på formen eier/navn.'; return false; }
+        return true;
+      }
+      function settingsSave() {
+        const f = settingsRead();
+        if (!settingsValidate(f)) return;
+        try {
+          localStorage.setItem(LS_PAT, f.pat);
+          localStorage.setItem(LS_REPO, f.repo);
+          localStorage.setItem(LS_BRANCH, f.branch);
+        } catch (_) {}
+        lastTree = null; // repo/branch kan ha endret seg
+        $('githubBackdrop').style.display = 'none';
+        toast('GitHub-innstillinger lagret');
+        updateCurrentIndicator();
+      }
+      async function settingsTest() {
+        const f = settingsRead();
+        if (!settingsValidate(f)) return;
+        const status = $('ghStatus'), err = $('ghError');
+        err.textContent = ''; status.textContent = 'Tester…';
+        try {
+          const resp = await fetch('https://api.github.com/repos/' + f.repo, { headers: ghHeaders(f.pat) });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status +
+            (resp.status === 404 ? ' (repo ikke funnet / ingen tilgang)' : resp.status === 401 ? ' (ugyldig token)' : ''));
+          const data = await resp.json();
+          status.textContent = '✓ Tilkoblet: ' + (data.full_name || f.repo) + (data.private ? ' (privat)' : ' (offentlig)');
+        } catch (e) {
+          status.textContent = ''; err.textContent = 'Tilkobling feilet: ' + (e.message || e);
+        }
+      }
+
+      // Filvelger
+      async function fetchTree(s) {
+        const url = 'https://api.github.com/repos/' + s.repo + '/git/trees/' + encodeURIComponent(s.branch) + '?recursive=1';
+        const resp = await fetch(url, { headers: ghHeaders(s.pat) });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + (resp.status === 404 ? ' (repo/branch ikke funnet)' : ''));
+        const data = await resp.json();
+        lastTree = (data.tree || []).filter((n) => n.type === 'blob').map((n) => n.path);
+        return lastTree;
+      }
+      function renderPicker(filter) {
+        const list = $('ghPickerList'); if (!list) return;
+        const q = (filter || '').toLowerCase();
+        const items = (lastTree || []).filter((p) => TEXT_EXT.test(p) && (!q || p.toLowerCase().indexOf(q) !== -1));
+        list.innerHTML = '';
+        if (!items.length) {
+          list.innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:13px;">Ingen filer.</div>';
+          return;
+        }
+        items.slice(0, 500).forEach((p) => {
+          const b = document.createElement('button');
+          b.type = 'button'; b.className = 'ai-modal-btn';
+          b.style.cssText = 'display:block;width:100%;text-align:left;margin:2px 0;font-size:13px;';
+          b.textContent = p; b.title = p;
+          b.onclick = () => pickFile(p);
+          list.appendChild(b);
+        });
+      }
+      async function openPicker() {
+        closeMenu();
+        if (!ghConfigured()) { openSettings('Sett opp GitHub-tilkobling først.'); return; }
+        const err = $('ghPickerError'); if (err) err.textContent = '';
+        const list = $('ghPickerList');
+        if (list) list.innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:13px;">Henter filliste…</div>';
+        const filter = $('ghPickerFilter'); if (filter) filter.value = '';
+        $('ghPickerBackdrop').style.display = 'flex';
+        try {
+          await fetchTree(ghSettings());
+          renderPicker('');
+        } catch (e) {
+          if (err) err.textContent = 'Kunne ikke hente filliste: ' + (e.message || e);
+          if (list) list.innerHTML = '';
+        }
+      }
+      async function pickFile(path) {
+        const s = ghSettings();
+        const err = $('ghPickerError'); if (err) err.textContent = '';
+        try {
+          const resp = await fetch(ghContentsUrlFor(s.repo, path) + '?ref=' + encodeURIComponent(s.branch), { headers: ghHeaders(s.pat) });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          const data = await resp.json();
+          setEditor(b64ToUtf8(data.content), langFromPath(path));
+          const nameEl = $('scriptName');
+          if (nameEl) nameEl.value = (path.split('/').pop() || '').replace(/\.(txt|py|r)$/i, '');
+          setCurrent({ repo: s.repo, branch: s.branch, path: path });
+          $('ghPickerBackdrop').style.display = 'none';
+          toast('Hentet fra GitHub: ' + path);
+        } catch (e) {
+          if (err) err.textContent = 'Kunne ikke hente filen: ' + (e.message || e);
+        }
+      }
+
+      // Skriving
+      async function putFile(s, path, content) {
+        // Hent eksisterende sha (kreves for å overskrive en fil som finnes)
+        let sha = null;
+        const head = await fetch(ghContentsUrlFor(s.repo, path) + '?ref=' + encodeURIComponent(s.branch), { headers: ghHeaders(s.pat) });
+        if (head.ok) sha = (await head.json()).sha;
+        const body = { message: 'Update ' + path + ' via Microdata Script Runner', content: utf8ToB64(content), branch: s.branch };
+        if (sha) body.sha = sha;
+        const resp = await fetch(ghContentsUrlFor(s.repo, path), { method: 'PUT', headers: ghHeaders(s.pat), body: JSON.stringify(body) });
+        if (!resp.ok) {
+          let msg = 'HTTP ' + resp.status;
+          try { const ej = await resp.json(); if (ej.message) msg += ' – ' + ej.message; } catch (_) {}
+          if (resp.status === 409) msg += ' (filen er endret på GitHub — bruk «Oppdater» og prøv igjen)';
+          throw new Error(msg);
+        }
+      }
+      async function doSave() {
+        closeMenu();
+        if (!ghConfigured()) { openSettings('Sett opp GitHub-tilkobling først.'); return; }
+        const s = ghSettings();
+        const cur = getCurrent();
+        if (!cur || !cur.path || cur.repo !== s.repo) { openSaveAs(); return; }
+        const si = $('scriptInput');
+        try {
+          await putFile(s, cur.path, si ? si.value : '');
+          setCurrent({ repo: s.repo, branch: s.branch, path: cur.path });
+          toast('Lagret til GitHub: ' + cur.path);
+        } catch (e) { alert('Kunne ikke lagre: ' + (e.message || e)); }
+      }
+      function openSaveAs() {
+        if (!ghConfigured()) { openSettings('Sett opp GitHub-tilkobling først.'); return; }
+        const err = $('ghSaveAsError'); if (err) err.textContent = '';
+        const s = ghSettings();
+        const cur = getCurrent();
+        const input = $('ghSaveAsPath');
+        if (input) {
+          if (cur && cur.path && cur.repo === s.repo) {
+            input.value = cur.path;
+          } else {
+            const nm = (($('scriptName') && $('scriptName').value) || 'script').trim();
+            const ext = currentLang() === 'python' ? '.py' : currentLang() === 'r' ? '.r' : '.txt';
+            input.value = nm.replace(/\s+/g, '_') + ext;
+          }
+        }
+        const dl = $('ghFolderList');
+        if (dl) {
+          dl.innerHTML = '';
+          const folders = new Set();
+          (lastTree || []).forEach((p) => { const i = p.lastIndexOf('/'); if (i > 0) folders.add(p.slice(0, i + 1)); });
+          Array.from(folders).slice(0, 50).forEach((f) => { const o = document.createElement('option'); o.value = f; dl.appendChild(o); });
+        }
+        $('ghSaveAsBackdrop').style.display = 'flex';
+        setTimeout(() => { const i = $('ghSaveAsPath'); if (i) i.focus(); }, 50);
+      }
+      async function saveAsConfirm() {
+        const err = $('ghSaveAsError'); if (err) err.textContent = '';
+        const path = $('ghSaveAsPath').value.trim();
+        if (!path) { if (err) err.textContent = 'Skriv en filsti.'; return; }
+        const s = ghSettings();
+        const si = $('scriptInput');
+        try {
+          await putFile(s, path, si ? si.value : '');
+          setCurrent({ repo: s.repo, branch: s.branch, path: path });
+          const nameEl = $('scriptName');
+          if (nameEl) nameEl.value = (path.split('/').pop() || '').replace(/\.(txt|py|r)$/i, '');
+          $('ghSaveAsBackdrop').style.display = 'none';
+          toast('Lagret til GitHub: ' + path);
+        } catch (e) { if (err) err.textContent = 'Kunne ikke lagre: ' + (e.message || e); }
+      }
+      async function doRefresh() {
+        closeMenu();
+        const cur = getCurrent();
+        if (!cur || !cur.path) { alert('Ingen gjeldende GitHub-fil å oppdatere. Bruk «Åpne fil…» først.'); return; }
+        if (!confirm('Hente «' + cur.path + '» på nytt fra GitHub? Ulagrede lokale endringer går tapt.')) return;
+        const s = ghSettings();
+        try {
+          const resp = await fetch(ghContentsUrlFor(cur.repo, cur.path) + '?ref=' + encodeURIComponent(cur.branch), { headers: ghHeaders(s.pat) });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          const data = await resp.json();
+          setEditor(b64ToUtf8(data.content), langFromPath(cur.path));
+          toast('Oppdatert fra GitHub: ' + cur.path);
+        } catch (e) { alert('Kunne ikke oppdatere: ' + (e.message || e)); }
       }
 
       // --- Kobling av knapper ---
@@ -9719,7 +9881,6 @@ def _run_microdata_chunk(_code):
         function on(id, fn) { const el = $(id); if (el) el.addEventListener('click', fn); }
         on('menuShareLink', shareLink);
         on('menuOpenUrl', openUrlModal);
-        on('menuGithub', ghModal);
 
         on('openUrlCancel', () => { $('openUrlBackdrop').style.display = 'none'; });
         on('openUrlGo', () => fetchUrl($('openUrlInput').value));
@@ -9728,11 +9889,43 @@ def _run_microdata_chunk(_code):
         const oub = $('openUrlBackdrop');
         if (oub) oub.addEventListener('click', (e) => { if (e.target === oub) oub.style.display = 'none'; });
 
-        on('ghClose', () => { $('githubBackdrop').style.display = 'none'; });
-        on('ghLoad', ghLoad);
-        on('ghSave', ghSave);
+        // GitHub-undermeny (samme klikk-toggle som «Eksempler»)
+        const ghBtn = $('menuGithubBtn'), ghSub = $('githubSubmenu');
+        if (ghBtn && ghSub) {
+          ghBtn.addEventListener('click', (e) => { e.stopPropagation(); ghSub.classList.toggle('open'); });
+          ghSub.addEventListener('click', (e) => e.stopPropagation());
+          document.addEventListener('click', () => ghSub.classList.remove('open'));
+        }
+        on('ghMenuSettings', () => openSettings());
+        on('ghMenuOpen', openPicker);
+        on('ghMenuSave', doSave);
+        on('ghMenuSaveAs', () => { closeMenu(); openSaveAs(); });
+        on('ghMenuRefresh', doRefresh);
+
+        // Innstillinger-dialog
+        on('ghSettingsClose', () => { $('githubBackdrop').style.display = 'none'; });
+        on('ghSettingsTest', settingsTest);
+        on('ghSettingsSave', settingsSave);
         const ghb = $('githubBackdrop');
         if (ghb) ghb.addEventListener('click', (e) => { if (e.target === ghb) ghb.style.display = 'none'; });
+
+        // Filvelger
+        on('ghPickerCancel', () => { $('ghPickerBackdrop').style.display = 'none'; });
+        on('ghPickerRefresh', openPicker);
+        const pf = $('ghPickerFilter');
+        if (pf) pf.addEventListener('input', () => renderPicker(pf.value));
+        const pb = $('ghPickerBackdrop');
+        if (pb) pb.addEventListener('click', (e) => { if (e.target === pb) pb.style.display = 'none'; });
+
+        // Lagre som
+        on('ghSaveAsCancel', () => { $('ghSaveAsBackdrop').style.display = 'none'; });
+        on('ghSaveAsConfirm', saveAsConfirm);
+        const sp = $('ghSaveAsPath');
+        if (sp) sp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveAsConfirm(); } });
+        const sb = $('ghSaveAsBackdrop');
+        if (sb) sb.addEventListener('click', (e) => { if (e.target === sb) sb.style.display = 'none'; });
+
+        updateCurrentIndicator();
       }
 
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
@@ -9950,9 +10143,10 @@ def _run_microdata_chunk(_code):
   </div>
 
   <!-- Koble til GitHub -->
+  <!-- GitHub: innstillinger (oppsett) -->
   <div id="githubBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 560px;">
-      <h3 style="font-size: 1.25em;">Koble til GitHub</h3>
+      <h3 style="font-size: 1.25em;">GitHub-innstillinger</h3>
       <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
         Lagre og hent scripts i ditt eget GitHub-repo. Krever et fine-grained personal access token (PAT)
         med <strong>Contents: Read and write</strong> p&aring; repoet
@@ -9973,16 +10167,43 @@ def _run_microdata_chunk(_code):
           <input type="text" id="ghBranch" placeholder="main" style="width:100%; padding:6px;">
         </div>
       </div>
-      <div style="margin:10px 0;">
-        <label for="ghPath">Filsti i repoet</label>
-        <input type="text" id="ghPath" placeholder="mappe/script.txt" style="width:100%; padding:6px;">
-      </div>
       <div id="ghError" style="color:var(--accent-danger,#d00); font-size:12px; min-height:1.2em;"></div>
       <div id="ghStatus" style="font-size:12px; color:var(--text-muted); min-height:1.2em;"></div>
       <div class="ai-modal-actions" style="margin-top:16px;">
-        <button type="button" id="ghClose" class="ai-modal-btn">Lukk</button>
-        <button type="button" id="ghLoad" class="ai-modal-btn">Hent</button>
-        <button type="button" id="ghSave" class="ai-modal-btn primary">Lagre</button>
+        <button type="button" id="ghSettingsClose" class="ai-modal-btn">Lukk</button>
+        <button type="button" id="ghSettingsTest" class="ai-modal-btn">Test tilkobling</button>
+        <button type="button" id="ghSettingsSave" class="ai-modal-btn primary">Lagre</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GitHub: filvelger -->
+  <div id="ghPickerBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 600px; max-height: 80vh; display: flex; flex-direction: column;">
+      <h3 style="font-size: 1.25em;">&#197;pne fil fra GitHub</h3>
+      <input type="text" id="ghPickerFilter" placeholder="Filtrer filer&#8230;" style="width:100%; padding:6px; margin:8px 0;">
+      <div id="ghPickerError" style="color:var(--accent-danger,#d00); font-size:12px; min-height:1.2em;"></div>
+      <div id="ghPickerList" style="overflow:auto; flex:1; min-height:140px; max-height:50vh; border:1px solid var(--border); border-radius:6px; padding:4px;"></div>
+      <div class="ai-modal-actions" style="margin-top:12px;">
+        <button type="button" id="ghPickerCancel" class="ai-modal-btn">Avbryt</button>
+        <button type="button" id="ghPickerRefresh" class="ai-modal-btn">Oppdater liste</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GitHub: lagre som -->
+  <div id="ghSaveAsBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 520px;">
+      <h3 style="font-size: 1.25em;">Lagre som&#8230; (GitHub)</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+        Skriv filstien i repoet. Bruk skr&aring;strek for mapper, f.eks. <code>analyser/inntekt.txt</code>.
+      </p>
+      <input type="text" id="ghSaveAsPath" list="ghFolderList" placeholder="mappe/filnavn.txt" style="width:100%; padding:6px; margin:8px 0;">
+      <datalist id="ghFolderList"></datalist>
+      <div id="ghSaveAsError" style="color:var(--accent-danger,#d00); font-size:12px; min-height:1.2em;"></div>
+      <div class="ai-modal-actions" style="margin-top:16px;">
+        <button type="button" id="ghSaveAsCancel" class="ai-modal-btn">Avbryt</button>
+        <button type="button" id="ghSaveAsConfirm" class="ai-modal-btn primary">Lagre</button>
       </div>
     </div>
   </div>

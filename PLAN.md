@@ -103,3 +103,78 @@ moderering-ansvar.
   feil med klar melding heller enn stille feil.
 - **PAT er en hemmelighet:** i localStorage er den lesbar for alt JS på
   domenet. Akseptabelt for intern bruk, men kommuniser det.
+
+---
+
+# Utvidelse: GitHub som filbasert lager (planlagt)
+
+Forbedrer verb 3 fra «skriv inn én filsti» til et ekte lager: skill **oppsett**
+(engangs) fra **bruk** (daglig), og gi en **filvelger** ved åpning.
+
+## Menystruktur — GitHub-undermeny (valgt)
+
+Speiler det eksisterende «Eksempler»-undermenymønsteret
+(`menuExamplesBtn` → `examplesDropdown`).
+
+```
+Hamburgermeny
+─────────────
+Nytt script
+Last ned kode            ← omdøpt fra «Lagre script» (nedlasting av .txt)
+Last inn fil… (lokal)    ← dagens «Last inn script»
+Del (kopier lenke)
+Åpne fra URL…
+GitHub ▸
+   Innstillinger…        ← oppsett: PAT + repo + branch (+ test)
+   Åpne fil…             ← filvelger
+   Lagre                 ← skriv til gjeldende fil
+   Lagre som…            ← ny sti
+   Oppdater              ← hent gjeldende fil på nytt
+```
+
+## Fase 1 — Oppsett (engangs)
+
+- Egen «Innstillinger»-dialog: PAT, repo (`eier/navn`), branch. **Ingen filsti.**
+- Lagres lokalt (eksisterende nøkler `m2py_github_pat/repo/branch`).
+- Valider med ett testkall `GET /repos/{repo}` → vis «✓ Tilkoblet» eller feil.
+- Er ikke oppsett gjort, sender de andre GitHub-valgene brukeren hit først.
+
+## Fase 2 — Bruk (daglig)
+
+- **Åpne fil…** — ett kall `GET /repos/{repo}/git/trees/{branch}?recursive=1`
+  lister alle filer i repoet. Vis i en liste med filter-felt, begrenset til
+  tekst/script (`.txt`, `.py`, `.r`, `.md`). Klikk → hent via Contents-API →
+  inn i editoren → sett som **gjeldende fil**.
+- **Lagre** — `PUT …/contents/{gjeldende sti}` (henter `sha` først). Uten
+  gjeldende fil ⇒ oppfør deg som «Lagre som».
+- **Lagre som…** — skriv/velg ny sti (eksisterende mapper foreslås fra treet),
+  lagre, sett som gjeldende fil.
+- **Oppdater** — hent gjeldende fil på nytt (med bekreftelse; forkaster lokale
+  endringer).
+
+## Tilstand
+
+- `m2py_github_current = { repo, branch, path }` i localStorage; settes ved
+  Åpne / Lagre som / vellykket Lagre.
+- **Gjeldende fil vises synlig** (ved scriptnavnet), så «Lagre» aldri er
+  tvetydig.
+
+## Implementeringsrekkefølge
+
+1. Del oppsett fra filsti; innfør `current`-tilstand + indikator for gjeldende fil.
+2. GitHub-undermeny i hamburgeren + omdøp «Last ned kode».
+3. Filvelger (tre-henting + liste + filter).
+4. Koble Lagre / Lagre som / Oppdater til `current`.
+
+## Kanttilfeller / notater
+
+- **Sha-konflikt ved Lagre** (filen endret på GitHub etter at vi leste den):
+  `PUT` gir 409 → vis melding og tilby «Oppdater».
+- **Tre-trunkering** for svært store repos (uaktuelt for scriptbruk).
+- Tomt repo / ukjent branch → klare feilmeldinger.
+- «Åpne fra URL» og «Del (lenke)» er uendret.
+
+## Holdt utenfor (foreløpig)
+
+- Mappe-*browser* med klikk-navigering (rekursivt tre + filter dekker behovet).
+- «Del» som egen GitHub-knapp (for offentlig repo = bare kopier rå-lenken).
