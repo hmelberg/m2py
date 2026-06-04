@@ -993,11 +993,32 @@
     <div style="position: relative;">
       <button type="button" class="hamburger" id="hamburgerBtn" aria-label="Meny" title="Meny">&#9776;</button>
       <div class="hamburger-dropdown" id="hamburgerDropdown">
-        <button type="button" id="menuNew">Nytt script</button>
-        <button type="button" id="menuSave">Last ned kode</button>
-        <button type="button" id="menuLoad">Last inn fil&#8230; (lokal)</button>
-        <button type="button" id="menuShareLink">Del (kopier lenke)</button>
-        <button type="button" id="menuOpenUrl">&#197;pne fra URL&#8230;</button>
+        <div class="topbar-examples-wrap" style="position:relative">
+          <button type="button" id="menuFilBtn">Fil&#8230;</button>
+          <div class="examples-dropdown" id="filSubmenu">
+            <button type="button" id="menuNew">Nytt script</button>
+            <button type="button" id="menuOpenUrl">&#197;pne fra URL&#8230;</button>
+            <button type="button" id="menuLoad">&#197;pne lokal fil&#8230;</button>
+            <button type="button" id="menuShareLink">Del (kopier lenke)</button>
+            <button type="button" id="menuSave">Last ned kode</button>
+          </div>
+        </div>
+        <div class="topbar-examples-wrap" style="position:relative">
+          <button type="button" id="menuExamplesBtn">Eksempler&#8230;</button>
+          <div class="examples-dropdown" id="examplesDropdown">
+            <div class="examples-dropdown-title">Last inn eksempel</div>
+            <button type="button" data-example="01_beskrivende_statistikk.txt">Beskrivende statistikk</button>
+            <button type="button" data-example="02_tabeller_og_kategorier.txt">Tabeller og kategorier</button>
+            <button type="button" data-example="03_visualiseringer.txt">Visualiseringer</button>
+            <button type="button" data-example="04_aggregat_og_generate.txt">Aggregat og nye variabler</button>
+            <button type="button" data-example="05_regresjon.txt">Regresjon</button>
+            <button type="button" data-example="06_avansert_analyse.txt">Avansert analyse</button>
+            <hr style="margin:4px 0;border-color:#334155;">
+            <button type="button" id="menuWebExamples">Flere eksempler p&#229; web&#8230;</button>
+          </div>
+        </div>
+        <button type="button" id="menuUploadData">Last opp data&#8230;</button>
+        <hr style="margin:4px 0;border-color:#334155;">
         <div class="topbar-examples-wrap" style="position:relative">
           <button type="button" id="menuGithubBtn">GitHub&#8230;</button>
           <div class="examples-dropdown" id="githubSubmenu">
@@ -1009,40 +1030,16 @@
             <button type="button" id="ghMenuRefresh">Oppdater</button>
           </div>
         </div>
-        <div class="topbar-examples-wrap" style="position:relative">
-          <button type="button" id="menuExamplesBtn">Eksempler</button>
-          <div class="examples-dropdown" id="examplesDropdown">
-            <div class="examples-dropdown-title">Last inn eksempel</div>
-            <button type="button" data-example="01_beskrivende_statistikk.txt">Beskrivende statistikk</button>
-            <button type="button" data-example="02_tabeller_og_kategorier.txt">Tabeller og kategorier</button>
-            <button type="button" data-example="03_visualiseringer.txt">Visualiseringer</button>
-            <button type="button" data-example="04_aggregat_og_generate.txt">Aggregat og nye variabler</button>
-            <button type="button" data-example="05_regresjon.txt">Regresjon</button>
-            <button type="button" data-example="06_avansert_analyse.txt">Avansert analyse</button>
-          </div>
-        </div>
-        <button type="button" id="menuWebExamples">Web-eksempler&#8230;</button>
-        <button type="button" id="menuUploadData">Last opp data&#8230;</button>
-        <hr style="margin:4px 0;border-color:#334155;">
         <button type="button" id="menuForklar" title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">Kj&#248;r skrittvis</button>
         <button type="button" id="menuRunnerMode" style="display:none">Kjøremodus: Microdata</button>
         <button type="button" id="menuToggleOutputMode" style="display:none">Output-modus: String</button>
-        <button type="button" id="menuDisclosureControl" title="Når PÅ: matcher microdata.no — pseudonym-validering, type-sjekk, min populasjon 1000, små celler skjules, winsorisering, persentiler avrundes. Når AV: alle regler er slått av og du ser rå tall.">Avsløringskontroll: PÅ</button>
-        <!-- Menyvalg skjult: standardverdier fra #suppressEmbedded, #plotStatic, #plotSeaborn (alle ukrytt i bunnen av siden). Fjern kommentarwrapper for å vise igjen.
-        <button type="button" id="menuToggleSuppress">Skjul innebygde (plots/tabeller)</button>
-        <button type="button" id="menuToggleStaticPlot">Plot: Interaktiv</button>
-        <button type="button" id="menuToggleSeaborn">Plot-stil: Standard</button>
-        -->
-        <button type="button" id="menuClearOutput">Tøm output</button>
-        <button type="button" id="menuSettings">Innstillinger&#8230;</button>
-        <button type="button" id="btnLoginWithCode">Logg inn med kode</button>
         <hr style="margin:4px 0;border-color:#334155;">
         <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">AI</div>
-        <button type="button" id="menuAiMode" title="Velg om Send-knappen bruker rask AI (enkelt svar) eller Anvil-AI (full vurdering med reparasjonsloop)">AI-svar: Rask</button>
         <button type="button" id="menuTolkResultat" title="Send output (kommandoer + resultater) til AI for en tolkning i AI-sidemenyen">Tolk resultatene</button>
-        <hr style="margin:4px 0;border-color:#334155;">
-        <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Personvern</div>
         <button type="button" id="btnDmQuick">Vurder dataminimering</button>
+        <hr style="margin:4px 0;border-color:#334155;">
+        <button type="button" id="menuSettings">Innstillinger&#8230;</button>
+        <button type="button" id="btnLoginWithCode">Logg inn med kode</button>
         <div id="adminMenuSection" style="display:none;">
           <hr style="margin:4px 0;border-color:#334155;">
           <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Admin</div>
@@ -1426,6 +1423,16 @@
           <label for="settingBlockPause">Pause mellom kommentarl&#248;se blokker (sekunder)</label>
           <input type="number" id="settingBlockPause" min="0" max="10" step="0.1" value="1.0">
           <p class="settings-hint">Ventetid etter blokker uten kommentarer i Kj&#248;r skrittvis. 0 = ingen pause.</p>
+        </div>
+        <div class="settings-field">
+          <label>Avsl&#248;ringskontroll</label>
+          <button type="button" class="btn btn-secondary" id="menuDisclosureControl" title="Når PÅ: matcher microdata.no — pseudonym-validering, type-sjekk, min populasjon 1000, små celler skjules, winsorisering, persentiler avrundes. Når AV: alle regler er slått av og du ser rå tall.">Avsl&#248;ringskontroll: P&#197;</button>
+          <p class="settings-hint">N&#229;r P&#197;: matcher microdata.no &mdash; pseudonym-validering, type-sjekk, min populasjon 1000, sm&#229; celler skjules, winsorisering, persentiler avrundes. N&#229;r AV: alle regler er sl&#229;tt av og du ser r&#229; tall.</p>
+        </div>
+        <div class="settings-field">
+          <label>AI-svar</label>
+          <button type="button" class="btn btn-secondary" id="menuAiMode" title="Velg om Send-knappen bruker rask AI (enkelt svar) eller Anvil-AI (full vurdering med reparasjonsloop)">AI-svar: Rask</button>
+          <p class="settings-hint">Velg om Send-knappen bruker rask AI (enkelt svar) eller Anvil-AI (full vurdering med reparasjonsloop).</p>
         </div>
       </div>
       <div class="settings-buttons">
@@ -3069,7 +3076,8 @@
         const rightStatus = document.getElementById('rightStatus');
         if (rightStatus) rightStatus.textContent = '';
       }
-      document.getElementById('menuClearOutput').addEventListener('click', function() {
+      const _menuClearOutput = document.getElementById('menuClearOutput');
+      if (_menuClearOutput) _menuClearOutput.addEventListener('click', function() {
         clearOutput();
         dropdown.classList.remove('open');
       });
@@ -9446,10 +9454,14 @@ def _run_microdata_chunk(_code):
     (function initScriptSharing() {
       const $ = (id) => document.getElementById(id);
       const dropdown = $('hamburgerDropdown');
+      function closeAllSubmenus() {
+        ['filSubmenu', 'githubSubmenu', 'examplesDropdown'].forEach((id) => {
+          const el = $(id); if (el) el.classList.remove('open');
+        });
+      }
       const closeMenu = () => {
         if (dropdown) dropdown.classList.remove('open');
-        const gs = $('githubSubmenu');
-        if (gs) gs.classList.remove('open');
+        closeAllSubmenus();
       };
 
       function currentLang() {
@@ -10052,13 +10064,24 @@ def _run_microdata_chunk(_code):
         const oub = $('openUrlBackdrop');
         if (oub) oub.addEventListener('click', (e) => { if (e.target === oub) oub.style.display = 'none'; });
 
-        // GitHub-undermeny (samme klikk-toggle som «Eksempler»)
-        const ghBtn = $('menuGithubBtn'), ghSub = $('githubSubmenu');
-        if (ghBtn && ghSub) {
-          ghBtn.addEventListener('click', (e) => { e.stopPropagation(); ghSub.classList.toggle('open'); });
-          ghSub.addEventListener('click', (e) => e.stopPropagation());
-          document.addEventListener('click', () => ghSub.classList.remove('open'));
+        // Undermeny-toggler (Fil + GitHub) — samme klikk-mønster som «Eksempler».
+        function wireSubmenu(btnId, subId) {
+          const btn = $(btnId), sub = $(subId);
+          if (!btn || !sub) return;
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const willOpen = !sub.classList.contains('open');
+            closeAllSubmenus();
+            if (willOpen) sub.classList.add('open');
+          });
+          sub.addEventListener('click', (e) => e.stopPropagation());
         }
+        wireSubmenu('menuFilBtn', 'filSubmenu');
+        wireSubmenu('menuGithubBtn', 'githubSubmenu');
+        document.addEventListener('click', closeAllSubmenus);
+        // Start alltid med kollapsede undermenyer når hamburgeren åpnes.
+        const hbBtn = $('hamburgerBtn');
+        if (hbBtn) hbBtn.addEventListener('click', closeAllSubmenus);
         on('ghMenuSettings', () => openSettings());
         on('ghMenuOpen', openPicker);
         on('ghMenuSave', doSave);
