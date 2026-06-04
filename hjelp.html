@@ -182,6 +182,8 @@
   <a href="#editor">Editor og snarveier</a>
   <a href="#tab-intro">Tab-autocomplete</a>
   <a href="#sidebar">Datasett-panel</a>
+  <div class="nav-section">Lagre og dele</div>
+  <a href="#lagre-dele">Lagre, dele og hente</a>
   <div class="nav-section">Skrittvis kjøring</div>
   <a href="#forklar">Kjør skrittvis</a>
   <a href="#widgets">Widgets</a>
@@ -459,6 +461,64 @@ summarize kjonn</code></pre>
       <li>Klikk på en variabel for <strong>detaljvisning</strong>: navn, type, beskrivelse og lenke til microdata-katalogen</li>
     </ul>
     <p>Sidemenyen oppdateres automatisk etter hver kjøring og etter hvert blokk i Kjør skrittvis-modus.</p>
+  </section>
+
+  <!-- ── LAGRE OG DELE ── -->
+  <section id="lagre-dele">
+    <h2>Lagre, dele og hente scripts</h2>
+    <p>Alle valgene under ligger i <strong>hamburgermenyen</strong> øverst til venstre. De kjører i sin helhet i nettleseren din — vi lagrer aldri scriptene dine på en server.</p>
+
+    <h3>Last ned kode / Last inn fil</h3>
+    <p><strong>Last ned kode</strong> laster ned scriptet som en <code>.txt</code>-fil til maskinen din. <strong>Last inn fil (lokal)</strong> åpner en slik fil igjen. Dette er ren lokal fil-håndtering.</p>
+
+    <h3>Del (kopier lenke)</h3>
+    <p>Lager en lenke som inneholder <em>hele scriptet</em>, komprimert inn i selve adressen (etter <code>#</code>). Lenken kopieres til utklippstavlen — send den i e-post, Slack eller lim den inn hvor du vil. Den som åpner lenken får scriptet rett inn i editoren.</p>
+    <ul>
+      <li>Ingenting lagres hos oss, og mottakeren trenger ikke å logge inn.</li>
+      <li>Lenken er et <strong>frosset øyeblikksbilde</strong> — endrer du scriptet etterpå, må du dele en ny lenke.</li>
+      <li>Passer for scripts opp til noen tusen tegn. Er scriptet for stort for en URL, får du beskjed — bruk «Last ned kode» (fil) eller GitHub i stedet.</li>
+    </ul>
+
+    <h3>Åpne fra URL</h3>
+    <p>Lim inn en <strong>direkte lenke</strong> til en tekstfil, så hentes innholdet inn i editoren. De siste URL-ene du har brukt huskes lokalt for rask gjenåpning.</p>
+    <ul>
+      <li>Fungerer med <strong>GitHub «raw»-lenker</strong>, <strong>GitHub gist</strong> (raw) og <strong>Dropbox</strong>.</li>
+      <li>Vanlige delelenker (f.eks. en Google Drive- eller GitHub-<em>side</em>) virker <em>ikke</em> — du må bruke den rå fil-lenken. Får du en feilmelding, er det nesten alltid fordi kilden ikke tillater direkte henting (CORS).</li>
+      <li>Filendelsen styrer modus: <code>.py</code> → Python, <code>.r</code> → R, ellers Microdata.</li>
+    </ul>
+
+    <h3>GitHub (for viderekomne)</h3>
+    <p>Lar deg <strong>lagre og hente</strong> scripts direkte i ditt eget GitHub-repo — med versjonshistorikk og mulighet for samarbeid. Alt ligger under <strong>GitHub-undermenyen</strong> i hamburgermenyen.</p>
+
+    <p><strong>1. Innstillinger (engangs).</strong> Fyll inn personlig tilgangstoken (PAT), repo (<code>eier/navn</code>) og branch. Trykk <strong>Test tilkobling</strong> for å bekrefte, og <strong>Lagre innstillinger</strong>. Opplysningene huskes lokalt i nettleseren. Du trenger <em>ikke</em> oppgi noen filsti her — det er repoet du kobler til, ikke en enkeltfil.</p>
+    <p><strong>Flere profiler.</strong> Har du flere repos eller kontoer (f.eks. jobb og privat), kan du lagre dem som egne <em>profiler</em> og bytte mellom dem i nedtrekksmenyen øverst i dialogen («Ny» for å legge til, «Slett» for å fjerne). Den valgte profilen styrer Åpne/Lagre. Med <strong>Vis</strong> og <strong>Kopier</strong> kan du se eller kopiere tokenet — nyttig når du skal sette opp samme profil på en annen maskin.</p>
+    <p><strong>Slik lager du et token:</strong> GitHub → Settings → Developer settings → Fine-grained tokens → Generate new token. Gi det tilgang til <em>kun</em> det aktuelle repoet, og sett <strong>Repository permissions → Contents → Read and write</strong>. Kopier tokenet (vises bare én gang) og lim det inn i appen. Sett gjerne en utløpsdato; du kan når som helst trekke tokenet tilbake på samme side.</p>
+
+    <p><strong>2. Daglig bruk.</strong> Når tilkoblingen er satt opp:</p>
+    <ul>
+      <li><strong>Åpne fil…</strong> viser en <em>filvelger</em> med alle filene i repoet. Filtrer i søkefeltet og klikk en fil for å hente den inn i editoren.</li>
+      <li><strong>Lagre</strong> skriver til den filen du sist åpnet eller lagret (den <em>gjeldende</em> filen, markert med et sky-symbol ☁ ved siden av scriptnavnet). Har du ikke en gjeldende fil ennå, oppfører den seg som «Lagre som». Åpner du et nytt eller annet script (Nytt, lokal fil, eksempel, lenke eller URL), kobles sky-symbolet bort så du ikke ved et uhell overskriver feil fil.</li>
+      <li><strong>Lagre som…</strong> lar deg skrive en ny filsti (eksisterende mapper foreslås). Endelsen <code>.txt</code> legges til automatisk hvis du ikke skriver en.</li>
+      <li><strong>Hent på nytt</strong> henter den gjeldende filen på nytt fra GitHub (leser — lagrer ikke). Ulagrede lokale endringer går tapt, så du blir bedt om å bekrefte.</li>
+    </ul>
+
+    <ul>
+      <li><strong>Ett token, mange filer:</strong> tokenet gjelder hele repoet — du trenger ikke et token per fil.</li>
+      <li><strong>Offentlig vs. privat</strong> styrer du via repoets egen innstilling på GitHub — ikke i appen.</li>
+      <li><strong>Deling:</strong> ligger scriptet i et offentlig repo, deler du bare den rå fil-lenken; mottakeren bruker «Åpne fra URL».</li>
+      <li><strong>Tokenet er en hemmelighet</strong> og lagres i klartekst i nettleseren din. Bruk en delt maskin med omhu, og trekk tilbake tokenet hvis du mister tilgang til maskinen.</li>
+    </ul>
+
+    <h3>Nylig brukt</h3>
+    <p>Et lite pil-ned-ikon (▾) ved siden av filnavnet viser de siste GitHub- og URL-scriptene du har åpnet, slik at du kan hente dem inn igjen med ett klikk uten å skrive hele adressen. (Lokale filer kan ikke gjenåpnes av nettleseren.)</p>
+
+    <h3>Hvor lagres ting — og fungerer det på flere maskiner?</h3>
+    <p>Det er nyttig å skille <em>filen</em> fra <em>maskinen</em>:</p>
+    <ul>
+      <li><strong>Scripts lagret i GitHub</strong> ligger i skyen og er tilgjengelige fra hvor som helst. På en ny maskin limer du bare inn det <em>samme</em> tokenet én gang (eller ingenting hvis repoet er offentlig — da bruker du «Åpne fra URL»).</li>
+      <li><strong>Delelenker</strong> bærer scriptet i seg selv og virker på enhver maskin.</li>
+      <li><strong>Det som er knyttet til én maskin</strong> er bare lokale ting i nettleseren: listen over «nylige URL-er» og det innlimte GitHub-tokenet. Selve scriptene dine i GitHub er <em>ikke</em> låst til maskinen.</li>
+    </ul>
   </section>
 
   <!-- ── FORKLAR ── -->

@@ -1,0 +1,13 @@
+# Eksempel: pandas — grunnleggende statistikk
+# Lite datasett, describe() og groupby().
+import pandas as pd
+
+df = pd.DataFrame({
+    "kjonn":   ["Mann", "Kvinne", "Mann", "Kvinne", "Mann", "Kvinne"],
+    "inntekt": [620000, 540000, 710000, 820000, 480000, 610000],
+    "alder":   [34, 41, 29, 52, 38, 45],
+})
+
+df.describe()
+
+df.groupby("kjonn")["inntekt"].agg(["mean", "median", "count"])

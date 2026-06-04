@@ -1,17 +1,14 @@
 // Eksempel 2: Tabeller og kategorier
-// Frekvenstabeller, kodelister og etiketter.
+// Frekvenstabeller
 
+require no.ssb.fdb:54 as fd
 create-dataset tabeller
 import fd/BEFOLKNING_KJOENN as kjonn
 import fd/INNTEKT_WLONN 2022-01-01 as inntekt
-import fd/BOSATT_KOMMUNE as kommune
-
-define-labels kjonn_etikett 1 Mann 2 Kvinne
-assign-labels kjonn kjonn_etikett
+import fd/BOSATTEFDT_BOSTED 2022-01-01 as kommune
 
 tabulate kjonn
-tabulate kjonn, rowpct
+tabulate kjonn, cellpct
 tabulate kommune, top(10)
 
-aggregate (mean) inntekt -> snitt_kommune, by(kommune)
-tabulate kommune, summarize(inntekt) top(15)
+tabulate kommune, summarize(inntekt) rowsort() bottom(15)

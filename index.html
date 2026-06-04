@@ -18,7 +18,10 @@
     .topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; align-items: center; padding: 0 12px; height: 44px; background: var(--topbar-bg); border-bottom: 1px solid var(--border); }
     .topbar .hamburger { background: none; border: none; color: var(--text); cursor: pointer; padding: 8px; font-size: 20px; line-height: 1; }
     .topbar .hamburger:hover { color: var(--accent); }
-    .topbar .script-name { flex: 1; margin: 0 16px; max-width: 400px; background: var(--bg-code); border: none; border-radius: 4px; padding: 6px 10px; color: var(--text); font-size: 14px; -webkit-appearance: none; appearance: none; }
+    .topbar .script-name { flex: 0 1 170px; margin: 0 12px; background: var(--bg-code); border: none; border-radius: 4px; padding: 6px 10px; color: var(--text); font-size: 14px; -webkit-appearance: none; appearance: none; }
+    .topbar .topbar-ask { flex: 1 1 auto; min-width: 120px; margin: 0 12px 0 0; background: var(--bg-code); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; color: var(--text); font-size: 14px; -webkit-appearance: none; appearance: none; }
+    .topbar .topbar-ask:focus { outline: none; border-color: var(--accent); }
+    .topbar .topbar-ask::placeholder { color: var(--text-muted); }
     .topbar .script-name:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
     .topbar .help-icon { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 8px; font-size: 18px; }
     .topbar .help-icon:hover { color: var(--accent); }
@@ -110,6 +113,7 @@
     body.forklar-session #rightStatus { display: none !important; }
     body.forklar-session .bottombar-right { justify-content: flex-end; }
     body.forklar-session .bottombar-right #btnRunFooter,
+    body.forklar-session .bottombar-right #btnTolkFooter,
     body.forklar-session .bottombar-right #btnForklarFooter { display: none !important; }
     .forklar-dock-btn {
       width: 36px;
@@ -158,6 +162,8 @@
     .btn-primary.btn-run.btn-run--running:hover { opacity: 1; }
     .btn-primary { background: var(--accent); color: #fff; }
     body[data-theme="light"] .btn-primary { color: #fff; }
+    .btn-tolk { display: inline-flex; align-items: center; padding: 5px 14px; background: var(--bg-code); color: var(--text); border: 1px solid var(--border); font-size: 12px; }
+    .btn-tolk:hover { border-color: var(--accent); color: var(--accent); }
     .btn-primary:hover { opacity: 0.9; }
     .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; background: var(--text-muted); }
     .btn-secondary { background: var(--border); color: var(--text); }
@@ -291,8 +297,53 @@
       from { opacity: 0.2; }
       to { opacity: 1; }
     }
-    #scriptInput { width: 100%; flex: 1 1 auto; min-height: 120px; margin: 0; border-radius: 0; padding: 8px 0 0 8px; display: block; background: var(--bg-panel); color: var(--text); border: none !important; border-width: 0 !important; outline: none; resize: none; font-size: var(--base-font-size); line-height: var(--line-h); -webkit-appearance: none; appearance: none; text-decoration: none; background-image: none !important; overflow-y: auto; overflow-x: hidden; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; }
+    #scriptInput { width: 100%; flex: 1 1 auto; min-height: 120px; margin: 0; border-radius: 0; padding: 8px 0 0 8px; display: block; background: transparent; color: transparent; caret-color: var(--text); border: none !important; border-width: 0 !important; outline: none; resize: none; font-size: var(--base-font-size); line-height: var(--line-h); -webkit-appearance: none; appearance: none; text-decoration: none; background-image: none !important; overflow-y: auto; overflow-x: hidden; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; position: relative; z-index: 1; scrollbar-gutter: stable; }
     textarea#scriptInput:focus { outline: none; box-shadow: none; }
+    /* Markør-kilde og syntaks-backdrop: gjennomsiktig seleksjon slik at farget tekst bak vises */
+    #scriptInput::selection { background: rgba(37, 99, 235, 0.28); }
+    #scriptInput::-moz-selection { background: rgba(37, 99, 235, 0.28); }
+    .code-input-wrap { background: var(--bg-panel); }
+    /* Syntaks-fargelag bak textarea — må matche textarea-typografi/padding/ombrekking eksakt */
+    .code-hl {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      margin: 0; padding: 8px 0 0 8px; border: 0;
+      box-sizing: border-box; pointer-events: none; z-index: 0;
+      overflow: hidden; scrollbar-gutter: stable;
+      font-family: 'Fira Code', 'Consolas', monospace;
+      font-size: var(--base-font-size); line-height: var(--line-h);
+      white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;
+      color: var(--text); background: transparent;
+    }
+    /* Token-farger i editor — speiler output (.output-area pre .md-out-*) */
+    .code-hl .md-out-comment { color: rgba(75, 85, 99, 0.7); font-style: italic; }
+    .code-hl .md-out-cmd { color: #4b5563; font-weight: 600; }
+    .code-hl .md-out-var { color: #2563eb; }
+    .code-hl .md-out-num { color: #ca8a04; }
+    .code-hl .md-out-paren, .code-hl .md-out-kw-calm { color: #BDB76B; }
+    .code-hl .md-out-func { color: #15803d; }
+    .code-hl .md-out-kw-brown { color: #9acd32; }
+    .code-hl .md-out-op, .code-hl .md-out-path-prefix, .code-hl .md-out-aggopt { color: #7c3aed; }
+    .code-hl .md-out-str { color: #0f766e; }
+    body[data-theme="dark"] .code-hl .md-out-comment { color: rgba(156, 163, 175, 0.72); }
+    body[data-theme="dark"] .code-hl .md-out-cmd { color: #9ca3af; }
+    body[data-theme="dark"] .code-hl .md-out-var { color: #7aa2f7; }
+    body[data-theme="dark"] .code-hl .md-out-num { color: #fcd34d; }
+    body[data-theme="dark"] .code-hl .md-out-func { color: #86efac; }
+    body[data-theme="dark"] .code-hl .md-out-str { color: #5eead4; }
+    body[data-theme="dark"] .code-hl .md-out-op,
+    body[data-theme="dark"] .code-hl .md-out-path-prefix,
+    body[data-theme="dark"] .code-hl .md-out-aggopt { color: #c4b5fd; }
+    @media (prefers-color-scheme: dark) {
+      body[data-theme="auto"] .code-hl .md-out-comment { color: rgba(156, 163, 175, 0.72); }
+      body[data-theme="auto"] .code-hl .md-out-cmd { color: #9ca3af; }
+      body[data-theme="auto"] .code-hl .md-out-var { color: #7aa2f7; }
+      body[data-theme="auto"] .code-hl .md-out-num { color: #fcd34d; }
+      body[data-theme="auto"] .code-hl .md-out-func { color: #86efac; }
+      body[data-theme="auto"] .code-hl .md-out-str { color: #5eead4; }
+      body[data-theme="auto"] .code-hl .md-out-op,
+      body[data-theme="auto"] .code-hl .md-out-path-prefix,
+      body[data-theme="auto"] .code-hl .md-out-aggopt { color: #c4b5fd; }
+    }
     textarea#scriptInput, .output-area { font-family: 'Fira Code', 'Consolas', monospace; }
     .output-area {
       width: 100%;
@@ -469,6 +520,7 @@
     .autocomplete-list .kind-dataset  { color: #10b981; }
     .autocomplete-list .kind-package  { color: #ec4899; }
     .autocomplete-list .kind-function { color: #06b6d4; }
+    .autocomplete-list .kind-date     { color: #14b8a6; }
     .bottombar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 90; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 10px; background: var(--topbar-bg); border-top: 1px solid var(--border); }
     .bottombar-left { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
     .bottombar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -783,6 +835,20 @@
       color: var(--accent); border-color: var(--accent); }
     .ai-codeblock-btn.flash { background: color-mix(in srgb, var(--accent) 25%, transparent); color: var(--accent); }
 
+    .ai-response-actions {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);
+    }
+    .ai-response-actions .ai-include-row { margin-bottom: 0; }
+    .ai-response-insert-btn {
+      padding: 5px 14px; border: 1px solid var(--accent); background: var(--accent);
+      color: #fff; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+    }
+    body[data-theme="dark"] .ai-response-insert-btn { color: #1a1b26; }
+    .ai-response-insert-btn:hover { filter: brightness(1.1); }
+    .ai-response-insert-btn.flash { background: color-mix(in srgb, var(--accent) 70%, #2e7d32); }
+
     .ai-validation-warning {
       margin-top: 10px; padding: 8px 10px; border-radius: 6px;
       background: color-mix(in srgb, #d97706 8%, var(--bg-panel));
@@ -865,7 +931,7 @@
     .ai-input {
       flex: 1; border: none; background: transparent; resize: none; outline: none;
       color: var(--text); font-family: inherit; font-size: 14px; line-height: 1.4;
-      padding: 6px 0; max-height: 160px; min-height: 24px;
+      padding: 6px 0; max-height: 120px; min-height: 24px; overflow-y: auto;
     }
     .ai-send-btn {
       width: 32px; height: 32px; border: none; background: var(--accent); color: #fff;
@@ -875,6 +941,22 @@
     body[data-theme="dark"] .ai-send-btn { color: #1a1b26; }
     .ai-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .ai-send-btn:hover:not(:disabled) { filter: brightness(1.1); }
+    .ai-send-fast-btn {
+      height: 32px; padding: 0 16px; border: 1px solid var(--accent); background: var(--accent);
+      color: #fff; border-radius: 8px; cursor: pointer; display: inline-flex;
+      align-items: center; gap: 4px; font-size: 13px; font-weight: 600; flex-shrink: 0;
+      white-space: nowrap;
+    }
+    body[data-theme="dark"] .ai-send-fast-btn { color: #1a1b26; }
+    .ai-send-fast-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .ai-send-fast-btn:hover:not(:disabled) { filter: brightness(1.1); }
+    .ai-abort-btn {
+      height: 32px; padding: 0 9px; border: 1px solid #c0392b; background: transparent;
+      color: #c0392b; border-radius: 8px; cursor: pointer; display: inline-flex;
+      align-items: center; gap: 4px; font-size: 12px; font-weight: 600; flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .ai-abort-btn:hover { background: #c0392b; color: #fff; }
 
     .ai-modal-backdrop {
       position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.4);
@@ -911,38 +993,64 @@
     <div style="position: relative;">
       <button type="button" class="hamburger" id="hamburgerBtn" aria-label="Meny" title="Meny">&#9776;</button>
       <div class="hamburger-dropdown" id="hamburgerDropdown">
-        <button type="button" id="menuNew">Nytt script</button>
-        <button type="button" id="menuSave">Lagre script</button>
-        <button type="button" id="menuLoad">Last inn script</button>
+        <div class="topbar-examples-wrap" style="position:relative">
+          <button type="button" id="menuFilBtn">Fil</button>
+          <div class="examples-dropdown" id="filSubmenu">
+            <button type="button" id="menuNew">Nytt script</button>
+            <button type="button" id="menuOpenUrl">&#197;pne fra URL</button>
+            <button type="button" id="menuLoad">&#197;pne lokal fil</button>
+            <button type="button" id="menuShareLink">Del (kopier lenke)</button>
+            <button type="button" id="menuSave">Last ned kode</button>
+          </div>
+        </div>
         <div class="topbar-examples-wrap" style="position:relative">
           <button type="button" id="menuExamplesBtn">Eksempler</button>
           <div class="examples-dropdown" id="examplesDropdown">
-            <div class="examples-dropdown-title">Last inn eksempel</div>
-            <button type="button" data-example="01_beskrivende_statistikk.txt">Beskrivende statistikk</button>
-            <button type="button" data-example="02_tabeller_og_kategorier.txt">Tabeller og kategorier</button>
-            <button type="button" data-example="03_visualiseringer.txt">Visualiseringer</button>
-            <button type="button" data-example="04_aggregat_og_generate.txt">Aggregat og nye variabler</button>
-            <button type="button" data-example="05_regresjon.txt">Regresjon</button>
-            <button type="button" data-example="06_avansert_analyse.txt">Avansert analyse</button>
+            <div class="examples-section" data-section-mode="microdata">
+              <button type="button" data-example="01_beskrivende_statistikk.txt" data-mode="microdata">Beskrivende statistikk</button>
+              <button type="button" data-example="02_tabeller_og_kategorier.txt" data-mode="microdata">Tabeller og kategorier</button>
+              <button type="button" data-example="03_visualiseringer.txt" data-mode="microdata">Visualiseringer</button>
+              <button type="button" data-example="04_aggregat_og_generate.txt" data-mode="microdata">Aggregat og nye variabler</button>
+              <button type="button" data-example="05_regresjon.txt" data-mode="microdata">Regresjon</button>
+              <button type="button" data-example="06_avansert_analyse.txt" data-mode="microdata">Avansert analyse</button>
+              <hr style="margin:4px 0;border-color:#334155;">
+            </div>
+            <div class="examples-section" data-section-mode="python">
+              <button type="button" data-example="py01_pandas_basics.txt" data-mode="python">pandas &mdash; grunnleggende</button>
+              <button type="button" data-example="py02_pandas_microdata.txt" data-mode="python">pandas + #micro</button>
+              <button type="button" data-example="py03_statsmodels_regression.txt" data-mode="python">statsmodels &mdash; OLS-regresjon</button>
+              <button type="button" data-example="py04_pandas_plot.txt" data-mode="python">matplotlib + #micro</button>
+              <hr style="margin:4px 0;border-color:#334155;">
+            </div>
+            <div class="examples-section" data-section-mode="r">
+              <button type="button" data-example="r01_base_basics.txt" data-mode="r">base R &mdash; grunnleggende</button>
+              <button type="button" data-example="r02_tidyverse_groupby.txt" data-mode="r">tidyverse &mdash; gruppestatistikk</button>
+              <button type="button" data-example="r03_tidyverse_microdata.txt" data-mode="r">tidyverse + #micro</button>
+              <button type="button" data-example="r04_ggplot_microdata.txt" data-mode="r">ggplot2 + #micro</button>
+              <hr style="margin:4px 0;border-color:#334155;">
+            </div>
+            <button type="button" id="menuWebExamples">Flere eksempler p&#229; web</button>
           </div>
         </div>
-        <button type="button" id="menuWebExamples">Web-eksempler&#8230;</button>
-        <button type="button" id="menuUploadData">Last opp data&#8230;</button>
+        <button type="button" id="menuUploadData">Last opp data</button>
         <hr style="margin:4px 0;border-color:#334155;">
+        <div class="topbar-examples-wrap" style="position:relative">
+          <button type="button" id="menuGithubBtn">GitHub</button>
+          <div class="examples-dropdown" id="githubSubmenu">
+            <div class="examples-dropdown-title">GitHub</div>
+            <button type="button" id="ghMenuSettings">Innstillinger</button>
+            <button type="button" id="ghMenuOpen">&#197;pne fil</button>
+            <button type="button" id="ghMenuSave">Lagre</button>
+            <button type="button" id="ghMenuSaveAs">Lagre som</button>
+            <button type="button" id="ghMenuRefresh" title="Hent gjeldende fil p&#229; nytt fra GitHub og forkast ulagrede lokale endringer. Dette henter (leser) &mdash; det lagrer ikke.">Hent p&#229; nytt</button>
+          </div>
+        </div>
+        <button type="button" id="menuForklar" title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">Kj&#248;r skrittvis</button>
         <button type="button" id="menuRunnerMode" style="display:none">Kjøremodus: Microdata</button>
         <button type="button" id="menuToggleOutputMode" style="display:none">Output-modus: String</button>
-        <button type="button" id="menuDisclosureControl" title="Når PÅ: matcher microdata.no — pseudonym-validering, type-sjekk, min populasjon 1000, små celler skjules, winsorisering, persentiler avrundes. Når AV: alle regler er slått av og du ser rå tall.">Avsløringskontroll: PÅ</button>
-        <!-- Menyvalg skjult: standardverdier fra #suppressEmbedded, #plotStatic, #plotSeaborn (alle ukrytt i bunnen av siden). Fjern kommentarwrapper for å vise igjen.
-        <button type="button" id="menuToggleSuppress">Skjul innebygde (plots/tabeller)</button>
-        <button type="button" id="menuToggleStaticPlot">Plot: Interaktiv</button>
-        <button type="button" id="menuToggleSeaborn">Plot-stil: Standard</button>
-        -->
-        <button type="button" id="menuClearOutput">Tøm output</button>
-        <button type="button" id="menuSettings">Innstillinger&#8230;</button>
-        <button type="button" id="btnLoginWithCode">Logg inn med kode</button>
         <hr style="margin:4px 0;border-color:#334155;">
-        <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Personvern</div>
-        <button type="button" id="btnDmQuick">Vurder dataminimering</button>
+        <button type="button" id="menuSettings">Innstillinger</button>
+        <button type="button" id="btnLoginWithCode">Logg inn</button>
         <div id="adminMenuSection" style="display:none;">
           <hr style="margin:4px 0;border-color:#334155;">
           <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Admin</div>
@@ -951,6 +1059,7 @@
       </div>
     </div>
     <input type="text" class="script-name" id="scriptName" placeholder="Script navn" value="Script navn">
+    <input type="text" class="topbar-ask" id="topbarAsk" placeholder="Hva vil du unders&#248;ke?" aria-label="Spør AI" autocomplete="off" title="Skriv et spørsmål og trykk Enter — AI-panelet åpnes og svarer" style="display:none">
     <button type="button" class="help-icon" id="helpBtn" aria-label="Hjelp" title="Hjelp" style="margin-left:auto">&#63;</button>
     <button type="button" class="help-icon" id="clearOutputTopBtn" aria-label="Tøm output" title="Tøm output"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg></button>
     <div class="topbar-export-wrap">
@@ -1000,6 +1109,7 @@
         <div class="code-wrap">
           <div class="line-numbers" id="lineNumbers"></div>
           <div class="code-input-wrap">
+            <pre class="code-hl" id="scriptHighlight" aria-hidden="true"></pre>
             <textarea id="scriptInput"></textarea>
             <div class="forklar-line-highlight" id="forklarLineHighlight" aria-hidden="true"></div>
             <ul class="autocomplete-list" id="autocompleteList" role="listbox" aria-hidden="true"></ul>
@@ -1056,10 +1166,11 @@
       </label>
       <div class="ai-input-wrap">
         <textarea id="aiInput" class="ai-input" rows="1"
-          placeholder="Spør om noe... (Enter for å sende, Shift+Enter for ny linje)"></textarea>
-        <button type="button" class="ai-send-btn" id="aiSendBtn" title="Send" aria-label="Send">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
-        </button>
+          placeholder="Spør om noe... (Enter = send, Shift+Enter = ny linje)"></textarea>
+        <button type="button" class="ai-abort-btn" id="aiAbortBtn" style="display:none;" title="Avbryt pågående svar" aria-label="Avbryt">⏹ Avbryt</button>
+        <button type="button" class="ai-send-fast-btn" id="aiSendFastBtn"
+          title="Send spørsmål til AI (AI-modus velges i menyen)"
+          aria-label="Send">Send</button>
       </div>
     </div>
   </aside>
@@ -1207,16 +1318,15 @@
           <button type="button" data-mode="r">R</button>
         </div>
       </div>
+      <button type="button" class="btn btn-tolk" id="btnDmQuick" style="display:none;gap:6px" title="Vurder personvern: sjekk om scriptet henter mer detaljerte data enn n&#248;dvendig (dataminimering), og f&#229; forslag til &#229; aggregere/forenkle. Krever innlogging.">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/></svg>
+        Vurder personvern
+      </button>
       <button type="button" class="oversett-btn" id="oversettBtn" style="display:none">Oversett</button>
     </div>
     <div class="bottombar-right">
       <span class="status" id="rightStatus"></span>
-      <button type="button" class="btn btn-primary btn-run" id="btnForklarFooter" disabled title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">
-        <span class="btn-run-inner">
-          <span class="btn-run-icon-slot" aria-hidden="true"><span class="btn-forklar-icon">&#128266;</span></span>
-          <span class="btn-run-label">Kj&#248;r skrittvis</span>
-        </span>
-      </button>
+      <button type="button" class="btn btn-tolk" id="btnTolkFooter" style="display:none" title="Tolk resultatene (output) med AI i sidemenyen">Tolk resultat</button>
       <button class="btn btn-primary btn-run" id="btnRunFooter" type="button" disabled>
         <span class="btn-run-inner">
           <span class="btn-run-icon-slot" aria-hidden="true"><span class="btn-run-spinner"></span></span>
@@ -1299,6 +1409,23 @@
           <p class="settings-hint">Antall desimaler i tabellutdata. Tall mindre enn 1 f&#229;r automatisk ekstra desimaler for &#229; vise signifikante siffer.</p>
         </div>
         <div class="settings-field">
+          <label for="settingLabelFormat">Etiketter i tabulate</label>
+          <select id="settingLabelFormat">
+            <option value="both" selected>Kode og etikett (standard)</option>
+            <option value="label">Bare etikett</option>
+            <option value="code">Bare kode</option>
+          </select>
+          <p class="settings-hint">Standardvisning i <code>tabulate</code>. Kan overstyres per kommando med opsjonene <code>nolabels</code> / <code>novalues</code>, eller per script med <code>// m2py: label-format=both|label|code</code>.</p>
+        </div>
+        <div class="settings-field">
+          <label for="settingShowCommands">Kommando-echo i output (Python/R)</label>
+          <select id="settingShowCommands">
+            <option value="on" selected>P&#229; (standard)</option>
+            <option value="off">Av</option>
+          </select>
+          <p class="settings-hint">Om hver setning gjentas med <code>&gt;&gt;&gt;</code> rett over outputen den lager. Kan overstyres per script med <code>#options.show_commands=False</code>.</p>
+        </div>
+        <div class="settings-field">
           <label for="settingFontSize">Skriftstørrelse</label>
           <select id="settingFontSize">
             <option value="small">Liten</option>
@@ -1319,6 +1446,16 @@
           <label for="settingBlockPause">Pause mellom kommentarl&#248;se blokker (sekunder)</label>
           <input type="number" id="settingBlockPause" min="0" max="10" step="0.1" value="1.0">
           <p class="settings-hint">Ventetid etter blokker uten kommentarer i Kj&#248;r skrittvis. 0 = ingen pause.</p>
+        </div>
+        <div class="settings-field">
+          <label>Avsl&#248;ringskontroll</label>
+          <button type="button" class="btn btn-secondary" id="menuDisclosureControl" title="Når PÅ: matcher microdata.no — pseudonym-validering, type-sjekk, min populasjon 1000, små celler skjules, winsorisering, persentiler avrundes. Når AV: alle regler er slått av og du ser rå tall.">Avsl&#248;ringskontroll: P&#197;</button>
+          <p class="settings-hint">N&#229;r P&#197;: matcher microdata.no &mdash; pseudonym-validering, type-sjekk, min populasjon 1000, sm&#229; celler skjules, winsorisering, persentiler avrundes. N&#229;r AV: alle regler er sl&#229;tt av og du ser r&#229; tall.</p>
+        </div>
+        <div class="settings-field">
+          <label>AI-svar</label>
+          <button type="button" class="btn btn-secondary" id="menuAiMode" title="Velg om Send-knappen bruker rask AI (enkelt svar) eller Anvil-AI (full vurdering med reparasjonsloop)">AI-svar: Rask</button>
+          <p class="settings-hint">Velg om Send-knappen bruker rask AI (enkelt svar) eller Anvil-AI (full vurdering med reparasjonsloop).</p>
         </div>
       </div>
       <div class="settings-buttons">
@@ -1461,6 +1598,7 @@
       språk: 'auto',
       detaljnivå: 'kort',
       ønsker_revidert_script: false,
+      bruk_scrub: false,   // foreslå scrub-kommandoer i revidert script (kun når revider er på)
       kontekst: '',
       lagre_kontekst_som_blokk: true,  // updated from sekundærmodal (M2-T6)
     };
@@ -1468,10 +1606,32 @@
     function showDmOptions() {
       const backdrop = document.getElementById('dmOptionsBackdrop');
 
+      // Avansert-seksjon skjult som standard; «Flere valg» avslører den.
+      const _advanced = document.getElementById('dmOptAdvanced');
+      const _toggleBtn = document.getElementById('dmOptToggleAdvanced');
+      if (_advanced && _toggleBtn) {
+        _advanced.style.display = 'none';
+        _toggleBtn.textContent = '⚙ Flere valg';
+        _toggleBtn.onclick = () => {
+          const open = _advanced.style.display !== 'none';
+          _advanced.style.display = open ? 'none' : '';
+          _toggleBtn.textContent = open ? '⚙ Flere valg' : '⚙ Færre valg';
+        };
+      }
+
       // Reset transient state on each open
       document.getElementById('dmOptLanguage').value = dmOptionsState.språk;
       document.querySelector(`input[name="dmOptDetail"][value="${dmOptionsState.detaljnivå}"]`).checked = true;
       document.getElementById('dmOptRevise').checked = dmOptionsState.ønsker_revidert_script;
+      const _scrubCb = document.getElementById('dmOptUseScrub');
+      const _reviseCb = document.getElementById('dmOptRevise');
+      if (_scrubCb && _reviseCb) {
+        _scrubCb.checked = dmOptionsState.bruk_scrub;
+        // Scrub-forslag er kun relevant når man ber om revidert script.
+        const syncScrubEnabled = () => { _scrubCb.disabled = !_reviseCb.checked; };
+        syncScrubEnabled();
+        _reviseCb.onchange = syncScrubEnabled;
+      }
       updateDmOptContextStatus();
 
       backdrop.style.display = 'flex';
@@ -1484,6 +1644,8 @@
         dmOptionsState.språk = document.getElementById('dmOptLanguage').value;
         dmOptionsState.detaljnivå = document.querySelector('input[name="dmOptDetail"]:checked').value;
         dmOptionsState.ønsker_revidert_script = document.getElementById('dmOptRevise').checked;
+        dmOptionsState.bruk_scrub = !!(document.getElementById('dmOptUseScrub') || {}).checked
+          && dmOptionsState.ønsker_revidert_script;
         // kontekst is set by sekundærmodal (M2-T6)
         backdrop.style.display = 'none';
 
@@ -1835,6 +1997,7 @@
             språk: options.språk || 'auto',
             detaljnivå: options.detaljnivå || 'kort',
             ønsker_revidert_script: options.ønsker_revidert_script || false,
+            bruk_scrub: options.bruk_scrub || false,
           }),
           signal: controller.signal,
         });
@@ -2380,7 +2543,53 @@
     (function initLineNumbersAndBreakpoints() {
       const lineNumbers = document.getElementById('lineNumbers');
       const scriptInput = document.getElementById('scriptInput');
+      const highlightLayer = document.getElementById('scriptHighlight');
       let breakpoints = new Set();
+
+      // Maler syntaks-backdroppet bak textarea. Gjenbruker output-tokenizeren
+      // (highlightCommandTokens) per linje i microdata-modus; ren tekst ellers.
+      // Defensiv mot tidlige kall (TDZ/var ikke initialisert ennå).
+      function renderScriptHighlight() {
+        if (!highlightLayer) return;
+        const text = scriptInput.value;
+        let html;
+        try {
+          const mode = activeEditorMode;
+          if (text.length > 60000) {
+            html = escapeHtmlOutput(text);
+          } else if (mode === 'python' || mode === 'r') {
+            html = highlightScriptPyR(text, mode);
+          } else if (typeof MD_CMD_SET === 'undefined' ||
+              typeof highlightCommandTokens !== 'function') {
+            html = escapeHtmlOutput(text);
+          } else {
+            const lines = text.split('\n');
+            const buf = [];
+            let inTextblock = false;
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i];
+              const trimmedLow = line.trim().toLowerCase();
+              if (inTextblock) {
+                // Innhold i en tekstblokk er en utvidet kommentar → kommentarfarge.
+                buf.push('<span class="md-out-comment">' + escapeHtmlOutput(line) + '</span>');
+                if (trimmedLow === 'endblock') inTextblock = false;
+              } else if (trimmedLow.split(/\s+/)[0] === 'textblock') {
+                buf.push('<span class="md-out-comment">' + escapeHtmlOutput(line) + '</span>');
+                inTextblock = true;
+              } else {
+                buf.push(highlightCommandTokens(line));
+              }
+            }
+            html = buf.join('\n');
+          }
+        } catch (e) {
+          try { html = escapeHtmlOutput(text); } catch (_) { html = ''; }
+        }
+        // +'\n' kompenserer for at <pre> spiser én etterfølgende linjeskift,
+        // slik at backdroppet får nøyaktig samme høyde/linjer som textarea.
+        highlightLayer.innerHTML = html + '\n';
+      }
+      window.renderScriptHighlight = renderScriptHighlight;
 
       function updateLineNumbers() {
         const lines = scriptInput.value.split('\n');
@@ -2414,24 +2623,35 @@
         }
       }
 
+      // Re-entrancy-vakt: programmatiske scrollTop-endringer utløser en scroll-event
+      // på mottakeren. Uten vakt blir tekstfelt↔linjenumre en sløyfe som aldri
+      // stabiliserer seg (proporsjonal omregning + heltalls-avrunding når linjer brytes).
+      var syncingScroll = false;
+      function setScrollTopSilently(el, top) {
+        syncingScroll = true;
+        el.scrollTop = top;
+        requestAnimationFrame(function() { syncingScroll = false; });
+      }
       function syncScrollFromInput() {
+        if (highlightLayer) highlightLayer.scrollTop = scriptInput.scrollTop;
         var sh = scriptInput.scrollHeight - scriptInput.clientHeight;
         var lh = lineNumbers.scrollHeight - lineNumbers.clientHeight;
-        if (sh <= 0 || lh <= 0) { lineNumbers.scrollTop = scriptInput.scrollTop; return; }
-        lineNumbers.scrollTop = (scriptInput.scrollTop / sh) * lh;
+        var target = (sh <= 0 || lh <= 0) ? scriptInput.scrollTop : (scriptInput.scrollTop / sh) * lh;
+        setScrollTopSilently(lineNumbers, target);
       }
       function syncScrollFromLineNumbers() {
         var sh = scriptInput.scrollHeight - scriptInput.clientHeight;
         var lh = lineNumbers.scrollHeight - lineNumbers.clientHeight;
-        if (sh <= 0 || lh <= 0) { scriptInput.scrollTop = lineNumbers.scrollTop; return; }
-        scriptInput.scrollTop = (lineNumbers.scrollTop / lh) * sh;
+        var target = (sh <= 0 || lh <= 0) ? lineNumbers.scrollTop : (lineNumbers.scrollTop / lh) * sh;
+        setScrollTopSilently(scriptInput, target);
       }
       scriptInput.addEventListener('input', function() {
         updateLineNumbers();
+        renderScriptHighlight();
         syncScrollFromInput();
       });
-      scriptInput.addEventListener('scroll', syncScrollFromInput);
-      lineNumbers.addEventListener('scroll', syncScrollFromLineNumbers);
+      scriptInput.addEventListener('scroll', function() { if (!syncingScroll) syncScrollFromInput(); });
+      lineNumbers.addEventListener('scroll', function() { if (!syncingScroll) syncScrollFromLineNumbers(); });
       const codeWrapEl = document.querySelector('.code-wrap');
       const autocompleteListEl = document.getElementById('autocompleteList');
       if (codeWrapEl) {
@@ -2452,8 +2672,11 @@
       };
       window.updateLineNumbers = function() {
         updateLineNumbers();
+        renderScriptHighlight();
         if (typeof syncScrollFromInput === 'function') syncScrollFromInput();
       };
+      // Initial maling etter at all synkron init er ferdig (consts/modus klare).
+      setTimeout(renderScriptHighlight, 0);
     })();
 
     var applyFontSize; // hoisted — assigned inside initHamburgerAndMenu
@@ -2498,9 +2721,19 @@
         if (examplesDropdown) examplesDropdown.classList.remove('open');
       });
       dropdown.addEventListener('click', function(e) { e.stopPropagation(); });
+      function updateExamplesVisibility() {
+        if (!examplesDropdown) return;
+        var mode = (typeof activeEditorMode !== 'undefined') ? activeEditorMode : 'microdata';
+        examplesDropdown.querySelectorAll('.examples-section').forEach(function(sec) {
+          sec.style.display = (sec.getAttribute('data-section-mode') === mode) ? '' : 'none';
+        });
+      }
       document.getElementById('menuExamplesBtn').addEventListener('click', function(e) {
         e.stopPropagation();
-        if (examplesDropdown) examplesDropdown.classList.toggle('open');
+        if (examplesDropdown) {
+          updateExamplesVisibility();
+          examplesDropdown.classList.toggle('open');
+        }
         themeDropdown.classList.remove('open');
         exportDropdown.classList.remove('open');
       });
@@ -2509,13 +2742,21 @@
         btn.addEventListener('click', function() {
           var file = this.getAttribute('data-example');
           var title = this.textContent.trim();
+          var mode = this.getAttribute('data-mode');
           var base = window.location.href.replace(/[^/]+$/, '');
           fetch(base + 'examples/' + file).then(function(r) {
             if (!r.ok) throw new Error(r.status);
             return r.text();
           }).then(function(text) {
+            if (mode && (mode === 'microdata' || mode === 'python' || mode === 'r')
+                && typeof switchEditorMode === 'function'
+                && typeof activeEditorMode !== 'undefined') {
+              if (typeof editorContent !== 'undefined') editorContent[mode] = text;
+              if (mode !== activeEditorMode) switchEditorMode(mode);
+            }
             scriptInput.value = text;
             scriptName.value = title;
+            if (window.mdGithubClearCurrent) window.mdGithubClearCurrent();
             if (window.updateLineNumbers) window.updateLineNumbers();
             if (examplesDropdown) examplesDropdown.classList.remove('open');
             dropdown.classList.remove('open');
@@ -2730,6 +2971,7 @@
       document.getElementById('menuNew').addEventListener('click', function() {
         scriptInput.value = '';
         scriptName.value = 'Script navn';
+        if (window.mdGithubClearCurrent) window.mdGithubClearCurrent();
         if (window.updateLineNumbers) window.updateLineNumbers();
         dropdown.classList.remove('open');
       });
@@ -2756,6 +2998,7 @@
         r.onload = function() {
           scriptInput.value = r.result;
           scriptName.value = f.name.replace(/\.txt$/i, '');
+          if (window.mdGithubClearCurrent) window.mdGithubClearCurrent();
           if (window.updateLineNumbers) window.updateLineNumbers();
         };
         r.readAsText(f);
@@ -2873,10 +3116,19 @@
         const rightStatus = document.getElementById('rightStatus');
         if (rightStatus) rightStatus.textContent = '';
       }
-      document.getElementById('menuClearOutput').addEventListener('click', function() {
+      const _menuClearOutput = document.getElementById('menuClearOutput');
+      if (_menuClearOutput) _menuClearOutput.addEventListener('click', function() {
         clearOutput();
         dropdown.classList.remove('open');
       });
+      (function() {
+        var menuForklar = document.getElementById('menuForklar');
+        if (menuForklar) menuForklar.addEventListener('click', function() {
+          dropdown.classList.remove('open');
+          var b = document.getElementById('btnForklar');
+          if (b && !b.disabled) b.click();
+        });
+      })();
       var clearTopBtn = document.getElementById('clearOutputTopBtn');
       if (clearTopBtn) clearTopBtn.addEventListener('click', clearOutput);
 
@@ -2928,12 +3180,32 @@
       showDmOptions();
     });
 
+    function triggerTolkResultat() {
+      document.getElementById('hamburgerDropdown').classList.remove('open');
+      var outEl = document.getElementById('outputArea');
+      var outText = (outEl ? (outEl.innerText || '') : '').trim() || (lastOutput || '').trim();
+      if (!outText) { alert('Ingen output å tolke. Kjør et script først.'); return; }
+      if (outText.length > 30000) outText = outText.slice(0, 30000) + '\n…(forkortet)';
+      var si = document.getElementById('scriptInput');
+      var script = (si && si.value || '').trim().slice(0, 20000);
+      var lang = (typeof activeEditorMode !== 'undefined' && activeEditorMode) ? activeEditorMode : 'auto';
+      if (typeof window.mdInterpretResults === 'function') {
+        window.mdInterpretResults({ script: script, output: outText, lang: lang });
+      }
+    }
+    (function initTolkResultat() {
+      var menuBtn = document.getElementById('menuTolkResultat');
+      if (menuBtn) menuBtn.addEventListener('click', triggerTolkResultat);
+      var footBtn = document.getElementById('btnTolkFooter');
+      if (footBtn) footBtn.addEventListener('click', triggerTolkResultat);
+    })();
+
     const btnLoginWithCode = document.getElementById('btnLoginWithCode');
     if (btnLoginWithCode) {
       btnLoginWithCode.addEventListener('click', () => {
         document.getElementById('hamburgerDropdown').classList.remove('open');
-        if (window.mdAuth && window.mdAuth.showLoginCodeStep) {
-          window.mdAuth.showLoginCodeStep();
+        if (window.mdAuth && window.mdAuth.showLogin) {
+          window.mdAuth.showLogin();
         }
       });
     }
@@ -3032,7 +3304,11 @@
       'regress', 'probit', 'logit', 'poisson', 'mlogit', 'regress-panel', 'hausman',
       'regress-predict', 'probit-predict', 'logit-predict', 'mlogit-predict',
       'regress-panel-predict', 'regress-panel-diff', 'ivregress', 'ivregress-predict', 'rdd',
-      'create-dataset', 'use', 'merge', 'variables', 'clone-dataset', 'clone-units'
+      'create-dataset', 'use', 'merge', 'variables', 'clone-dataset', 'clone-units',
+      // Dataminimering / de-identifisering (protect-pakken)
+      'scrub-jitter', 'scrub-noise', 'scrub-winsorize', 'scrub-bin', 'scrub-coarsen',
+      'scrub-year', 'scrub-month', 'scrub-diff', 'scrub-shorten', 'scrub-collapse',
+      'scrub-pseudonymize', 'scrub-swap', 'scrub-auto', 'scrub-risk'
     ];
 
     // ── Python/R autocomplete static data ──────────────────────────────────
@@ -3107,6 +3383,95 @@
       'itertools','functools','collections','typing'
     ];
 
+    // ── Python/R syntaks-farging (backdrop) + autocomplete-data ──────────────
+    const PY_HL_KW = new Set(PYTHON_KEYWORDS);
+    const PY_HL_FN = new Set(PYTHON_BUILTINS);
+    const R_HL_KW  = new Set(['if','else','for','while','repeat','function','return',
+      'break','next','in','TRUE','FALSE','NULL','NA','Inf','NaN','T','F']);
+    const R_HL_FN  = new Set(R_FUNCTIONS);
+    const PY_HL_CFG = { commentChar: '#', triple: true,  identStart: /[A-Za-z_]/,  identPart: /[A-Za-z0-9_]/,  kw: PY_HL_KW, fn: PY_HL_FN };
+    const R_HL_CFG  = { commentChar: '#', triple: false, identStart: /[A-Za-z_.]/, identPart: /[A-Za-z0-9_.]/, kw: R_HL_KW,  fn: R_HL_FN  };
+
+    // Modul-namespace → funksjoner (for `px.`, `pd.`, `np.`, `sm.` i autocomplete).
+    const PY_NS_FUNCS = {
+      px:  ['scatter','line','bar','histogram','box','violin','pie','area','scatter_3d','density_heatmap','imshow','ecdf','strip','sunburst','treemap','funnel','choropleth'],
+      pd:  ['DataFrame','Series','read_csv','read_excel','concat','merge','to_datetime','to_numeric','cut','qcut','get_dummies','pivot_table','crosstab','date_range','isna','notna'],
+      np:  ['array','arange','linspace','zeros','ones','mean','median','std','var','sum','min','max','where','log','log10','exp','sqrt','abs','round','random','percentile','quantile','unique','concatenate','dot','isnan','nan'],
+      sm:  ['OLS','GLM','Logit','Probit','Poisson','MNLogit','add_constant','qqplot'],
+      smf: ['ols','glm','logit','probit','poisson','mixedlm','wls','gls'],
+      plt: ['plot','scatter','hist','bar','barh','show','figure','subplots','xlabel','ylabel','title','legend','savefig','xlim','ylim'],
+      sns: ['scatterplot','lineplot','barplot','histplot','kdeplot','boxplot','violinplot','heatmap','pairplot','regplot','countplot','catplot','displot'],
+      // Dataminimering / de-identifisering (protect-pakken, eksponert som `scrub`)
+      scrub: ['noise','jitter','winsorize','bin','coarsen','year','month','diff','shorten','collapse','pseudonymize','insert','eliminate','swap','suppress','risk','protect','profile'],
+    };
+    PY_NS_FUNCS.protect = PY_NS_FUNCS.scrub;  // alias
+    // Felles forslag for delords-fullføring i Python.
+    const PY_COMPLETION_POOL = [].concat(
+      PYTHON_KEYWORDS.map(function(k){ return { label:k, kind:'keyword' }; }),
+      PYTHON_BUILTINS.map(function(b){ return { label:b, kind:'builtin' }; }),
+      PANDAS_DF_METHODS.map(function(m){ return { label:m, kind:'method' }; }),
+      ['pd','np','px','plt','sns','sm','smf','scrub'].map(function(a){ return { label:a, kind:'package' }; })
+    );
+
+    function escHl(s){ return escapeHtmlOutput(s); }
+    // Tokeniser én linje Python/R-kode → farget HTML. Returnerer { html, openTriple }
+    // der openTriple er satt hvis en trippel-streng åpnes uten å lukkes på linja.
+    function highlightCodeLine(line, cfg) {
+      var out = '', i = 0, n = line.length;
+      while (i < n) {
+        var c = line[i];
+        if (c === cfg.commentChar) { out += '<span class="md-out-comment">' + escHl(line.slice(i)) + '</span>'; return { html: out, openTriple: null }; }
+        if (cfg.triple && (c === '"' || c === "'") && line[i+1] === c && line[i+2] === c) {
+          var delim = c + c + c, tclose = line.indexOf(delim, i + 3);
+          if (tclose === -1) { out += '<span class="md-out-str">' + escHl(line.slice(i)) + '</span>'; return { html: out, openTriple: delim }; }
+          out += '<span class="md-out-str">' + escHl(line.slice(i, tclose + 3)) + '</span>'; i = tclose + 3; continue;
+        }
+        if (c === '"' || c === "'") {
+          var j = i + 1;
+          while (j < n) { if (line[j] === '\\') { j += 2; continue; } if (line[j] === c) { j++; break; } j++; }
+          out += '<span class="md-out-str">' + escHl(line.slice(i, j)) + '</span>'; i = j; continue;
+        }
+        if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(line[i+1] || ''))) {
+          var k = i; while (k < n && /[0-9_]/.test(line[k])) k++;
+          if (line[k] === '.') { k++; while (k < n && /[0-9_]/.test(line[k])) k++; }
+          if (line[k] === 'e' || line[k] === 'E') { k++; if (line[k] === '+' || line[k] === '-') k++; while (k < n && /[0-9]/.test(line[k])) k++; }
+          out += '<span class="md-out-num">' + escHl(line.slice(i, k)) + '</span>'; i = k; continue;
+        }
+        if (cfg.identStart.test(c)) {
+          var s = i; while (i < n && cfg.identPart.test(line[i])) i++;
+          var word = line.slice(s, i);
+          var m = i; while (m < n && /\s/.test(line[m])) m++;
+          var isCall = line[m] === '(';
+          var cls = cfg.kw.has(word) ? 'md-out-cmd' : (cfg.fn.has(word) || isCall) ? 'md-out-func' : null;
+          out += cls ? '<span class="' + cls + '">' + escHl(word) + '</span>' : escHl(word);
+          continue;
+        }
+        if ('()[]{}'.indexOf(c) >= 0) { out += '<span class="md-out-paren">' + escHl(c) + '</span>'; i++; continue; }
+        if ('+-*/%=<>!&|~^'.indexOf(c) >= 0) { out += '<span class="md-out-op">' + escHl(c) + '</span>'; i++; continue; }
+        out += escHl(c); i++;
+      }
+      return { html: out, openTriple: null };
+    }
+    // Hele Python/R-scriptet → farget HTML, med trippel-streng-tilstand over linjer.
+    function highlightScriptPyR(text, mode) {
+      var cfg = mode === 'r' ? R_HL_CFG : PY_HL_CFG;
+      var lines = text.split('\n'), buf = [], triple = null;
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        if (triple) {
+          var close = line.indexOf(triple);
+          if (close === -1) { buf.push('<span class="md-out-str">' + escHl(line) + '</span>'); continue; }
+          var r = highlightCodeLine(line.slice(close + 3), cfg);
+          buf.push('<span class="md-out-str">' + escHl(line.slice(0, close + 3)) + '</span>' + r.html);
+          triple = r.openTriple;
+          continue;
+        }
+        var res = highlightCodeLine(line, cfg);
+        buf.push(res.html); triple = res.openTriple;
+      }
+      return buf.join('\n');
+    }
+
     let microdataFunctions = [];
     let microdataVariableNames = [];
 
@@ -3137,6 +3502,9 @@
     const TTS_RATE_KEY     = 'microdata_tts_rate';
     const BLOCK_PAUSE_KEY  = 'microdata_block_pause_ms';
     const DECIMALS_KEY     = 'microdata_decimals';
+    const LABEL_FORMAT_KEY = 'microdata_label_format';
+    const LABEL_FORMAT_VALUES = ['both', 'label', 'code'];
+    const SHOW_COMMANDS_KEY = 'microdata_show_commands';
 
     function getImportLimit() {
       try { var v = parseInt(localStorage.getItem(IMPORT_LIMIT_KEY), 10); if (v >= 10) return v; } catch(e) {}
@@ -3154,6 +3522,21 @@
       try { var v = parseInt(localStorage.getItem(DECIMALS_KEY), 10); if (!isNaN(v) && v >= 0 && v <= 8) return v; } catch(e) {}
       return 2;
     }
+    function getLabelFormat() {
+      try {
+        var v = localStorage.getItem(LABEL_FORMAT_KEY);
+        if (LABEL_FORMAT_VALUES.indexOf(v) >= 0) return v;
+      } catch(e) {}
+      return 'both';
+    }
+    function getShowCommandsDefault() {
+      try {
+        var v = localStorage.getItem(SHOW_COMMANDS_KEY);
+        if (v === 'off') return false;
+        if (v === 'on') return true;
+      } catch(e) {}
+      return true;
+    }
 
     (function initSettings() {
       var overlay   = document.getElementById('settingsOverlay');
@@ -3163,6 +3546,8 @@
       var rateVal   = document.getElementById('settingTtsRateVal');
       var pauseIn    = document.getElementById('settingBlockPause');
       var decimalsEl = document.getElementById('settingDecimals');
+      var labelFmtEl = document.getElementById('settingLabelFormat');
+      var showCmdsEl = document.getElementById('settingShowCommands');
       var saveBtn   = document.getElementById('settingsSaveBtn');
       var cancelBtn = document.getElementById('settingsCancelBtn');
       if (!overlay) return;
@@ -3178,6 +3563,8 @@
         rateVal.textContent = parseFloat(rateIn.value).toFixed(1) + '\u00d7';
         pauseIn.value = getBlockPauseSec();
         if (decimalsEl) decimalsEl.value = getDecimals();
+        if (labelFmtEl) labelFmtEl.value = getLabelFormat();
+        if (showCmdsEl) showCmdsEl.value = getShowCommandsDefault() ? 'on' : 'off';
         overlay.classList.add('open');
       }
       function closeSettings() { overlay.classList.remove('open'); }
@@ -3206,6 +3593,16 @@
           if (!isNaN(dec) && dec >= 0 && dec <= 8) {
             try { localStorage.setItem(DECIMALS_KEY, String(dec)); } catch(e2) {}
           }
+        }
+        if (labelFmtEl) {
+          var lf = labelFmtEl.value;
+          if (LABEL_FORMAT_VALUES.indexOf(lf) >= 0) {
+            try { localStorage.setItem(LABEL_FORMAT_KEY, lf); } catch(e2) {}
+          }
+        }
+        if (showCmdsEl) {
+          var sc = showCmdsEl.value === 'off' ? 'off' : 'on';
+          try { localStorage.setItem(SHOW_COMMANDS_KEY, sc); } catch(e2) {}
         }
         closeSettings();
       });
@@ -3587,8 +3984,7 @@
       '',
       '// Vi kan så importere ulike variabler',
       'import db/BEFOLKNING_KJOENN as kjonn',
-      'import db/INNTEKT_PGIINNT as inntekt',
-      'import db/INNTEKT_LONN as lonn',
+      'import db/INNTEKT_LONN 2022-12-31 as inntekt  // Akkumulerte variabler krever en importdato (YYYY-MM-DD)',
       '// Nå har vi hentet data fra databasen (db) og gitt variablene nye navn.',
       '// Husk at du kan trykke TAB for å få hjelp med kommandoer og variabler',
       '',
@@ -3604,6 +4000,36 @@
     scriptInput.scrollTop = 0;
     scriptInput.selectionStart = scriptInput.selectionEnd = 0;
     scriptInput.focus();
+
+    // ── Hurtigspør-boks i toppen: Enter åpner AI-panelet og sender spørsmålet ──
+    (function initTopbarAsk() {
+      const ask = document.getElementById('topbarAsk');
+      if (!ask) return;
+      ask.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          const q = ask.value.trim();
+          if (!q) return;
+          if (typeof window.mdAskAi === 'function') {
+            window.mdAskAi(q);
+            ask.value = '';
+          }
+        }
+      });
+      // Kun synlig når innlogget. Oppdateres fra persistLogin/logoutLocal (alle
+      // innloggingsveier) og én gang etter at auth-modulen har lastet token.
+      function updateVisible() {
+        const loggedIn = !!(window.mdAuth && window.mdAuth.isLoggedIn);
+        ask.style.display = loggedIn ? '' : 'none';
+        const tolk = document.getElementById('btnTolkFooter');
+        if (tolk) tolk.style.display = loggedIn ? '' : 'none';
+        const dm = document.getElementById('btnDmQuick');
+        if (dm) dm.style.display = loggedIn ? 'inline-flex' : 'none';
+      }
+      window.mdUpdateAskVisibility = updateVisible;
+      setTimeout(updateVisible, 0);
+    })();
+
     const outputScrollWrap = document.getElementById('outputScrollWrap');
     const outputJumpLastBtn = document.getElementById('outputJumpLastBtn');
     (function initOutputScrollChrome() {
@@ -3998,6 +4424,60 @@
       if (!entry || !entry.description) return null;
       const d = entry.description.trim();
       return d.length > 58 ? d.slice(0, 55) + '...' : d;
+    }
+
+    // ── Dato-forslag for import (Tverrsnitt/Akkumulert/Forløp krever importdato) ──
+    function resolveCatalogVar(name) {
+      if (!name || !microdataCatalog || !microdataCatalog.variables) return null;
+      if (microdataCatalog.variables[name]) return name;
+      const lo = name.toLowerCase();
+      return microdataVariableNames.find(v => v.toLowerCase() === lo) || null;
+    }
+
+    // Hent gyldighetsperiode fra beskrivelsen. Støtter "ÅÅÅÅ-MM-DD – ÅÅÅÅ-MM-DD"
+    // og "ÅÅÅÅ – ÅÅÅÅ". Faller tilbake til et fornuftig intervall hvis ukjent.
+    function parseValidityRange(desc) {
+      desc = desc || '';
+      let m = desc.match(/Gyldighetsperiode:\s*(\d{4}-\d{2}-\d{2})\s*[–—-]\s*(\d{4}-\d{2}-\d{2})/);
+      if (m) return { start: m[1], end: m[2] };
+      m = desc.match(/Gyldighetsperiode:\s*(\d{4})\s*[–—-]\s*(\d{4})/);
+      if (m) return { start: m[1] + '-01-01', end: m[2] + '-12-31' };
+      return { start: '2010-01-01', end: '2023-12-31' };
+    }
+
+    // Lag en liste gyldige datoer innenfor [start, end]. Bruker dag/måned fra
+    // sluttdatoen som årlig mønster, og inkluderer alltid start- og sluttdato.
+    function buildDateList(start, end) {
+      const sy = parseInt(start.slice(0, 4), 10), ey = parseInt(end.slice(0, 4), 10);
+      if (isNaN(sy) || isNaN(ey)) return [];
+      const endMMDD = end.slice(4); // '-MM-DD'
+      const seen = new Set(), out = [];
+      const add = (d) => { if (d && !seen.has(d)) { seen.add(d); out.push(d); } };
+      add(end);
+      for (let y = ey - 1; y > sy && out.length < 11; y--) add(y + endMMDD);
+      add(start);
+      return out;
+    }
+
+    // Forslag til importdato for en katalogvariabel. Tom liste hvis variabelen
+    // er Fast (ingen dato kreves) eller ikke finnes i katalogen.
+    function getDateSuggestionsForVar(catalogName, prefix) {
+      const key = resolveCatalogVar(catalogName);
+      if (!key) return [];
+      const meta = microdataCatalog.variables[key];
+      const temp = ((meta && meta.temporalitet) || '').trim();
+      if (!temp || temp.toLowerCase() === 'fast') return [];
+      let dates;
+      if (Array.isArray(meta.available_years) && meta.available_years.length) {
+        dates = meta.available_years
+          .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).slice().sort().reverse();
+      } else {
+        const range = parseValidityRange(meta.description || '');
+        dates = buildDateList(range.start, range.end);
+      }
+      const p = (prefix || '').trim();
+      if (p) dates = dates.filter(d => d.startsWith(p));
+      return dates.map(d => ({ label: d, kind: 'date', detail: temp.toLowerCase(), insertText: d }));
     }
 
     function stripMerDokumentasjonLine(message) {
@@ -4515,7 +4995,27 @@ json.dumps(out)
       ta.value = before + insert + after;
       ta.selectionStart = ta.selectionEnd = start + insert.length;
       ta.focus();
+      // Programmatisk value-endring utløser ikke 'input' → oppdater fargelag/linjenr selv,
+      // ellers blir den innsatte teksten usynlig (textarea-tekst er gjennomsiktig).
+      if (window.updateLineNumbers) window.updateLineNumbers();
       hideAutocomplete();
+      return true;
+    }
+
+    // Microdata-variabelforslag etter «.../» (slash) — virker i ALLE moduser, slik at
+    // man kan importere microdata-variabler også i Python/R. Brukes på Tab (broad) og
+    // live mens man skriver (requireWord=true krever tegn før slashen, så vi ikke
+    // popper på enhver «/», f.eks. divisjon med tall).
+    function microdataSlashSuggest(lineSoFar, pos, requireWord) {
+      const m = lineSoFar.match(requireWord ? /[A-Za-z][A-Za-z0-9_.]+\/([A-Za-z0-9_]*)$/ : /\/([A-Za-z0-9_]*)$/);
+      if (!m) return false;
+      const captured = m[1] || '';
+      const pfx = captured.toLowerCase(), rStart = pos - captured.length;
+      const suggs = microdataVariableNames
+        .filter(function(v) { return v.toLowerCase().startsWith(pfx); }).sort()
+        .map(function(v) { return { label: v, kind: 'variable', detail: getVariableShortDescription(v) || 'variable' }; });
+      if (!suggs.length) return false;
+      showAutocomplete(suggs, rStart, pos);
       return true;
     }
 
@@ -4525,15 +5025,8 @@ json.dumps(out)
       const ta = scriptInput, pos = ta.selectionStart, text = ta.value;
       const lineSoFar = getLeftContext().beforeCursor;
 
-      // Rule 1: after / → microdata variables (replace the part after /)
-      const slashPy = lineSoFar.match(/\/([A-Za-z0-9_]*)$/);
-      if (slashPy) {
-        const pfx = slashPy[1].toLowerCase(), rStart = pos - slashPy[1].length;
-        const suggs = microdataVariableNames
-          .filter(function(v) { return v.toLowerCase().startsWith(pfx); }).sort()
-          .map(function(v) { return { label: v, kind: 'variable', detail: getVariableShortDescription(v) || 'variable' }; });
-        if (suggs.length) { showAutocomplete(suggs, rStart, pos); return; }
-      }
+      // Rule 1: after / → microdata variables (all modes)
+      if (microdataSlashSuggest(lineSoFar, pos, false)) return;
 
       // Rule 2: nothing to left → Python keywords + builtins
       if (lineSoFar === '') {
@@ -4563,9 +5056,25 @@ json.dumps(out)
             .map(function(c) { return { label: c, kind: 'column' }; });
           if (suggs.length) { showAutocomplete(suggs, rStart, pos); return; }
         }
+        // Modul-namespace (px./pd./np./sm./smf./plt./sns.) → funksjoner
+        if (PY_NS_FUNCS[objName]) {
+          const nsSuggs = PY_NS_FUNCS[objName].filter(function(m) { return m.toLowerCase().startsWith(pfx); })
+            .map(function(m) { return { label: m, kind: 'function' }; });
+          if (nsSuggs.length) { showAutocomplete(nsSuggs, rStart, pos); return; }
+        }
         const suggs = PANDAS_DF_METHODS.filter(function(m) { return m.toLowerCase().startsWith(pfx); })
           .map(function(m) { return { label: m, kind: 'method' }; });
         if (suggs.length) { showAutocomplete(suggs, rStart, pos); return; }
+      }
+
+      // Rule 5b: delvis ord → python-nøkkelord/innebygde/pandas-metoder/aliaser
+      {
+        const w = getWordBeforeCursor();
+        if (w.prefix && w.prefix.length >= 1 && w.prefix.indexOf('/') < 0) {
+          const p = w.prefix.toLowerCase();
+          const suggs = PY_COMPLETION_POOL.filter(function(o) { return o.label.toLowerCase().startsWith(p); });
+          if (suggs.length) { showAutocomplete(suggs, w.start, w.end); return; }
+        }
       }
 
       // Rule 6: no match → all known column names (filtered by any partial word typed)
@@ -4585,15 +5094,8 @@ json.dumps(out)
       const ta = scriptInput, pos = ta.selectionStart, text = ta.value;
       const lineSoFar = getLeftContext().beforeCursor;
 
-      // Rule 1: after / → microdata variables (replace the part after /)
-      const slashR = lineSoFar.match(/\/([A-Za-z0-9_]*)$/);
-      if (slashR) {
-        const pfx = slashR[1].toLowerCase(), rStart = pos - slashR[1].length;
-        const suggs = microdataVariableNames
-          .filter(function(v) { return v.toLowerCase().startsWith(pfx); }).sort()
-          .map(function(v) { return { label: v, kind: 'variable', detail: getVariableShortDescription(v) || 'variable' }; });
-        if (suggs.length) { showAutocomplete(suggs, rStart, pos); return; }
-      }
+      // Rule 1: after / → microdata variables (all modes)
+      if (microdataSlashSuggest(lineSoFar, pos, false)) return;
 
       // Rule 2: nothing to left → R functions
       if (lineSoFar === '') {
@@ -4632,6 +5134,17 @@ json.dumps(out)
         if (suggs.length) { showAutocomplete(suggs, rStart, pos); return; }
       }
 
+      // Rule 5b: delvis ord → R-funksjoner (base + tidyverse)
+      {
+        const w = getWordBeforeCursorR();
+        if (w.prefix && w.prefix.length >= 1 && w.prefix.indexOf('/') < 0) {
+          const p = w.prefix.toLowerCase();
+          const suggs = R_FUNCTIONS.filter(function(f) { return f.toLowerCase().startsWith(p); })
+            .map(function(f) { return { label: f, kind: 'function' }; });
+          if (suggs.length) { showAutocomplete(suggs, w.start, w.end); return; }
+        }
+      }
+
       // Rule 6: no match → all known column names (filtered by any partial word typed)
       const allColsR = getAllKnownColumns();
       if (allColsR.length) {
@@ -4667,6 +5180,26 @@ json.dumps(out)
         const endsWithSpace = /\s$/.test(lineSoFar);
         const firstWord = ctx.firstWordOnLine;
         const isCommand = MICRODATA_COMMANDS.some(c => c.toLowerCase() === firstWord.toLowerCase());
+
+        // Rule 0a: scrub-verb hvor som helst på linja (også som import-suffiks).
+        const scrubM = lineSoFar.match(/(scrub[a-z-]*)$/i);
+        if (scrubM) {
+          const sp = scrubM[1].toLowerCase(), sStart = pos - scrubM[1].length;
+          const sg = MICRODATA_COMMANDS
+            .filter(function(c) { return c.indexOf('scrub-') === 0 && c.indexOf(sp) === 0; }).sort()
+            .map(function(c) { return { label: c, kind: 'command' }; });
+          if (sg.length) { showAutocomplete(sg, sStart, pos); return; }
+        }
+
+        // Rule 0: import db/VARIABEL <mellomrom> → foreslå gyldige importdatoer
+        // (kun for Tverrsnitt/Akkumulert/Forløp-variabler; Fast trenger ingen dato).
+        const importDate = lineSoFar.match(
+          /^\s*(?:import|import-event)\s+(?:[A-Za-z0-9_.]+\/)?([A-Za-z0-9_]+)\s+([0-9-]*)$/);
+        if (importDate) {
+          const partial = importDate[2];
+          const dateSuggs = getDateSuggestionsForVar(importDate[1], partial);
+          if (dateSuggs.length) { showAutocomplete(dateSuggs, pos - partial.length, pos); return; }
+        }
 
         // Rule 1: after / → microdata variables (all modes)
         const slashMicro = lineSoFar.match(/\/([A-Za-z0-9_]*)$/);
@@ -4800,6 +5333,13 @@ json.dumps(out)
     });
 
     scriptInput.addEventListener('input', function() {
+      // I Python/R: vis microdata-variabler live så snart man skriver «navn/…».
+      // Det er signalet (jf. import .../) på at man vil ha en variabel, ikke en
+      // Python-import. Microdata-modus beholder Tab-utløst forslag som før.
+      if (activeEditorMode === 'python' || activeEditorMode === 'r') {
+        const ctx = getLeftContext();
+        if (microdataSlashSuggest(ctx.beforeCursor, scriptInput.selectionStart, true)) return;
+      }
       if (autocompleteState) hideAutocomplete();
     });
     scriptInput.addEventListener('blur', function() {
@@ -4841,7 +5381,9 @@ json.dumps(out)
         'define-labels assign-labels drop-labels list-labels reshape-to-panel reshape-from-panel require delete-dataset rename-dataset ' +
         'textblock endblock let sample barchart histogram boxplot scatter piechart hexbin sankey cox create-dataset use clone-dataset merge variables ' +
         'summarize normaltest correlate ci anova summarize-panel tabulate tabulate-panel transitions-panel regress probit logit poisson ' +
-        'regress-panel hausman regress-predict kaplan-meier weibull').split(/\s+/);
+        'regress-panel hausman regress-predict kaplan-meier weibull ' +
+        'scrub-jitter scrub-noise scrub-winsorize scrub-bin scrub-coarsen scrub-year scrub-month ' +
+        'scrub-diff scrub-shorten scrub-collapse scrub-pseudonymize scrub-swap scrub-auto scrub-risk').split(/\s+/);
       var o = {};
       for (var z = 0; z < a.length; z++) if (a[z]) o[a[z]] = 1;
       return o;
@@ -4926,7 +5468,12 @@ json.dumps(out)
           var cls = 'md-out-var';
           if (isWordBeforeSlash) {
             cls = 'md-out-path-prefix';
-          } else if (wordTokenIndex === 0 && MD_CMD_SET[low]) {
+          } else if (wordTokenIndex === 0) {
+            // Første ord på linja er (nesten) alltid en kommando → mørk farge,
+            // også mens man fortsatt skriver og ordet ikke er fullført ennå.
+            cls = 'md-out-cmd';
+          } else if (low.indexOf('scrub-') === 0) {
+            // scrub-verb hvor som helst (f.eks. som import-suffiks) → kommandofarge.
             cls = 'md-out-cmd';
           } else if (MD_CMD_TAB_OPTS[low]) {
             cls = 'md-out-kw-brown';
@@ -4975,6 +5522,43 @@ json.dumps(out)
     }
     var CMD_ECHO_LINE_RE = /^(?:(\S+)\s+)?(?:>>|\u226b)\s+(.*)$/;
     var CMD_ECHO_GLYPH = '>>';
+    // Fjern inline //-kommentar (KODE // KOMMENTAR) fra en kommando i output.
+    // Samme regel som tokenizeren: // ved start eller etter mellomrom, ikke etter ':'.
+    function stripInlineMdComment(s) {
+      for (var i = 0; i < s.length - 1; i++) {
+        if (s.charAt(i) === '/' && s.charAt(i + 1) === '/') {
+          var prev = i > 0 ? s.charAt(i - 1) : '';
+          if ((i === 0 || /\s/.test(prev)) && prev !== ':') {
+            return s.slice(0, i).replace(/\s+$/, '');
+          }
+        }
+      }
+      return s;
+    }
+    // Strip inline-kommentar etter et kommentartegn (f.eks. '#'), med enkel
+    // streng-bevissthet så «"a#b"» ikke kuttes. Brukes på kode-ekko (R/Python).
+    function stripInlineCodeComment(s, ch) {
+      var inS = false, inD = false;
+      for (var i = 0; i < s.length; i++) {
+        var c = s.charAt(i);
+        if (inS) { if (c === "'") inS = false; continue; }
+        if (inD) { if (c === '"') inD = false; continue; }
+        if (c === "'") { inS = true; continue; }
+        if (c === '"') { inD = true; continue; }
+        if (c === ch) { return s.slice(0, i).replace(/\s+$/, ''); }
+      }
+      return s;
+    }
+    // Fjern hele kommentar-linjer + inline-kommentarer fra en kode-blokk.
+    function stripCodeComments(text, ch) {
+      var lines = (text || '').split('\n');
+      var out = [];
+      for (var i = 0; i < lines.length; i++) {
+        if (lines[i].replace(/^\s+/, '').indexOf(ch) === 0) continue; // hel kommentar-linje
+        out.push(stripInlineCodeComment(lines[i], ch));
+      }
+      return out.join('\n').replace(/\s+$/, '');
+    }
     function formatPreBlockWithCommandHighlight(content) {
       var lines = content.split('\n');
       var buf = [];
@@ -4983,6 +5567,7 @@ json.dumps(out)
         var m = line.match(CMD_ECHO_LINE_RE);
         if (m) {
           var rest = m[2] !== undefined && m[2] !== null ? m[2] : '';
+          rest = stripInlineMdComment(rest); // ikke vis inline //-kommentar i output
           var prefixHtml;
           if (m[1]) {
             prefixHtml = '<span class="md-out-cmd-prefix"><span class="md-out-cmd-dsname">' + escapeHtmlOutput(m[1]) + '</span> <span class="md-out-cmd-glyph">' + escapeHtmlOutput(CMD_ECHO_GLYPH) + '</span> </span>';
@@ -4996,7 +5581,7 @@ json.dumps(out)
         } else {
           var t = line.replace(/^\s+/, '');
           if (t.indexOf('//') === 0) {
-            buf.push('<span class="md-out-comment">' + escapeHtmlOutput(line) + '</span>');
+            continue; // dropp hele kommentar-linjer i output
           } else if (/^\s*FEIL\b/i.test(line)) {
             buf.push('<span class="md-out-msg-error">' + escapeHtmlOutput(line) + '</span>');
           } else {
@@ -5959,6 +6544,7 @@ json.dumps(out)
         : '';
       return `
 from m2py import MicroInterpreter
+import m2py as _m2py_mod
 import ast
 import json
 import numpy as np
@@ -5970,10 +6556,40 @@ e = MicroInterpreter(catalog=catalog, metadata_base_url=${JSON.stringify(pageBas
 e.data_engine.default_rows = ${getImportLimit()}
 e.default_decimals = ${getDecimals()}
 e._apply_float_format()
+try:
+    if isinstance(getattr(_m2py_mod, 'M2PY_DEFAULTS', None), dict):
+        _m2py_mod.M2PY_DEFAULTS['label_format'] = ${JSON.stringify(getLabelFormat())}
+except Exception:
+    pass
 import __main__
 __main__.micro_interpreter = e
 ${segAssign}_EMBED_S = "__micro_transform_start_"
 _EMBED_E = "__micro_transform_end__"
+def _m2py_flush_pyplot_figs():
+    pass
+try:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as _plt_mod
+    def _m2py_emit_fig(_fig):
+        import base64, io
+        _buf = io.BytesIO()
+        _fig.savefig(_buf, format="png", bbox_inches="tight")
+        _b64 = base64.standard_b64encode(_buf.getvalue()).decode("ascii")
+        print(_EMBED_S + "png__" + chr(10) + _b64 + chr(10) + _EMBED_E)
+    def _m2py_flush_pyplot_figs():
+        try:
+            for _num in list(_plt_mod.get_fignums()):
+                _fig = _plt_mod.figure(_num)
+                _m2py_emit_fig(_fig)
+                _plt_mod.close(_fig)
+        except Exception:
+            pass
+    def _m2py_plt_show(*args, **kwargs):
+        _m2py_flush_pyplot_figs()
+    _plt_mod.show = _m2py_plt_show
+except Exception:
+    pass
 def _show_one(obj):
     import base64
     import io
@@ -5990,30 +6606,18 @@ def _show_one(obj):
     try:
         from matplotlib.figure import Figure as _MplFigure
         from matplotlib.axes import Axes as _MplAxes
-        _fig = None
-        if isinstance(obj, _MplFigure):
-            _fig = obj
-        elif isinstance(obj, _MplAxes):
-            _fig = obj.figure
-        elif getattr(obj, "figure", None) is not None and hasattr(obj.figure, "savefig"):
-            _fig = obj.figure
-        if _fig is not None:
-            import matplotlib
-            matplotlib.use("Agg")
-            _buf = io.BytesIO()
-            _fig.savefig(_buf, format="png", bbox_inches="tight")
-            _b64 = base64.standard_b64encode(_buf.getvalue()).decode("ascii")
-            print(_EMBED_S + "png__" + chr(10) + _b64 + chr(10) + _EMBED_E)
-            try:
-                import matplotlib.pyplot as _plt
-                _plt.close(_fig)
-            except Exception:
-                pass
+        # Matplotlib-objekter rendres ikke direkte fra return-verdien.
+        # plt.show() (monkey-patched) eller end-of-block-flush tar seg av rendringen,
+        # slik at flere setninger (df.plot.hist(), plt.title(), plt.xlabel(), ...)
+        # bygger opp samme figur i stedet for å produsere én ny tom figur per kall.
+        if isinstance(obj, (_MplFigure, _MplAxes)):
+            return
+        if getattr(obj, "figure", None) is not None and hasattr(obj.figure, "savefig"):
             return
     except ImportError:
         pass
-    except Exception as _ex:
-        print("show(matplotlib):", _ex)
+    except Exception:
+        pass
     try:
         if isinstance(obj, (pd.DataFrame, pd.Series)):
             print(obj)
@@ -6059,6 +6663,12 @@ def to_microdata(df, name=None, make_active=True):
 _g = {"__name__": "__main__", "__builtins__": builtins, "e": e, "micro_interpreter": e, "pd": pd, "np": np, "numpy": np, "pandas": pd}
 _g["show"] = show
 _g["to_microdata"] = to_microdata
+try:
+    import protect as _scrub_mod
+    _g["scrub"] = _scrub_mod
+    _g["protect"] = _scrub_mod
+except Exception:
+    pass
 def _apply_labels_to_globals(_g, _cat):
     if not _cat:
         return
@@ -6098,25 +6708,31 @@ def _exec_pyodide_block(code, g, show_commands=False):
         for _ln in _lines[1:]:
             print("... " + _ln)
     try:
-        tree = ast.parse(code, mode="exec")
-    except SyntaxError:
-        _echo(code)
-        exec(compile(code, "<pyodide>", "exec"), g)
-        return
-    if not tree.body:
-        return
-    for stmt in tree.body:
         try:
-            _src = ast.get_source_segment(code, stmt) or ""
-        except Exception:
-            _src = ""
-        _echo(_src)
-        if isinstance(stmt, ast.Expr):
-            _v = eval(compile(ast.Expression(stmt.value), "<pyodide>", "eval"), g)
-            if _v is not None:
-                _show_one(_v)
-        else:
-            exec(compile(ast.Module(body=[stmt], type_ignores=[]), "<pyodide>", "exec"), g)
+            tree = ast.parse(code, mode="exec")
+        except SyntaxError:
+            _echo(code)
+            exec(compile(code, "<pyodide>", "exec"), g)
+            return
+        if not tree.body:
+            return
+        for stmt in tree.body:
+            try:
+                _src = ast.get_source_segment(code, stmt) or ""
+            except Exception:
+                _src = ""
+            _echo(_src)
+            if isinstance(stmt, ast.Expr):
+                _v = eval(compile(ast.Expression(stmt.value), "<pyodide>", "eval"), g)
+                if _v is not None:
+                    _show_one(_v)
+            else:
+                exec(compile(ast.Module(body=[stmt], type_ignores=[]), "<pyodide>", "exec"), g)
+    finally:
+        # Render og lukk eventuelle åpne pyplot-figurer som brukeren ikke har
+        # vist med plt.show() — slik at f.eks. df.plot.hist() uten plt.show()
+        # likevel kommer ut som én PNG i output.
+        _m2py_flush_pyplot_figs()
 `;
     }
 
@@ -6604,7 +7220,10 @@ json.dumps(out)
         for (var si = 0; si < statements.length; si++) {
           var stmt = statements[si];
           try {
-            if (showCommands) outputParts.push({ type: 'code', text: stmt });
+            if (showCommands) {
+              var _echoStmt = stripCodeComments(stmt, '#'); // ikke vis #-kommentarer i output
+              if (_echoStmt) outputParts.push({ type: 'code', text: _echoStmt });
+            }
             var captured = await webRShelter.captureR(stmt, {
               withAutoprint: true,
               captureGraphics: { width: 720, height: 480 }
@@ -6770,12 +7389,13 @@ await micropip.install('plotly')
       setStatus(leftStatus, 'Fetching m2py, functions, mockdata modules and variable_metadata...');
       const base = window.location.href.replace(/[^/]+$/, '');
       const _cb = '?v=' + (window.M2PY_VERSION || '1');
-      const [m2pyResp, funcResp, metaResp, coreResp, realismResp] = await Promise.all([
+      const [m2pyResp, funcResp, metaResp, coreResp, realismResp, protectResp] = await Promise.all([
         fetch(base + 'm2py.py' + _cb),
         fetch(base + 'functions.py' + _cb),
         fetch(base + 'variable_metadata.json' + _cb),
         fetch(base + 'mockdata_core.py' + _cb),
-        fetch(base + 'mockdata_realism.py' + _cb)
+        fetch(base + 'mockdata_realism.py' + _cb),
+        fetch(base + 'protect.py' + _cb).catch(function() { return { ok: false }; })
       ]);
       if (!m2pyResp.ok || !funcResp.ok) {
         throw new Error('Could not load m2py.py or functions.py. Run from a local server (e.g. python -m http.server) from the microdata folder.');
@@ -6808,6 +7428,22 @@ func_mod = importlib.util.module_from_spec(spec)
 sys.modules["functions"] = func_mod
 exec(compile(func_code, "functions.py", "exec"), func_mod.__dict__)
 `);
+      // Register protect (dataminimering-verktøy) — valgfri, ikke-fatal hvis filen mangler.
+      // Tilgjengelig som modulen `protect` i Pyodide; eksponeres som `beskytt` ved kjøring.
+      if (protectResp && protectResp.ok) {
+        try {
+          const protectCode = await protectResp.text();
+          setStatus(leftStatus, 'Registering protect...');
+          await pyodide.runPythonAsync(`
+import sys, importlib.util
+protect_code = ${JSON.stringify(protectCode)}
+spec_p = importlib.util.spec_from_loader("protect", loader=None)
+sys.modules["protect"] = importlib.util.module_from_spec(spec_p)
+exec(compile(protect_code, "protect.py", "exec"), sys.modules["protect"].__dict__)
+`);
+          window.__protectLoaded = true;
+        } catch (e) { console.warn('protect register:', e); }
+      }
       // Register mockdata_core and mockdata_realism (used by m2py's realism dispatch).
       // Load order: mockdata_core (no deps) -> mockdata_realism (depends on core) -> m2py.
       if (coreResp.ok && realismResp.ok) {
@@ -7037,8 +7673,11 @@ options(width = 200)
         // ── Parse inline-direktiver fra scriptet (f.eks.
         //    `#options.show_commands=False`). Brukes til a styre om
         //    kode-echo skal vises i output for R og Python.
+        // Presedens: script-direktiv > Innstillinger > true.
         var _scriptOpts = extractScriptOptions(effectiveScript);
-        var _showCmds = _scriptOpts.show_commands !== false; // default true
+        var _showCmds = (typeof _scriptOpts.show_commands === 'boolean')
+          ? _scriptOpts.show_commands
+          : getShowCommandsDefault();
         // ── R mode: run natively in WebR ──────────────────────────────────
         if (activeEditorMode === 'r') {
           await runHybridR(effectiveScript, py, { showCommands: _showCmds });
@@ -7738,6 +8377,7 @@ def _run_microdata_chunk(_code):
         state.user = null;
         localStorage.removeItem(LS_TOKEN);
         localStorage.removeItem(LS_USER);
+        if (window.mdUpdateAskVisibility) window.mdUpdateAskVisibility();
       }
 
       async function logout() {
@@ -7755,6 +8395,7 @@ def _run_microdata_chunk(_code):
         state.user = data.user;
         localStorage.setItem(LS_TOKEN, state.token);
         localStorage.setItem(LS_USER, JSON.stringify(state.user));
+        if (window.mdUpdateAskVisibility) window.mdUpdateAskVisibility();
       }
 
       async function handleLoginParam() {
@@ -7866,6 +8507,7 @@ def _run_microdata_chunk(_code):
     (function aiModule() {
       const LS_KEY_BASE = 'md_ai_api_base';
       const LS_KEY_APIKEY = 'md_ai_api_key';
+      const LS_KEY_AIMODE = 'md_ai_mode';   // 'fast' | 'anvil'
       const DEFAULT_BASE = 'https://mdataapi.anvil.app';
 
       const state = {
@@ -7873,6 +8515,9 @@ def _run_microdata_chunk(_code):
         history: [],   // {role, html|text, raw}
         get apiBase() { return (localStorage.getItem(LS_KEY_BASE) || DEFAULT_BASE).replace(/\/+$/, ''); },
         get apiKey()  { return localStorage.getItem(LS_KEY_APIKEY) || ''; },
+        // AI mode: 'fast' = rask edge-funksjon, 'anvil' = full vurdering via Anvil-API
+        get anvilMode() { return localStorage.getItem(LS_KEY_AIMODE) === 'anvil'; },
+        set anvilMode(v) { localStorage.setItem(LS_KEY_AIMODE, v ? 'anvil' : 'fast'); },
       };
 
       const md = (window.markdownit ? window.markdownit({ breaks: true, linkify: true }) : null);
@@ -7881,7 +8526,8 @@ def _run_microdata_chunk(_code):
       const dom = {};
       function cacheDom() {
         ['aiToggleBtn','aiSidebar','aiCloseBtn','aiSettingsBtn','aiClearBtn',
-         'aiThread','aiInput','aiSendBtn','aiIncludeScript',
+         'aiThread','aiInput','aiSendFastBtn','aiAbortBtn',
+         'aiIncludeScript','menuAiMode',
          'aiSettingsBackdrop','aiCfgBaseUrl','aiCfgApiKey','aiCfgSave','aiCfgCancel',
          'aiCfgLoggedIn','aiCfgLoggedOut','aiCfgUserEmail','aiCfgUserMeta',
          'aiCfgLogout','aiCfgAdmin','aiCfgLogin',
@@ -7941,7 +8587,7 @@ def _run_microdata_chunk(_code):
           btn.addEventListener('click', () => {
             dom.aiInput.value = btn.dataset.q;
             autoresize();
-            sendMessage();
+            sendMessage(true);
           });
         });
       }
@@ -7978,9 +8624,11 @@ def _run_microdata_chunk(_code):
         const bubble = document.createElement('div');
         bubble.className = 'ai-bubble';
         bubble.innerHTML = md ? md.render(text || '') : escapeHtml(text || '').replace(/\n/g, '<br>');
+        bubble._rawMd = text || '';
         node.appendChild(bubble);
         if (meta) appendMeta(node, meta);
         attachCodeBlockActions(bubble);
+        attachResponseInsertBar(node, text || '');
         scrollToBottom();
       }
 
@@ -8003,9 +8651,7 @@ def _run_microdata_chunk(_code):
         const actions = document.createElement('div');
         actions.className = 'ai-codeblock-actions';
         actions.innerHTML =
-          '<button type="button" class="ai-codeblock-btn" data-act="copy">📋 Kopier</button>' +
-          '<button type="button" class="ai-codeblock-btn" data-act="replace">⬇ Erstatt skript</button>' +
-          '<button type="button" class="ai-codeblock-btn" data-act="append">+ Legg til</button>';
+          '<button type="button" class="ai-codeblock-btn" data-act="copy">📋 Kopier</button>';
         cbWrap.appendChild(actions);
         bubble.appendChild(cbWrap);
         actions.addEventListener('click', (e) => {
@@ -8018,6 +8664,10 @@ def _run_microdata_chunk(_code):
         if (warning) bubble.appendChild(warning);
         node.appendChild(bubble);
         if (meta) appendMeta(node, meta);
+        // Response-level "Sett inn" bar (synthesize markdown from rationale + code)
+        const rawMd = (rationale ? rationale + '\n\n' : '') + '```microdata\n' + script + '\n```';
+        bubble._rawMd = rawMd;
+        attachResponseInsertBar(node, rawMd);
         scrollToBottom();
       }
 
@@ -8103,7 +8753,7 @@ def _run_microdata_chunk(_code):
           bubble.appendChild(intro);
           const list = document.createElement('ul');
           list.style.margin = '0'; list.style.paddingLeft = '18px';
-          variables.slice(0, 12).forEach(v => {
+          variables.forEach(v => {
             const li = document.createElement('li');
             li.style.marginBottom = '4px';
             li.innerHTML = '<code>' + escapeHtml(v.name) + '</code> — ' + escapeHtml(v.short_title || '');
@@ -8117,35 +8767,83 @@ def _run_microdata_chunk(_code):
       }
 
       function appendMeta(node, meta) {
-        const m = document.createElement('div');
-        m.className = 'ai-msg-meta';
+        // Meta-linja (intent · modell · tid · tokens · cache) er støy for brukeren — vises ikke.
+      }
+
+      function commentize(text) {
+        return String(text).split('\n').map(l => '// ' + l).join('\n');
+      }
+
+      // Build editor content from a full markdown response, preserving document
+      // order ("legg de etter hverandre"). includeComments=false → only the code
+      // blocks; true → prose rendered as // comments interleaved with the code.
+      function buildInsertContent(rawMd, includeComments) {
+        if (!rawMd) return '';
+        const re = /```[^\n]*\r?\n([\s\S]*?)```/g;
         const parts = [];
-        if (meta.intent) parts.push(meta.intent);
-        if (meta.model) parts.push(meta.model);
-        if (typeof meta.latency_ms === 'number') parts.push((meta.latency_ms / 1000).toFixed(1) + 's');
-        if (meta.validation && meta.validation.passed === false) {
-          parts.push('⚠ valideringsfeil (' + (meta.validation.errors || []).length + ')');
+        let last = 0, m;
+        while ((m = re.exec(rawMd)) !== null) {
+          if (includeComments) {
+            const prose = rawMd.slice(last, m.index).trim();
+            if (prose) parts.push(commentize(prose));
+          }
+          const code = (m[1] || '').replace(/\s+$/, '');
+          if (code.trim()) parts.push(code);
+          last = re.lastIndex;
         }
-        m.textContent = parts.join(' · ');
-        node.appendChild(m);
+        if (includeComments) {
+          const tail = rawMd.slice(last).trim();
+          if (tail) parts.push(commentize(tail));
+        }
+        // No fenced code at all: comment the whole thing when asked, else nothing.
+        if (parts.length === 0 && includeComments) {
+          const all = rawMd.trim();
+          if (all) parts.push(commentize(all));
+        }
+        return parts.join('\n\n');
+      }
+
+      function hasCodeBlock(rawMd) {
+        return !!rawMd && /```[\s\S]*?```/.test(rawMd);
+      }
+
+      // Response-level action bar shown under the whole answer: an "include
+      // explanation as comment" checkbox and a single "Sett inn" button that
+      // replaces the editor content.
+      function attachResponseInsertBar(node, rawMd) {
+        if (!dom.scriptInput || !hasCodeBlock(rawMd)) return;
+        const bar = document.createElement('div');
+        bar.className = 'ai-response-actions';
+
+        const lbl = document.createElement('label');
+        lbl.className = 'ai-include-row';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(' Inkluder forklaring som kommentar'));
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'ai-response-insert-btn';
+        btn.textContent = 'Sett inn';
+        btn.title = 'Sett svaret inn i editoren (erstatter innholdet)';
+        btn.addEventListener('click', () => {
+          const content = buildInsertContent(rawMd, cb.checked);
+          if (!content) return;
+          dom.scriptInput.value = content;
+          dom.scriptInput.dispatchEvent(new Event('input', { bubbles: true }));
+          flash(btn, '✓ Satt inn');
+        });
+
+        // Knapp før checkbox (horisontalt).
+        bar.appendChild(btn);
+        bar.appendChild(lbl);
+        node.appendChild(bar);
       }
 
       function handleCodeAction(act, script, btn) {
-        if (!dom.scriptInput) return;
         if (act === 'copy') {
           navigator.clipboard.writeText(script).then(() => flash(btn, '✓ Kopiert'));
-          return;
-        }
-        if (act === 'replace') {
-          dom.scriptInput.value = script;
-          dom.scriptInput.dispatchEvent(new Event('input', { bubbles: true }));
-          flash(btn, '✓ Satt inn');
-        } else if (act === 'append') {
-          const cur = dom.scriptInput.value;
-          const sep = (cur && !cur.endsWith('\n')) ? '\n\n' : (cur ? '\n' : '');
-          dom.scriptInput.value = cur + sep + script;
-          dom.scriptInput.dispatchEvent(new Event('input', { bubbles: true }));
-          flash(btn, '✓ Lagt til');
         }
       }
 
@@ -8170,9 +8868,7 @@ def _run_microdata_chunk(_code):
           const actions = document.createElement('div');
           actions.className = 'ai-codeblock-actions';
           actions.innerHTML =
-            '<button type="button" class="ai-codeblock-btn" data-act="copy">📋 Kopier</button>' +
-            '<button type="button" class="ai-codeblock-btn" data-act="replace">⬇ Erstatt skript</button>' +
-            '<button type="button" class="ai-codeblock-btn" data-act="append">+ Legg til</button>';
+            '<button type="button" class="ai-codeblock-btn" data-act="copy">📋 Kopier</button>';
           wrap.appendChild(actions);
           actions.addEventListener('click', (e) => {
             const btn = e.target.closest('.ai-codeblock-btn');
@@ -8261,7 +8957,7 @@ def _run_microdata_chunk(_code):
         return 'no';
       }
 
-      async function sendMessage() {
+      async function sendMessage(fast) {
         if (state.sending) return;
         const text = dom.aiInput.value.trim();
         if (!text) return;
@@ -8273,7 +8969,7 @@ def _run_microdata_chunk(_code):
           return;
         }
         state.sending = true;
-        dom.aiSendBtn.disabled = true;
+        if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = true;
 
         // Clear empty state on first message
         if (state.history.length === 0) dom.aiThread.innerHTML = '';
@@ -8287,6 +8983,27 @@ def _run_microdata_chunk(_code):
         const lang = detectLang(text);
 
         const includeScript = dom.aiIncludeScript.checked && dom.scriptInput && dom.scriptInput.value.trim();
+
+        // Fast path: single-shot, no-repair edge function. Streams markdown;
+        // the result is validated locally via Pyodide+m2py (see runFastQuery).
+        if (fast) {
+          const ctrl = new AbortController();
+          state.abortCtrl = ctrl;
+          if (dom.aiAbortBtn) dom.aiAbortBtn.style.display = '';
+          try {
+            const meta = await runFastQuery(text, lang, includeScript ? dom.scriptInput.value : '', thinkingNode, ctrl.signal);
+            state.history.push({ role: 'assistant', meta });
+          } catch (e) {
+            if (e.name !== 'AbortError') appendError(thinkingNode, '✗ ' + e.message);
+          } finally {
+            state.abortCtrl = null;
+            if (dom.aiAbortBtn) dom.aiAbortBtn.style.display = 'none';
+            state.sending = false;
+            if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = false;
+            dom.aiInput.focus();
+          }
+          return;
+        }
 
         try {
           let resp, intent, result;
@@ -8353,15 +9070,319 @@ def _run_microdata_chunk(_code):
           appendError(thinkingNode, '✗ ' + e.message);
         } finally {
           state.sending = false;
-          dom.aiSendBtn.disabled = false;
+          if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = false;
           dom.aiInput.focus();
         }
+      }
+
+      // ── Fast path: stream from the /api/kode-svar edge function (single-shot,
+      //    no repair), render markdown live, then validate the emitted script
+      //    locally in Pyodide+m2py and show a pass/⚠ badge. Returns meta.
+      // Render markdown inn i boblen under streaming (faller tilbake til ren
+      // tekst hvis markdown-it mangler eller parsing feiler på ufullstendig md).
+      function streamRenderMd(bubble, textMd) {
+        if (md) {
+          try { bubble.innerHTML = md.render(textMd || ''); return; }
+          catch (_) { /* fall through */ }
+        }
+        bubble.textContent = textMd || '';
+      }
+
+      async function runFastQuery(text, lang, scriptContext, thinkingNode, signal) {
+        const auth = window.mdAuth;
+        const token = auth && auth.token;
+        const headers = token
+          ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+          : { 'X-API-Key': state.apiKey, 'Content-Type': 'application/json' };
+        const t0 = Date.now();
+        const resp = await fetch('/api/kode-svar', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ question: text, lang, script: scriptContext || '' }),
+          signal,
+        });
+        if (resp.status === 401) {
+          if (token && auth) { auth.logout(); auth.showLogin(); }
+          throw new Error('Innloggingen er utløpt. Logg inn på nytt.');
+        }
+        if (!resp.ok || !resp.body) {
+          throw new Error('HTTP ' + resp.status + ' ' + (await resp.text()));
+        }
+
+        // Render incrementally into an assistant bubble.
+        thinkingNode.innerHTML = '';
+        const bubble = document.createElement('div');
+        bubble.className = 'ai-bubble';
+        thinkingNode.appendChild(bubble);
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let accumulated = '';
+        let _lastRender = 0;
+        let inputTokens = 0, outputTokens = 0, cacheRead = 0, cacheCreate = 0;
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let nl;
+          while ((nl = buffer.indexOf('\n\n')) >= 0) {
+            const event = buffer.slice(0, nl);
+            buffer = buffer.slice(nl + 2);
+            const dataLine = event.split('\n').find(l => l.startsWith('data:'));
+            if (!dataLine) continue;
+            let obj;
+            try { obj = JSON.parse(dataLine.slice(5).trim()); }
+            catch (_) { continue; }   // ignore non-JSON keep-alive lines
+            if (obj.type === 'text') {
+              accumulated += obj.text;
+              // Render markdown live (lett strupet) i stedet for rå tekst.
+              const _now = Date.now();
+              if (_now - _lastRender > 70) {
+                _lastRender = _now;
+                streamRenderMd(bubble, accumulated);
+                scrollToBottom();
+              }
+            } else if (obj.type === 'done') {
+              inputTokens = obj.inputTokens || 0;
+              outputTokens = obj.outputTokens || 0;
+              cacheRead = obj.cacheReadTokens || 0;
+              cacheCreate = obj.cacheCreationTokens || 0;
+            } else if (obj.type === 'error') {
+              throw new Error(obj.message || 'Ukjent feil fra server');
+            }
+          }
+        }
+
+        // Final markdown render + code-block action buttons (reuse existing).
+        if (md) {
+          try { bubble.innerHTML = md.render(accumulated || ''); }
+          catch (_) { bubble.textContent = accumulated; }
+        } else {
+          bubble.textContent = accumulated;
+        }
+        attachCodeBlockActions(bubble);
+        bubble._rawMd = accumulated;
+
+        const meta = {
+          intent: 'raskt',
+          model: 'kode-svar',
+          latency_ms: Date.now() - t0,
+          tokens: { input: inputTokens, output: outputTokens, cacheRead, cacheCreate },
+        };
+        appendMeta(thinkingNode, meta);
+        attachResponseInsertBar(thinkingNode, accumulated);
+
+        // Valider første microdata-kodeblokk lokalt (ikke-blokkerende).
+        // Vi viser ingen «validert»-tekst ved suksess (støy) — kun advarsler ved feil.
+        const script = extractFirstMicrodataBlock(accumulated);
+        if (script) {
+          validateMicrodataLocal(script).then(vr => {
+            if (vr.skipped || vr.passed) return;
+            const warn = renderValidationWarnings(vr);
+            if (warn) bubble.appendChild(warn);
+          }).catch(() => {});
+        }
+        return meta;
+      }
+
+      // Tolk resultater: strøm en tolkning av output (kommandoer + resultater)
+      // inn i en assistent-boble. Speiler runFastQuery, men mot /api/tolk-resultat.
+      async function runInterpretQuery(payload, thinkingNode, signal) {
+        const auth = window.mdAuth;
+        const token = auth && auth.token;
+        const headers = token
+          ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+          : { 'X-API-Key': state.apiKey, 'Content-Type': 'application/json' };
+        const resp = await fetch('/api/tolk-resultat', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            script: payload.script || '',
+            output: payload.output || '',
+            språk: payload.lang || 'auto',
+          }),
+          signal,
+        });
+        if (resp.status === 401) {
+          if (token && auth) { auth.logout(); auth.showLogin(); }
+          throw new Error('Innloggingen er utløpt. Logg inn på nytt.');
+        }
+        if (!resp.ok || !resp.body) {
+          throw new Error('HTTP ' + resp.status + ' ' + (await resp.text()));
+        }
+        thinkingNode.innerHTML = '';
+        const bubble = document.createElement('div');
+        bubble.className = 'ai-bubble';
+        thinkingNode.appendChild(bubble);
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '', accumulated = '', _lastRender = 0;
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let nl;
+          while ((nl = buffer.indexOf('\n\n')) >= 0) {
+            const event = buffer.slice(0, nl);
+            buffer = buffer.slice(nl + 2);
+            const dataLine = event.split('\n').find(l => l.startsWith('data:'));
+            if (!dataLine) continue;
+            let obj;
+            try { obj = JSON.parse(dataLine.slice(5).trim()); } catch (_) { continue; }
+            if (obj.type === 'text') {
+              accumulated += obj.text;
+              const _now = Date.now();
+              if (_now - _lastRender > 70) {
+                _lastRender = _now;
+                streamRenderMd(bubble, accumulated);
+                scrollToBottom();
+              }
+            } else if (obj.type === 'error') {
+              throw new Error(obj.message || 'Ukjent feil fra server');
+            }
+          }
+        }
+        if (md) {
+          try { bubble.innerHTML = md.render(accumulated || ''); }
+          catch (_) { bubble.textContent = accumulated; }
+        } else {
+          bubble.textContent = accumulated;
+        }
+        bubble._rawMd = accumulated;
+        // Kopier-knapp for tolkningen.
+        const actions = document.createElement('div');
+        actions.className = 'ai-codeblock-actions';
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'ai-codeblock-btn';
+        copyBtn.textContent = '📋 Kopier tolkning';
+        copyBtn.addEventListener('click', () => {
+          navigator.clipboard.writeText(accumulated).then(() => flash(copyBtn, '✓ Kopiert')).catch(() => {});
+        });
+        actions.appendChild(copyBtn);
+        thinkingNode.appendChild(actions);
+        state.history.push({ role: 'assistant', meta: { intent: 'tolkning' } });
+      }
+
+      // Pull the first ```microdata / ``` code block that looks like a
+      // microdata script out of streamed markdown.
+      function extractFirstMicrodataBlock(textMd) {
+        if (!textMd) return '';
+        const re = /```(\w*)\s*\n([\s\S]*?)```/g;
+        let m;
+        while ((m = re.exec(textMd)) !== null) {
+          const lang = (m[1] || '').toLowerCase();
+          const body = (m[2] || '').trim();
+          if (lang === 'python' || lang === 'py' || lang === 'r') continue;
+          if (/\b(require|create-dataset|import\s+\w+\/|use\s+\w)/.test(body)) return body;
+          if (lang === 'microdata') return body;
+        }
+        return '';
+      }
+
+      // Run the script through a throwaway m2py interpreter on synthetic data
+      // (disclosure control off, so only structural/runtime errors surface).
+      // Returns {passed, errors:[{kind,message}]} or {skipped:true}.
+      async function validateMicrodataLocal(script) {
+        let py;
+        try { py = await loadPyodideAndM2py(); }
+        catch (_) { return { skipped: true }; }
+        if (!py) return { skipped: true };
+        const base = window.location.href.replace(/[^/]+$/, '');
+        const catalogJson = (typeof microdataCatalog !== 'undefined' && microdataCatalog && microdataCatalog.variables)
+          ? JSON.stringify(microdataCatalog.variables) : null;
+        const pyCode =
+          'import json, sys\n' +
+          '_script = ' + JSON.stringify(script) + '\n' +
+          '_catalog_json = ' + (catalogJson !== null ? JSON.stringify(catalogJson) : 'None') + '\n' +
+          '_base = ' + JSON.stringify(base) + '\n' +
+          '_m = sys.modules.get("m2py")\n' +
+          '_prev_dc = getattr(_m, "M2PY_DISCLOSURE_CONTROL", "1") if _m is not None else "1"\n' +
+          '_out = json.dumps({"passed": False, "errors": [{"kind": "runtime", "message": "validator unavailable"}]})\n' +
+          'try:\n' +
+          '    if _m is not None:\n' +
+          '        _m.M2PY_DISCLOSURE_CONTROL = "0"\n' +
+          '    from m2py import MicroInterpreter\n' +
+          '    _cat = json.loads(_catalog_json) if _catalog_json else None\n' +
+          '    _vi = MicroInterpreter(catalog=_cat, metadata_base_url=_base)\n' +
+          '    try:\n' +
+          '        _vi.data_engine.default_rows = 200\n' +
+          '    except Exception:\n' +
+          '        pass\n' +
+          '    _err = None\n' +
+          '    try:\n' +
+          '        if hasattr(_vi, "run_script_async"):\n' +
+          '            _err = "ASYNC"\n' +
+          '        else:\n' +
+          '            _vi.run_script(_script)\n' +
+          '    except Exception as _ex:\n' +
+          '        _err = f"{type(_ex).__name__}: {_ex}"\n' +
+          '    if _err == "ASYNC":\n' +
+          '        _out = json.dumps({"async": True})\n' +
+          '    elif _err is None:\n' +
+          '        _out = json.dumps({"passed": True, "errors": []})\n' +
+          '    else:\n' +
+          '        _out = json.dumps({"passed": False, "errors": [{"kind": "runtime", "message": _err}]})\n' +
+          'except Exception as _ex2:\n' +
+          '    _out = json.dumps({"skipped": True, "error": f"{type(_ex2).__name__}: {_ex2}"})\n' +
+          'finally:\n' +
+          '    if _m is not None:\n' +
+          '        _m.M2PY_DISCLOSURE_CONTROL = _prev_dc\n' +
+          '_out\n';
+        let raw;
+        try { raw = await py.runPythonAsync(pyCode); }
+        catch (_) { return { skipped: true }; }
+        let parsed;
+        try { parsed = JSON.parse(raw); } catch (_) { return { skipped: true }; }
+        if (parsed.skipped) return { skipped: true };
+        // Async interpreter variant — run via the async API and re-check.
+        if (parsed.async) {
+          return await validateMicrodataLocalAsync(py, script, catalogJson, base);
+        }
+        return parsed;
+      }
+
+      async function validateMicrodataLocalAsync(py, script, catalogJson, base) {
+        const setup =
+          'import json, sys\n' +
+          '_script = ' + JSON.stringify(script) + '\n' +
+          '_catalog_json = ' + (catalogJson !== null ? JSON.stringify(catalogJson) : 'None') + '\n' +
+          '_base = ' + JSON.stringify(base) + '\n' +
+          '_m = sys.modules.get("m2py")\n' +
+          'globals()["_prev_dc"] = getattr(_m, "M2PY_DISCLOSURE_CONTROL", "1") if _m is not None else "1"\n' +
+          'if _m is not None:\n' +
+          '    _m.M2PY_DISCLOSURE_CONTROL = "0"\n' +
+          'from m2py import MicroInterpreter\n' +
+          '_cat = json.loads(_catalog_json) if _catalog_json else None\n' +
+          '_vi = MicroInterpreter(catalog=_cat, metadata_base_url=_base)\n' +
+          'try:\n' +
+          '    _vi.data_engine.default_rows = 200\n' +
+          'except Exception:\n' +
+          '    pass\n' +
+          'globals()["_vi"] = _vi\n';
+        try { await py.runPythonAsync(setup); } catch (_) { return { skipped: true }; }
+        let raw;
+        try {
+          raw = await py.runPythonAsync(
+            '_err = None\n' +
+            'try:\n' +
+            '    await _vi.run_script_async(_script)\n' +
+            'except Exception as _ex:\n' +
+            '    _err = f"{type(_ex).__name__}: {_ex}"\n' +
+            'finally:\n' +
+            '    if _m is not None:\n' +
+            '        _m.M2PY_DISCLOSURE_CONTROL = _prev_dc\n' +
+            'json.dumps({"passed": _err is None, "errors": [] if _err is None else [{"kind": "runtime", "message": _err}]})\n'
+          );
+        } catch (_) { return { skipped: true }; }
+        try { return JSON.parse(raw); } catch (_) { return { skipped: true }; }
       }
 
       function autoresize() {
         const ta = dom.aiInput;
         ta.style.height = 'auto';
-        ta.style.height = Math.min(ta.scrollHeight, 160) + 'px';
+        ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';  // ~5 linjer maks, så scroller den
       }
 
       function categoryLabel(cat) {
@@ -8451,14 +9472,34 @@ def _run_microdata_chunk(_code):
           });
         }
 
-        dom.aiSendBtn.addEventListener('click', sendMessage);
+        // Send uses the AI mode chosen in the hamburger menu: fast edge-fn or
+        // full Anvil-path (sendMessage(fast) — fast=true => rask).
+        function sendCurrent() { sendMessage(!state.anvilMode); }
+        if (dom.aiSendFastBtn) dom.aiSendFastBtn.addEventListener('click', sendCurrent);
+        if (dom.aiAbortBtn) dom.aiAbortBtn.addEventListener('click', () => { if (state.abortCtrl) state.abortCtrl.abort(); });
         dom.aiInput.addEventListener('input', autoresize);
         dom.aiInput.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            sendMessage();
+            sendCurrent();   // Enter = send (modus fra menyen); Shift+Enter = ny linje
           }
         });
+
+        // AI-modus-bryter i hamburgermenyen
+        function updateAiModeLabel() {
+          if (dom.menuAiMode) {
+            dom.menuAiMode.textContent = 'AI-svar: ' + (state.anvilMode ? 'Anvil (full vurdering)' : 'Rask');
+          }
+        }
+        if (dom.menuAiMode) {
+          dom.menuAiMode.addEventListener('click', () => {
+            state.anvilMode = !state.anvilMode;
+            updateAiModeLabel();
+            const dd = document.getElementById('hamburgerDropdown');
+            if (dd) dd.classList.remove('open');
+          });
+        }
+        updateAiModeLabel();
 
         // Keyboard shortcut Ctrl+I
         document.addEventListener('keydown', (e) => {
@@ -8482,6 +9523,44 @@ def _run_microdata_chunk(_code):
 
         // Auth gate is in sendMessage; no auto-open of settings on first AI-panel
         // toggle. Users see the panel and the empty state; only Send triggers login.
+
+        // Offentlig: åpne AI-panelet og send et spørsmål (brukes av hurtigspør-boksen i toppen).
+        window.mdAskAi = function(question) {
+          if (!question || !question.trim()) return;
+          setOpen(true);
+          dom.aiInput.value = question;
+          autoresize();
+          sendMessage(!state.anvilMode);
+        };
+
+        // Offentlig: åpne AI-panelet og tolk resultatene (output) fra forrige kjøring.
+        window.mdInterpretResults = function(payload) {
+          payload = payload || {};
+          if (!payload.output || !payload.output.trim()) return;
+          if (state.sending) return;
+          const auth = window.mdAuth;
+          const isAuthed = (auth && auth.token) || state.apiKey;
+          if (!isAuthed) { if (auth) auth.showLogin(); return; }
+          setOpen(true);
+          if (state.history.length === 0) dom.aiThread.innerHTML = '';
+          appendUserMessage('Tolk resultatene fra forrige kjøring.');
+          state.history.push({ role: 'user', text: 'Tolk resultatene' });
+          const thinkingNode = appendThinking();
+          state.sending = true;
+          if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = true;
+          const ctrl = new AbortController();
+          state.abortCtrl = ctrl;
+          if (dom.aiAbortBtn) dom.aiAbortBtn.style.display = '';
+          runInterpretQuery(payload, thinkingNode, ctrl.signal)
+            .catch(e => { if (e.name !== 'AbortError') appendError(thinkingNode, '✗ ' + e.message); })
+            .finally(() => {
+              state.abortCtrl = null;
+              if (dom.aiAbortBtn) dom.aiAbortBtn.style.display = 'none';
+              state.sending = false;
+              if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = false;
+              if (dom.aiInput) dom.aiInput.focus();
+            });
+        };
       }
 
       if (document.readyState === 'loading') {
@@ -8489,6 +9568,818 @@ def _run_microdata_chunk(_code):
       } else {
         init();
       }
+    })();
+
+    // ── Del / Åpne fra URL / Koble til GitHub ────────────────────────────────
+    (function initScriptSharing() {
+      const $ = (id) => document.getElementById(id);
+      const dropdown = $('hamburgerDropdown');
+      function closeAllSubmenus() {
+        ['filSubmenu', 'githubSubmenu', 'examplesDropdown'].forEach((id) => {
+          const el = $(id); if (el) el.classList.remove('open');
+        });
+      }
+      const closeMenu = () => {
+        if (dropdown) dropdown.classList.remove('open');
+        closeAllSubmenus();
+      };
+
+      function currentLang() {
+        return (typeof activeEditorMode !== 'undefined') ? activeEditorMode : 'microdata';
+      }
+      // Sett editor-innhold + språk slik at modus-buffrene holdes konsistente.
+      function setEditor(text, lang) {
+        lang = (lang === 'python' || lang === 'r') ? lang : 'microdata';
+        if (typeof editorContent !== 'undefined') editorContent[lang] = text;
+        if (typeof switchEditorMode === 'function' && typeof activeEditorMode !== 'undefined' && lang !== activeEditorMode) {
+          switchEditorMode(lang); // laster editorContent[lang] inn i scriptInput
+        } else {
+          const si = $('scriptInput');
+          if (si) si.value = text;
+        }
+        if (window.updateLineNumbers) window.updateLineNumbers();
+      }
+      function langFromPath(p) {
+        const s = (p || '').toLowerCase().split('?')[0];
+        if (s.endsWith('.py')) return 'python';
+        if (s.endsWith('.r')) return 'r';
+        return 'microdata';
+      }
+
+      // --- base64url + gzip via innebygd CompressionStream ---
+      function b64urlEncode(bytes) {
+        let bin = '';
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      }
+      function b64urlDecode(s) {
+        s = s.replace(/-/g, '+').replace(/_/g, '/');
+        while (s.length % 4) s += '=';
+        const bin = atob(s);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return bytes;
+      }
+      async function gzip(str) {
+        const cs = new CompressionStream('gzip');
+        const w = cs.writable.getWriter();
+        w.write(new TextEncoder().encode(str)); w.close();
+        const buf = await new Response(cs.readable).arrayBuffer();
+        return b64urlEncode(new Uint8Array(buf));
+      }
+      async function gunzip(b64) {
+        const ds = new DecompressionStream('gzip');
+        const w = ds.writable.getWriter();
+        w.write(b64urlDecode(b64)); w.close();
+        return await new Response(ds.readable).text();
+      }
+
+      function toast(msg) {
+        let t = $('mdShareToast');
+        if (!t) {
+          t = document.createElement('div');
+          t.id = 'mdShareToast';
+          t.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--accent,#2563eb);color:#fff;padding:8px 16px;border-radius:6px;font-size:13px;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,.2);transition:opacity .4s;';
+          document.body.appendChild(t);
+        }
+        t.textContent = msg;
+        t.style.opacity = '1';
+        clearTimeout(t._timer);
+        t._timer = setTimeout(() => { t.style.opacity = '0'; }, 1700);
+      }
+
+      // --- Verb 1: Del via fragment-lenke ---
+      async function shareLink() {
+        closeMenu();
+        const si = $('scriptInput');
+        const script = si ? si.value : '';
+        if (!script.trim()) { alert('Editoren er tom — ingenting å dele.'); return; }
+        try {
+          const payload = JSON.stringify({
+            v: 1,
+            name: ($('scriptName') && $('scriptName').value) || '',
+            lang: currentLang(),
+            script: script
+          });
+          const packed = await gzip(payload);
+          const link = location.origin + location.pathname + '#s=' + packed;
+          if (link.length > 8000) {
+            alert('Scriptet er for stort for en delelenke (' + link.length + ' tegn i URL). Bruk «Last ned kode» (fil) eller GitHub i stedet.');
+            return;
+          }
+          await navigator.clipboard.writeText(link);
+          toast('Delelenke kopiert til utklippstavlen');
+        } catch (e) {
+          alert('Kunne ikke lage delelenke: ' + (e.message || e));
+        }
+      }
+
+      async function openFromFragment() {
+        const m = location.hash.match(/[#&]s=([^&]+)/);
+        if (!m) return;
+        try {
+          const data = JSON.parse(await gunzip(m[1]));
+          if (data && typeof data.script === 'string') {
+            setEditor(data.script, data.lang);
+            setCurrent(null); // delt lenke er ikke en GitHub-fil
+            if (data.name && $('scriptName')) $('scriptName').value = data.name;
+            toast('Delt script åpnet');
+          }
+        } catch (e) {
+          console.warn('Kunne ikke åpne delt script fra lenke:', e);
+        } finally {
+          history.replaceState(null, document.title, location.pathname + location.search);
+        }
+      }
+
+      // --- Verb 2: Åpne fra URL ---
+      const LS_RECENT = 'm2py_recent_urls';
+      function getRecent() {
+        try { return JSON.parse(localStorage.getItem(LS_RECENT) || '[]'); } catch (_) { return []; }
+      }
+      function pushRecent(url) {
+        let r = getRecent().filter((u) => u !== url);
+        r.unshift(url);
+        try { localStorage.setItem(LS_RECENT, JSON.stringify(r.slice(0, 10))); } catch (_) {}
+      }
+      function renderRecent() {
+        const wrap = $('openUrlRecentWrap'), list = $('openUrlRecent');
+        if (!wrap || !list) return;
+        const r = getRecent();
+        if (!r.length) { wrap.style.display = 'none'; return; }
+        wrap.style.display = '';
+        list.innerHTML = '';
+        r.forEach((url) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'ai-modal-btn';
+          b.style.cssText = 'display:block;width:100%;text-align:left;margin:3px 0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+          b.textContent = url;
+          b.title = url;
+          b.onclick = () => { $('openUrlInput').value = url; };
+          list.appendChild(b);
+        });
+      }
+      async function fetchUrl(url) {
+        const err = $('openUrlError');
+        if (err) err.textContent = '';
+        const normalized = (url || '').trim();
+        if (!normalized) return;
+        const go = $('openUrlGo'); if (go) go.disabled = true;
+        try {
+          const resp = await fetch(normalized);
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          const text = await resp.text();
+          setEditor(text, langFromPath(normalized));
+          setCurrent(null); // ikke lenger knyttet til en GitHub-fil
+          const nameEl = $('scriptName');
+          if (nameEl) {
+            const fn = decodeURIComponent(normalized.split('?')[0].split('/').pop() || '');
+            if (fn) nameEl.value = fn.replace(/\.(txt|py|r)$/i, '');
+          }
+          pushRecent(normalized);
+          pushRecentFile({ kind: 'url', url: normalized });
+          $('openUrlBackdrop').style.display = 'none';
+          toast('Script hentet fra URL');
+        } catch (e) {
+          if (err) err.textContent = 'Kunne ikke hente URL-en. Bruk en direkte «raw»-lenke som tillater henting (CORS) — f.eks. GitHub raw eller gist. Feil: ' + (e.message || e);
+        } finally {
+          if (go) go.disabled = false;
+        }
+      }
+      function openUrlModal() {
+        closeMenu();
+        renderRecent();
+        const err = $('openUrlError'); if (err) err.textContent = '';
+        $('openUrlBackdrop').style.display = 'flex';
+        setTimeout(() => { const i = $('openUrlInput'); if (i) i.focus(); }, 50);
+      }
+
+      // --- Verb 3: GitHub som filbasert lager ─────────────────────────────────
+      // Profiler {label,pat,repo,branch} i m2py_github_profiles + aktiv-indeks.
+      // Gjeldende fil ligger i m2py_github_current.
+      const LS_PAT = 'm2py_github_pat', LS_REPO = 'm2py_github_repo', LS_BRANCH = 'm2py_github_branch';
+      const LS_PROFILES = 'm2py_github_profiles', LS_ACTIVE = 'm2py_github_active', LS_CURRENT = 'm2py_github_current';
+      // Filer som ikke gir mening i editoren skjules; alt annet (inkl. filer
+      // uten endelse) vises, så en fil lagret som «test» dukker også opp.
+      const BINARY_EXT = /\.(png|jpe?g|gif|bmp|svg|ico|webp|pdf|zip|gz|tgz|tar|7z|rar|xlsx?|docx?|pptx?|parquet|feather|sav|dta|rds|rdata|pkl|npy|npz|bin|exe|dll|so|dylib|mp[34]|wav|mov|avi|ttf|otf|woff2?)$/i;
+      let lastTree = null; // hurtigbuffer av filstier fra siste tre-henting
+      let ghSavedSnapshot = null; // editor-innhold som samsvarer med lagret GitHub-fil
+
+      function ghHeaders(pat) {
+        return { 'Authorization': 'Bearer ' + pat, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+      }
+      function utf8ToB64(str) {
+        const bytes = new TextEncoder().encode(str);
+        let bin = '';
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return btoa(bin);
+      }
+      function b64ToUtf8(b64) {
+        const bin = atob((b64 || '').replace(/\s/g, ''));
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return new TextDecoder().decode(bytes);
+      }
+      function ghContentsUrlFor(repo, path) {
+        return 'https://api.github.com/repos/' + repo + '/contents/' +
+          path.split('/').map(encodeURIComponent).join('/');
+      }
+
+      // Profiler
+      function rawProfiles() {
+        try { const a = JSON.parse(localStorage.getItem(LS_PROFILES) || 'null'); return Array.isArray(a) ? a : null; } catch (_) { return null; }
+      }
+      function saveProfiles(arr, active) {
+        try {
+          localStorage.setItem(LS_PROFILES, JSON.stringify(arr));
+          if (active != null) localStorage.setItem(LS_ACTIVE, String(active));
+        } catch (_) {}
+      }
+      function getProfiles() {
+        let a = rawProfiles();
+        if (a) return a;
+        // Migrer fra gammelt enkelt-oppsett (pat/repo/branch) til én profil
+        const oldPat = localStorage.getItem(LS_PAT), oldRepo = localStorage.getItem(LS_REPO);
+        if (oldPat || oldRepo) {
+          a = [{ pat: oldPat || '', repo: oldRepo || '', branch: localStorage.getItem(LS_BRANCH) || 'main' }];
+          saveProfiles(a, 0);
+          return a;
+        }
+        return [];
+      }
+      function getActiveIndex() {
+        const a = getProfiles();
+        let i = parseInt(localStorage.getItem(LS_ACTIVE) || '0', 10);
+        if (isNaN(i) || i < 0 || i >= a.length) i = 0;
+        return i;
+      }
+      // Aktiv profil som {pat,repo,branch}
+      function ghSettings() {
+        const p = getProfiles()[getActiveIndex()];
+        return p ? { pat: p.pat || '', repo: p.repo || '', branch: p.branch || 'main' } : { pat: '', repo: '', branch: 'main' };
+      }
+      function ghConfigured() {
+        const s = ghSettings();
+        return !!s.pat && /^[^/\s]+\/[^/\s]+$/.test(s.repo);
+      }
+      // Gjeldende fil
+      function getCurrent() {
+        try { return JSON.parse(localStorage.getItem(LS_CURRENT) || 'null'); } catch (_) { return null; }
+      }
+      function setCurrent(c) {
+        try { localStorage.setItem(LS_CURRENT, JSON.stringify(c)); } catch (_) {}
+        if (!c) ghSavedSnapshot = null;
+        updateCurrentIndicator();
+      }
+      // Outline-ikoner (Feather-stil) ved siden av filnavnet: floppy = shortcut
+      // til «Lagre» (vises kun når man jobber med en GitHub-fil).
+      const SVG_SAVE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>';
+      function ghIsDirty() {
+        const si = $('scriptInput');
+        return ghSavedSnapshot != null && si && si.value !== ghSavedSnapshot;
+      }
+      function markSaved() {
+        const si = $('scriptInput');
+        ghSavedSnapshot = si ? si.value : '';
+        updateCurrentIndicator();
+      }
+
+      // Nylig brukte filer (GitHub + URL) for hurtig gjenåpning
+      const LS_RECENT_FILES = 'm2py_recent_files';
+      const SVG_CHEVRON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+      function getRecentFiles() {
+        try { const a = JSON.parse(localStorage.getItem(LS_RECENT_FILES) || '[]'); return Array.isArray(a) ? a : []; } catch (_) { return []; }
+      }
+      function recentKey(e) { return e.kind === 'github' ? 'gh:' + e.repo + '@' + e.branch + '/' + e.path : 'url:' + e.url; }
+      function pushRecentFile(e) {
+        let a = getRecentFiles().filter((x) => recentKey(x) !== recentKey(e));
+        a.unshift(e);
+        try { localStorage.setItem(LS_RECENT_FILES, JSON.stringify(a.slice(0, 5))); } catch (_) {}
+        updateRecentChevron();
+      }
+      function updateRecentChevron() {
+        const wrap = $('ghRecentWrap');
+        if (wrap) wrap.style.display = getRecentFiles().length ? 'inline-flex' : 'none';
+      }
+      function getPatForRepo(repo) {
+        const m = getProfiles().find((p) => p.repo === repo);
+        if (m && m.pat) return m.pat;
+        return ghSettings().pat || '';
+      }
+      function renderRecentMenu() {
+        const menu = $('ghRecentMenu'); if (!menu) return;
+        const a = getRecentFiles();
+        menu.innerHTML = '<div class="examples-dropdown-title">Nylige filer</div>';
+        if (!a.length) {
+          menu.innerHTML += '<div style="padding:6px 14px;color:var(--text-muted);font-size:13px;">Ingen nylige.</div>';
+        } else {
+          a.forEach((e) => {
+            const b = document.createElement('button'); b.type = 'button';
+            const base = e.kind === 'github'
+              ? (e.path.split('/').pop() || e.path)
+              : decodeURIComponent((e.url || '').split('?')[0].split('/').pop() || e.url);
+            b.textContent = base;
+            b.title = e.kind === 'github' ? ('GitHub: ' + e.repo + '/' + e.path) : e.url;
+            b.onclick = () => { menu.classList.remove('open'); reopenRecent(e); };
+            menu.appendChild(b);
+          });
+        }
+        const hr = document.createElement('hr');
+        hr.style.cssText = 'margin:4px 0;border-color:#334155;';
+        menu.appendChild(hr);
+        const more = document.createElement('button'); more.type = 'button';
+        more.textContent = 'Flere filer (GitHub)';
+        more.title = 'Bla gjennom alle filene i GitHub-repoet';
+        more.onclick = () => { menu.classList.remove('open'); openPicker(); };
+        menu.appendChild(more);
+      }
+      async function reopenRecent(e) {
+        if (e.kind === 'url') { await fetchUrl(e.url); return; }
+        const pat = getPatForRepo(e.repo);
+        if (!pat) { openSettings('Sett opp GitHub-tilgang for ' + e.repo + ' først.'); return; }
+        try {
+          const resp = await fetch(ghContentsUrlFor(e.repo, e.path) + '?ref=' + encodeURIComponent(e.branch), { headers: ghHeaders(pat) });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          const data = await resp.json();
+          setEditor(b64ToUtf8(data.content), langFromPath(e.path));
+          const nameEl = $('scriptName');
+          if (nameEl) nameEl.value = (e.path.split('/').pop() || '').replace(/\.(txt|py|r)$/i, '');
+          setCurrent({ repo: e.repo, branch: e.branch, path: e.path });
+          markSaved();
+          toast('Hentet fra GitHub: ' + e.path);
+        } catch (err) { alert('Kunne ikke åpne: ' + (err.message || err)); }
+      }
+      function ghIconHost() {
+        let host = $('ghIndicatorHost');
+        if (host) return host;
+        const name = $('scriptName');
+        if (!name || !name.parentNode) return null;
+        if (!$('ghIconStyle')) {
+          const st = document.createElement('style');
+          st.id = 'ghIconStyle';
+          // Standardfarge som de andre topplinje-ikonene; amber når ulagret.
+          st.textContent =
+            '#ghSaveIcon{color:var(--text-muted)}' +
+            '#ghSaveIcon:hover{color:var(--accent)}' +
+            '#ghSaveIcon.dirty{color:#d97706}' +
+            '#ghSaveIcon.dirty:hover{color:#b45309}';
+          document.head.appendChild(st);
+        }
+        host = document.createElement('span');
+        host.id = 'ghIndicatorHost';
+        host.style.cssText = 'display:inline-flex;align-items:center;vertical-align:middle;';
+        const save = document.createElement('span');
+        save.id = 'ghSaveIcon';
+        save.style.cssText = 'display:none;align-items:center;margin-left:4px;cursor:pointer;';
+        save.innerHTML = SVG_SAVE;
+        save.addEventListener('click', function () { doSave(); });
+        // Chevron: nylig brukte filer
+        const recentWrap = document.createElement('span');
+        recentWrap.id = 'ghRecentWrap';
+        recentWrap.style.cssText = 'position:relative;display:none;align-items:center;margin-left:4px;';
+        const recentBtn = document.createElement('span');
+        recentBtn.id = 'ghRecentBtn';
+        recentBtn.title = 'Nylige filer';
+        recentBtn.style.cssText = 'display:inline-flex;align-items:center;color:var(--text-muted);cursor:pointer;';
+        recentBtn.innerHTML = SVG_CHEVRON;
+        const recentMenu = document.createElement('div');
+        recentMenu.id = 'ghRecentMenu';
+        recentMenu.className = 'examples-dropdown';
+        recentBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          const willOpen = !recentMenu.classList.contains('open');
+          recentMenu.classList.remove('open');
+          if (willOpen) { renderRecentMenu(); recentMenu.classList.add('open'); }
+        });
+        recentMenu.addEventListener('click', function (e) { e.stopPropagation(); });
+        document.addEventListener('click', function () { recentMenu.classList.remove('open'); });
+        recentWrap.appendChild(recentBtn);
+        recentWrap.appendChild(recentMenu);
+        // Rekkefølge: nylige (▾) først, så lagre (floppy) — nærmest filnavnet til høyre.
+        host.appendChild(recentWrap);
+        host.appendChild(save);
+        name.parentNode.insertBefore(host, name.nextSibling);
+        return host;
+      }
+      function updateCurrentIndicator() {
+        if (!ghIconHost()) return;
+        updateRecentChevron();
+        const cur = getCurrent();
+        const save = $('ghSaveIcon');
+        if (cur && cur.path) {
+          const dirty = ghIsDirty();
+          if (save) {
+            save.style.display = 'inline-flex';
+            save.classList.toggle('dirty', dirty);
+            const loc = cur.repo + '/' + cur.path + (cur.branch && cur.branch !== 'main' ? '@' + cur.branch : '');
+            save.title = 'GitHub: ' + loc + (dirty ? ' — ulagrede endringer, klikk for å lagre' : ' — lagret, klikk for å lagre igjen');
+          }
+        } else {
+          if (save) save.style.display = 'none';
+        }
+      }
+
+      // Innstillinger-dialog
+      function renderProfileSelect() {
+        const sel = $('ghProfileSelect'); if (!sel) return;
+        const a = getProfiles(), active = getActiveIndex();
+        sel.innerHTML = '';
+        if (!a.length) {
+          const o = document.createElement('option'); o.value = '-1'; o.textContent = '(ingen profil ennå)'; sel.appendChild(o);
+        } else {
+          a.forEach((p, idx) => {
+            const o = document.createElement('option');
+            o.value = String(idx);
+            o.textContent = (p.repo || '(ny profil)') + (p.branch && p.branch !== 'main' ? '@' + p.branch : '');
+            sel.appendChild(o);
+          });
+          sel.value = String(active);
+        }
+      }
+      function loadProfileIntoFields(i) {
+        const p = getProfiles()[i] || { pat: '', repo: '', branch: 'main' };
+        $('ghPat').value = p.pat || '';
+        $('ghRepo').value = p.repo || '';
+        $('ghBranch').value = p.branch || 'main';
+        // Tilbakestill token-feltet til maskert ved bytte
+        $('ghPat').type = 'password';
+        const tog = $('ghPatToggle'); if (tog) tog.textContent = 'Vis';
+      }
+      function openSettings(msg) {
+        closeMenu();
+        renderProfileSelect();
+        loadProfileIntoFields(getActiveIndex());
+        $('ghError').textContent = msg || ''; $('ghStatus').textContent = '';
+        $('githubBackdrop').style.display = 'flex';
+      }
+      function settingsRead() {
+        return {
+          pat: $('ghPat').value.trim(),
+          repo: $('ghRepo').value.trim(),
+          branch: $('ghBranch').value.trim() || 'main'
+        };
+      }
+      function settingsValidate(f) {
+        const err = $('ghError'); err.textContent = '';
+        if (!f.pat) { err.textContent = 'Mangler token.'; return false; }
+        if (!/^[^/\s]+\/[^/\s]+$/.test(f.repo)) { err.textContent = 'Repo må være på formen eier/navn.'; return false; }
+        return true;
+      }
+      function settingsSave() {
+        const f = settingsRead();
+        if (!settingsValidate(f)) return;
+        let a = getProfiles(), i = getActiveIndex();
+        if (!a.length) { a = [f]; i = 0; } else { a[i] = f; }
+        saveProfiles(a, i);
+        lastTree = null; // repo/branch kan ha endret seg
+        $('githubBackdrop').style.display = 'none';
+        toast('GitHub-innstillinger lagret');
+        updateCurrentIndicator();
+      }
+      function profileNew() {
+        const a = getProfiles();
+        a.push({ pat: '', repo: '', branch: 'main' });
+        const i = a.length - 1;
+        saveProfiles(a, i);
+        renderProfileSelect();
+        loadProfileIntoFields(i);
+        $('ghError').textContent = ''; $('ghStatus').textContent = '';
+        const repo = $('ghRepo'); if (repo) repo.focus();
+      }
+      function profileDelete() {
+        const a = getProfiles();
+        if (!a.length) return;
+        const i = getActiveIndex();
+        const name = a[i].repo || ('Profil ' + (i + 1));
+        if (!confirm('Slette profilen «' + name + '»?')) return;
+        a.splice(i, 1);
+        const ni = Math.max(0, Math.min(i, a.length - 1));
+        saveProfiles(a, ni);
+        renderProfileSelect();
+        loadProfileIntoFields(a.length ? ni : 0);
+        $('ghStatus').textContent = ''; $('ghError').textContent = '';
+        updateCurrentIndicator();
+      }
+      function patToggle() {
+        const inp = $('ghPat'), btn = $('ghPatToggle');
+        if (!inp) return;
+        if (inp.type === 'password') { inp.type = 'text'; if (btn) btn.textContent = 'Skjul'; }
+        else { inp.type = 'password'; if (btn) btn.textContent = 'Vis'; }
+      }
+      async function patCopy() {
+        const inp = $('ghPat'); if (!inp || !inp.value) return;
+        try {
+          await navigator.clipboard.writeText(inp.value);
+          const btn = $('ghPatCopy');
+          if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert!'; setTimeout(() => { btn.textContent = o; }, 1500); }
+        } catch (_) {}
+      }
+      async function settingsTest() {
+        const f = settingsRead();
+        if (!settingsValidate(f)) return;
+        const status = $('ghStatus'), err = $('ghError');
+        err.textContent = ''; status.textContent = 'Tester…';
+        try {
+          const resp = await fetch('https://api.github.com/repos/' + f.repo, { headers: ghHeaders(f.pat) });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status +
+            (resp.status === 404 ? ' (repo ikke funnet / ingen tilgang)' : resp.status === 401 ? ' (ugyldig token)' : ''));
+          const data = await resp.json();
+          status.textContent = '✓ Tilkoblet: ' + (data.full_name || f.repo) + (data.private ? ' (privat)' : ' (offentlig)');
+        } catch (e) {
+          status.textContent = ''; err.textContent = 'Tilkobling feilet: ' + (e.message || e);
+        }
+      }
+
+      // Filvelger
+      async function fetchTree(s) {
+        const url = 'https://api.github.com/repos/' + s.repo + '/git/trees/' + encodeURIComponent(s.branch) + '?recursive=1';
+        const resp = await fetch(url, { headers: ghHeaders(s.pat) });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + (resp.status === 404 ? ' (repo/branch ikke funnet)' : ''));
+        const data = await resp.json();
+        lastTree = (data.tree || []).filter((n) => n.type === 'blob').map((n) => n.path);
+        return lastTree;
+      }
+      function renderPicker(filter) {
+        const list = $('ghPickerList'); if (!list) return;
+        const all = lastTree || [];
+        const q = (filter || '').toLowerCase();
+        const items = all.filter((p) => !BINARY_EXT.test(p) && (!q || p.toLowerCase().indexOf(q) !== -1));
+        list.innerHTML = '';
+        if (!items.length) {
+          const msg = all.length
+            ? (q ? 'Ingen treff på filteret.' : 'Ingen filer å vise.')
+            : 'Repoet/branchen er tom — eller branch-navnet stemmer ikke (sjekk Innstillinger).';
+          list.innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:13px;">' + msg + '</div>';
+          return;
+        }
+        items.slice(0, 500).forEach((p) => {
+          const b = document.createElement('button');
+          b.type = 'button'; b.className = 'ai-modal-btn';
+          b.style.cssText = 'display:block;width:100%;text-align:left;margin:2px 0;font-size:13px;';
+          b.textContent = p; b.title = p;
+          b.onclick = () => pickFile(p);
+          list.appendChild(b);
+        });
+      }
+      async function openPicker() {
+        closeMenu();
+        if (!ghConfigured()) { openSettings('Sett opp GitHub-tilkobling først.'); return; }
+        const err = $('ghPickerError'); if (err) err.textContent = '';
+        const list = $('ghPickerList');
+        if (list) list.innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:13px;">Henter filliste…</div>';
+        const filter = $('ghPickerFilter'); if (filter) filter.value = '';
+        $('ghPickerBackdrop').style.display = 'flex';
+        try {
+          await fetchTree(ghSettings());
+          renderPicker('');
+        } catch (e) {
+          if (err) err.textContent = 'Kunne ikke hente filliste: ' + (e.message || e);
+          if (list) list.innerHTML = '';
+        }
+      }
+      async function pickFile(path) {
+        const s = ghSettings();
+        const err = $('ghPickerError'); if (err) err.textContent = '';
+        try {
+          const resp = await fetch(ghContentsUrlFor(s.repo, path) + '?ref=' + encodeURIComponent(s.branch), { headers: ghHeaders(s.pat) });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          const data = await resp.json();
+          setEditor(b64ToUtf8(data.content), langFromPath(path));
+          const nameEl = $('scriptName');
+          if (nameEl) nameEl.value = (path.split('/').pop() || '').replace(/\.(txt|py|r)$/i, '');
+          setCurrent({ repo: s.repo, branch: s.branch, path: path });
+          markSaved();
+          pushRecentFile({ kind: 'github', repo: s.repo, branch: s.branch, path: path });
+          $('ghPickerBackdrop').style.display = 'none';
+          toast('Hentet fra GitHub: ' + path);
+        } catch (e) {
+          if (err) err.textContent = 'Kunne ikke hente filen: ' + (e.message || e);
+        }
+      }
+
+      // Skriving
+      async function putFile(s, path, content) {
+        // Hent eksisterende sha (kreves for å overskrive en fil som finnes)
+        let sha = null;
+        const head = await fetch(ghContentsUrlFor(s.repo, path) + '?ref=' + encodeURIComponent(s.branch), { headers: ghHeaders(s.pat) });
+        if (head.ok) sha = (await head.json()).sha;
+        const body = { message: 'Update ' + path + ' via Microdata Script Runner', content: utf8ToB64(content), branch: s.branch };
+        if (sha) body.sha = sha;
+        const resp = await fetch(ghContentsUrlFor(s.repo, path), { method: 'PUT', headers: ghHeaders(s.pat), body: JSON.stringify(body) });
+        if (!resp.ok) {
+          let msg = 'HTTP ' + resp.status;
+          try { const ej = await resp.json(); if (ej.message) msg += ' – ' + ej.message; } catch (_) {}
+          if (resp.status === 409) msg += ' (filen er endret på GitHub — bruk «Oppdater» og prøv igjen)';
+          throw new Error(msg);
+        }
+      }
+      async function doSave() {
+        closeMenu();
+        if (!ghConfigured()) { openSettings('Sett opp GitHub-tilkobling først.'); return; }
+        const s = ghSettings();
+        const cur = getCurrent();
+        if (!cur || !cur.path || cur.repo !== s.repo) { openSaveAs(); return; }
+        const si = $('scriptInput');
+        try {
+          await putFile(s, cur.path, si ? si.value : '');
+          setCurrent({ repo: s.repo, branch: s.branch, path: cur.path });
+          markSaved();
+          toast('Lagret til GitHub: ' + cur.path);
+        } catch (e) { alert('Kunne ikke lagre: ' + (e.message || e)); }
+      }
+      function openSaveAs() {
+        if (!ghConfigured()) { openSettings('Sett opp GitHub-tilkobling først.'); return; }
+        const err = $('ghSaveAsError'); if (err) err.textContent = '';
+        const s = ghSettings();
+        const cur = getCurrent();
+        const input = $('ghSaveAsPath');
+        if (input) {
+          if (cur && cur.path && cur.repo === s.repo) {
+            input.value = cur.path;
+          } else {
+            const nm = (($('scriptName') && $('scriptName').value) || 'script').trim();
+            input.value = nm.replace(/\s+/g, '_'); // endelse legges til automatisk ved lagring
+          }
+        }
+        const dl = $('ghFolderList');
+        if (dl) {
+          dl.innerHTML = '';
+          const folders = new Set();
+          (lastTree || []).forEach((p) => { const i = p.lastIndexOf('/'); if (i > 0) folders.add(p.slice(0, i + 1)); });
+          Array.from(folders).slice(0, 50).forEach((f) => { const o = document.createElement('option'); o.value = f; dl.appendChild(o); });
+        }
+        $('ghSaveAsBackdrop').style.display = 'flex';
+        setTimeout(() => { const i = $('ghSaveAsPath'); if (i) i.focus(); }, 50);
+      }
+      function ensureExt(path) {
+        const last = path.split('/').pop();
+        if (last.indexOf('.') !== -1) return path; // har allerede endelse
+        const ext = currentLang() === 'python' ? '.py' : currentLang() === 'r' ? '.r' : '.txt';
+        return path + ext;
+      }
+      async function saveAsConfirm() {
+        const err = $('ghSaveAsError'); if (err) err.textContent = '';
+        let path = $('ghSaveAsPath').value.trim();
+        if (!path) { if (err) err.textContent = 'Skriv en filsti.'; return; }
+        path = ensureExt(path);
+        const s = ghSettings();
+        const si = $('scriptInput');
+        try {
+          await putFile(s, path, si ? si.value : '');
+          setCurrent({ repo: s.repo, branch: s.branch, path: path });
+          markSaved();
+          pushRecentFile({ kind: 'github', repo: s.repo, branch: s.branch, path: path });
+          const nameEl = $('scriptName');
+          if (nameEl) nameEl.value = (path.split('/').pop() || '').replace(/\.(txt|py|r)$/i, '');
+          $('ghSaveAsBackdrop').style.display = 'none';
+          toast('Lagret til GitHub: ' + path);
+        } catch (e) { if (err) err.textContent = 'Kunne ikke lagre: ' + (e.message || e); }
+      }
+      async function doRefresh() {
+        closeMenu();
+        const cur = getCurrent();
+        if (!cur || !cur.path) { alert('Ingen gjeldende GitHub-fil å oppdatere. Bruk «Åpne fil…» først.'); return; }
+        if (!confirm('Hente «' + cur.path + '» på nytt fra GitHub? Ulagrede lokale endringer går tapt.')) return;
+        const s = ghSettings();
+        try {
+          const resp = await fetch(ghContentsUrlFor(cur.repo, cur.path) + '?ref=' + encodeURIComponent(cur.branch), { headers: ghHeaders(s.pat) });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          const data = await resp.json();
+          setEditor(b64ToUtf8(data.content), langFromPath(cur.path));
+          markSaved();
+          toast('Hentet på nytt fra GitHub: ' + cur.path);
+        } catch (e) { alert('Kunne ikke oppdatere: ' + (e.message || e)); }
+      }
+
+      // --- Kobling av knapper ---
+      // Modalene ligger etter dette scriptet i dokumentet, så vi venter på at
+      // DOM-en er ferdig parset før vi kobler på lyttere.
+      function wire() {
+        function on(id, fn) { const el = $(id); if (el) el.addEventListener('click', fn); }
+
+        // Små outline-ikoner på menyvalgene (samme stil overalt).
+        (function addMenuIcons() {
+          const wrapSvg = (inner) => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px;flex-shrink:0">' + inner + '</svg>';
+          const FOLDER = '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>';
+          const SETTINGS = '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>';
+          const SAVE = '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>';
+          const map = {
+            menuFilBtn: FOLDER,
+            menuExamplesBtn: '<path d="M2 4h7a3 3 0 0 1 3 3v13a2.5 2.5 0 0 0-2.5-2.5H2z"/><path d="M22 4h-7a3 3 0 0 0-3 3v13a2.5 2.5 0 0 1 2.5-2.5H22z"/>',
+            menuUploadData: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+            menuGithubBtn: '<line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+            menuForklar: '<polygon points="5 3 19 12 5 21 5 3"/>',
+            menuSettings: SETTINGS,
+            menuNew: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>',
+            menuOpenUrl: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+            menuLoad: FOLDER,
+            menuShareLink: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>',
+            menuSave: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+            menuWebExamples: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+            ghMenuSettings: SETTINGS,
+            ghMenuOpen: FOLDER,
+            ghMenuSave: SAVE,
+            ghMenuSaveAs: SAVE,
+            ghMenuRefresh: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>'
+          };
+          Object.keys(map).forEach((id) => {
+            const btn = $(id);
+            if (!btn || btn.querySelector('svg')) return;
+            btn.insertAdjacentHTML('afterbegin', wrapSvg(map[id]));
+            btn.style.display = 'flex';
+            btn.style.alignItems = 'center';
+          });
+        })();
+
+        on('menuShareLink', shareLink);
+        on('menuOpenUrl', openUrlModal);
+
+        on('openUrlCancel', () => { $('openUrlBackdrop').style.display = 'none'; });
+        on('openUrlGo', () => fetchUrl($('openUrlInput').value));
+        const ui = $('openUrlInput');
+        if (ui) ui.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); fetchUrl(ui.value); } });
+        const oub = $('openUrlBackdrop');
+        if (oub) oub.addEventListener('click', (e) => { if (e.target === oub) oub.style.display = 'none'; });
+
+        // Undermeny-toggler (Fil + GitHub) — samme klikk-mønster som «Eksempler».
+        function wireSubmenu(btnId, subId) {
+          const btn = $(btnId), sub = $(subId);
+          if (!btn || !sub) return;
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const willOpen = !sub.classList.contains('open');
+            closeAllSubmenus();
+            if (willOpen) sub.classList.add('open');
+          });
+          sub.addEventListener('click', (e) => e.stopPropagation());
+        }
+        wireSubmenu('menuFilBtn', 'filSubmenu');
+        wireSubmenu('menuGithubBtn', 'githubSubmenu');
+        document.addEventListener('click', closeAllSubmenus);
+        // Start alltid med kollapsede undermenyer når hamburgeren åpnes.
+        const hbBtn = $('hamburgerBtn');
+        if (hbBtn) hbBtn.addEventListener('click', closeAllSubmenus);
+        on('ghMenuSettings', () => openSettings());
+        on('ghMenuOpen', openPicker);
+        on('ghMenuSave', doSave);
+        on('ghMenuSaveAs', () => { closeMenu(); openSaveAs(); });
+        on('ghMenuRefresh', doRefresh);
+
+        // Innstillinger-dialog
+        on('ghSettingsClose', () => { $('githubBackdrop').style.display = 'none'; });
+        on('ghSettingsTest', settingsTest);
+        on('ghSettingsSave', settingsSave);
+        on('ghProfileNew', profileNew);
+        on('ghProfileDelete', profileDelete);
+        on('ghPatToggle', patToggle);
+        on('ghPatCopy', patCopy);
+        const psel = $('ghProfileSelect');
+        if (psel) psel.addEventListener('change', function () {
+          const i = parseInt(this.value, 10);
+          if (i >= 0) {
+            try { localStorage.setItem(LS_ACTIVE, String(i)); } catch (_) {}
+            loadProfileIntoFields(i);
+            $('ghError').textContent = ''; $('ghStatus').textContent = '';
+            updateCurrentIndicator();
+          }
+        });
+        const ghb = $('githubBackdrop');
+        if (ghb) ghb.addEventListener('click', (e) => { if (e.target === ghb) ghb.style.display = 'none'; });
+
+        // Filvelger
+        on('ghPickerCancel', () => { $('ghPickerBackdrop').style.display = 'none'; });
+        on('ghPickerRefresh', openPicker);
+        const pf = $('ghPickerFilter');
+        if (pf) pf.addEventListener('input', () => renderPicker(pf.value));
+        const pb = $('ghPickerBackdrop');
+        if (pb) pb.addEventListener('click', (e) => { if (e.target === pb) pb.style.display = 'none'; });
+
+        // Lagre som
+        on('ghSaveAsCancel', () => { $('ghSaveAsBackdrop').style.display = 'none'; });
+        on('ghSaveAsConfirm', saveAsConfirm);
+        const sp = $('ghSaveAsPath');
+        if (sp) sp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveAsConfirm(); } });
+        const sb = $('ghSaveAsBackdrop');
+        if (sb) sb.addEventListener('click', (e) => { if (e.target === sb) sb.style.display = 'none'; });
+
+        // Live ulagret-indikator: oppdater lagre-ikonet når editoren endres.
+        const si = $('scriptInput');
+        if (si) si.addEventListener('input', updateCurrentIndicator);
+
+        updateCurrentIndicator();
+      }
+
+      // Lar eksterne lastere (Nytt script, lokal fil, eksempler) koble fra
+      // gjeldende GitHub-fil, så «Lagre» ikke overskriver feil fil.
+      window.mdGithubClearCurrent = function () { setCurrent(null); };
+
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
+      else wire();
+
+      // Åpne delt script hvis URL inneholder #s= (etter at resten har lastet)
+      if (document.readyState === 'complete') openFromFragment();
+      else window.addEventListener('load', openFromFragment);
     })();
   </script>
 
@@ -8520,43 +10411,57 @@ def _run_microdata_chunk(_code):
         AI vurderer om scriptet ditt henter og bruker minimum nødvendig data.
       </p>
 
-      <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;">
-        <label for="dmOptLanguage" style="min-width: 80px;">Språk:</label>
-        <select id="dmOptLanguage" style="flex: 1; padding: 6px;">
-          <option value="auto">Automatisk</option>
-          <option value="microdata">microdata.no</option>
-          <option value="r">R</option>
-          <option value="python">Python</option>
-        </select>
-      </div>
+      <button type="button" id="dmOptToggleAdvanced" class="ai-modal-btn"
+        title="Vis valg for språk, rapportlengde, revidert script og formål"
+        style="width: 100%; text-align: left; margin: 8px 0;">⚙ Flere valg</button>
 
-      <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;">
-        <span style="min-width: 80px;">Rapport:</span>
-        <label style="margin-right: 16px;">
-          <input type="radio" name="dmOptDetail" value="kort" checked> Kort
-        </label>
-        <label>
-          <input type="radio" name="dmOptDetail" value="lang"> Lang
-        </label>
-      </div>
+      <div id="dmOptAdvanced" style="display:none;">
+        <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;"
+          title="Hvilket språk scriptet er i. «Automatisk» lar AI gjette ut fra koden.">
+          <label for="dmOptLanguage" style="min-width: 80px;">Språk:</label>
+          <select id="dmOptLanguage" style="flex: 1; padding: 6px;">
+            <option value="auto">Automatisk</option>
+            <option value="microdata">microdata.no</option>
+            <option value="r">R</option>
+            <option value="python">Python</option>
+          </select>
+        </div>
 
-      <div style="margin: 12px 0;">
-        <label>
-          <input type="checkbox" id="dmOptRevise"> Generer også revidert script
-        </label>
-      </div>
+        <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;"
+          title="Kort: de 3–5 viktigste observasjonene. Lang: full gjennomgang av alle dimensjoner med lovreferanser.">
+          <span style="min-width: 80px;">Rapport:</span>
+          <label style="margin-right: 16px;">
+            <input type="radio" name="dmOptDetail" value="kort" checked> Kort
+          </label>
+          <label>
+            <input type="radio" name="dmOptDetail" value="lang"> Lang
+          </label>
+        </div>
 
-      <div style="margin: 16px 0 12px 0; padding-top: 12px; border-top: 1px solid var(--border);">
-        <div style="margin-bottom: 6px;">Formål og bakgrunn:</div>
-        <button type="button" id="dmOptContextBtn" class="ai-modal-btn" style="width: 100%; text-align: left;">Spesifiser formål / kontekst</button>
-        <p id="dmOptContextStatus" style="font-size: 12px; color: var(--text-muted); margin: 6px 0 0 0;">
-          Hvis ikke spesifisert, vurderer AI ut fra scriptet alene.
-        </p>
+        <div style="margin: 12px 0;">
+          <label title="AI foreslår en konkret, minimert versjon av scriptet som du kan sette rett inn i editoren.">
+            <input type="checkbox" id="dmOptRevise"> Generer også revidert script
+          </label>
+          <label style="display:block; margin: 6px 0 0 22px; font-size: 13px; color: var(--text-muted);"
+            title="Lar det reviderte scriptet foreslå scrub-kommandoer (jitter, winsorize, collapse …) for å minimere/de-identifisere data. Krever at «revidert script» er på.">
+            <input type="checkbox" id="dmOptUseScrub"> Bruk scrub-kommandoer (dataminimering) i forslaget
+          </label>
+        </div>
+
+        <div style="margin: 16px 0 12px 0; padding-top: 12px; border-top: 1px solid var(--border);">
+          <div style="margin-bottom: 6px;">Formål og bakgrunn:</div>
+          <button type="button" id="dmOptContextBtn" class="ai-modal-btn" style="width: 100%; text-align: left;"
+            title="Beskriv formålet med analysen, så vurderer AI ut fra det — ikke bare koden. Reduserer falske «unødvendig variabel»-treff.">Spesifiser formål / kontekst</button>
+          <p id="dmOptContextStatus" style="font-size: 12px; color: var(--text-muted); margin: 6px 0 0 0;">
+            Hvis ikke spesifisert, vurderer AI ut fra scriptet alene.
+          </p>
+        </div>
       </div>
 
       <div class="ai-modal-actions" style="margin-top: 16px;">
         <button type="button" id="dmOptCancel" class="ai-modal-btn">Avbryt</button>
-        <button type="button" id="dmOptSubmit" class="ai-modal-btn primary">Vurder</button>
+        <button type="button" id="dmOptSubmit" class="ai-modal-btn primary"
+          title="Send scriptet til AI for vurdering med valgene over (eller standardvalg).">Start vurderingen</button>
       </div>
     </div>
   </div>
@@ -8656,6 +10561,108 @@ def _run_microdata_chunk(_code):
           <button type="button" id="adminCodeNew" class="ai-modal-btn">Generer ny</button>
           <button type="button" id="adminCodeClose" class="ai-modal-btn primary">Lukk</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Åpne fra URL -->
+  <div id="openUrlBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 560px;">
+      <h3 style="font-size: 1.25em;">&#197;pne script fra URL</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+        Lim inn en direkte lenke til en tekstfil. Fungerer med GitHub &laquo;raw&raquo;-lenker, GitHub gist og Dropbox.
+        Innholdet hentes inn i editoren &mdash; det du har n&aring; blir erstattet.
+      </p>
+      <div style="margin: 12px 0;">
+        <input type="text" id="openUrlInput" placeholder="https://raw.githubusercontent.com/&#8230;/script.txt" style="width:100%; padding:6px;">
+      </div>
+      <div id="openUrlError" style="color: var(--accent-danger,#d00); font-size:12px; min-height:1.2em;"></div>
+      <div id="openUrlRecentWrap" style="margin: 8px 0; display:none;">
+        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px;">Nylige</div>
+        <div id="openUrlRecent"></div>
+      </div>
+      <div class="ai-modal-actions" style="margin-top:16px;">
+        <button type="button" id="openUrlCancel" class="ai-modal-btn">Avbryt</button>
+        <button type="button" id="openUrlGo" class="ai-modal-btn primary">&#197;pne</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Koble til GitHub -->
+  <!-- GitHub: innstillinger (oppsett) -->
+  <div id="githubBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 560px;">
+      <h3 style="font-size: 1.25em;">GitHub-innstillinger</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+        Lagre og hent scripts i ditt eget GitHub-repo. Krever et fine-grained personal access token (PAT)
+        med <strong>Contents: Read and write</strong> p&aring; repoet
+        (<a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener">lag token</a>).
+        Tokenet lagres kun lokalt i nettleseren din.
+      </p>
+      <div style="margin:10px 0; display:flex; gap:8px; align-items:flex-end;">
+        <div style="flex:1;">
+          <label for="ghProfileSelect">Profil</label>
+          <select id="ghProfileSelect" style="width:100%; padding:6px;"></select>
+        </div>
+        <button type="button" id="ghProfileNew" class="ai-modal-btn">Ny</button>
+        <button type="button" id="ghProfileDelete" class="ai-modal-btn">Slett</button>
+      </div>
+      <div style="margin:10px 0;">
+        <label for="ghPat">Token (PAT)</label>
+        <div style="display:flex; gap:6px;">
+          <input type="password" id="ghPat" placeholder="github_pat_&#8230;" autocomplete="off" style="flex:1; padding:6px;">
+          <button type="button" id="ghPatToggle" class="ai-modal-btn">Vis</button>
+          <button type="button" id="ghPatCopy" class="ai-modal-btn">Kopier</button>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <div style="flex:2;">
+          <label for="ghRepo">Repo (eier/navn)</label>
+          <input type="text" id="ghRepo" placeholder="brukernavn/mine-scripts" style="width:100%; padding:6px;">
+        </div>
+        <div style="flex:1;">
+          <label for="ghBranch">Branch</label>
+          <input type="text" id="ghBranch" placeholder="main" style="width:100%; padding:6px;">
+        </div>
+      </div>
+      <div id="ghError" style="color:var(--accent-danger,#d00); font-size:12px; min-height:1.2em;"></div>
+      <div id="ghStatus" style="font-size:12px; color:var(--text-muted); min-height:1.2em;"></div>
+      <div class="ai-modal-actions" style="margin-top:16px;">
+        <button type="button" id="ghSettingsClose" class="ai-modal-btn">Lukk</button>
+        <button type="button" id="ghSettingsTest" class="ai-modal-btn">Test tilkobling</button>
+        <button type="button" id="ghSettingsSave" class="ai-modal-btn primary">Lagre innstillinger</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GitHub: filvelger -->
+  <div id="ghPickerBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 600px; max-height: 80vh; display: flex; flex-direction: column;">
+      <h3 style="font-size: 1.25em;">&#197;pne fil fra GitHub</h3>
+      <input type="text" id="ghPickerFilter" placeholder="Filtrer filer&#8230;" style="width:100%; padding:6px; margin:8px 0;">
+      <div id="ghPickerError" style="color:var(--accent-danger,#d00); font-size:12px; min-height:1.2em;"></div>
+      <div id="ghPickerList" style="overflow:auto; flex:1; min-height:140px; max-height:50vh; border:1px solid var(--border); border-radius:6px; padding:4px;"></div>
+      <div class="ai-modal-actions" style="margin-top:12px;">
+        <button type="button" id="ghPickerCancel" class="ai-modal-btn">Avbryt</button>
+        <button type="button" id="ghPickerRefresh" class="ai-modal-btn">Oppdater liste</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GitHub: lagre som -->
+  <div id="ghSaveAsBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 520px;">
+      <h3 style="font-size: 1.25em;">Lagre som&#8230; (GitHub)</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+        Skriv filstien i repoet. Bruk skr&aring;strek for mapper, f.eks. <code>analyser/inntekt</code>.
+        Endelsen (<code>.txt</code>) legges til automatisk hvis du ikke skriver en.
+      </p>
+      <input type="text" id="ghSaveAsPath" list="ghFolderList" placeholder="mappe/filnavn" style="width:100%; padding:6px; margin:8px 0;">
+      <datalist id="ghFolderList"></datalist>
+      <div id="ghSaveAsError" style="color:var(--accent-danger,#d00); font-size:12px; min-height:1.2em;"></div>
+      <div class="ai-modal-actions" style="margin-top:16px;">
+        <button type="button" id="ghSaveAsCancel" class="ai-modal-btn">Avbryt</button>
+        <button type="button" id="ghSaveAsConfirm" class="ai-modal-btn primary">Lagre</button>
       </div>
     </div>
   </div>

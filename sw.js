@@ -1,4 +1,4 @@
-const CACHE = 'm2py-v2';
+const CACHE = 'm2py-v3';
 const CDN_HOSTS = new Set([
   'cdn.jsdelivr.net',
   'cdn.plot.ly',

@@ -1,0 +1,14 @@
+# Eksempel: pandas på microdata-datasett
+# Førsteblokk importerer variabler via microdata.
+# Andre blokk bruker pandas på resultatet (datasett-navnet blir variabelnavnet).
+
+#micro
+require no.ssb.fdb:54 as fd
+create-dataset folk
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+
+#python
+folk.head()
+
+folk.groupby("kjonn")["inntekt"].agg(["mean", "median", "count"])

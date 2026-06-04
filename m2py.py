@@ -23,6 +23,27 @@ _DC_TABULATE_LOW_CELL = 5        # T5: celle-frekvenser <5 telles som "lave"
 _DC_TABULATE_LOW_RATIO = 0.5     # T5: >50% lave celler stopper tabellen
 _DC_PERCENTILE_SIG_DIGITS = 3    # T8: signifikante sifre for median/persentiler
 
+# ─── Sentrale brukerstillinger ─────────────────────────────────────────────
+# Globale defaults samles her. Lookup går ALLTID via _get_default(key) som
+# har innbakt hardkodet fallback — så ting virker også hvis dicten er slettet
+# eller mangler en nøkkel. Direktiv-systemet (// m2py: key=value) muterer
+# entries her midlertidig og restaurerer etter script-kjøring.
+M2PY_DEFAULTS = {
+    'label_format': 'both',      # 'both' | 'label' | 'code' — tabulate-output
+    # Framtidige defaults legges til her.
+}
+
+_M2PY_HARDCODED_FALLBACKS = {
+    'label_format': 'both',
+}
+
+def _get_default(key):
+    """Hent default-verdi. Robust mot at M2PY_DEFAULTS er slettet eller mangler key."""
+    d = globals().get('M2PY_DEFAULTS')
+    if isinstance(d, dict) and key in d:
+        return d[key]
+    return _M2PY_HARDCODED_FALLBACKS.get(key)
+
 # Variabelnavn-mønstre som identifiserer pseudonymer i microdata.no.
 # Bruker disse som backup når metadata mangler eksplisitt is_pseudonym.
 _PSEUDONYM_NAME_SUFFIXES = ('_FNR', '_PERSON_ID', '_PSEUDONYM')
@@ -110,6 +131,52 @@ def _smart_float_fmt(x, base_dec):
     else:
         dec = base_dec
     return f'{x:.{dec}f}'
+
+
+# ── scrub-kommandoer (dataminimering via protect) ──────────────────────────────
+def _scrub_split_commas(s):
+    """Del på komma kun på topp-nivå (ikke inne i (), [] eller {})."""
+    out, buf, depth = [], [], 0
+    for ch in s:
+        if ch in '([{':
+            depth += 1; buf.append(ch)
+        elif ch in ')]}':
+            depth = max(0, depth - 1); buf.append(ch)
+        elif ch == ',' and depth == 0:
+            out.append(''.join(buf)); buf = []
+        else:
+            buf.append(ch)
+    if buf:
+        out.append(''.join(buf))
+    return out
+
+
+def _scrub_parse_value(v):
+    """Type-inferens for kwarg-verdier: tuple/liste, streng, bool, None, tall, bareword."""
+    v = v.strip()
+    if not v:
+        return v
+    if (v[0], v[-1]) in (('(', ')'), ('[', ']')):
+        inner = v[1:-1]
+        parts = [p for p in _scrub_split_commas(inner) if p.strip() != '']
+        return tuple(_scrub_parse_value(p) for p in parts)
+    if (v[0], v[-1]) in (('"', '"'), ("'", "'")):
+        return v[1:-1]
+    low = v.lower()
+    if low in ('true', 'false'):
+        return low == 'true'
+    if low in ('none', 'null'):
+        return None
+    try:
+        return int(v)
+    except ValueError:
+        pass
+    try:
+        return float(v)
+    except ValueError:
+        pass
+    return v  # bareword (f.eks. auto, random, pid)
+
 
 class MicroParser:
     def __init__(self):
@@ -205,6 +272,22 @@ class MicroParser:
         if not line:
             return None
 
+        # 0. Scrub-kommandoer: scrub-VERB(var[, var2 …][, key=value …]). Parser
+        #    parentes-innholdet selv, så generisk komma/if-splitting hoppes over
+        #    (komma inne i parentesen er argument-skille, ikke opsjons-skille).
+        _m_scrub = re.match(r'^(scrub-[a-z_]+)\s*\((.*)\)\s*$', line, re.IGNORECASE)
+        if _m_scrub:
+            return {
+                "command": _m_scrub.group(1).lower(),
+                "args": self._parse_scrub_args(_m_scrub.group(2)),
+                "condition": None,
+                "options": {},
+            }
+        if re.fullmatch(r'scrub-auto', line, re.IGNORECASE):
+            return {"command": "scrub-auto",
+                    "args": {"columns": [], "kwargs": {}},
+                    "condition": None, "options": {}}
+
         # 1. Skill ut opsjoner (alt etter første komma), men IKKE for kommandoer der komma
         #    kan forekomme i argumenter/etiketter (generate, recode, define-labels, …).
         #    NB: Naiv split(',') knekker f.eks. recode … (1/3 = 1 "Jordbruk, skogbruk, fiske")
@@ -214,6 +297,8 @@ class MicroParser:
             'generate', 'recode', 'define-labels', 'keep', 'drop', 'replace',
             # `for x in v1, v2, ...` har komma i iterator-listen, ikke opsjoner.
             'for',
+            # import … scrub-winsorize(limits=(0.01,0.99)) — komma i scrub-kwargs.
+            'import', 'import-event',
         })
         options_dict = {}
         first_word = line.split(maxsplit=1)[0].lower() if line else ''
@@ -249,6 +334,20 @@ class MicroParser:
             "options": options_dict
         }
 
+    def _parse_scrub_args(self, inside):
+        """Parse innholdet i scrub-VERB(...): posisjonelle variabler + key=value-kwargs."""
+        columns, kwargs = [], {}
+        for tok in _scrub_split_commas(inside):
+            tok = tok.strip()
+            if not tok:
+                continue
+            m = re.match(r'^([A-Za-z_]\w*)\s*=\s*(.*)$', tok, re.DOTALL)
+            if m:
+                kwargs[m.group(1)] = _scrub_parse_value(m.group(2))
+            else:
+                columns.append(tok.strip().strip('"\''))
+        return {"columns": columns, "kwargs": kwargs}
+
     def _parse_command_logic(self, cmd, remainder):
         if cmd == 'aggregate':
             targets = self._parse_agg_spec(remainder)
@@ -264,8 +363,8 @@ class MicroParser:
             if not m_paren:
                 return {"raw": remainder}
             before = remainder[:m_paren.start()].split()
-            _method_tokens = {'2sls', 'liml', 'gmm'}
-            method = '2sls'
+            _method_tokens = {'2sls', 'tsls', 'liml', 'gmm'}
+            method = 'tsls'
             dep_var = None
             exog = []
             for i, tok in enumerate(before):
@@ -312,6 +411,14 @@ class MicroParser:
             return toks if toks else []
 
         if cmd in ['import', 'import-event']:
+            # Valgfritt scrub-suffiks: `… as alias scrub-VERB[(kwargs)]` (dataminimering
+            # ved import). Trekk det ut FØR import_pattern, så alias-deteksjonen er ren.
+            scrub_spec = None
+            m_scrub = re.search(r'\s+(scrub-[a-z_]+)(?:\((.*)\))?\s*$', remainder, re.IGNORECASE)
+            if m_scrub:
+                scrub_spec = {"verb": m_scrub.group(1).lower()[len('scrub-'):],
+                              "args_raw": m_scrub.group(2) or ""}
+                remainder = remainder[:m_scrub.start()].rstrip()
             match = self.import_pattern.search(remainder)
             if not match:
                 return {"raw": remainder}
@@ -324,6 +431,8 @@ class MicroParser:
                 alias = result.get('alias') or ''
                 if after and after != alias:
                     result['_alias_raw'] = after
+            if scrub_spec:
+                result['scrub'] = scrub_spec
             return result
         if cmd == 'import-panel':
             # import-panel var1 var2 ... time1 time2 ...
@@ -3872,70 +3981,109 @@ class LabelManager:
             pass
         return None
 
-    def format_value(self, var_name, value):
-        """Returnerer label for verdi, eller råverdi hvis ingen label."""
+    @staticmethod
+    def _code_to_str(v):
+        """Konverter kodeverdi til streng for 'both'-visning. 301.0 → '301'."""
+        if isinstance(v, float):
+            try:
+                if math.isfinite(v) and v == int(v):
+                    return str(int(v))
+            except (ValueError, OverflowError):
+                pass
+        return str(v)
+
+    def format_value(self, var_name, value, fmt='label'):
+        """Returnerer formatert verdi etter fmt-modus.
+
+        fmt='label' (default — bakoverkompat): returner label, eller kode hvis ingen label.
+        fmt='code': returner kode (ingen lookup).
+        fmt='both': returner "kode - label", eller bare kode hvis ingen label.
+        Total-rader (verdi == 'Total') og NaN passerer uendret.
+        """
         if pd.isna(value):
+            return value
+        if fmt == 'code':
             return value
         cl = self.get_codelist_for_var(var_name)
         if cl is None:
             return value
         lbl = self._lookup_label_in_codelist(cl, value, var_name)
-        if lbl is not None:
+        if lbl is None:
+            return value
+        if fmt == 'label':
             return lbl
-        return value
+        # fmt == 'both'
+        return f"{self._code_to_str(value)} - {lbl}"
 
-    def apply_labels_to_series(self, series, var_name):
-        """Mapper series index/values til labels. Returnerer ny Series."""
+    def apply_labels_to_series(self, series, var_name, fmt='label'):
+        """Mapper series index til formatert visning. Returnerer ny Series."""
         cl = self.get_codelist_for_var(var_name)
-        if not cl:
+        if not cl and fmt != 'code':
             return series
         def _lookup(v):
             if pd.isna(v):
                 return v
+            # Bevar Total-rad
+            if isinstance(v, str) and v == 'Total':
+                return v
+            if fmt == 'code':
+                return v
+            if cl is None:
+                return v
             lbl = self._lookup_label_in_codelist(cl, v, var_name)
-            if lbl is not None:
+            if lbl is None:
+                try:
+                    sv = str(v)
+                    if sv in cl:
+                        lbl = cl[sv]
+                except (ValueError, TypeError):
+                    pass
+            if lbl is None:
+                return v
+            if fmt == 'label':
                 return lbl
-            try:
-                sv = str(v)
-                if sv in cl:
-                    return cl[sv]
-            except (ValueError, TypeError):
-                pass
-            return v
+            return f"{self._code_to_str(v)} - {lbl}"
         if hasattr(series, 'index'):
             new_index = [_lookup(x) for x in series.index]
             return pd.Series(series.values, index=new_index)
         return series
 
-    def apply_labels_to_frame(self, obj, var1, var2=None):
-        """Mapper DataFrame/Series indeks og kolonner til labels."""
+    def apply_labels_to_frame(self, obj, var1, var2=None, fmt='label'):
+        """Mapper DataFrame/Series indeks og kolonner til formatert visning."""
         cl1 = self.get_codelist_for_var(var1)
         cl2 = self.get_codelist_for_var(var2) if var2 else None
-        if not cl1 and not cl2:
+        if not cl1 and not cl2 and fmt != 'code':
             return obj
         def _lookup(cl, val, vname):
-            if cl is None:
-                return val
             if pd.isna(val):
                 return val
+            if isinstance(val, str) and val == 'Total':
+                return val
+            if fmt == 'code':
+                return val
+            if cl is None:
+                return val
             lbl = self._lookup_label_in_codelist(cl, val, vname)
-            if lbl is not None:
+            if lbl is None:
+                try:
+                    sv = str(val)
+                    if sv in cl:
+                        lbl = cl[sv]
+                except (ValueError, TypeError):
+                    pass
+            if lbl is None:
+                return val
+            if fmt == 'label':
                 return lbl
-            try:
-                sv = str(val)
-                if sv in cl:
-                    return cl[sv]
-            except (ValueError, TypeError):
-                pass
-            return val
+            return f"{self._code_to_str(val)} - {lbl}"
         if isinstance(obj, pd.Series):
-            idx = [_lookup(cl1, x, var1) for x in obj.index] if cl1 else obj.index.tolist()
+            idx = [_lookup(cl1, x, var1) for x in obj.index] if (cl1 or fmt == 'code') else obj.index.tolist()
             return pd.Series(obj.values, index=idx)
         if isinstance(obj, pd.DataFrame):
             df = obj.copy()
-            if cl1 and hasattr(df.index, 'tolist'):
+            if (cl1 or fmt == 'code') and hasattr(df.index, 'tolist'):
                 df.index = [_lookup(cl1, x, var1) for x in df.index]
-            if cl2 and hasattr(df.columns, 'tolist'):
+            if (cl2 or fmt == 'code') and hasattr(df.columns, 'tolist'):
                 df.columns = [_lookup(cl2, x, var2) for x in df.columns]
             return df
         return obj
@@ -4223,6 +4371,120 @@ class StatsEngine:
             var2 = args[1] if len(args) > 1 else None
             dropna = 'missing' not in options
 
+            # Label-format: per-kommando-opsjon → script-direktiv/UI → modul-default
+            if 'nolabels' in options:
+                label_fmt = 'code'
+            elif 'novalues' in options:
+                label_fmt = 'label'
+            else:
+                label_fmt = _get_default('label_format') or 'both'
+
+            def _parse_sort_arg(opt_val):
+                """Parse argument til rowsort()/colsort(). Returnerer kodeverdi eller None."""
+                if opt_val is True or opt_val is None:
+                    return None
+                s = str(opt_val).strip()
+                if not s:
+                    return None
+                # 2D-tabeller: bruk første token (multidim-tabeller støttes ikke her)
+                first = s.split(',')[0].strip()
+                if (first.startswith("'") and first.endswith("'")) or \
+                   (first.startswith('"') and first.endswith('"')):
+                    return first[1:-1]
+                for caster in (int, float):
+                    try:
+                        return caster(first)
+                    except (ValueError, TypeError):
+                        pass
+                return first
+
+            def _find_key_in_index(idx, key):
+                """Finn key i en pandas Index — prøv as-is, str, int, float."""
+                if key in idx:
+                    return key
+                s_key = str(key)
+                if s_key in idx:
+                    return s_key
+                try:
+                    i_key = int(key)
+                    if i_key in idx:
+                        return i_key
+                except (ValueError, TypeError):
+                    pass
+                try:
+                    f_key = float(key)
+                    if f_key in idx:
+                        return f_key
+                except (ValueError, TypeError):
+                    pass
+                return None
+
+            def _sort_tab_frame(df_in, opts):
+                """Sortér DataFrame-tabell ved rowsort()/colsort(). Bevarer Total-rad/kol."""
+                if 'rowsort' not in opts and 'colsort' not in opts:
+                    return df_in
+                has_total_row = 'Total' in df_in.index
+                has_total_col = 'Total' in df_in.columns
+                total_row_saved = df_in.loc[['Total']] if has_total_row else None
+                data = df_in.drop(index='Total') if has_total_row else df_in.copy()
+
+                if 'rowsort' in opts:
+                    key = _parse_sort_arg(opts.get('rowsort'))
+                    if key is None:
+                        target = 'Total' if has_total_col else (data.columns[-1] if len(data.columns) else None)
+                    else:
+                        target = _find_key_in_index(data.columns, key)
+                    if target is not None and target in data.columns:
+                        # Konverter til numerisk for stabil sortering hvis mulig
+                        sort_vals = pd.to_numeric(data[target], errors='coerce')
+                        order = sort_vals.sort_values(kind='stable').index
+                        data = data.loc[order]
+
+                if 'colsort' in opts:
+                    key = _parse_sort_arg(opts.get('colsort'))
+                    sort_series_for_cols = None
+                    if key is None:
+                        if has_total_row:
+                            sort_series_for_cols = total_row_saved.iloc[0]
+                    else:
+                        row_label = _find_key_in_index(data.index, key)
+                        if row_label is not None:
+                            sort_series_for_cols = data.loc[row_label]
+                    if sort_series_for_cols is not None:
+                        non_total_cols = [c for c in data.columns if c != 'Total']
+                        numeric_vals = pd.to_numeric(sort_series_for_cols, errors='coerce')
+                        sorted_cols = sorted(non_total_cols,
+                                             key=lambda c: (numeric_vals.get(c) if pd.notna(numeric_vals.get(c)) else float('inf')))
+                        if 'Total' in data.columns:
+                            sorted_cols.append('Total')
+                        data = data[sorted_cols]
+
+                if total_row_saved is not None:
+                    # Sortér Total-rad-kolonner i samme rekkefølge som data
+                    total_row_saved = total_row_saved[data.columns]
+                    data = pd.concat([data, total_row_saved])
+                return data
+
+            def _sort_tab_series(s, opts):
+                """Sortér Series-tabell ved rowsort()/colsort(). Bevarer Total."""
+                if 'rowsort' not in opts and 'colsort' not in opts:
+                    return s
+                has_total = 'Total' in s.index
+                if has_total:
+                    total_val = s['Total']
+                    data = s.drop('Total')
+                else:
+                    data = s
+                if 'rowsort' in opts:
+                    # rowsort på 1D Series → sortér på verdiene (snittinntekt, frekvens, …)
+                    data = data.sort_values(kind='stable')
+                elif 'colsort' in opts:
+                    # colsort på 1D Series → sortér på indeks (kodeverdi)
+                    data = data.sort_index(kind='stable')
+                if has_total:
+                    data = pd.concat([data, pd.Series([total_val], index=['Total'])])
+                return data
+
             if 'summarize' in options:
                 # Volumtabell: summarize(var [, var2 ...]) [mean|std|sum|p50|p25|p75|gini|iqr]
                 # summarize kan inneholde én eller flere komma-separerte variabler
@@ -4254,6 +4516,11 @@ class StatsEngine:
                         else:
                             total_val = getattr(df[val_var], agg_func)()
                         tb = pd.concat([tb, pd.Series([total_val], index=['Total'])])
+                # rowsort() / colsort() — bevar Total
+                if isinstance(tb, pd.DataFrame):
+                    tb = _sort_tab_frame(tb, options)
+                elif isinstance(tb, pd.Series):
+                    tb = _sort_tab_series(tb, options)
                 # top(n) / bottom(n) — bevar Total-rad/kolonne
                 def _parse_n(opt_val, default=10):
                     if opt_val is True: return default
@@ -4295,9 +4562,9 @@ class StatsEngine:
                     tb = tb.to_frame().reset_index()
                 lm = options.get('_label_manager')
                 if lm and var2:
-                    return lm.apply_labels_to_frame(tb, var1, var2)
+                    return lm.apply_labels_to_frame(tb, var1, var2, fmt=label_fmt)
                 if lm:
-                    return lm.apply_labels_to_frame(tb, var1)
+                    return lm.apply_labels_to_frame(tb, var1, fmt=label_fmt)
                 return tb
 
             # Frekvenstabell: rowpct, colpct, cellpct, chi2
@@ -4330,6 +4597,8 @@ class StatsEngine:
             if var2:
                 ct = pd.crosstab(df[var1], df[var2], normalize=normalize, dropna=dropna,
                                  margins=True, margins_name='Total')
+                # rowsort() / colsort() — kjøres FØR chi2 (chi2 caster til string)
+                ct = _sort_tab_frame(ct, options)
                 if 'chi2' in options:
                     from scipy.stats import chi2_contingency
                     ct_raw = pd.crosstab(df[var1], df[var2], dropna=dropna)
@@ -4365,11 +4634,13 @@ class StatsEngine:
                     ct = ct.reset_index()
                 lm = options.get('_label_manager')
                 if lm:
-                    ct = lm.apply_labels_to_frame(ct, var1, var2)
+                    ct = lm.apply_labels_to_frame(ct, var1, var2, fmt=label_fmt)
                 return ct
             else:
                 vc = df[var1].value_counts(normalize=normalize, dropna=not dropna)
                 total = vc.sum()
+                # rowsort() / colsort() FØR top/bottom og før Total legges til
+                vc = _sort_tab_series(vc, options)
                 if 'top' in options:
                     n = int(options.get('top', 10))
                     vc = vc.head(n)
@@ -4379,7 +4650,7 @@ class StatsEngine:
                 vc = pd.concat([vc, pd.Series([total], index=['Total'])])
                 lm = options.get('_label_manager')
                 if lm:
-                    vc = lm.apply_labels_to_series(vc, var1)
+                    vc = lm.apply_labels_to_series(vc, var1, fmt=label_fmt)
                 return vc
 
         if cmd == 'tabulate-panel':
@@ -4505,6 +4776,89 @@ class RegressionHandler:
         summary = str(model.summary(alpha=alpha)) if hasattr(model, 'summary') else str(model)
         return (summary, extra)
 
+    def _expand_factor_design(self, raw_indep, df):
+        """Stata-stil faktor-/interaksjonssyntaks for regresjon.
+
+        Tolker hvert ledd i variabellista:
+          VAR    → kontinuerlig (lineært ledd)
+          c.VAR  → tving kontinuerlig
+          i.VAR  → dummyer (referansekategori droppes, drop_first)
+          A#B    → interaksjon (kun produktleddet)
+          A##B   → full kryssing (hovedeffekter + interaksjon)
+        Innenfor # er bare navn KATEGORISKE (som Stata); c.-prefiks tvinger
+        kontinuerlig. Kryssing av faktorer gir produkt av alle ikke-referanse-
+        dummyer. Bare navn UTENFOR # er kontinuerlig (bakoverkompatibelt — bruk
+        i. for dummyer).
+
+        Returnerer (indep_vars, computed, cont_bases):
+          indep_vars – ordnet liste over sluttkolonner i designmatrisen
+          computed   – {kolonnenavn: Series} for genererte kolonner (dummyer,
+                       c.-ledd, interaksjoner), indeksert som df
+          cont_bases – basis-kontinuerlige kolonner som hentes direkte fra df
+        """
+        import itertools
+
+        indep_vars = []
+        computed = {}
+        cont_bases = []
+
+        def _dummies(base):
+            if base not in df.columns:
+                raise ValueError(f"Faktorvariabel '{base}' finnes ikke i datasettet")
+            d = pd.get_dummies(df[base], prefix=base, drop_first=True)
+            return [(c, d[c].astype(float)) for c in d.columns]
+
+        def _numeric(base):
+            if base not in df.columns:
+                raise ValueError(f"Variabel '{base}' finnes ikke i datasettet")
+            return pd.to_numeric(df[base], errors='coerce')
+
+        def _operand_cols(tok):
+            # Kolonner for ett interaksjons-ledd: liste av (navn, Series).
+            if tok.startswith('c.'):
+                base = tok[2:]
+                return [(base, _numeric(base))]
+            base = tok[2:] if tok.startswith('i.') else tok
+            return _dummies(base)  # bare navn i # = kategorisk (Stata-default)
+
+        def _add_main(name, series):
+            if series is None:
+                if name not in cont_bases:
+                    cont_bases.append(name)
+            else:
+                computed[name] = series
+            if name not in indep_vars:
+                indep_vars.append(name)
+
+        for tok in raw_indep:
+            if '#' in tok:
+                full_cross = '##' in tok
+                operands = tok.replace('##', '#').split('#')
+                expanded = [_operand_cols(op) for op in operands]
+                if full_cross:
+                    for cols in expanded:
+                        for name, series in cols:
+                            _add_main(name, series)
+                for combo in itertools.product(*expanded):
+                    inter_name = '#'.join(c[0] for c in combo)
+                    series = None
+                    for _, cs in combo:
+                        series = cs if series is None else series * cs
+                    computed[inter_name] = series
+                    if inter_name not in indep_vars:
+                        indep_vars.append(inter_name)
+            elif tok.startswith('c.'):
+                _add_main(tok[2:], None)        # kontinuerlig passthrough
+            elif tok.startswith('i.'):
+                for name, series in _dummies(tok[2:]):
+                    computed[name] = series
+                    if name not in indep_vars:
+                        indep_vars.append(name)
+            else:
+                _add_main(tok, None)            # bare utenfor # = kontinuerlig
+
+        return indep_vars, computed, cont_bases
+
     def _fit_simple(self, reg_cmd, df, args, options):
         """Fit en enkel regresjon og returner (model, dep_var, indep_vars, df_clean).
         Brukes av coefplot og evt. andre metoder som trenger råmodellen.
@@ -4514,45 +4868,23 @@ class RegressionHandler:
         raw_indep = list(args[1:])
         add_const = 'noconstant' not in options
 
-        # i. prefix → dummies
-        factor_map = {}
-        for v in raw_indep:
-            if v.startswith('i.'):
-                base = v[2:]
-                if base not in df.columns:
-                    raise ValueError(f"Faktorvariabel '{base}' finnes ikke i datasettet")
-                dummies = pd.get_dummies(df[base], prefix=base, drop_first=True)
-                factor_map[v] = list(dummies.columns)
-
-        indep_vars = []
-        for v in raw_indep:
-            if v in factor_map:
-                indep_vars.extend(factor_map[v])
-            else:
-                indep_vars.append(v)
-
-        cont_vars = [dep_var] + [v for v in indep_vars if v not in
-                                  [c for cols in factor_map.values() for c in cols]]
+        # Faktor-/interaksjonssyntaks (i. c. # ##) → designkolonner
+        indep_vars, _computed, _cont_bases = self._expand_factor_design(raw_indep, df)
+        cont_vars = [dep_var] + [b for b in _cont_bases if b != dep_var]
         missing = [v for v in cont_vars if v not in df.columns]
         if missing:
             raise ValueError(f"Variabler ikke funnet: {missing}")
-        df_work = df[cont_vars].copy()
+        df_work = df[list(dict.fromkeys(cont_vars))].copy()
         for v in cont_vars:
             df_work[v] = pd.to_numeric(df_work[v], errors='coerce')
-        for iv, dummy_cols in factor_map.items():
-            base = iv[2:]
-            dummies = pd.get_dummies(df[base], prefix=base, drop_first=True)
-            for col in dummy_cols:
-                df_work[col] = dummies[col].astype(float)
+        for name, series in _computed.items():
+            df_work[name] = pd.to_numeric(series.reindex(df_work.index), errors='coerce')
 
         df_clean = df_work.dropna().copy()
         if df_clean.empty:
             raise ValueError("Ingen observasjoner etter konvertering.")
-        for v in cont_vars:
-            df_clean[v] = df_clean[v].astype(np.float64)
-        for cols in factor_map.values():
-            for col in cols:
-                df_clean[col] = df_clean[col].astype(np.float64)
+        for col in [dep_var] + indep_vars:
+            df_clean[col] = df_clean[col].astype(np.float64)
 
         if options.get('standardize'):
             for v in indep_vars:
@@ -4590,57 +4922,33 @@ class RegressionHandler:
         add_const = 'noconstant' not in options
         alpha = 1 - (float(options.get('level', 95)) / 100)
 
-        # ── Stata-stil i.VARNAME: lag dummies for kategoriske variabler ──────
-        # i.kjønn → dummy-kolonner kjønn_<kategori2>, kjønn_<kategori3>, …
-        # Referansekategori (lavest sortert) droppes automatisk (drop_first=True).
-        factor_map = {}  # 'i.xxx' -> [dummy_col1, dummy_col2, ...]
-        for v in raw_indep:
-            if v.startswith('i.'):
-                base = v[2:]
-                if base not in df.columns:
-                    raise ValueError(f"Faktorvariabel '{base}' finnes ikke i datasettet")
-                dummies = pd.get_dummies(df[base], prefix=base, drop_first=True)
-                factor_map[v] = list(dummies.columns)
+        # ── Stata-stil faktor-/interaksjonssyntaks (i. c. # ##) ──────────────
+        # i.kjønn → dummyer; c.alder → kontinuerlig; a#b → interaksjon;
+        # a##b → full kryssing. Referansekategori droppes (drop_first=True).
+        indep_vars, _computed_cols, _cont_bases = self._expand_factor_design(raw_indep, df)
 
-        # Utvidet indep_vars: i.xxx erstattes med sine dummy-kolonnenavn
-        indep_vars = []
-        for v in raw_indep:
-            if v in factor_map:
-                indep_vars.extend(factor_map[v])
-            else:
-                indep_vars.append(v)
-
-        # Kontinuerlige variabler som må konverteres numerisk
-        cont_vars = [dep_var] + [v for v in indep_vars if v not in
-                                  [col for cols in factor_map.values() for col in cols]]
+        # Kontinuerlige basisvariabler (+ evt. cluster) som hentes fra df
+        cont_vars = [dep_var] + [b for b in _cont_bases if b != dep_var]
         if options.get('cluster') and options['cluster'] not in cont_vars:
             cont_vars.append(options['cluster'])
 
-        # Bygg arbeidsdf: numeriske kontinuerlige kolonner
         missing = [v for v in cont_vars if v not in df.columns]
         if missing:
             raise ValueError(f"Variabler ikke funnet i datasettet: {missing}")
-        df_work = df[cont_vars].copy()
+        df_work = df[list(dict.fromkeys(cont_vars))].copy()
         for v in cont_vars:
             df_work[v] = pd.to_numeric(df_work[v], errors='coerce')
-
-        # Legg til dummy-kolonner (allerede float/bool fra get_dummies)
-        for iv, dummy_cols in factor_map.items():
-            base = iv[2:]
-            dummies = pd.get_dummies(df[base], prefix=base, drop_first=True)
-            for col in dummy_cols:
-                df_work[col] = dummies[col].astype(float)
+        # Genererte kolonner (dummyer, c.-ledd, interaksjoner)
+        for name, series in _computed_cols.items():
+            df_work[name] = pd.to_numeric(series.reindex(df_work.index), errors='coerce')
 
         df_clean = df_work.dropna().copy()
         if df_clean.empty:
             raise ValueError(
                 "Ingen observasjoner etter numerisk konvertering — sjekk at avhengig og uavhengige variabler er tall."
             )
-        for v in cont_vars:
-            df_clean[v] = df_clean[v].astype(np.float64)
-        for cols in factor_map.values():
-            for col in cols:
-                df_clean[col] = df_clean[col].astype(np.float64)
+        for col in [dep_var] + indep_vars:
+            df_clean[col] = df_clean[col].astype(np.float64)
 
         vars_needed = [dep_var] + indep_vars  # brukes av regress-panel m.fl.
         Y = df_clean[dep_var]
@@ -4673,6 +4981,45 @@ class RegressionHandler:
                 coef = np.exp(model.params)
                 conf = np.exp(model.conf_int(alpha=alpha))
                 out = f"\nModell: poisson (incidence rate ratios)\n{pd.DataFrame({'IRR': coef, '2.5%': conf[0], '97.5%': conf[1]})}\n"
+                return (out, None)
+            return (str(model.summary(alpha=alpha)), None)
+
+        if cmd in ('negative-binomial', 'negative-binomial-predict'):
+            # MLE-estimering av dispersjon (alpha); passer telledata med
+            # overdispersjon (varians > forventning), jf. poisson ellers.
+            from statsmodels.discrete.discrete_model import NegativeBinomial as _NB
+            Y_nb, X_nb, _idx = Y, X, df_clean.index
+            _fit_kw = {}
+            _expo = options.get('exposure')
+            if _expo:
+                if _expo not in df.columns:
+                    raise ValueError(f"exposure-variabel '{_expo}' finnes ikke i datasettet")
+                _ev = pd.to_numeric(df.loc[_idx, _expo], errors='coerce')
+                _keep = _ev.notna() & (_ev > 0)
+                if not bool(_keep.all()):
+                    Y_nb, X_nb, _ev, _idx = Y_nb[_keep], X_nb[_keep], _ev[_keep], _idx[_keep]
+                _fit_kw['exposure'] = _ev.astype(float).values
+            model = _NB(Y_nb, X_nb, **_fit_kw).fit(disp=0)
+            model = self._apply_cov(model, options, df_clean.loc[_idx])
+
+            if cmd == 'negative-binomial-predict':
+                extra = {}
+                pred_name = options.get('predicted', 'predicted')
+                res_name = options.get('residuals')
+                fitted = pd.Series(np.asarray(model.predict()), index=_idx)
+                if pred_name:
+                    extra[str(pred_name) if pred_name is not True else 'predicted'] = fitted
+                if res_name:
+                    extra[str(res_name) if res_name is not True else 'residuals'] = pd.Series(
+                        Y_nb.values - fitted.values, index=_idx)
+                if not extra:
+                    extra['predicted'] = fitted
+                return (str(model.summary(alpha=alpha)), extra)
+
+            if options.get('irr'):
+                coef = np.exp(model.params)
+                conf = np.exp(model.conf_int(alpha=alpha))
+                out = f"\nModell: negative-binomial (incidence rate ratios)\n{pd.DataFrame({'IRR': coef, '2.5%': conf[0], '97.5%': conf[1]})}\n"
                 return (out, None)
             return (str(model.summary(alpha=alpha)), None)
 
@@ -4985,7 +5332,14 @@ class RegressionHandler:
         predicted_vals = X_actual @ model_2s.params
         resid_vals = Y - predicted_vals
 
-        method = args.get('method', '2sls').upper()
+        # Estimator: docs-form etterstilt opsjon (, tsls/liml/gmm) har forrang,
+        # ellers posisjonelt token i var-lista, ellers tsls (standard).
+        method = args.get('method') or 'tsls'
+        for _m in ('tsls', 'liml', 'gmm', '2sls'):
+            if options.get(_m):
+                method = _m
+                break
+        method = method.upper()
         header = f"\nInstrumentvariabelregresjon ({method})\n"
         header += "\n".join(first_stage_lines) + "\n\n"
         header += f"Andre trinn (avhengig: {dep}):\n"
@@ -5913,7 +6267,7 @@ class MicroInterpreter:
         pd.options.display.float_format = lambda x: _smart_float_fmt(x, dec)
 
     # ─── Script-direktiver (// m2py: key=value) ─────────────────────────────
-    # Brukes for å overstyre avsløringskontroll per script. Direktivene leses
+    # Brukes for å overstyre globale innstillinger per script. Direktivene leses
     # før scriptet kjøres og restaureres etterpå, slik at f.eks. en API-konsument
     # kan kjøre to scripts på rad uten at det ene "lekker" innstilling til neste.
     _DIRECTIVE_RE = re.compile(
@@ -5922,8 +6276,22 @@ class MicroInterpreter:
     _DIRECTIVE_TRUTHY = ('on', 'true', '1', 'yes', 'pa', 'på')
     _DIRECTIVE_FALSY  = ('off', 'false', '0', 'no', 'av')
 
+    # Direktiv-aliaser → (storage_kind, storage_key)
+    # storage_kind='global' → muterer modul-global (legacy: disclosure-control)
+    # storage_kind='default' → muterer M2PY_DEFAULTS[key]
+    _DIRECTIVE_TARGETS = {
+        'disclosure-control': ('global', 'M2PY_DISCLOSURE_CONTROL'),
+        'disclosurecontrol':  ('global', 'M2PY_DISCLOSURE_CONTROL'),
+        'dc':                 ('global', 'M2PY_DISCLOSURE_CONTROL'),
+        'label-format':       ('default', 'label_format'),
+        'labelformat':        ('default', 'label_format'),
+    }
+    _DIRECTIVE_ENUM_VALUES = {
+        'label_format': ('both', 'label', 'code'),
+    }
+
     def _apply_script_directives(self, script_text):
-        """Skann scriptet etter // m2py: <key>=<value>-linjer og mut globalen
+        """Skann scriptet etter // m2py: <key>=<value>-linjer og mut innstillinger
         deretter. Returner dict med opprinnelige verdier som skal gjenopprettes."""
         saved = {}
         for raw in script_text.splitlines():
@@ -5932,33 +6300,65 @@ class MicroInterpreter:
                 continue
             key = m.group(1).lower()
             val = m.group(2).lower().strip(';,')
-            if key in ('disclosure-control', 'disclosurecontrol', 'dc'):
-                global_name = 'M2PY_DISCLOSURE_CONTROL'
-            else:
-                # Ukjent direktiv — logg en advarsel og hopp over
+            target = self._DIRECTIVE_TARGETS.get(key)
+            if target is None:
                 self._log(f"// m2py: ukjent direktiv '{key}' — ignorert")
                 continue
-            new_val = (
-                '1' if val in self._DIRECTIVE_TRUTHY else
-                '0' if val in self._DIRECTIVE_FALSY else None
-            )
-            if new_val is None:
-                self._log(f"// m2py: ugyldig verdi '{val}' for '{key}' — ignorert (bruk on/off)")
-                continue
-            if global_name not in saved:
-                saved[global_name] = globals().get(global_name, '1')
-            globals()[global_name] = new_val
-            self._log(
-                f"// m2py: disclosure-control = "
-                f"{'PÅ' if new_val == '1' else 'AV'} (satt fra script-direktiv)"
-            )
+            kind, storage_key = target
+            if kind == 'global':
+                # Truthy/falsy → '1'/'0' (kun disclosure-control bruker dette)
+                new_val = (
+                    '1' if val in self._DIRECTIVE_TRUTHY else
+                    '0' if val in self._DIRECTIVE_FALSY else None
+                )
+                if new_val is None:
+                    self._log(f"// m2py: ugyldig verdi '{val}' for '{key}' — ignorert (bruk on/off)")
+                    continue
+                saved_key = ('global', storage_key)
+                if saved_key not in saved:
+                    saved[saved_key] = globals().get(storage_key, '1')
+                globals()[storage_key] = new_val
+                self._log(
+                    f"// m2py: {key} = "
+                    f"{'PÅ' if new_val == '1' else 'AV'} (satt fra script-direktiv)"
+                )
+            elif kind == 'default':
+                allowed = self._DIRECTIVE_ENUM_VALUES.get(storage_key)
+                if allowed and val not in allowed:
+                    self._log(
+                        f"// m2py: ugyldig verdi '{val}' for '{key}' — ignorert "
+                        f"(tillatt: {', '.join(allowed)})"
+                    )
+                    continue
+                d = globals().get('M2PY_DEFAULTS')
+                if not isinstance(d, dict):
+                    d = {}
+                    globals()['M2PY_DEFAULTS'] = d
+                saved_key = ('default', storage_key)
+                if saved_key not in saved:
+                    saved[saved_key] = d.get(storage_key, _M2PY_HARDCODED_FALLBACKS.get(storage_key))
+                d[storage_key] = val
+                self._log(f"// m2py: {key} = {val} (satt fra script-direktiv)")
         return saved
 
     def _restore_script_directives(self, saved):
-        """Gjenopprett globaler etter at scriptet er ferdig (uansett om det
+        """Gjenopprett innstillinger etter at scriptet er ferdig (uansett om det
         feilet eller fullførte)."""
-        for key, old_val in saved.items():
-            globals()[key] = old_val
+        for storage_ref, old_val in saved.items():
+            # Bakoverkompatibilitet: gamle saved-dict-er brukte rene strenger som nøkler
+            if isinstance(storage_ref, tuple) and len(storage_ref) == 2:
+                kind, storage_key = storage_ref
+                if kind == 'global':
+                    globals()[storage_key] = old_val
+                elif kind == 'default':
+                    d = globals().get('M2PY_DEFAULTS')
+                    if isinstance(d, dict):
+                        if old_val is None:
+                            d.pop(storage_key, None)
+                        else:
+                            d[storage_key] = old_val
+            else:
+                globals()[storage_ref] = old_val
 
     # ─── Streng-emulering: metadata-oppslag for kolonner ────────────────────
     def _lookup_var_meta(self, colname):
@@ -6102,6 +6502,7 @@ class MicroInterpreter:
         # Kommandoer som er rene analyser (krever ikke-pseudonym variabler)
         _ANALYSIS_CMDS = {'summarize', 'correlate', 'ci', 'anova', 'normaltest',
                           'regress', 'logit', 'probit', 'poisson', 'mlogit',
+                          'negative-binomial', 'negative-binomial-predict',
                           'regress-panel', 'ivregress'}
 
         def _maybe_check_pseudonym(varname):
@@ -6992,7 +7393,7 @@ class MicroInterpreter:
             lines.append(f'{comment} ' + ' '.join(str(v) for v in vars_list))
             lines.append(f"# statsmodels anova_lm(ols(...))")
             return lines
-        if cmd in ['regress', 'logit', 'probit', 'poisson', 'regress-predict', 'probit-predict', 'logit-predict', 'mlogit', 'mlogit-predict', 'ivregress', 'ivregress-predict', 'regress-panel-predict', 'regress-panel-diff', 'rdd']:
+        if cmd in ['regress', 'logit', 'probit', 'poisson', 'negative-binomial', 'negative-binomial-predict', 'regress-predict', 'probit-predict', 'logit-predict', 'mlogit', 'mlogit-predict', 'ivregress', 'ivregress-predict', 'regress-panel-predict', 'regress-panel-diff', 'rdd']:
             vars_list = args if isinstance(args, (list, tuple)) else (args.get('vars', []) if isinstance(args, dict) else [])
             lines.append(f'{comment} ' + ' '.join(str(v) for v in vars_list) + (' ' + str(opts) if opts else ''))
             lines.append(f"# statsmodels OLS/Logit/Probit/Poisson eller regress-predict pred/residuals")
@@ -7025,6 +7426,120 @@ class MicroInterpreter:
             return lines
         lines.append(f'{comment} (ukjent kommando)')
         return lines
+
+    def _execute_scrub(self, cmd, args):
+        """Kjør en scrub-VERB(...)-kommando: dataminimering via protect på aktivt datasett.
+
+        Kolonne-verb (jitter, noise, …) erstatter variabelen(e) in-place. unit_id
+        settes automatisk til datasettets person/enhets-nøkkel (konsistent per enhet)
+        hvis ikke oppgitt. `scrub-auto` velger default ut fra variabeltype.
+        """
+        verb = cmd[len('scrub-'):].lower()
+        if not isinstance(args, dict):
+            args = {"columns": [], "kwargs": {}}
+        columns = list(args.get('columns') or [])
+        kwargs = dict(args.get('kwargs') or {})
+        if not self.active_name or self.active_name not in self.datasets:
+            self._log("FEIL: scrub krever et aktivt datasett.")
+            return
+        try:
+            import protect
+        except Exception:
+            self._log("FEIL: protect-modulen (dataminimering) er ikke tilgjengelig.")
+            return
+        df = self.datasets[self.active_name]
+        key = _get_df_key_col(df)
+        COLUMN_VERBS = {'noise', 'jitter', 'winsorize', 'bin', 'coarsen', 'year',
+                        'month', 'diff', 'shorten', 'collapse', 'pseudonymize', 'swap'}
+        try:
+            if verb == 'auto':
+                self._scrub_auto(df, columns, kwargs, key)
+                return
+            if verb == 'risk':
+                rep = protect.risk(df, **kwargs)
+                self._log(rep.describe() if hasattr(rep, 'describe') else str(rep))
+                return
+            if verb in COLUMN_VERBS:
+                if not columns:
+                    self._log(f"FEIL: scrub-{verb} krever minst én variabel, f.eks. scrub-{verb}(VARIABEL).")
+                    return
+                missing = [c for c in columns if c not in df.columns]
+                if missing:
+                    self._log(f"FEIL: ukjent(e) variabel(er) i scrub-{verb}: {', '.join(missing)}")
+                    return
+                fn = getattr(protect, verb, None)
+                if fn is None:
+                    self._log(f"FEIL: ukjent scrub-verb: {verb}")
+                    return
+                if key and 'unit_id' not in kwargs and verb != 'pseudonymize':
+                    kwargs['unit_id'] = key
+                res = fn(df, columns, **kwargs)
+                if isinstance(res, tuple):
+                    res = res[0]
+                self.datasets[self.active_name] = res
+                self._log(f"scrub-{verb} brukt på {', '.join(columns)}.")
+                return
+            self._log(
+                f"FEIL: scrub-{verb} støttes ikke i microdata ennå. Tilgjengelig: "
+                "jitter, noise, winsorize, bin, coarsen, year, month, diff, shorten, "
+                "collapse, pseudonymize, swap, auto, risk."
+            )
+        except Exception as ex:
+            self._log(f"FEIL i scrub-{verb}: {ex}")
+
+    def _scrub_auto(self, df, columns, kwargs, key):
+        """Type-bevisst default-minimering: dato→year, numerisk→jitter, ellers→collapse."""
+        import protect
+        cols = columns or [c for c in df.columns if c != key]
+        recipe = {}
+        for col in cols:
+            if col == key or col not in df.columns:
+                continue
+            s = df[col]
+            if pd.api.types.is_datetime64_any_dtype(s):
+                recipe[col] = {'year': {}}
+            elif pd.api.types.is_numeric_dtype(s):
+                recipe[col] = {'jitter': {}}
+            else:
+                recipe[col] = {'collapse': {'rare_below': 5}}
+        if not recipe:
+            self._log("scrub-auto: fant ingen variabler å beskytte.")
+            return
+        kw = dict(kwargs)
+        if key and 'unit_id' not in kw:
+            kw['unit_id'] = key
+        res = protect.protect(df, recipe=recipe, **kw)
+        log = None
+        if isinstance(res, tuple):
+            new_df, log = res[0], (res[1] if len(res) > 1 else None)
+        else:
+            new_df = res
+        self.datasets[self.active_name] = new_df
+        self._log("scrub-auto brukt på: " + ", ".join(recipe.keys()))
+        if log is not None and hasattr(log, 'to_text'):
+            try:
+                self._log(log.to_text())
+            except Exception:
+                pass
+
+    def _apply_import_scrub(self, spec, alias):
+        """Anvend et scrub-suffiks fra en import-linje på den nyimporterte kolonnen.
+
+        Kun kolonne-lokale verb. Datasett-avhengige verb (collapse/swap/risk) hopper
+        over med en advarsel — de bør kjøres som egen linje på det ferdige datasettet.
+        """
+        verb = (spec.get('verb') or '').lower()
+        if verb in ('collapse', 'swap', 'risk'):
+            self._log(
+                f"ADVARSEL: scrub-{verb} kjøres ikke ved import (avhenger av hele "
+                "datasettet). Kjør det som egen linje etter at datasettet er bygd."
+            )
+            return
+        try:
+            parsed = self.parser._parse_scrub_args(spec.get('args_raw', '') or '')
+        except Exception:
+            parsed = {"columns": [], "kwargs": {}}
+        self._execute_scrub('scrub-' + verb, {"columns": [alias], "kwargs": parsed.get('kwargs', {})})
 
     def _execute_instruction(self, instr):
         cmd = instr['command']
@@ -7059,6 +7574,7 @@ class MicroInterpreter:
             _strict_check_cmds = (
                 'collapse', 'aggregate', 'summarize', 'correlate', 'ci', 'anova',
                 'normaltest', 'regress', 'logit', 'probit', 'poisson', 'mlogit',
+                'negative-binomial', 'negative-binomial-predict',
                 'regress-panel', 'ivregress', 'generate', 'replace', 'keep', 'drop'
             )
             if cmd in _strict_check_cmds:
@@ -7070,6 +7586,11 @@ class MicroInterpreter:
                 except ValueError as _strict_err:
                     self._log(f"FEIL: {_strict_err}")
                     return
+
+            # 0b. Scrub-kommandoer (dataminimering via protect)
+            if cmd.startswith('scrub-'):
+                self._execute_scrub(cmd, args)
+                return
 
             # 1. Globale/Sesjons-kommandoer
             if cmd == 'create-dataset':
@@ -7569,6 +8090,22 @@ class MicroInterpreter:
                 if _ds_entity is None and _vshort:
                     self.dataset_entity_types[self.active_name] = _var_entity
 
+                # Temporalitet-sjekk: Tverrsnitt/Akkumulert/Forløp krever importdato
+                if cmd in ('import', 'import-event') and isinstance(args, dict):
+                    _temp = _vmeta.get('temporalitet', '')
+                    _date1 = args.get('date1')
+                    if _temp and _temp.lower() != 'fast' and not _date1:
+                        _vpath_disp = args.get('var', _vshort)
+                        self._log(
+                            f"FEIL: «{_vshort}» er en {_temp}-variabel og krever en importdato.\n"
+                            f"Legg til dato i kommandoen: import {_vpath_disp} ÅÅÅÅ-MM-DD"
+                        )
+                        return
+                    if _temp.lower() == 'fast' and _date1:
+                        self._log(
+                            f"ADVARSEL: «{_vshort}» er en Fast-variabel — dato ignoreres."
+                        )
+
                 new_data = self.data_engine.generate(cmd, args, df_target)
                 # Omdøp unit_id → enhetstype-korrekt nøkkelkolonne (f.eks. PERSONID_1 for persondata)
                 _id_col = _ENTITY_ID_COL.get(_var_entity, 'unit_id')
@@ -7648,6 +8185,10 @@ class MicroInterpreter:
                     msg = base
 
                 self._log(msg)
+                # Valgfri scrub ved import (kun single import/import-event, kolonne-lokale verb)
+                _scrub_spec = args.get('scrub') if isinstance(args, dict) else None
+                if _scrub_spec and cmd in ('import', 'import-event'):
+                    self._apply_import_scrub(_scrub_spec, alias)
                 return
 
             # 4. Statistikk og Transformasjon
@@ -7865,7 +8406,7 @@ class MicroInterpreter:
                 return
 
             # 6. Regresjon
-            if cmd in ['regress', 'logit', 'probit', 'poisson', 'regress-panel', 'regress-panel-predict', 'regress-panel-diff', 'hausman', 'regress-predict', 'probit-predict', 'logit-predict', 'mlogit', 'mlogit-predict', 'ivregress', 'ivregress-predict', 'rdd']:
+            if cmd in ['regress', 'logit', 'probit', 'poisson', 'negative-binomial', 'negative-binomial-predict', 'regress-panel', 'regress-panel-predict', 'regress-panel-diff', 'hausman', 'regress-predict', 'probit-predict', 'logit-predict', 'mlogit', 'mlogit-predict', 'ivregress', 'ivregress-predict', 'rdd']:
                 result = self.reg_engine.execute(cmd, df_target, args, opts)
                 summary, extra = result if isinstance(result, tuple) else (result, None)
                 self._log(f"\n--- Modell: {cmd} ---\n{summary}\n")
