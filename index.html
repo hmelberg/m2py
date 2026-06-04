@@ -609,6 +609,29 @@
     .var-detail-freq-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 4px; }
     .var-detail-freq-bar > i { display: block; height: 100%; min-width: 2px; background: var(--accent); border-radius: 2px; }
     .var-detail-body { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+    /* Hent/Vis individata-modal — bred Tabulator-tabell over datasettet */
+    .individata-overlay { display: none; position: fixed; inset: 0; z-index: 1100; background: rgba(0,0,0,0.35); align-items: center; justify-content: center; padding: 16px; }
+    .individata-overlay.open { display: flex; }
+    .individata-dialog { display: flex; flex-direction: column; width: 100%; max-width: min(96vw, 1400px); height: min(86vh, 820px); background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 16px 48px rgba(15,23,42,0.22); overflow: hidden; }
+    body[data-theme="dark"] .individata-dialog { box-shadow: 0 16px 48px rgba(0,0,0,0.55); }
+    .individata-header { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: var(--accent); color: #fff; }
+    .individata-title { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.35; flex: 1; min-width: 0; }
+    .individata-header-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+    .individata-meta { font-size: 12px; opacity: 0.92; font-variant-numeric: tabular-nums; }
+    .individata-header-actions button { width: 32px; height: 32px; border: none; border-radius: 6px; background: transparent; color: #fff; cursor: pointer; font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center; opacity: 0.92; }
+    .individata-header-actions button:hover { background: rgba(255,255,255,0.18); opacity: 1; }
+    .individata-body { flex: 1 1 auto; min-height: 0; padding: 0; position: relative; background: var(--bg-panel); }
+    .individata-status { padding: 24px 16px; text-align: center; color: var(--text-muted); font-size: 13px; }
+    .individata-status.error { color: var(--accent-danger, #d00); white-space: pre-wrap; text-align: left; }
+    .individata-body .tabulator { background: var(--bg-panel); border: none; border-radius: 0; font-size: 13px; }
+    .individata-body .tabulator .tabulator-header { background: var(--bg-code); border-bottom: 1px solid var(--border); }
+    .individata-body .tabulator .tabulator-header .tabulator-col { background: var(--bg-code); border-right: 1px solid var(--border); color: var(--text); }
+    .individata-body .tabulator .tabulator-row { background: var(--bg-panel); color: var(--text); border-bottom: 1px solid var(--border); }
+    .individata-body .tabulator .tabulator-row.tabulator-row-even { background: var(--bg-code); }
+    .individata-body .tabulator .tabulator-row:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+    .individata-body .tabulator .tabulator-cell { border-right: 1px solid var(--border); padding: 6px 8px; }
+    .individata-body .tabulator .tabulator-footer { background: var(--bg-code); color: var(--text-muted); border-top: 1px solid var(--border); }
+    .sidebar-dataset-name-clickable { text-decoration: underline; text-decoration-style: dotted; text-decoration-color: rgba(255,255,255,0.5); text-underline-offset: 3px; }
     /* Auto theme: bruk media query, overstyres av JS når bruker velger lys/mørk */
     @media (prefers-color-scheme: dark) {
       body[data-theme="auto"] { --bg: #1a1b26; --bg-panel: #24283b; --bg-code: #16161e; --text: #c0caf5; --text-muted: #737aa2; --accent: #7aa2f7; --border: #334155; --topbar-bg: #24283b; --sidebar-bg: #1e2030; --scrollbar-track: #16161e; --scrollbar-thumb: #334155; --table-grid: #2a2d3a; --table-header-bg: #1e2030; --forklar-overlay-fill: color-mix(in srgb, var(--accent) 8%, transparent); --forklar-overlay-ring: color-mix(in srgb, var(--accent) 26%, transparent); }
@@ -1048,6 +1071,7 @@
         <button type="button" id="menuForklar" title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">Kj&#248;r skrittvis</button>
         <button type="button" id="menuRunnerMode" style="display:none">Kjøremodus: Microdata</button>
         <button type="button" id="menuToggleOutputMode" style="display:none">Output-modus: String</button>
+        <button type="button" id="menuShowIndividata" title="Når PÅ kan du klikke på datasett-navnet i sidemenyen for å se selve datatabellen i en modal. Når AV er navnet inaktivt.">Hent/Vis individata: AV</button>
         <hr style="margin:4px 0;border-color:#334155;">
         <button type="button" id="menuSettings">Innstillinger</button>
         <button type="button" id="btnLoginWithCode">Logg inn</button>
@@ -1568,6 +1592,18 @@
       <div class="var-detail-body" id="varDetailBody"></div>
     </div>
   </div>
+  <div class="individata-overlay" id="individataOverlay" role="dialog" aria-modal="true" aria-labelledby="individataTitle" aria-hidden="true">
+    <div class="individata-dialog">
+      <div class="individata-header">
+        <h2 class="individata-title" id="individataTitle">Datasett</h2>
+        <div class="individata-header-actions">
+          <span class="individata-meta" id="individataMeta"></span>
+          <button type="button" id="individataCloseBtn" title="Lukk" aria-label="Lukk">&#10005;</button>
+        </div>
+      </div>
+      <div class="individata-body" id="individataBody"><div class="individata-status">Henter data &hellip;</div></div>
+    </div>
+  </div>
   <input type="file" id="fileInput" accept=".txt,text/plain" style="display:none">
   <div style="display:none" aria-hidden="true">
     <input type="radio" name="outputMode" id="outputModeString" value="string">
@@ -1576,9 +1612,11 @@
     <input type="checkbox" id="plotStatic">
     <input type="checkbox" id="plotSeaborn">
   </div>
+  <link href="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/css/tabulator_simple.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/js/tabulator.min.js" defer></script>
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
@@ -3088,6 +3126,40 @@
         updateOutputMenuLabels();
         dropdown.classList.remove('open');
       });
+
+      // Hent/Vis individata-bryter: når PÅ er datasett-navnet i sidebar
+      // klikkbart og åpner en Tabulator-modal med selve datatabellen.
+      const SHOW_INDIVIDATA_KEY = 'microdata_show_individata';
+      function getShowIndividata() {
+        try { return localStorage.getItem(SHOW_INDIVIDATA_KEY) === '1'; } catch (e) { return false; }
+      }
+      function setShowIndividata(on) {
+        try { localStorage.setItem(SHOW_INDIVIDATA_KEY, on ? '1' : '0'); } catch (e) {}
+        applyShowIndividataToSidebar();
+      }
+      window.__getShowIndividata = getShowIndividata;
+      function updateShowIndividataLabel() {
+        const btn = document.getElementById('menuShowIndividata');
+        if (!btn) return;
+        btn.textContent = 'Hent/Vis individata: ' + (getShowIndividata() ? 'PÅ' : 'AV');
+      }
+      function applyShowIndividataToSidebar() {
+        var on = getShowIndividata();
+        document.querySelectorAll('.sidebar-dataset-name').forEach(function(el) {
+          el.style.cursor = on ? 'pointer' : 'default';
+          el.classList.toggle('sidebar-dataset-name-clickable', on);
+        });
+      }
+      window.__applyShowIndividataToSidebar = applyShowIndividataToSidebar;
+      updateShowIndividataLabel();
+      const menuShowIndividataBtn = document.getElementById('menuShowIndividata');
+      if (menuShowIndividataBtn) {
+        menuShowIndividataBtn.addEventListener('click', function() {
+          setShowIndividata(!getShowIndividata());
+          updateShowIndividataLabel();
+          dropdown.classList.remove('open');
+        });
+      }
 
       (function bindPlotMenuTogglesIfPresent() {
         var ms = document.getElementById('menuToggleSuppress');
@@ -4665,6 +4737,120 @@
     }
     initVariableDetailModal();
 
+    // ── Hent/Vis individata-modal ────────────────────────────────────────────
+    var _individataTabulator = null;
+    function closeIndividataModal() {
+      var overlay = document.getElementById('individataOverlay');
+      if (!overlay) return;
+      overlay.classList.remove('open');
+      overlay.setAttribute('aria-hidden', 'true');
+      if (_individataTabulator) {
+        try { _individataTabulator.destroy(); } catch (e) {}
+        _individataTabulator = null;
+      }
+    }
+    function initIndividataModal() {
+      var overlay = document.getElementById('individataOverlay');
+      var closeBtn = document.getElementById('individataCloseBtn');
+      if (!overlay || !closeBtn) return;
+      closeBtn.addEventListener('click', closeIndividataModal);
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) closeIndividataModal();
+      });
+      document.addEventListener('keydown', function(e) {
+        if (e.key !== 'Escape') return;
+        var o = document.getElementById('individataOverlay');
+        if (o && o.classList.contains('open')) closeIndividataModal();
+      });
+    }
+    initIndividataModal();
+
+    async function showIndividataModal(datasetName) {
+      var overlay = document.getElementById('individataOverlay');
+      var titleEl = document.getElementById('individataTitle');
+      var metaEl = document.getElementById('individataMeta');
+      var bodyEl = document.getElementById('individataBody');
+      if (!overlay || !bodyEl) return;
+      titleEl.textContent = datasetName;
+      metaEl.textContent = '';
+      bodyEl.innerHTML = '<div class="individata-status">Henter data …</div>';
+      overlay.classList.add('open');
+      overlay.setAttribute('aria-hidden', 'false');
+      if (!pyodide) {
+        bodyEl.innerHTML = '<div class="individata-status error">Kjør et skript først så datasettet er lastet inn.</div>';
+        return;
+      }
+      if (typeof Tabulator === 'undefined') {
+        bodyEl.innerHTML = '<div class="individata-status error">Tabulator-biblioteket er ikke lastet. Sjekk nettverket og last siden på nytt.</div>';
+        return;
+      }
+      try {
+        pyodide.globals.set('_individata_name', datasetName);
+        var raw = await pyodide.runPythonAsync(
+          'import json, math\n' +
+          'import pandas as _pd_id\n' +
+          'import __main__ as _m_id\n' +
+          '_df_id = _m_id.micro_interpreter.datasets[_individata_name]\n' +
+          '_N_id = 5000\n' +
+          '_df_show_id = _df_id.head(_N_id) if len(_df_id) > _N_id else _df_id\n' +
+          '_rows_id = _df_show_id.to_json(orient="records", date_format="iso", default_handler=str)\n' +
+          'json.dumps({\n' +
+          '    "columns": list(_df_show_id.columns),\n' +
+          '    "dtypes": {c: str(t) for c, t in _df_show_id.dtypes.items()},\n' +
+          '    "total_rows": int(len(_df_id)),\n' +
+          '    "shown_rows": int(len(_df_show_id)),\n' +
+          '    "rows_json": _rows_id,\n' +
+          '})'
+        );
+        var raw2 = typeof raw === 'string' ? raw : (raw && raw.toJs ? raw.toJs() : String(raw));
+        var info = JSON.parse(raw2);
+        var rows = JSON.parse(info.rows_json || '[]');
+        var total = info.total_rows;
+        var shown = info.shown_rows;
+        if (total > shown) {
+          metaEl.textContent = 'Viser ' + shown.toLocaleString('nb-NO') + ' av ' + total.toLocaleString('nb-NO') + ' rader';
+        } else {
+          metaEl.textContent = total.toLocaleString('nb-NO') + ' rader · ' + info.columns.length + ' variabler';
+        }
+        bodyEl.innerHTML = '';
+        var cols = info.columns.map(function(c) {
+          var dt = (info.dtypes && info.dtypes[c]) || '';
+          var isNum = /^(int|float|uint)/i.test(dt);
+          return {
+            title: c,
+            field: c,
+            headerSort: true,
+            headerFilter: 'input',
+            hozAlign: isNum ? 'right' : 'left',
+            formatter: function(cell) {
+              var v = cell.getValue();
+              if (v === null || v === undefined) return '<span style="opacity:.4">·</span>';
+              return escapeHtml(String(v));
+            }
+          };
+        });
+        if (_individataTabulator) {
+          try { _individataTabulator.destroy(); } catch (e) {}
+          _individataTabulator = null;
+        }
+        _individataTabulator = new Tabulator(bodyEl, {
+          data: rows,
+          columns: cols,
+          layout: 'fitDataStretch',
+          height: '100%',
+          pagination: 'local',
+          paginationSize: 100,
+          paginationSizeSelector: [50, 100, 250, 500, 1000],
+          movableColumns: true,
+          placeholder: '(ingen data)',
+        });
+      } catch (err) {
+        var msg = (err && err.message) ? err.message : String(err);
+        bodyEl.innerHTML = '<div class="individata-status error">Kunne ikke hente datasettet:\n' + escapeHtml(msg) + '</div>';
+      }
+    }
+    window.showIndividataModal = showIndividataModal;
+
     function formatNumMaybe(x) {
       if (x === null || x === undefined || Number.isNaN(x)) return '—';
       if (typeof x !== 'number') return String(x);
@@ -4775,6 +4961,14 @@
           showVariableDetail(ds, v);
         });
       });
+      datasetsEl.querySelectorAll('.sidebar-dataset-name').forEach(function(el) {
+        el.addEventListener('click', function() {
+          if (!window.__getShowIndividata || !window.__getShowIndividata()) return;
+          var ds = this.getAttribute('data-ds');
+          if (ds) showIndividataModal(ds);
+        });
+      });
+      if (window.__applyShowIndividataToSidebar) window.__applyShowIndividataToSidebar();
     }
 
     async function showVariableDetail(datasetName, varName) {
