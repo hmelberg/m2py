@@ -1418,6 +1418,14 @@
           <p class="settings-hint">Standardvisning i <code>tabulate</code>. Kan overstyres per kommando med opsjonene <code>nolabels</code> / <code>novalues</code>, eller per script med <code>// m2py: label-format=both|label|code</code>.</p>
         </div>
         <div class="settings-field">
+          <label for="settingShowCommands">Kommando-echo i output (Python/R)</label>
+          <select id="settingShowCommands">
+            <option value="on" selected>P&#229; (standard)</option>
+            <option value="off">Av</option>
+          </select>
+          <p class="settings-hint">Om hver setning gjentas med <code>&gt;&gt;&gt;</code> rett over outputen den lager. Kan overstyres per script med <code>#options.show_commands=False</code>.</p>
+        </div>
+        <div class="settings-field">
           <label for="settingFontSize">Skriftstørrelse</label>
           <select id="settingFontSize">
             <option value="small">Liten</option>
@@ -3496,6 +3504,7 @@
     const DECIMALS_KEY     = 'microdata_decimals';
     const LABEL_FORMAT_KEY = 'microdata_label_format';
     const LABEL_FORMAT_VALUES = ['both', 'label', 'code'];
+    const SHOW_COMMANDS_KEY = 'microdata_show_commands';
 
     function getImportLimit() {
       try { var v = parseInt(localStorage.getItem(IMPORT_LIMIT_KEY), 10); if (v >= 10) return v; } catch(e) {}
@@ -3520,6 +3529,14 @@
       } catch(e) {}
       return 'both';
     }
+    function getShowCommandsDefault() {
+      try {
+        var v = localStorage.getItem(SHOW_COMMANDS_KEY);
+        if (v === 'off') return false;
+        if (v === 'on') return true;
+      } catch(e) {}
+      return true;
+    }
 
     (function initSettings() {
       var overlay   = document.getElementById('settingsOverlay');
@@ -3530,6 +3547,7 @@
       var pauseIn    = document.getElementById('settingBlockPause');
       var decimalsEl = document.getElementById('settingDecimals');
       var labelFmtEl = document.getElementById('settingLabelFormat');
+      var showCmdsEl = document.getElementById('settingShowCommands');
       var saveBtn   = document.getElementById('settingsSaveBtn');
       var cancelBtn = document.getElementById('settingsCancelBtn');
       if (!overlay) return;
@@ -3546,6 +3564,7 @@
         pauseIn.value = getBlockPauseSec();
         if (decimalsEl) decimalsEl.value = getDecimals();
         if (labelFmtEl) labelFmtEl.value = getLabelFormat();
+        if (showCmdsEl) showCmdsEl.value = getShowCommandsDefault() ? 'on' : 'off';
         overlay.classList.add('open');
       }
       function closeSettings() { overlay.classList.remove('open'); }
@@ -3580,6 +3599,10 @@
           if (LABEL_FORMAT_VALUES.indexOf(lf) >= 0) {
             try { localStorage.setItem(LABEL_FORMAT_KEY, lf); } catch(e2) {}
           }
+        }
+        if (showCmdsEl) {
+          var sc = showCmdsEl.value === 'off' ? 'off' : 'on';
+          try { localStorage.setItem(SHOW_COMMANDS_KEY, sc); } catch(e2) {}
         }
         closeSettings();
       });
@@ -7631,8 +7654,11 @@ options(width = 200)
         // ── Parse inline-direktiver fra scriptet (f.eks.
         //    `#options.show_commands=False`). Brukes til a styre om
         //    kode-echo skal vises i output for R og Python.
+        // Presedens: script-direktiv > Innstillinger > true.
         var _scriptOpts = extractScriptOptions(effectiveScript);
-        var _showCmds = _scriptOpts.show_commands !== false; // default true
+        var _showCmds = (typeof _scriptOpts.show_commands === 'boolean')
+          ? _scriptOpts.show_commands
+          : getShowCommandsDefault();
         // ── R mode: run natively in WebR ──────────────────────────────────
         if (activeEditorMode === 'r') {
           await runHybridR(effectiveScript, py, { showCommands: _showCmds });
