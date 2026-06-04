@@ -2709,6 +2709,7 @@
           }).then(function(text) {
             scriptInput.value = text;
             scriptName.value = title;
+            if (window.mdGithubClearCurrent) window.mdGithubClearCurrent();
             if (window.updateLineNumbers) window.updateLineNumbers();
             if (examplesDropdown) examplesDropdown.classList.remove('open');
             dropdown.classList.remove('open');
@@ -2923,6 +2924,7 @@
       document.getElementById('menuNew').addEventListener('click', function() {
         scriptInput.value = '';
         scriptName.value = 'Script navn';
+        if (window.mdGithubClearCurrent) window.mdGithubClearCurrent();
         if (window.updateLineNumbers) window.updateLineNumbers();
         dropdown.classList.remove('open');
       });
@@ -2949,6 +2951,7 @@
         r.onload = function() {
           scriptInput.value = r.result;
           scriptName.value = f.name.replace(/\.txt$/i, '');
+          if (window.mdGithubClearCurrent) window.mdGithubClearCurrent();
           if (window.updateLineNumbers) window.updateLineNumbers();
         };
         r.readAsText(f);
@@ -9546,6 +9549,7 @@ def _run_microdata_chunk(_code):
           const data = JSON.parse(await gunzip(m[1]));
           if (data && typeof data.script === 'string') {
             setEditor(data.script, data.lang);
+            setCurrent(null); // delt lenke er ikke en GitHub-fil
             if (data.name && $('scriptName')) $('scriptName').value = data.name;
             toast('Delt script åpnet');
           }
@@ -9595,6 +9599,7 @@ def _run_microdata_chunk(_code):
           if (!resp.ok) throw new Error('HTTP ' + resp.status);
           const text = await resp.text();
           setEditor(text, langFromPath(normalized));
+          setCurrent(null); // ikke lenger knyttet til en GitHub-fil
           const nameEl = $('scriptName');
           if (nameEl) {
             const fn = decodeURIComponent(normalized.split('?')[0].split('/').pop() || '');
@@ -9618,9 +9623,13 @@ def _run_microdata_chunk(_code):
       }
 
       // --- Verb 3: GitHub som filbasert lager ─────────────────────────────────
-      // Oppsett (pat/repo/branch) skilles fra gjeldende fil (m2py_github_current).
-      const LS_PAT = 'm2py_github_pat', LS_REPO = 'm2py_github_repo', LS_BRANCH = 'm2py_github_branch', LS_CURRENT = 'm2py_github_current';
-      const TEXT_EXT = /\.(txt|py|r|md|csv|json|sql|do)$/i;
+      // Profiler {label,pat,repo,branch} i m2py_github_profiles + aktiv-indeks.
+      // Gjeldende fil ligger i m2py_github_current.
+      const LS_PAT = 'm2py_github_pat', LS_REPO = 'm2py_github_repo', LS_BRANCH = 'm2py_github_branch';
+      const LS_PROFILES = 'm2py_github_profiles', LS_ACTIVE = 'm2py_github_active', LS_CURRENT = 'm2py_github_current';
+      // Filer som ikke gir mening i editoren skjules; alt annet (inkl. filer
+      // uten endelse) vises, så en fil lagret som «test» dukker også opp.
+      const BINARY_EXT = /\.(png|jpe?g|gif|bmp|svg|ico|webp|pdf|zip|gz|tgz|tar|7z|rar|xlsx?|docx?|pptx?|parquet|feather|sav|dta|rds|rdata|pkl|npy|npz|bin|exe|dll|so|dylib|mp[34]|wav|mov|avi|ttf|otf|woff2?)$/i;
       let lastTree = null; // hurtigbuffer av filstier fra siste tre-henting
 
       function ghHeaders(pat) {
@@ -9643,13 +9652,38 @@ def _run_microdata_chunk(_code):
           path.split('/').map(encodeURIComponent).join('/');
       }
 
-      // Oppsett
+      // Profiler
+      function rawProfiles() {
+        try { const a = JSON.parse(localStorage.getItem(LS_PROFILES) || 'null'); return Array.isArray(a) ? a : null; } catch (_) { return null; }
+      }
+      function saveProfiles(arr, active) {
+        try {
+          localStorage.setItem(LS_PROFILES, JSON.stringify(arr));
+          if (active != null) localStorage.setItem(LS_ACTIVE, String(active));
+        } catch (_) {}
+      }
+      function getProfiles() {
+        let a = rawProfiles();
+        if (a) return a;
+        // Migrer fra gammelt enkelt-oppsett (pat/repo/branch) til én profil
+        const oldPat = localStorage.getItem(LS_PAT), oldRepo = localStorage.getItem(LS_REPO);
+        if (oldPat || oldRepo) {
+          a = [{ label: oldRepo || 'Standard', pat: oldPat || '', repo: oldRepo || '', branch: localStorage.getItem(LS_BRANCH) || 'main' }];
+          saveProfiles(a, 0);
+          return a;
+        }
+        return [];
+      }
+      function getActiveIndex() {
+        const a = getProfiles();
+        let i = parseInt(localStorage.getItem(LS_ACTIVE) || '0', 10);
+        if (isNaN(i) || i < 0 || i >= a.length) i = 0;
+        return i;
+      }
+      // Aktiv profil som {pat,repo,branch}
       function ghSettings() {
-        return {
-          pat: localStorage.getItem(LS_PAT) || '',
-          repo: localStorage.getItem(LS_REPO) || '',
-          branch: localStorage.getItem(LS_BRANCH) || 'main'
-        };
+        const p = getProfiles()[getActiveIndex()];
+        return p ? { pat: p.pat || '', repo: p.repo || '', branch: p.branch || 'main' } : { pat: '', repo: '', branch: 'main' };
       }
       function ghConfigured() {
         const s = ghSettings();
@@ -9670,13 +9704,13 @@ def _run_microdata_chunk(_code):
           if (!name || !name.parentNode) return;
           el = document.createElement('span');
           el.id = 'ghCurrentLabel';
-          el.style.cssText = 'font-size:11px;color:var(--text-muted);margin-left:8px;white-space:nowrap;vertical-align:middle;';
+          el.style.cssText = 'font-size:15px;margin-left:6px;padding-right:6px;vertical-align:middle;cursor:default;';
           name.parentNode.insertBefore(el, name.nextSibling);
         }
         const cur = getCurrent();
         if (cur && cur.path) {
-          el.textContent = '☁ ' + cur.repo + '/' + cur.path + (cur.branch && cur.branch !== 'main' ? '@' + cur.branch : '');
-          el.title = 'Gjeldende GitHub-fil — «Lagre» skriver hit';
+          el.textContent = '☁';
+          el.title = 'GitHub: ' + cur.repo + '/' + cur.path + (cur.branch && cur.branch !== 'main' ? '@' + cur.branch : '') + ' — «Lagre» skriver hit';
           el.style.display = '';
         } else {
           el.style.display = 'none';
@@ -9684,34 +9718,101 @@ def _run_microdata_chunk(_code):
       }
 
       // Innstillinger-dialog
+      function renderProfileSelect() {
+        const sel = $('ghProfileSelect'); if (!sel) return;
+        const a = getProfiles(), active = getActiveIndex();
+        sel.innerHTML = '';
+        if (!a.length) {
+          const o = document.createElement('option'); o.value = '-1'; o.textContent = '(ingen profil ennå)'; sel.appendChild(o);
+        } else {
+          a.forEach((p, idx) => {
+            const o = document.createElement('option');
+            o.value = String(idx); o.textContent = p.label || p.repo || ('Profil ' + (idx + 1));
+            sel.appendChild(o);
+          });
+          sel.value = String(active);
+        }
+      }
+      function loadProfileIntoFields(i) {
+        const p = getProfiles()[i] || { label: '', pat: '', repo: '', branch: 'main' };
+        $('ghProfileLabel').value = p.label || '';
+        $('ghPat').value = p.pat || '';
+        $('ghRepo').value = p.repo || '';
+        $('ghBranch').value = p.branch || 'main';
+        // Tilbakestill token-feltet til maskert ved bytte
+        $('ghPat').type = 'password';
+        const tog = $('ghPatToggle'); if (tog) tog.textContent = 'Vis';
+      }
       function openSettings(msg) {
         closeMenu();
-        const s = ghSettings();
-        $('ghPat').value = s.pat; $('ghRepo').value = s.repo; $('ghBranch').value = s.branch || 'main';
+        renderProfileSelect();
+        loadProfileIntoFields(getActiveIndex());
         $('ghError').textContent = msg || ''; $('ghStatus').textContent = '';
         $('githubBackdrop').style.display = 'flex';
       }
       function settingsRead() {
-        return { pat: $('ghPat').value.trim(), repo: $('ghRepo').value.trim(), branch: $('ghBranch').value.trim() || 'main' };
+        return {
+          label: $('ghProfileLabel').value.trim(),
+          pat: $('ghPat').value.trim(),
+          repo: $('ghRepo').value.trim(),
+          branch: $('ghBranch').value.trim() || 'main'
+        };
       }
       function settingsValidate(f) {
         const err = $('ghError'); err.textContent = '';
         if (!f.pat) { err.textContent = 'Mangler token.'; return false; }
         if (!/^[^/\s]+\/[^/\s]+$/.test(f.repo)) { err.textContent = 'Repo må være på formen eier/navn.'; return false; }
+        if (!f.label) f.label = f.repo; // standard navn = repo
         return true;
       }
       function settingsSave() {
         const f = settingsRead();
         if (!settingsValidate(f)) return;
-        try {
-          localStorage.setItem(LS_PAT, f.pat);
-          localStorage.setItem(LS_REPO, f.repo);
-          localStorage.setItem(LS_BRANCH, f.branch);
-        } catch (_) {}
+        let a = getProfiles(), i = getActiveIndex();
+        if (!a.length) { a = [f]; i = 0; } else { a[i] = f; }
+        saveProfiles(a, i);
         lastTree = null; // repo/branch kan ha endret seg
         $('githubBackdrop').style.display = 'none';
         toast('GitHub-innstillinger lagret');
         updateCurrentIndicator();
+      }
+      function profileNew() {
+        const a = getProfiles();
+        a.push({ label: 'Ny profil', pat: '', repo: '', branch: 'main' });
+        const i = a.length - 1;
+        saveProfiles(a, i);
+        renderProfileSelect();
+        loadProfileIntoFields(i);
+        $('ghError').textContent = ''; $('ghStatus').textContent = '';
+        const lab = $('ghProfileLabel'); if (lab) { lab.focus(); lab.select(); }
+      }
+      function profileDelete() {
+        const a = getProfiles();
+        if (!a.length) return;
+        const i = getActiveIndex();
+        const name = a[i].label || a[i].repo || ('Profil ' + (i + 1));
+        if (!confirm('Slette profilen «' + name + '»?')) return;
+        a.splice(i, 1);
+        const ni = Math.max(0, Math.min(i, a.length - 1));
+        saveProfiles(a, ni);
+        renderProfileSelect();
+        loadProfileIntoFields(a.length ? ni : 0);
+        $('ghStatus').textContent = ''; $('ghError').textContent = '';
+        updateCurrentIndicator();
+      }
+      function patToggle() {
+        const inp = $('ghPat'), btn = $('ghPatToggle');
+        if (!inp) return;
+        if (inp.type === 'password') { inp.type = 'text'; if (btn) btn.textContent = 'Skjul'; }
+        else { inp.type = 'password'; if (btn) btn.textContent = 'Vis'; }
+      }
+      async function patCopy() {
+        const inp = $('ghPat'); if (!inp || !inp.value) return;
+        try {
+          await navigator.clipboard.writeText(inp.value);
+          const btn = $('ghPatCopy');
+          if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert!'; setTimeout(() => { btn.textContent = o; }, 1500); }
+        } catch (_) {}
       }
       async function settingsTest() {
         const f = settingsRead();
@@ -9740,11 +9841,15 @@ def _run_microdata_chunk(_code):
       }
       function renderPicker(filter) {
         const list = $('ghPickerList'); if (!list) return;
+        const all = lastTree || [];
         const q = (filter || '').toLowerCase();
-        const items = (lastTree || []).filter((p) => TEXT_EXT.test(p) && (!q || p.toLowerCase().indexOf(q) !== -1));
+        const items = all.filter((p) => !BINARY_EXT.test(p) && (!q || p.toLowerCase().indexOf(q) !== -1));
         list.innerHTML = '';
         if (!items.length) {
-          list.innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:13px;">Ingen filer.</div>';
+          const msg = all.length
+            ? (q ? 'Ingen treff på filteret.' : 'Ingen filer å vise.')
+            : 'Repoet/branchen er tom — eller branch-navnet stemmer ikke (sjekk Innstillinger).';
+          list.innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:13px;">' + msg + '</div>';
           return;
         }
         items.slice(0, 500).forEach((p) => {
@@ -9830,8 +9935,7 @@ def _run_microdata_chunk(_code):
             input.value = cur.path;
           } else {
             const nm = (($('scriptName') && $('scriptName').value) || 'script').trim();
-            const ext = currentLang() === 'python' ? '.py' : currentLang() === 'r' ? '.r' : '.txt';
-            input.value = nm.replace(/\s+/g, '_') + ext;
+            input.value = nm.replace(/\s+/g, '_'); // endelse legges til automatisk ved lagring
           }
         }
         const dl = $('ghFolderList');
@@ -9844,10 +9948,17 @@ def _run_microdata_chunk(_code):
         $('ghSaveAsBackdrop').style.display = 'flex';
         setTimeout(() => { const i = $('ghSaveAsPath'); if (i) i.focus(); }, 50);
       }
+      function ensureExt(path) {
+        const last = path.split('/').pop();
+        if (last.indexOf('.') !== -1) return path; // har allerede endelse
+        const ext = currentLang() === 'python' ? '.py' : currentLang() === 'r' ? '.r' : '.txt';
+        return path + ext;
+      }
       async function saveAsConfirm() {
         const err = $('ghSaveAsError'); if (err) err.textContent = '';
-        const path = $('ghSaveAsPath').value.trim();
+        let path = $('ghSaveAsPath').value.trim();
         if (!path) { if (err) err.textContent = 'Skriv en filsti.'; return; }
+        path = ensureExt(path);
         const s = ghSettings();
         const si = $('scriptInput');
         try {
@@ -9906,6 +10017,20 @@ def _run_microdata_chunk(_code):
         on('ghSettingsClose', () => { $('githubBackdrop').style.display = 'none'; });
         on('ghSettingsTest', settingsTest);
         on('ghSettingsSave', settingsSave);
+        on('ghProfileNew', profileNew);
+        on('ghProfileDelete', profileDelete);
+        on('ghPatToggle', patToggle);
+        on('ghPatCopy', patCopy);
+        const psel = $('ghProfileSelect');
+        if (psel) psel.addEventListener('change', function () {
+          const i = parseInt(this.value, 10);
+          if (i >= 0) {
+            try { localStorage.setItem(LS_ACTIVE, String(i)); } catch (_) {}
+            loadProfileIntoFields(i);
+            $('ghError').textContent = ''; $('ghStatus').textContent = '';
+            updateCurrentIndicator();
+          }
+        });
         const ghb = $('githubBackdrop');
         if (ghb) ghb.addEventListener('click', (e) => { if (e.target === ghb) ghb.style.display = 'none'; });
 
@@ -9927,6 +10052,10 @@ def _run_microdata_chunk(_code):
 
         updateCurrentIndicator();
       }
+
+      // Lar eksterne lastere (Nytt script, lokal fil, eksempler) koble fra
+      // gjeldende GitHub-fil, så «Lagre» ikke overskriver feil fil.
+      window.mdGithubClearCurrent = function () { setCurrent(null); };
 
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
       else wire();
@@ -10153,9 +10282,25 @@ def _run_microdata_chunk(_code):
         (<a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener">lag token</a>).
         Tokenet lagres kun lokalt i nettleseren din.
       </p>
+      <div style="margin:10px 0; display:flex; gap:8px; align-items:flex-end;">
+        <div style="flex:1;">
+          <label for="ghProfileSelect">Profil</label>
+          <select id="ghProfileSelect" style="width:100%; padding:6px;"></select>
+        </div>
+        <button type="button" id="ghProfileNew" class="ai-modal-btn">Ny</button>
+        <button type="button" id="ghProfileDelete" class="ai-modal-btn">Slett</button>
+      </div>
+      <div style="margin:10px 0;">
+        <label for="ghProfileLabel">Navn (kun for deg)</label>
+        <input type="text" id="ghProfileLabel" placeholder="f.eks. Jobb" style="width:100%; padding:6px;">
+      </div>
       <div style="margin:10px 0;">
         <label for="ghPat">Token (PAT)</label>
-        <input type="password" id="ghPat" placeholder="github_pat_&#8230;" autocomplete="off" style="width:100%; padding:6px;">
+        <div style="display:flex; gap:6px;">
+          <input type="password" id="ghPat" placeholder="github_pat_&#8230;" autocomplete="off" style="flex:1; padding:6px;">
+          <button type="button" id="ghPatToggle" class="ai-modal-btn">Vis</button>
+          <button type="button" id="ghPatCopy" class="ai-modal-btn">Kopier</button>
+        </div>
       </div>
       <div style="display:flex; gap:8px;">
         <div style="flex:2;">
@@ -10196,9 +10341,10 @@ def _run_microdata_chunk(_code):
     <div class="ai-modal" style="max-width: 520px;">
       <h3 style="font-size: 1.25em;">Lagre som&#8230; (GitHub)</h3>
       <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
-        Skriv filstien i repoet. Bruk skr&aring;strek for mapper, f.eks. <code>analyser/inntekt.txt</code>.
+        Skriv filstien i repoet. Bruk skr&aring;strek for mapper, f.eks. <code>analyser/inntekt</code>.
+        Endelsen (<code>.txt</code>) legges til automatisk hvis du ikke skriver en.
       </p>
-      <input type="text" id="ghSaveAsPath" list="ghFolderList" placeholder="mappe/filnavn.txt" style="width:100%; padding:6px; margin:8px 0;">
+      <input type="text" id="ghSaveAsPath" list="ghFolderList" placeholder="mappe/filnavn" style="width:100%; padding:6px; margin:8px 0;">
       <datalist id="ghFolderList"></datalist>
       <div id="ghSaveAsError" style="color:var(--accent-danger,#d00); font-size:12px; min-height:1.2em;"></div>
       <div class="ai-modal-actions" style="margin-top:16px;">

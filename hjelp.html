@@ -490,14 +490,15 @@ summarize kjonn</code></pre>
     <h3>GitHub (for viderekomne)</h3>
     <p>Lar deg <strong>lagre og hente</strong> scripts direkte i ditt eget GitHub-repo — med versjonshistorikk og mulighet for samarbeid. Alt ligger under <strong>GitHub-undermenyen</strong> i hamburgermenyen.</p>
 
-    <p><strong>1. Innstillinger (engangs).</strong> Fyll inn personlig tilgangstoken (PAT), repo (<code>eier/navn</code>) og branch. Trykk <strong>Test tilkobling</strong> for å bekrefte, og <strong>Lagre</strong>. Opplysningene huskes lokalt i nettleseren. Du trenger <em>ikke</em> oppgi noen filsti her — det er repoet du kobler til, ikke en enkeltfil.</p>
+    <p><strong>1. Innstillinger (engangs).</strong> Fyll inn personlig tilgangstoken (PAT), repo (<code>eier/navn</code>) og branch. Trykk <strong>Test tilkobling</strong> for å bekrefte, og <strong>Lagre innstillinger</strong>. Opplysningene huskes lokalt i nettleseren. Du trenger <em>ikke</em> oppgi noen filsti her — det er repoet du kobler til, ikke en enkeltfil.</p>
+    <p><strong>Flere profiler.</strong> Har du flere repos eller kontoer (f.eks. jobb og privat), kan du lagre dem som egne <em>profiler</em> og bytte mellom dem i nedtrekksmenyen øverst i dialogen («Ny» for å legge til, «Slett» for å fjerne). Den valgte profilen styrer Åpne/Lagre. Med <strong>Vis</strong> og <strong>Kopier</strong> kan du se eller kopiere tokenet — nyttig når du skal sette opp samme profil på en annen maskin.</p>
     <p><strong>Slik lager du et token:</strong> GitHub → Settings → Developer settings → Fine-grained tokens → Generate new token. Gi det tilgang til <em>kun</em> det aktuelle repoet, og sett <strong>Repository permissions → Contents → Read and write</strong>. Kopier tokenet (vises bare én gang) og lim det inn i appen. Sett gjerne en utløpsdato; du kan når som helst trekke tokenet tilbake på samme side.</p>
 
     <p><strong>2. Daglig bruk.</strong> Når tilkoblingen er satt opp:</p>
     <ul>
       <li><strong>Åpne fil…</strong> viser en <em>filvelger</em> med alle filene i repoet. Filtrer i søkefeltet og klikk en fil for å hente den inn i editoren.</li>
-      <li><strong>Lagre</strong> skriver til den filen du sist åpnet eller lagret (den <em>gjeldende</em> filen, vist ved siden av scriptnavnet). Har du ikke en gjeldende fil ennå, oppfører den seg som «Lagre som».</li>
-      <li><strong>Lagre som…</strong> lar deg skrive en ny filsti (eksisterende mapper foreslås) og lagrer dit.</li>
+      <li><strong>Lagre</strong> skriver til den filen du sist åpnet eller lagret (den <em>gjeldende</em> filen, markert med et sky-symbol ☁ ved siden av scriptnavnet). Har du ikke en gjeldende fil ennå, oppfører den seg som «Lagre som». Åpner du et nytt eller annet script (Nytt, lokal fil, eksempel, lenke eller URL), kobles sky-symbolet bort så du ikke ved et uhell overskriver feil fil.</li>
+      <li><strong>Lagre som…</strong> lar deg skrive en ny filsti (eksisterende mapper foreslås). Endelsen <code>.txt</code> legges til automatisk hvis du ikke skriver en.</li>
       <li><strong>Oppdater</strong> henter den gjeldende filen på nytt fra GitHub. Ulagrede lokale endringer går tapt, så du blir bedt om å bekrefte.</li>
     </ul>
 
