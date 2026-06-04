@@ -9631,6 +9631,7 @@ def _run_microdata_chunk(_code):
       // uten endelse) vises, så en fil lagret som «test» dukker også opp.
       const BINARY_EXT = /\.(png|jpe?g|gif|bmp|svg|ico|webp|pdf|zip|gz|tgz|tar|7z|rar|xlsx?|docx?|pptx?|parquet|feather|sav|dta|rds|rdata|pkl|npy|npz|bin|exe|dll|so|dylib|mp[34]|wav|mov|avi|ttf|otf|woff2?)$/i;
       let lastTree = null; // hurtigbuffer av filstier fra siste tre-henting
+      let ghSavedSnapshot = null; // editor-innhold som samsvarer med lagret GitHub-fil
 
       function ghHeaders(pat) {
         return { 'Authorization': 'Bearer ' + pat, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
@@ -9695,24 +9696,44 @@ def _run_microdata_chunk(_code):
       }
       function setCurrent(c) {
         try { localStorage.setItem(LS_CURRENT, JSON.stringify(c)); } catch (_) {}
+        if (!c) ghSavedSnapshot = null;
         updateCurrentIndicator();
       }
       // Outline-ikoner (Feather-stil) ved siden av filnavnet: floppy = shortcut
       // til «Lagre», sky = indikator for at man jobber med en GitHub-fil.
       const SVG_SAVE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>';
       const SVG_CLOUD = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 0-9 6 6 0 0 0-11.6 1.5A3.5 3.5 0 0 0 6.5 19h11z"/></svg>';
+      function ghIsDirty() {
+        const si = $('scriptInput');
+        return ghSavedSnapshot != null && si && si.value !== ghSavedSnapshot;
+      }
+      function markSaved() {
+        const si = $('scriptInput');
+        ghSavedSnapshot = si ? si.value : '';
+        updateCurrentIndicator();
+      }
       function ghIconHost() {
         let host = $('ghIndicatorHost');
         if (host) return host;
         const name = $('scriptName');
         if (!name || !name.parentNode) return null;
+        if (!$('ghIconStyle')) {
+          const st = document.createElement('style');
+          st.id = 'ghIconStyle';
+          // Standardfarge som de andre topplinje-ikonene; amber når ulagret.
+          st.textContent =
+            '#ghSaveIcon{color:var(--text-muted)}' +
+            '#ghSaveIcon:hover{color:var(--accent)}' +
+            '#ghSaveIcon.dirty{color:#d97706}' +
+            '#ghSaveIcon.dirty:hover{color:#b45309}';
+          document.head.appendChild(st);
+        }
         host = document.createElement('span');
         host.id = 'ghIndicatorHost';
         host.style.cssText = 'display:inline-flex;align-items:center;vertical-align:middle;';
         const save = document.createElement('span');
         save.id = 'ghSaveIcon';
-        save.title = 'Lagre til GitHub';
-        save.style.cssText = 'display:none;align-items:center;margin-left:8px;color:var(--accent,#2563eb);cursor:pointer;';
+        save.style.cssText = 'display:none;align-items:center;margin-left:8px;cursor:pointer;';
         save.innerHTML = SVG_SAVE;
         save.addEventListener('click', function () { doSave(); });
         const cloud = document.createElement('span');
@@ -9729,7 +9750,13 @@ def _run_microdata_chunk(_code):
         const cur = getCurrent();
         const save = $('ghSaveIcon'), cloud = $('ghCurrentLabel');
         if (cur && cur.path) {
-          if (save) save.style.display = 'inline-flex';
+          const dirty = ghIsDirty();
+          if (save) {
+            save.style.display = 'inline-flex';
+            save.classList.toggle('dirty', dirty);
+            save.title = dirty ? 'Ulagrede endringer — klikk for å lagre til GitHub'
+                               : 'Lagret til GitHub — klikk for å lagre igjen';
+          }
           if (cloud) {
             cloud.style.display = 'inline-flex';
             cloud.title = 'GitHub: ' + cur.repo + '/' + cur.path + (cur.branch && cur.branch !== 'main' ? '@' + cur.branch : '');
@@ -9909,6 +9936,7 @@ def _run_microdata_chunk(_code):
           const nameEl = $('scriptName');
           if (nameEl) nameEl.value = (path.split('/').pop() || '').replace(/\.(txt|py|r)$/i, '');
           setCurrent({ repo: s.repo, branch: s.branch, path: path });
+          markSaved();
           $('ghPickerBackdrop').style.display = 'none';
           toast('Hentet fra GitHub: ' + path);
         } catch (e) {
@@ -9942,6 +9970,7 @@ def _run_microdata_chunk(_code):
         try {
           await putFile(s, cur.path, si ? si.value : '');
           setCurrent({ repo: s.repo, branch: s.branch, path: cur.path });
+          markSaved();
           toast('Lagret til GitHub: ' + cur.path);
         } catch (e) { alert('Kunne ikke lagre: ' + (e.message || e)); }
       }
@@ -9985,6 +10014,7 @@ def _run_microdata_chunk(_code):
         try {
           await putFile(s, path, si ? si.value : '');
           setCurrent({ repo: s.repo, branch: s.branch, path: path });
+          markSaved();
           const nameEl = $('scriptName');
           if (nameEl) nameEl.value = (path.split('/').pop() || '').replace(/\.(txt|py|r)$/i, '');
           $('ghSaveAsBackdrop').style.display = 'none';
@@ -10002,6 +10032,7 @@ def _run_microdata_chunk(_code):
           if (!resp.ok) throw new Error('HTTP ' + resp.status);
           const data = await resp.json();
           setEditor(b64ToUtf8(data.content), langFromPath(cur.path));
+          markSaved();
           toast('Oppdatert fra GitHub: ' + cur.path);
         } catch (e) { alert('Kunne ikke oppdatere: ' + (e.message || e)); }
       }
@@ -10070,6 +10101,10 @@ def _run_microdata_chunk(_code):
         if (sp) sp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveAsConfirm(); } });
         const sb = $('ghSaveAsBackdrop');
         if (sb) sb.addEventListener('click', (e) => { if (e.target === sb) sb.style.display = 'none'; });
+
+        // Live ulagret-indikator: oppdater lagre-ikonet når editoren endres.
+        const si = $('scriptInput');
+        if (si) si.addEventListener('input', updateCurrentIndicator);
 
         updateCurrentIndicator();
       }
