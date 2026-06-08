@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>m2py — statisk data-eksport (F1)</title>
+  <link rel="preload" as="script" href="https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js">
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+           max-width: 1000px; margin: 24px auto; padding: 0 16px; line-height: 1.5; }
+    h1 { font-size: 1.4rem; }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin: 16px 0; }
+    label { display: block; font-size: 0.85rem; color: #666; }
+    input { font-size: 1rem; padding: 6px 8px; width: 130px; }
+    button { font-size: 1rem; padding: 8px 16px; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    #status { font-family: ui-monospace, monospace; color: #2563eb; min-height: 1.4em; }
+    pre { background: #1118; padding: 12px; border-radius: 6px; overflow-x: auto;
+          font-size: 12px; white-space: pre; }
+    .dl { display: inline-flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .dl button { font-size: 0.85rem; padding: 6px 10px; }
+    .note { color: #888; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>Statisk data-eksport — F1 (person + person_year)</h1>
+  <p class="note">Kjører den eksisterende genereringsmotoren (m2py + mockdata_realism)
+    i nettleseren via Pyodide og materialiserer to tabeller. Ingenting sendes til
+    en server. Start fra en lokal webserver (f.eks. <code>python -m http.server</code>)
+    så <code>.py</code>-filene kan hentes.</p>
+
+  <div class="row">
+    <div>
+      <label for="nPersons">Antall personer</label>
+      <input id="nPersons" type="number" value="2000" min="100" step="1000">
+    </div>
+    <div>
+      <label for="yearFrom">År fra</label>
+      <input id="yearFrom" type="number" value="2015" style="width:90px">
+    </div>
+    <div>
+      <label for="yearTo">År til</label>
+      <input id="yearTo" type="number" value="2023" style="width:90px">
+    </div>
+    <button id="runBtn" disabled>Bygg tabeller</button>
+  </div>
+
+  <div id="status">Laster Pyodide …</div>
+
+  <h2>person</h2>
+  <div class="dl" id="dlPerson"></div>
+  <pre id="outPerson"></pre>
+
+  <h2>person_year</h2>
+  <div class="dl" id="dlPersonYear"></div>
+  <pre id="outPersonYear"></pre>
+
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js"></script>
+  <script>
+    const statusEl = document.getElementById('status');
+    const runBtn = document.getElementById('runBtn');
+    let pyodide = null;
+
+    function setStatus(msg) { statusEl.textContent = msg; }
+
+    async function registerModule(py, name, code, filename) {
+      py.globals.set('_code', code);
+      py.globals.set('_name', name);
+      py.globals.set('_fname', filename);
+      await py.runPythonAsync(`
+import sys, importlib.util
+_spec = importlib.util.spec_from_loader(_name, loader=None)
+_mod = importlib.util.module_from_spec(_spec)
+sys.modules[_name] = _mod
+exec(compile(_code, _fname, "exec"), _mod.__dict__)
+`);
+    }
+
+    async function boot() {
+      setStatus('Laster Pyodide …');
+      pyodide = await loadPyodide();
+      setStatus('Laster numpy, pandas, scipy …');
+      await pyodide.loadPackage(['numpy', 'pandas', 'scipy', 'micropip', 'setuptools']);
+      setStatus('Installerer pyarrow (Parquet) …');
+      await pyodide.runPythonAsync('import micropip; await micropip.install("pyarrow")');
+
+      setStatus('Henter motor-moduler …');
+      const base = window.location.href.replace(/[^/]+$/, '');
+      const cb = '?v=' + Date.now();
+      const files = ['functions.py', 'mockdata_core.py', 'mockdata_realism.py',
+                     'm2py.py', 'mockdata_export.py', 'variable_metadata.json'];
+      const texts = {};
+      await Promise.all(files.map(async f => {
+        const r = await fetch(base + f + cb);
+        if (!r.ok) throw new Error('Kunne ikke hente ' + f + ' — kjør fra en lokal webserver.');
+        texts[f] = await r.text();
+      }));
+
+      // Modul-rekkefølge: functions -> mockdata_core -> mockdata_realism -> m2py -> mockdata_export
+      setStatus('Registrerer functions …');
+      await registerModule(pyodide, 'functions', texts['functions.py'], 'functions.py');
+      setStatus('Registrerer mockdata_core …');
+      await registerModule(pyodide, 'mockdata_core', texts['mockdata_core.py'], 'mockdata_core.py');
+      setStatus('Registrerer mockdata_realism …');
+      await registerModule(pyodide, 'mockdata_realism', texts['mockdata_realism.py'], 'mockdata_realism.py');
+      setStatus('Registrerer m2py …');
+      await registerModule(pyodide, 'm2py', texts['m2py.py'], 'm2py.py');
+      setStatus('Registrerer mockdata_export …');
+      await registerModule(pyodide, 'mockdata_export', texts['mockdata_export.py'], 'mockdata_export.py');
+
+      // Katalog (variable_metadata.json -> dict) inn i Python.
+      pyodide.globals.set('_meta_json', texts['variable_metadata.json']);
+      await pyodide.runPythonAsync(`
+import json
+_catalog = json.loads(_meta_json).get("variables", {})
+`);
+
+      setStatus('Klar. Velg parametere og bygg.');
+      runBtn.disabled = false;
+    }
+
+    async function buildTables() {
+      runBtn.disabled = true;
+      const n = parseInt(document.getElementById('nPersons').value, 10) || 2000;
+      const y0 = parseInt(document.getElementById('yearFrom').value, 10) || 2015;
+      const y1 = parseInt(document.getElementById('yearTo').value, 10) || 2023;
+      document.getElementById('outPerson').textContent = '';
+      document.getElementById('outPersonYear').textContent = '';
+      document.getElementById('dlPerson').innerHTML = '';
+      document.getElementById('dlPersonYear').innerHTML = '';
+
+      setStatus(`Bygger for ${n} personer, ${y0}–${y1} … (kan ta litt tid)`);
+      pyodide.globals.set('_n', n);
+      pyodide.globals.set('_y0', y0);
+      pyodide.globals.set('_y1', y1);
+
+      const t0 = performance.now();
+      const summaryJson = await pyodide.runPythonAsync(`
+import json
+import mockdata_export as mx
+
+_skips = []
+def _on_skip(name, reason): _skips.append(f"{name}: {reason}")
+
+engine = mx.make_engine(_n, _catalog)
+years = list(range(int(_y0), int(_y1) + 1))
+tables = mx.build_core(engine, years=years, on_skip=_on_skip)
+
+# Behold tabellene globalt for nedlasting.
+_person = tables["person"]
+_person_year = tables["person_year"]
+
+json.dumps({
+    "person": mx.summarize(_person),
+    "person_year": mx.summarize(_person_year),
+    "skips": sorted(set(_skips)),
+})
+`);
+      const t1 = performance.now();
+      const summary = JSON.parse(summaryJson);
+
+      document.getElementById('outPerson').textContent = summary.person;
+      document.getElementById('outPersonYear').textContent = summary.person_year +
+        (summary.skips.length ? '\n\n[skipped] ' + summary.skips.join('  |  ') : '');
+
+      addDownloads('dlPerson', '_person', 'person', true);
+      addDownloads('dlPersonYear', '_person_year', 'person_year', false);
+
+      setStatus(`Ferdig på ${((t1 - t0) / 1000).toFixed(1)} s.`);
+      runBtn.disabled = false;
+    }
+
+    function addDownloads(containerId, pyVar, baseName, withCsv) {
+      const c = document.getElementById(containerId);
+      const pq = document.createElement('button');
+      pq.textContent = 'Last ned ' + baseName + '.parquet';
+      pq.onclick = () => downloadTable(pyVar, baseName + '.parquet', 'parquet');
+      c.appendChild(pq);
+      if (withCsv) {
+        const csv = document.createElement('button');
+        csv.textContent = 'Last ned ' + baseName + '.csv';
+        csv.onclick = () => downloadTable(pyVar, baseName + '.csv', 'csv');
+        c.appendChild(csv);
+      }
+    }
+
+    async function downloadTable(pyVar, filename, kind) {
+      pyodide.globals.set('_dl_var', pyVar);
+      pyodide.globals.set('_dl_kind', kind);
+      const bytes = await pyodide.runPythonAsync(`
+import mockdata_export as mx
+_df = globals()[_dl_var]
+mx.df_to_parquet_bytes(_df) if _dl_kind == "parquet" else mx.df_to_csv_bytes(_df)
+`);
+      // Pyodide may return Python bytes as a PyProxy (needs toJs) or, depending
+      // on version/config, as a typed array directly. Handle both.
+      let arr = bytes;
+      if (bytes && typeof bytes.toJs === 'function') {
+        arr = bytes.toJs();
+        bytes.destroy();
+      }
+      const blob = new Blob([arr], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    runBtn.addEventListener('click', buildTables);
+    boot().catch(e => { setStatus('Feil: ' + e.message); console.error(e); });
+  </script>
+</body>
+</html>
