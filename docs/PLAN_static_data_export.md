@@ -189,6 +189,21 @@ Sparsomme variabler (`_SPARSE_FRACTION`) gir naturlig NULL for delpopulasjoner.
   (~6 års hold), flere/nyere biler for høy-SES (eiere snitt-SES +0.21 vs −0.02).
   Brukes automatisk når `--dynamic-panel` er på.
 
+- ✅ **Koder vs. labels + dtype-troskap (microdata-konvensjon):** dataene lagrer
+  *koder*, ikke labels (labels ligger i `value_labels`). microdata.no lagrer
+  alfanumeriske variabler som **streng-koder med ledende nuller** (`kommune ==
+  '0301'`, `kjonn == "1"`, `invkat == 'A'` — bekreftet av eksempel-scriptene og
+  [ANALYSIS_summarize_if_condition.md](ANALYSIS_summarize_if_condition.md)).
+  `normalize_for_microdata`:
+  - **Troskap:** kolonner med kodeliste lagres som streng-koder via kodeboka
+    (gjenoppretter ledende nuller). Retter inkonsistensen der kommunekoder lå som
+    `float 301.0` → `'0301'`; kommune-FK kjøres nå på streng (ingen CAST).
+  - **Størrelse:** ekte numeriske kolonner (Numerisk) nedkastes int64→int16/32 og
+    float64→float32 (~58 % mindre numerisk fotavtrykk, semantikk uendret); Parquet
+    skrives med zstd. Streng-kodene røres ikke (allerede dictionary-kodet).
+  Merk: int-koding av alfanumeriske koder ble *forkastet* — det ville brutt
+  ledende nuller og bokstavkoder, og scriptene matcher mot `'0301'`.
+
 ### Gjenstående
 
 - **Mulig utvidelse:** `malepunkt_year` (Akkumulert forbruk per år 2020→) og

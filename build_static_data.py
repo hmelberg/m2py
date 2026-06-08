@@ -47,6 +47,8 @@ def main() -> None:
                     help="disable the multi-factor copula that cross-correlates person quantities")
     ap.add_argument("--dynamic-panel", action="store_true",
                     help="person_year via life-state microsimulation (income dynamics + uføre/retirement/death events)")
+    ap.add_argument("--no-normalize", action="store_true",
+                    help="skip microdata-faithful dtype normalisation (codes as strings, numbers downcast)")
     args = ap.parse_args()
 
     out: Path = args.out
@@ -79,10 +81,15 @@ def main() -> None:
         on_progress=on_progress,
     )
 
-    # Parquet (primary) + CSV for core tables.
+    # microdata-faithful dtypes: codes as strings, numbers downcast.
+    if not args.no_normalize:
+        print("Normalising dtypes (codes as strings, numbers downcast) ...", flush=True)
+        tables = mx.normalize_for_microdata(tables, engine)
+
+    # Parquet (primary, zstd) + CSV for core tables.
     print("Writing Parquet ...", flush=True)
     for name, df in tables.items():
-        df.to_parquet(out / f"{name}.parquet", index=False)
+        df.to_parquet(out / f"{name}.parquet", index=False, compression="zstd")
         if name in _CSV_TABLES:
             df.to_csv(out / f"{name}.csv", index=False)
 

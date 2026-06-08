@@ -1383,6 +1383,94 @@ def build_all(
 
 
 # ---------------------------------------------------------------------------
+# microdata-faithful dtype normalisation (codes as strings, numbers downcast)
+#
+# microdata.no stores alfanumeriske variables as STRING codes with leading zeros
+# (kommune '0301', kjonn '1', invkat 'A'); only true numbers are numeric. We:
+#   * coerce any column that has a codelist to its canonical string code
+#     (restoring leading zeros via the codebook) — incl. kommune keys/refs, so
+#     the kommune FK becomes a clean string join;
+#   * downcast genuinely-numeric columns to the smallest int/float dtype.
+# Identity/foreign-key columns (unit_id, *_FNR, *_PERSON, minted entity ids) are
+# left as integers so cross-table joins keep working.
+# ---------------------------------------------------------------------------
+
+# Columns that are pseudonymised person ids or minted surrogate keys — keep int.
+_ID_KEEP_INT = {
+    "unit_id", "ARBEIDSFORHOLD_ID", "KJORETOY_ID", "NUDB_KURS_LOEPENR",
+    "AGGRSHOPPID", "NPRID", "TRAFULYK_ID", "TRAFULYK_PERS_ID", "MALEPUNKT_ID",
+    "year",
+}
+
+
+def _is_kommune_col(col: str) -> bool:
+    cu = col.upper()
+    return col == "kommune_nr" or cu.endswith("KOMMUNE") or cu.endswith("KOMMNR")
+
+
+def _coerce_code_string(s: pd.Series, code_map: dict, pad: int = 0) -> pd.Series:
+    def conv(v):
+        if v is None or (isinstance(v, float) and np.isnan(v)):
+            return None
+        if isinstance(v, str):
+            vs = v.strip()
+            try:
+                iv = int(float(vs))
+            except ValueError:
+                return vs            # genuine alpha code (e.g. 'FAM', 'A')
+        else:
+            try:
+                iv = int(v)
+            except (TypeError, ValueError):
+                return str(v)
+        if code_map and iv in code_map:
+            return code_map[iv]      # canonical code with leading zeros
+        if pad and iv >= 0:
+            return str(iv).zfill(pad)
+        return str(iv)
+    return s.map(conv).astype("object")
+
+
+def _downcast_numeric(s: pd.Series) -> pd.Series:
+    if s.isna().any():
+        nn = s.dropna()
+        if len(nn) and (nn % 1 == 0).all():
+            mx = nn.abs().max()
+            dt = "Int16" if mx < 32767 else ("Int32" if mx < 2_147_483_647 else "Int64")
+            return s.astype(dt)
+        return pd.to_numeric(s, downcast="float")
+    if pd.api.types.is_integer_dtype(s) or (s % 1 == 0).all():
+        return pd.to_numeric(s, downcast="integer")
+    return pd.to_numeric(s, downcast="float")
+
+
+def normalize_for_microdata(tables: dict, engine: MockDataEngine) -> dict:
+    """Return tables with codes as canonical strings and numbers downcast."""
+    cb = build_codebook(engine)
+    vl, vinfo = cb["value_labels"], cb["variables"]
+    code_map: dict = {}
+    for var, grp in vl.groupby("variable"):
+        code_map[var] = {int(c): str(s) for c, s in zip(grp["code_num"], grp["code"]) if pd.notna(c)}
+    coded = set(vinfo.loc[vinfo["n_labels"] > 0, "name"])
+    komm_map = code_map.get("BOSATT_KOMMUNE", {})
+
+    out: dict = {}
+    for name, df in tables.items():
+        df = df.copy()
+        for col in df.columns:
+            if col in _ID_KEEP_INT or col.endswith("_FNR") or col.endswith("_PERSON"):
+                continue
+            if _is_kommune_col(col):
+                df[col] = _coerce_code_string(df[col], komm_map, pad=4)
+            elif col in coded:
+                df[col] = _coerce_code_string(df[col], code_map.get(col, {}), pad=0)
+            elif pd.api.types.is_numeric_dtype(df[col]):
+                df[col] = _downcast_numeric(df[col])
+        out[name] = df
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Serialisation helpers
 # ---------------------------------------------------------------------------
 
