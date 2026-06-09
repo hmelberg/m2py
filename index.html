@@ -8057,7 +8057,18 @@ options(width = 200)
         let stdout = '';
         let stderr = '';
         if (typeof py.setStdout === 'function') {
-          py.setStdout({ batched: s => { stdout += s + '\n'; } });
+          py.setStdout({ batched: s => {
+            // Filtrer bort Pyodide/micropip pakke-lastemeldinger (bakgrunns-prefetch)
+            // som ellers lekker inn i output ved første kjøring.
+            var f = String(s).split('\n').filter(function (l) {
+              var t = l.replace(/\s+$/, '');
+              return !(/ already loaded from default channel$/.test(t)
+                || /^Load(ing|ed) [\w.\-]+(, [\w.\-]+)+$/.test(t)
+                || /^Load(ing|ed) (statsmodels|matplotlib|patsy|lifelines|linearmodels|autograd|numpy|scipy|pandas)$/.test(t));
+            }).join('\n');
+            if (f === '' && String(s).trim() !== '') return;  // ren pakke-støy → hopp over
+            stdout += f + '\n';
+          } });
         }
         if (typeof py.setStderr === 'function') {
           py.setStderr({ batched: s => { stderr += s + '\n'; } });
@@ -8473,10 +8484,19 @@ for _seg in _segments:
         }
         if (py && typeof py.setStdout === 'function') {
           py.setStdout({ batched: function(s) {
-            stdout += s + '\n';
-            if (forklarChunkCapture) forklarChunkStdout += s + '\n';
+            // Filtrer bort pakke-lastemeldinger (bakgrunns-prefetch).
+            var f = String(s).split('\n').filter(function (l) {
+              var t = l.replace(/\s+$/, '');
+              return !(/ already loaded from default channel$/.test(t)
+                || /^Load(ing|ed) [\w.\-]+(, [\w.\-]+)+$/.test(t)
+                || /^Load(ing|ed) (statsmodels|matplotlib|patsy|lifelines|linearmodels|autograd|numpy|scipy|pandas)$/.test(t));
+            }).join('\n');
+            if (f === '' && String(s).trim() !== '') return;
+            stdout += f + '\n';
+            if (forklarChunkCapture) forklarChunkStdout += f + '\n';
           } });
         }
+
         if (py && typeof py.setStderr === 'function') {
           py.setStderr({ batched: function(s) { stderr += s + '\n'; } });
         }
