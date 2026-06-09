@@ -19,7 +19,7 @@
     .topbar .hamburger { background: none; border: none; color: var(--text); cursor: pointer; padding: 8px; font-size: 20px; line-height: 1; }
     .topbar .hamburger:hover { color: var(--accent); }
     .topbar .script-name { flex: 0 1 170px; margin: 0 12px; background: var(--bg-code); border: none; border-radius: 4px; padding: 6px 10px; color: var(--text); font-size: 14px; -webkit-appearance: none; appearance: none; }
-    .topbar .topbar-ask { flex: 1 1 auto; min-width: 120px; margin: 0 12px 0 0; background: var(--bg-code); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; color: var(--text); font-size: 14px; -webkit-appearance: none; appearance: none; }
+    .topbar .topbar-ask { flex: 1 1 auto; min-width: 120px; margin: 0 12px; background: var(--bg-code); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; color: var(--text); font-size: 14px; -webkit-appearance: none; appearance: none; }
     .topbar .topbar-ask:focus { outline: none; border-color: var(--accent); }
     .topbar .topbar-ask::placeholder { color: var(--text-muted); }
     .topbar .script-name:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
@@ -7745,6 +7745,13 @@ e.translate_script_to_python(script)
       } catch (e) {
         console.warn('loadPackage bundled set:', e);
       }
+      // Demp micropip sine «Loading/Loaded/already loaded»-meldinger (INFO) — de
+      // lekker ellers inn i output når bakgrunns-prefetchen kjører under en kjøring.
+      try {
+        await pyodide.runPythonAsync(
+          'import logging\nlogging.getLogger("micropip").setLevel(logging.WARNING)\n'
+        );
+      } catch (e) { console.warn('micropip log level:', e); }
       // plotly er PyPI (ikke bundlet) og importeres inne i figurkommandoer i m2py.py
       // — auto-install i run-handler ser ikke disse, så vi installerer eager.
       // matplotlib, lifelines og linearmodels prefetches i bakgrunn etter Ready (B2).
