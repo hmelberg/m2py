@@ -26,5 +26,10 @@ Thumbs.db
 .env
 .netlify/
 
-# Generated static data export (build_static_data.py)
-static_data/
+# Generated static data export (build_static_data.py).
+# The light web build (static_data/*.parquet + manifest.json) IS committed so the
+# deployed app can load it; the big DuckDB bundle and CSV copies are not, and the
+# full local 100k build is kept out of git.
+static_data/microdata.duckdb
+static_data/*.csv
+static_data_100k_full/
