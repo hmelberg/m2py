@@ -4683,17 +4683,19 @@
       return { start: '2010-01-01', end: '2023-12-31' };
     }
 
-    // Lag en liste gyldige datoer innenfor [start, end]. Bruker dag/måned fra
-    // sluttdatoen som årlig mønster, og inkluderer alltid start- og sluttdato.
-    function buildDateList(start, end) {
+    // Lag en liste gyldige importdatoer innenfor [start, end] på måned-dagen `mmdd`
+    // ('-MM-DD'). Tverrsnitt validerer mot et årlig rutenett på STARTdatoens
+    // måned-dag (se _valid_import_dates_for i m2py.py) — IKKE sluttdatoens.
+    // Akkumulert godtar i tillegg årsslutt-datoen, og den er mest intuitiv
+    // (helårstall), så for Akkumulert sender vi inn sluttdatoens måned-dag.
+    function buildDateList(start, end, mmdd) {
       const sy = parseInt(start.slice(0, 4), 10), ey = parseInt(end.slice(0, 4), 10);
       if (isNaN(sy) || isNaN(ey)) return [];
-      const endMMDD = end.slice(4); // '-MM-DD'
+      const md = mmdd || start.slice(4); // standard: rutenettets faste (start-)måned-dag
       const seen = new Set(), out = [];
       const add = (d) => { if (d && !seen.has(d)) { seen.add(d); out.push(d); } };
-      add(end);
-      for (let y = ey - 1; y > sy && out.length < 11; y--) add(y + endMMDD);
-      add(start);
+      for (let y = ey; y > sy && out.length < 10; y--) add(y + md); // nyeste først
+      add(sy + md); // forankre alltid eldste gyldige dato
       return out;
     }
 
@@ -4711,7 +4713,10 @@
           .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).slice().sort().reverse();
       } else {
         const range = parseValidityRange(meta.description || '');
-        dates = buildDateList(range.start, range.end);
+        // Akkumulert = sum t.o.m. datoen → foreslå årsslutt-datoen (sluttens
+        // måned-dag, f.eks. 12-31 for helårsinntekt). Tverrsnitt = startens.
+        const mmdd = temp.toLowerCase() === 'akkumulert' ? range.end.slice(4) : range.start.slice(4);
+        dates = buildDateList(range.start, range.end, mmdd);
       }
       const p = (prefix || '').trim();
       if (p) dates = dates.filter(d => d.startsWith(p));

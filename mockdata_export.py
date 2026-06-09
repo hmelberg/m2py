@@ -462,8 +462,11 @@ def build_person_year_dynamic(
             "SKATT_NETTOFORMUE": wealth_base[y], "BOSATT_KOMMUNE": komm_base[y],
         })
         gone = (state == "dod") | (age < 0)
+        # Registerlogikk: beløp er MISSING (ikke 0) for ikke-deltakere — lønn for
+        # ikke-sysselsatte (barn, pensjonister), stønad for ikke-mottakere — i
+        # tillegg til døde. Slik blir 0 aldri forvekslet med «ingen record».
         for c in ("INNTEKT_WLONN", "DAGPENGER", "UFORETRYGD", "ALDERSPENSJON", "INNTEKT_WSAMINNT"):
-            df_y.loc[gone, c] = np.nan
+            df_y.loc[gone | (df_y[c] == 0), c] = np.nan
         frames.append(df_y)
 
     return pd.concat(frames, ignore_index=True)
@@ -1296,14 +1299,22 @@ def valid_import_dates(valid_from: Optional[str], valid_to: Optional[str],
     valid_from's month-day (reproduces microdata's yearly grid, e.g.
     INNTEKT_WLONN -> 2010-01-01, 2011-01-01, ...).
 
+    Akkumulert = value accrued UP TO the date, so the period-END month-day each
+    year is also legal (full-year income on ÅR-12-31, not just ÅR-01-01) — these
+    are appended. Tverrsnitt is a single-month-day snapshot (start only).
+
     Returns [] for Forløp/Fast or when the window is missing — those aren't
     imported on a yearly date grid (Fast = constant; check the window instead).
     """
     if not valid_from or not valid_to or temporalitet not in _GRID_TEMPORALITET:
         return []
     fy, fm, fd = valid_from.split("-")
-    ty = int(valid_to[:4])
-    return [f"{y:04d}-{fm}-{fd}" for y in range(int(fy), ty + 1)]
+    ty_s, tm, td = valid_to.split("-")
+    fy_i, ty_i = int(fy), int(ty_s)
+    dates = [f"{y:04d}-{fm}-{fd}" for y in range(fy_i, ty_i + 1)]
+    if temporalitet == "Akkumulert" and (tm, td) != (fm, fd):
+        dates += [f"{y:04d}-{tm}-{td}" for y in range(fy_i, ty_i + 1)]
+    return dates
 
 
 def is_valid_import_date(date: str, valid_from: Optional[str], valid_to: Optional[str],

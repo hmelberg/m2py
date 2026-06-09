@@ -55,8 +55,11 @@ const GRAMMAR_CHEATSHEET = `\
   \`create-dataset <navn>\` (eller \`use <navn>\`), så én eller flere
   \`import\`-setninger.
 - Import (kommando avhenger av temporalitet — se under):
-    - \`import db/VAR_NAVN [YYYY-MM-DD] [as alias]\` — Fast (uten dato),
-      Tverrsnitt / Akkumulert (med ÉN dato).
+    - \`import db/VAR_NAVN [YYYY-MM-DD] [as alias] [, opsjoner]\` — Fast (uten dato),
+      Tverrsnitt / Akkumulert (med ÉN dato). Opsjoner etter komma:
+      \`outer_join\` (full union — ta med enheter som mangler i datasettet),
+      \`inner_join\` (kun enheter i begge), \`values(kode, …)\` (kun gitte
+      kodeverdier), \`values_from(datasett)\` (kun enheter i et annet datasett).
     - \`import-event db/VAR_NAVN YYYY-MM-DD to YYYY-MM-DD [as alias]\` — Forløp/
       hendelsesdata inn i et paneldatasett. (NB: eget kommandonavn, ikke
       \`import ... to ...\`.)
@@ -108,9 +111,10 @@ aliaset (\`as <alias>\`) som prefiks i påfølgende imports.
 FIRE verdier (ingen "Event"-temporalitet):
 - \`Fast\` — uendret over tid; ingen dato.
   \`import db/BEFOLKNING_KJOENN as kjonn\`
-- \`Tverrsnitt\` — verdi ved ett tidspunkt; ÉN dato.
-  \`import db/INNTEKT_WLONN 2022-01-01 as innt22\`
-- \`Akkumulert\` — akkumulert fram til ett tidspunkt; ÉN dato (som Tverrsnitt).
+- \`Tverrsnitt\` — verdi ved ett tidspunkt; ÉN dato (snapshot-datoen i taggen).
+  \`import db/INNTEKT_WBRUTTOFORM 2022-01-01 as form22\`
+- \`Akkumulert\` — sum akkumulert fram til datoen; ÉN dato. Bruk årsslutt for
+  helårstall: \`import db/INNTEKT_WLONN 2022-12-31 as lonn22\`.
 - \`Forløp\` — hendelses-/forløpsdata. To former, BEGGE krever dato:
   - tilstand/verdi ved ÉN dato (vanligst for kontekstvariabler som utdanning,
     bosted, sivilstand): \`import db/NUDB_BU 2020-08-31 as utd\`
@@ -121,6 +125,26 @@ Tverrsnitt-, Akkumulert- ELLER Forløp-variabel uten dato, FEILER scriptet
 («… krever en importdato»). **Sjekk alltid katalog-taggen for hver variabel** —
 bare \`[fast]\` skal være uten dato; \`[tverrsnitt]\`, \`[akkumulert]\` og
 \`[forløp]\` krever alltid en dato innenfor variabelens gyldighetsperiode.
+
+**Importrekkefølge — start med en KOMPLETT variabel.** microdata.no left-joiner
+hver import på det aktive datasettet, så den FØRSTE importen definerer
+populasjonen. Mange registervariabler (særlig inntekt, lønn, stønader og
+hendelser) er MISSING for store deler av befolkningen — f.eks. har lønn missing
+for barn, eldre og alle uten arbeidsforhold (kan være > 70 % missing totalt).
+Starter du med en slik variabel, blir hele datasettet et lite, skjevt utvalg.
+Begynn derfor alltid med en hel-populasjons-variabel som anker — typisk
+\`BEFOLKNING_KJOENN\` eller \`BEFOLKNING_FOEDSELS_AAR_MND\` (begge \`Fast\`, dekker
+alle) — og importer inntekt/stønader/hendelser ETTERPÅ. Da beholder du full
+populasjon, og missing i de glisne variablene blir synlig som missing (test med
+\`sysmiss(x)\`) i stedet for å forsvinne ut av utvalget.
+
+**\`outer_join\` når en variabel kan ha enheter som ikke er i datasettet.** Standard
+import er left join: bare enheter som alt finnes i datasettet beholdes. Vil du ta
+med enheter som har gyldig verdi for den NYE variabelen men ikke for den første,
+bruk \`, outer_join\` — da blir det full union (de nye enhetene får missing på de
+tidligere variablene). \`, inner_join\` gir motsatt kun snittet (enheter i begge).
+Anker-først-regelen er likevel hovedrådet; \`outer_join\` er for de tilfellene der
+du bevisst vil utvide populasjonen.
 
 **Ikke gjett temporalitet ut fra navnet.** Et navn som ser ut som en konstant
 identifikator kan likevel være Tverrsnitt. Relasjoner som ikke endres er Fast
@@ -436,9 +460,27 @@ Mange SSB-dato-variabler lagres som **heltall**, ikke ISO-datoer:
   \`int(date_var/100)\` (YYYYMM). Filtrering som \`keep if uh <= 2009\` på et
   YYYYMM-felt dropper ALLE rader — bruk \`<= 200912\` eller trekk ut året.
 - Katalog-feltet \`data_type\` viser formatet (\`date:yyyymm\`, \`date:yyyymmdd\`).
-**Gyldighetsperiode.** Katalog-beskrivelsen angir gyldighetsperioden for
-variabelen. Velg alltid en importdato innenfor denne perioden — en dato
-utenfor gir kjøretidsfeil.`;
+**Gyldighetsperiode / gyldige importdatoer.** For \`Tverrsnitt\`- og
+\`Akkumulert\`-variabler viser katalog-taggen de FAKTISKE gyldige importdatoene
+som \`<første>…<siste>\` (f.eks. \`2015-02-16…2025-02-16\`). Plattformen godtar
+KUN datoer fra dette årlige rutenettet: samme måned-dag som vist, ett år om
+gangen, fra første til siste år. Regler:
+- Bruk nøyaktig den viste måned-dagen. Gjett ALDRI \`-01-01\`, \`-11-01\` eller en
+  annen dag — \`2022-11-01\` mot rutenettet \`…-02-16\` gir
+  «… har ingen gyldig importdato».
+- Hold året innenfor \`[første … siste]\`. Vil brukeren ha «nyeste» tall, bruk
+  siste viste år; ALDRI et år etter siste (f.eks. \`2022\` når siste er \`2014\`).
+- Mangler taggen måned-dag (bart år-spenn som \`1993–2023\`, eller \`Fast\`/∞),
+  valideres ikke dato på samme måte — velg da et år i spennet.
+- Er du i tvil, kopier den FØRSTE eller SISTE viste datoen ordrett; begge er
+  garantert gyldige.
+
+**Tverrsnitt vs. Akkumulert.** \`Tverrsnitt\` = øyeblikksbilde på den viste
+måned-dagen. \`Akkumulert\` = sum akkumulert t.o.m. datoen, og taggen viser
+ÅRSSLUTT-datoen (f.eks. \`1993-12-31…2023-12-31\`): bruk \`<år>-12-31\` for
+helårstall — inntekt opptjent i år Y er \`Y-12-31\`. (\`Y-01-01\` godtas også, men
+er året før; foretrekk årsslutt.) Kuttes serien før årsslutt viser taggen den
+faktiske slutt-dagen (\`…-09-30\`) — bruk den.`;
 
 const PRIVACY_RULES = `\
 ## Personvern / avsløringskontroll (plattformen håndhever disse)
@@ -579,6 +621,35 @@ Når spørsmålet gjelder **effekt, årsak, virkning eller sammenheng**: still d
 
 Personvern (T9): regresjonskonstanten skjules hvis kategorikombinasjoner gir < 5 enheter — hold kategoriene grove.`;
 
+const MISSING_VALUES = `\
+## Missing-verdier — KRITISK for inntekt, trygd og stønader
+
+Mange registervariabler er MISSING (ikke 0) for personer uten record i registeret:
+inntekt er missing for dem uten den inntektstypen (barn, folk uten lønn osv.),
+og trygd/stønad (\`uføregrad\`, dagpenger, pensjon …) er missing for ALLE som
+ikke mottar ytelsen — der har et flertall missing og bare mottakerne en verdi.
+
+**Regresjon og mange analyser ekskluderer hele enheten hvis NOEN variabel er
+missing.** En variabel med mye missing som ikke kodes om, krymper derfor
+analyse-utvalget dramatisk (regresjonen kjøres på et lite, skjevt utvalg). Tenk
+alltid gjennom missing FØR du kjører \`regress\`/\`logit\`/\`correlate\`.
+
+**Recode-mønstre (bruk \`sysmiss(x)\`):**
+- Andel/dummy for en stønad — missing betyr «mottar ikke», så kod til 0:
+  \`\`\`
+  import db/UFOERP2011FDT_GRAD 2010-01-01 as uforegrad
+  generate ufor = 1
+  replace ufor = 0 if sysmiss(uforegrad)   // ufor = 1 for mottakere, 0 ellers
+  \`\`\`
+- Inntekt der nullinntekt skal telle med (ellers droppes alle med inntekt = 0):
+  \`replace inntekt = 0 if sysmiss(inntekt)\`
+- Vil du derimot BEHOLDE missing som «ikke relevant» (f.eks. uføregrad kun blant
+  uføre), lar du den stå missing — men vær da klar over utvalgskrympingen over.
+
+Velg bevisst per variabel: 0 (tell ikke-mottakere med) eller fortsatt missing
+(analyser kun dem med gyldig verdi). Si fra i en kommentar hva du valgte og
+hvorfor. Test alltid med \`sysmiss(x)\` — aldri \`x == .\` (ulovlig i sammenligning).`;
+
 const RULE_BLOCKS = [
   SYSTEM_INTRO,
   GRAMMAR_CHEATSHEET,
@@ -592,6 +663,7 @@ const RULE_BLOCKS = [
   DATE_QUIRKS,
   PRIVACY_RULES,
   INFERENCE_RULES,
+  MISSING_VALUES,
   NPR_RULES,
   OUTPUT_INSTRUCTION,
 ].join("\n\n");
@@ -624,9 +696,42 @@ function abbrevType(microdataDatatype: string, dataType: string): string {
 
 // Pull the validity window out of the description's "Gyldighetsperiode: ..."
 // clause (more reliable here than the truncated `available_years` array).
-// Returns "1993–2023", "1993–" (open-ended), or "" (fixed/∞/none).
-function extractValidPeriod(description: string): string {
-  const m = description.match(/Gyldighetsperiode:\s*([0-9]{4})[^.]*?(?:[–-]\s*([0-9]{4}))?/i);
+//
+// CRITICAL: for Tverrsnitt/Akkumulert variables with a FULL start AND end date
+// (YYYY-MM-DD on both sides) the runtime validates import dates against an
+// ANNUAL grid that recurs on the START date's month-day, for every year from
+// start-year to end-year inclusive (see `_valid_import_dates_for` in m2py.py).
+// The end date's own month-day is NOT a valid import date. So we surface the
+// first and last VALID import dates — both on the start month-day — instead of
+// a bare year span, so the model emits a grid date instead of guessing a
+// month-day (e.g. -11-01). Forløp is NOT grid-validated: it uses `import-event
+// <fra> to <til>` over a free range, so we show the true window dates verbatim.
+// Returns "2015-02-16…2025-02-16" (annual grid), "2011-01-01…2017-12-31" (free
+// Forløp window), "1993–2023"/"1993–" (coarse year span), or "" (fixed/∞/none).
+function extractValidPeriod(description: string, temporalitet = ""): string {
+  // Full date window on both ends.
+  const full = description.match(
+    /Gyldighetsperiode:\s*(\d{4})-(\d{2}-\d{2})\s*[–—-]\s*(\d{4})-(\d{2}-\d{2})/i,
+  );
+  if (full) {
+    const [, startYear, startMD, endYear, endMD] = full;
+    const temp = temporalitet.toLowerCase();
+    // Tverrsnitt → annual snapshot grid on the START month-day.
+    if (temp === "tverrsnitt") {
+      return `${startYear}-${startMD}…${endYear}-${startMD}`;
+    }
+    // Akkumulert = value accrued UP TO the date, so the intuitive/primary date
+    // is the period-END month-day each year (full-year income on ÅR-12-31, or
+    // ÅR-09-30 for a Q3-cutoff series). ÅR-01-01 also validates but means the
+    // prior year's total, so we surface the year-end grid.
+    if (temp === "akkumulert") {
+      return `${startYear}-${endMD}…${endYear}-${endMD}`;
+    }
+    // Forløp / other → true window (any date in range is valid for import-event).
+    return `${startYear}-${startMD}…${endYear}-${endMD}`;
+  }
+  // Year-only / open-ended: no date-grid validation; show the coarse year span.
+  const m = description.match(/Gyldighetsperiode:\s*([0-9]{4})[^.]*?(?:[–—-]\s*([0-9]{4}))?/i);
   if (!m) return "";
   const start = m[1];
   const end = m[2];
@@ -686,13 +791,27 @@ function renderCatalog(meta: unknown): string {
     "til å finne beslektede variabler, og les beskrivelsene i samme prefiks-klynge",
     "for å forstå hva registeret dekker.",
     "",
-    "Radformat: `NAVN [type, temporalitet, enhetstype, gyldig-år] — beskrivelse {verdier}`",
+    "Radformat: `NAVN [type, temporalitet, enhetstype, gyldig-datoer] — beskrivelse {verdier}`",
     "- type: `alfa` = alfanumerisk (streng — ingen numeriske operasjoner);",
     "  `num` = numerisk; `·date:yyyymm`/`·date:yyyymmdd` = heltalls-dato-format.",
     "- temporalitet → import-kommando: `Fast` = `import` uten dato;",
     "  `Tverrsnitt`/`Akkumulert` = `import` med ÉN dato; `Forløp` =",
     "  `import-event db/VAR <fra> to <til>` (paneldata). Ingen `Event`-type.",
-    "- gyldig-år: validitetsperioden (utelat år utenfor dette i import).",
+    "- gyldig-datoer vises som `<første>…<siste>` (med `…`):",
+    "  • `Tverrsnitt`: de FAKTISKE gyldige importdatoene — et ÅRLIG øyeblikksbilde",
+    "    på samme måned-dag som vist (f.eks. `2015-02-16…2025-02-16`). Importer",
+    "    med `<år>-<måned-dag>`, år i intervallet. ALDRI en annen måned-dag (ikke",
+    "    `-01-01`/`-11-01` når datoene viser `-02-16`) og ALDRI år utenfor",
+    "    intervallet — begge gir kjøretidsfeil.",
+    "  • `Akkumulert`: verdi akkumulert T.O.M. datoen. Taggen viser ÅRSSLUTT-datoen",
+    "    (f.eks. `1993-12-31…2023-12-31` = helårstall; `…-09-30` for serier som",
+    "    kuttes i Q3). Bruk `<år>-<årsslutt-måned-dag>` for hele årets sum — det",
+    "    mest intuitive (inntekt for år Y = `Y-12-31`). `<år>-01-01` godtas også,",
+    "    men er forrige års sum; foretrekk årsslutt-datoen.",
+    "  • `Forløp`: hele gyldighetsvinduet for `import-event ... <fra> to <til>`",
+    "    (endepunktene kan ha ulik måned-dag). Hold `<fra>`/`<til>` i vinduet.",
+    "  • Bart år-spenn (`1993–2023`) eller `Fast`/∞: måned-dag valideres ikke;",
+    "    velg en hvilken som helst dato i spennet.",
     "- enhetstype ≠ Person → entitetsdata (jobb/kjøretøy/kurs/ulykke/målepunkt);",
     "  importer også person-ref-kolonnen og koble via collapse+merge (se",
     "  Relasjoner og koblinger).",
@@ -709,7 +828,7 @@ function renderCatalog(meta: unknown): string {
       const temp = String(v.temporalitet ?? "");
       const ehtp = String(v.enhetstype ?? "");
       const desc = String(v.description ?? "");
-      const period = extractValidPeriod(desc);
+      const period = extractValidPeriod(desc, temp);
       const tagParts = [abbrevType(mdt, dataType), temp, ehtp];
       if (period) tagParts.push(period);
       const tag = `[${tagParts.filter((p) => p).join(", ")}]`;
