@@ -75,6 +75,15 @@ const GRAMMAR_CHEATSHEET = `\
   Panel-kommandoer (\`summarize-panel\`, \`tabulate-panel\`, \`transitions-panel\`,
   \`regress-panel\`) KREVER et paneldatasett — de virker ikke på vanlige
   tverrsnittsdata. Tilbake til wide: \`reshape-from-panel\`.
+  **KRITISK navnekrav for \`reshape-to-panel\`:** de wide variablene MÅ hete
+  \`<prefiks><tall>\` der suffikset er tall/dato (blir \`panel@date\`-verdien) —
+  f.eks. \`lonn2014\`, \`lonn2018\` for \`reshape-to-panel lonn\`. Bokstav-suffiks
+  som \`lonn_pre\`/\`lonn_post\` MATCHER IKKE og gir feil. Importer derfor med
+  års-suffiks med én gang: \`import db/INNTEKT_WLONN 2014-12-31 as lonn2014\`,
+  \`import db/INNTEKT_WLONN 2018-12-31 as lonn2018\` (eller \`rename\` til slike
+  navn før reshape). Etterpå er \`panel@date\` 2014/2018 — bruk den i \`if\`:
+  \`replace post = 1 if panel@date == 2018\`. (Alternativ uten reshape:
+  \`import-panel db/INNTEKT_WLONN 2014-12-31 2018-12-31\` lager long-format direkte.)
 - Reshape: \`reshape long ...\`, \`reshape wide ...\`.
 - Aggregering: \`collapse (stat) var -> nytt_navn [, by(<én_variabel>)]\`.
   Gyldige stats: \`count\`, \`sum\`, \`mean\`, \`sd\`, \`median\`, \`min\`, \`max\`,
