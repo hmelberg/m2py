@@ -44,6 +44,41 @@ def _get_default(key):
         return d[key]
     return _M2PY_HARDCODED_FALLBACKS.get(key)
 
+
+# Datakilde for import: 'dynamic' (generer) eller 'static' (last fra statiske filer).
+# Settes via // m2py: data-source=… eller fra appen (innstillinger).
+M2PY_DATA_SOURCE = 'dynamic'
+
+_GYLDIGHET_RE = re.compile(
+    r'Gyldighetsperiode:\s*(\d{4}-\d{2}-\d{2})\s*[–—-]\s*(\d{4}-\d{2}-\d{2})'
+)
+
+
+def _valid_import_dates_for(meta):
+    """Sett av gyldige importdatoer (det årlige rutenettet) for en variabel, basert
+    på Gyldighetsperiode i beskrivelsen. None hvis ikke et datovariabel-rutenett
+    (Fast/Forløp eller ukjent vindu) — da gjøres ingen dato-validering."""
+    if not isinstance(meta, dict):
+        return None
+    temporalitet = str(meta.get('temporalitet', '')).lower()
+    if temporalitet not in ('akkumulert', 'tverrsnitt'):
+        return None
+    m = _GYLDIGHET_RE.search(str(meta.get('description', '')))
+    if not m:
+        return None
+    vf, vt = m.group(1), m.group(2)
+    fy, fm, fd = vf.split('-')
+    ty_s, tm, td = vt.split('-')
+    fy_i, ty_i = int(fy), int(ty_s)
+    dates = {f'{y:04d}-{fm}-{fd}' for y in range(fy_i, ty_i + 1)}
+    # Akkumulert = verdi akkumulert T.O.M. datoen, så plattformen godtar også
+    # periodeslutt-datoen hvert år (helårsinntekt på ÅR-12-31, ikke bare ÅR-01-01)
+    # — og ÅR-01-01 gir samme verdi som forrige års slutt. Tverrsnitt er derimot
+    # ett øyeblikksbilde på ÉN måned-dag (startens), så der utvider vi ikke.
+    if temporalitet == 'akkumulert' and (tm, td) != (fm, fd):
+        dates |= {f'{y:04d}-{tm}-{td}' for y in range(fy_i, ty_i + 1)}
+    return dates
+
 # Variabelnavn-mønstre som identifiserer pseudonymer i microdata.no.
 # Bruker disse som backup når metadata mangler eksplisitt is_pseudonym.
 _PSEUDONYM_NAME_SUFFIXES = ('_FNR', '_PERSON_ID', '_PSEUDONYM')
@@ -326,6 +361,10 @@ class MicroParser:
             remainder = _m_inline.group(2) + (' ' + remainder if remainder else '')
 
         args = self._parse_command_logic(command, remainder)
+        # Import-opsjoner (outer_join/inner_join/values/...) parses i import-grenen
+        # og flyttes hit til den felles options-dicten som eksekveringen leser.
+        if isinstance(args, dict) and args.get('_import_options'):
+            options_dict.update(args.pop('_import_options'))
 
         return {
             "command": command,
@@ -411,6 +450,31 @@ class MicroParser:
             return toks if toks else []
 
         if cmd in ['import', 'import-event']:
+            # Import-opsjoner etter komma på topp-nivå (utenfor parenteser):
+            # `, outer_join`, `, inner_join`, `, values(1, 2)`, `, values_from(ds)`.
+            # (import er holdt utenfor den globale komma-splittingen pga. scrub-kwargs,
+            # så vi parser opsjonene her.) Skilles ut FØR scrub/import-mønster.
+            import_options = {}
+            _depth = 0
+            _cut = -1
+            for _i, _ch in enumerate(remainder):
+                if _ch == '(':
+                    _depth += 1
+                elif _ch == ')':
+                    _depth = max(0, _depth - 1)
+                elif _ch == ',' and _depth == 0:
+                    _cut = _i
+                    break
+            if _cut >= 0:
+                _opt_part = remainder[_cut + 1:]
+                # Ikke forveksle med scrub-suffikset (har eget format uten ledende komma).
+                if 'scrub-' not in _opt_part.lower():
+                    remainder = remainder[:_cut].rstrip()
+                    for _mo in re.finditer(r"(?P<opt>\w+)(?:\((?P<arg>[^)]*)\))?", _opt_part):
+                        if _mo.group('opt'):
+                            import_options[_mo.group('opt').lower()] = (
+                                _mo.group('arg').strip() if _mo.group('arg') is not None else True
+                            )
             # Valgfritt scrub-suffiks: `… as alias scrub-VERB[(kwargs)]` (dataminimering
             # ved import). Trekk det ut FØR import_pattern, så alias-deteksjonen er ren.
             scrub_spec = None
@@ -433,6 +497,8 @@ class MicroParser:
                     result['_alias_raw'] = after
             if scrub_spec:
                 result['scrub'] = scrub_spec
+            if import_options:
+                result['_import_options'] = import_options
             return result
         if cmd == 'import-panel':
             # import-panel var1 var2 ... time1 time2 ...
@@ -1092,7 +1158,7 @@ def _py_eval_expr(df, expr):
         for k, v in bindings.items():
             if isinstance(k, str) and k.isidentifier():
                 env[k] = v
-    # Kolonnenavn med @ (f.eks. date@panel) er ugyldige Python-identifikatorer.
+    # Kolonnenavn med @ (f.eks. panel@date) er ugyldige Python-identifikatorer.
     # Erstatt @ med _AT_ i både env-nøkler og uttrykket.
     at_cols = {}
     for col in df.columns:
@@ -1373,10 +1439,61 @@ def _norway_demo_unit_seed(unit_id, salt: str) -> int:
 
 
 def _norway_synth_age_from_uid(unit_id) -> int:
-    """Deterministisk alder 18–67 (typisk yrkesaktiv) for demo når fødselsdato mangler."""
+    """Deterministisk alder 18–67 (typisk yrkesaktiv) for demo når fødselsdato mangler.
+    Brukt av entitets-/NPR-syntesen. For person-inntekt brukes den fulle
+    aldersfordelingen (_norway_demo_age_at) som også dekker barn og eldre."""
     r = np.random.default_rng(_norway_demo_unit_seed(unit_id, "alder"))
     a = int(round(r.normal(44.0, 14.0)))
     return max(18, min(67, a))
+
+
+def _norway_demo_birth_year_from_uid(unit_id) -> int:
+    """Deterministisk fødselsår per person med realistisk aldersfordeling (0–100 i
+    _DEMO_REF_YEAR, inkl. barn og eldre). Samme kilde for BEFOLKNING_FOEDSELS_AAR_MND
+    og for inntekts-/missing-syntesen, så alder er konsistent per person uavhengig
+    av importrekkefølge og aliaser."""
+    r = np.random.default_rng(_norway_demo_unit_seed(unit_id, "alder"))
+    a = max(0, min(100, int(round(r.normal(42.0, 23.0)))))
+    return _DEMO_REF_YEAR - a
+
+
+def _norway_demo_age_at(unit_id, ref_year=None) -> int:
+    """Alder for person ved ref_year (default _DEMO_REF_YEAR), fra deterministisk fødselsår."""
+    ry = _DEMO_REF_YEAR if ref_year is None else int(ref_year)
+    return max(0, min(110, ry - _norway_demo_birth_year_from_uid(unit_id)))
+
+
+# Andel MISSING (ikke i registeret) for kronebeløp, etter person-alder. Registerdata
+# i microdata.no er ikke 0 men MISSING for personer uten record — f.eks. har lønn
+# missing for barn, eldre og alle uten arbeidsforhold. Kurvene er kalibrert mot
+# observerte missing-andeler i microdata.no (lønn 2022: ~73 % totalt, U-formet).
+# x = alder, y = P(missing). Lineær interpolasjon mellom knekkpunktene.
+_MISS_WAGE_X = [0, 12, 13, 14, 15, 16, 17, 18, 20, 24, 30, 40, 50, 60, 62, 65, 67, 70, 74, 80, 85, 90, 110]
+_MISS_WAGE_Y = [1, 1, .96, .90, .79, .65, .53, .41, .39, .45, .51, .57, .55, .60, .61, .68, .75, .85, .92, .96, .99, 1, 1]
+# Samlet/brutto inntekt (skatteregister): nær komplett for voksne, barn stort sett missing.
+_MISS_INCOME_X = [0, 12, 15, 18, 80, 90, 110]
+_MISS_INCOME_Y = [.92, .85, .45, .06, .06, .12, .20]
+# Formue/kapital/gjeld/skatt/renter (skatteregister, voksne skattytere).
+_MISS_TAXREG_X = [0, 12, 17, 18, 100, 110]
+_MISS_TAXREG_Y = [.88, .82, .35, .05, .07, .12]
+
+
+def _norway_money_missing_prob(kind, ages):
+    """P(missing) per rad for et kronebeløp av gitt `kind`, gitt alder. Returnerer
+    None for mottaks-baserte typer (transfer/pension) der missing styres av den
+    eksisterende mottaks-hurdelen (ikke-mottaker → missing)."""
+    a = np.asarray(ages, dtype=float)
+    if kind == "wage_fallback":
+        return np.interp(a, _MISS_WAGE_X, _MISS_WAGE_Y)
+    if kind in ("income_total", "income_generic"):
+        return np.interp(a, _MISS_INCOME_X, _MISS_INCOME_Y)
+    if kind in ("transfer_hurdle", "pension_hurdle", "transfer_child"):
+        return None  # mottaks-hurdel → ikke-mottaker blir missing
+    if kind in ("wealth_net", "wealth_gross", "debt", "debt_unsecured",
+                "capital_financial", "real_capital_stock", "real_wealth_component",
+                "interest_flow", "interest_expense", "tax_amount", "capital_gain_loss"):
+        return np.interp(a, _MISS_TAXREG_X, _MISS_TAXREG_Y)
+    return np.interp(a, _MISS_TAXREG_X, _MISS_TAXREG_Y)
 
 
 def _norway_synth_kjonn_from_uid(unit_id) -> int:
@@ -1824,8 +1941,16 @@ def _norway_hurdle_lognormal_kr(rng, log_mu_row, sigma, p_zero, as_int=True):
     return raw.astype(float)
 
 
-def _norway_demo_money_array(meta, short_name, n_rows, rng, unit_ids=None, ages=None):
-    """Realistisk skjev fordeling for norske kroner; bruker samme latent z per unit_id som lønnsregler."""
+def _norway_demo_money_array(meta, short_name, n_rows, rng, unit_ids=None, ages=None, allow_missing=True):
+    """Realistisk skjev fordeling for norske kroner; bruker samme latent z per unit_id som lønnsregler.
+
+    Returnerer en FLOAT-array der personer uten record i registeret er MISSING
+    (np.nan), ikke 0 — slik microdata.no-registerdata faktisk er. Hvem som er
+    missing er aldersstrukturert (se _norway_money_missing_prob): lønn er missing
+    for barn, eldre og folk uten arbeidsforhold; stønader/pensjon er missing for
+    ikke-mottakere; formue/skatt er missing for barn. Mottaks-baserte beløp
+    beholder ekte 0 kun der det er meningsfullt (kapitalgevinst), ellers blir
+    ikke-mottaker missing."""
     if unit_ids is None:
         uid_arr = np.arange(1, n_rows + 1, dtype=np.int64)
     else:
@@ -1834,83 +1959,84 @@ def _norway_demo_money_array(meta, short_name, n_rows, rng, unit_ids=None, ages=
     z = np.array([_norway_latent_z(int(u)) for u in uid_arr])
     kind = _norway_classify_money_demo(meta, short_name)
     as_int = meta.get("data_type") == "int"
+    # Alder: bruk oppgitt vektor hvis den passer, ellers den deterministiske fulle
+    # aldersfordelingen per person (inkl. barn/eldre) — aldri 18–67-klemmen.
     ages_arr = None
     if ages is not None:
-        ages_arr = np.asarray(ages, dtype=float).reshape(-1)
-        if len(ages_arr) != n_rows:
-            ages_arr = None
+        aa = np.asarray(ages, dtype=float).reshape(-1)
+        if len(aa) == n_rows:
+            ages_arr = aa
+    if ages_arr is None:
+        ages_arr = np.array([_norway_demo_age_at(int(u)) for u in uid_arr], dtype=float)
 
+    # ── 1) Nivå (verdi for dem som HAR beløpet) ────────────────────────────────
+    miss = None  # bool-array av MISSING, eller None (settes per kind)
     if kind == "wealth_net":
-        log_mu_row = 13.85 + _NORWAY_LATENT_LOG_WEALTH_NET * z
-        return _norway_lognormal_kr_rows(rng, log_mu_row, 1.38, as_int=True, min_v=0.0)
-    if kind == "wealth_gross":
-        log_mu_row = 14.42 + _NORWAY_LATENT_LOG_WEALTH_GROSS * z
-        return _norway_lognormal_kr_rows(rng, log_mu_row, 1.28, as_int=True, min_v=0.0)
-    if kind == "wage_fallback":
-        if ages_arr is not None:
-            gender_arr = np.array([_norway_synth_kjonn_from_uid(int(u)) for u in uid_arr])
-            pz, log_mu_row = _norway_wage_age_gender_params(ages_arr, gender_arr, z)
-            return _norway_hurdle_lognormal_kr(rng, log_mu_row, 0.52, pz, as_int=True)
-        log_mu_row = 13.12 + _NORWAY_LATENT_LOG_WAGE * z
-        return _norway_lognormal_kr_rows(rng, log_mu_row, 0.42, as_int=True, min_v=0.0)
-    if kind == "transfer_hurdle":
+        x = _norway_lognormal_kr_rows(rng, 13.85 + _NORWAY_LATENT_LOG_WEALTH_NET * z, 1.38, as_int=True, min_v=0.0)
+    elif kind == "wealth_gross":
+        x = _norway_lognormal_kr_rows(rng, 14.42 + _NORWAY_LATENT_LOG_WEALTH_GROSS * z, 1.28, as_int=True, min_v=0.0)
+    elif kind == "wage_fallback":
+        # Yrkesinntekt: nivå med alders-/kjønnsprofil; missing (ikke 0) styrer hvem
+        # som har lønn (U-formet etter alder), så den interne 0-hurdelen droppes.
+        gender_arr = np.array([_norway_synth_kjonn_from_uid(int(u)) for u in uid_arr])
+        _pz, log_mu_row = _norway_wage_age_gender_params(ages_arr, gender_arr, z)
+        x = np.round(np.exp(log_mu_row + 0.52 * rng.standard_normal(n_rows)))
+        miss = rng.random(n_rows) < _norway_money_missing_prob("wage_fallback", ages_arr)
+    elif kind == "transfer_hurdle":
         snu = (short_name or "").upper()
-        # Sykepenger: aldersprofil når fødselsdato er importert (korrelasjon alder ↔ utbetaling)
-        if "SYKEPENGER" in snu and ages_arr is not None:
+        if "SYKEPENGER" in snu:
             pz, log_mu_row = _norway_sykepenger_hurdle_params(ages_arr, z)
-            return _norway_hurdle_lognormal_kr(rng, log_mu_row, 0.52, pz, as_int=as_int)
-        # Øvrige stønader (AAP, foreldrepenger, FTRYG, …) — ofte null; nivå avhenger av tidligere lønn
-        pz = np.clip(0.80 - _NORWAY_LATENT_TRANSFER_HURDLE_SHIFT * z, 0.52, 0.92)
-        log_mu_row = 12.3 - 0.12 * z  # median ~220k for mottakere (AAP ~250k, sosial ~130k)
-        return _norway_hurdle_lognormal_kr(rng, log_mu_row, 0.52, pz, as_int=as_int)
-    if kind == "pension_hurdle":
+        else:
+            pz = np.clip(0.80 - _NORWAY_LATENT_TRANSFER_HURDLE_SHIFT * z, 0.52, 0.92)
+            log_mu_row = 12.3 - 0.12 * z  # median ~220k for mottakere
+        x = _norway_hurdle_lognormal_kr(rng, log_mu_row, 0.52, pz, as_int=as_int)
+        miss = x == 0  # ikke-mottaker → missing (ikke i stønadsregisteret)
+    elif kind == "pension_hurdle":
         pz = np.clip(0.55 - 0.05 * z, 0.25, 0.85)
-        log_mu_row = 12.5 + 0.18 * z  # median ~270k (alderspensjon ~270k, AFP ~350k)
-        return _norway_hurdle_lognormal_kr(rng, log_mu_row, 0.48, pz, as_int=as_int)
-    if kind == "transfer_child":
+        x = _norway_hurdle_lognormal_kr(rng, 12.5 + 0.18 * z, 0.48, pz, as_int=as_int)
+        miss = x == 0
+    elif kind == "transfer_child":
         pz = np.clip(0.48 - 0.03 * z, 0.25, 0.72)
-        log_mu_row = 10.95 + 0.05 * z
-        return _norway_hurdle_lognormal_kr(rng, log_mu_row, 0.38, pz, as_int=as_int)
-    if kind == "debt":
-        log_mu_row = 14.2 + 0.28 * z  # median ~1.5M (boliglån dominerer norsk gjeld)
-        return _norway_lognormal_kr_rows(rng, log_mu_row, 1.05, as_int=True, min_v=0.0)
-    if kind == "debt_unsecured":
-        log_mu_row = 11.0 + 0.22 * z  # median ~60k (forbrukslån/kredittkort)
-        return _norway_lognormal_kr_rows(rng, log_mu_row, 0.85, as_int=True, min_v=0.0)
-    if kind == "capital_financial":
-        log_mu_row = 12.55 + _NORWAY_LATENT_LOG_WEALTH_GROSS * 0.85 * z
-        return _norway_lognormal_kr_rows(rng, log_mu_row, 0.95, as_int=True, min_v=0.0)
-    if kind == "real_capital_stock":
-        log_mu_row = 13.25 + _NORWAY_LATENT_LOG_WEALTH_NET * 0.9 * z
-        return _norway_lognormal_kr_rows(rng, log_mu_row, 0.85, as_int=False, min_v=0.0)
-    if kind == "real_wealth_component":
-        log_mu_row = 12.85 + _NORWAY_LATENT_LOG_WEALTH_GROSS * 0.7 * z
-        return _norway_lognormal_kr_rows(rng, log_mu_row, 0.9, as_int=as_int, min_v=0.0)
-    if kind == "capital_gain_loss":
-        pz = np.full(n_rows, 0.72)
-        log_mu_row = 9.5 + 0.1 * z
-        x = _norway_hurdle_lognormal_kr(rng, log_mu_row, 0.85, pz, as_int=as_int)
+        x = _norway_hurdle_lognormal_kr(rng, 10.95 + 0.05 * z, 0.38, pz, as_int=as_int)
+        miss = x == 0
+    elif kind == "debt":
+        x = _norway_lognormal_kr_rows(rng, 14.2 + 0.28 * z, 1.05, as_int=True, min_v=0.0)
+    elif kind == "debt_unsecured":
+        x = _norway_lognormal_kr_rows(rng, 11.0 + 0.22 * z, 0.85, as_int=True, min_v=0.0)
+    elif kind == "capital_financial":
+        x = _norway_lognormal_kr_rows(rng, 12.55 + _NORWAY_LATENT_LOG_WEALTH_GROSS * 0.85 * z, 0.95, as_int=True, min_v=0.0)
+    elif kind == "real_capital_stock":
+        x = _norway_lognormal_kr_rows(rng, 13.25 + _NORWAY_LATENT_LOG_WEALTH_NET * 0.9 * z, 0.85, as_int=False, min_v=0.0)
+    elif kind == "real_wealth_component":
+        x = _norway_lognormal_kr_rows(rng, 12.85 + _NORWAY_LATENT_LOG_WEALTH_GROSS * 0.7 * z, 0.9, as_int=as_int, min_v=0.0)
+    elif kind == "capital_gain_loss":
+        # Beholder ekte 0 (de fleste har ingen gevinst); barn fortsatt missing nedenfor.
+        x = _norway_hurdle_lognormal_kr(rng, 9.5 + 0.1 * z, 0.85, np.full(n_rows, 0.72), as_int=as_int)
         neg = rng.random(n_rows) < 0.45
         x = np.where(neg & (x > 0), -x, x)
-        return x
-    if kind == "interest_flow":
-        log_mu_row = 9.2 + 0.25 * z  # renteinntekter median ~10k (bankinnskudd)
-        return _norway_lognormal_kr_rows(rng, log_mu_row, 0.9, as_int=as_int, min_v=0.0)
-    if kind == "interest_expense":
-        log_mu_row = 11.2 + 0.35 * z  # renteutgifter median ~73k (boliglånsrente)
-        return _norway_lognormal_kr_rows(rng, log_mu_row, 0.85, as_int=as_int, min_v=0.0)
-    if kind == "tax_amount":
-        log_mu_row = 12.0 + 0.22 * z  # utlignet skatt median ~162k
-        return _norway_lognormal_kr_rows(rng, log_mu_row, 0.65, as_int=True, min_v=0.0)
-    if kind in ("income_total", "income_generic"):
-        log_mu_row = 13.2 + _NORWAY_LATENT_LOG_INCOME_OTHER * z  # bruttoinntekt median ~540k
-        return _norway_lognormal_kr_rows(
-            rng, log_mu_row, 0.55, as_int=as_int, min_v=0.0
-        )
-    log_mu_row = 12.9 + _NORWAY_LATENT_LOG_INCOME_OTHER * z
-    return _norway_lognormal_kr_rows(
-        rng, log_mu_row, 0.5, as_int=as_int, min_v=0.0
-    )
+    elif kind == "interest_flow":
+        x = _norway_lognormal_kr_rows(rng, 9.2 + 0.25 * z, 0.9, as_int=as_int, min_v=0.0)
+    elif kind == "interest_expense":
+        x = _norway_lognormal_kr_rows(rng, 11.2 + 0.35 * z, 0.85, as_int=as_int, min_v=0.0)
+    elif kind == "tax_amount":
+        x = _norway_lognormal_kr_rows(rng, 12.0 + 0.22 * z, 0.65, as_int=True, min_v=0.0)
+    elif kind in ("income_total", "income_generic"):
+        x = _norway_lognormal_kr_rows(rng, 13.2 + _NORWAY_LATENT_LOG_INCOME_OTHER * z, 0.55, as_int=as_int, min_v=0.0)
+    else:
+        x = _norway_lognormal_kr_rows(rng, 12.9 + _NORWAY_LATENT_LOG_INCOME_OTHER * z, 0.5, as_int=as_int, min_v=0.0)
+
+    # ── 2) MISSING-maske (ikke i registeret → np.nan) ─────────────────────────
+    # allow_missing=False (entitets-attributter som jobb-lønn) beholder gammel
+    # oppførsel uten NaN — der gir det ikke mening at en jobb-record «mangler» lønn.
+    x = np.asarray(x, dtype=float)
+    if allow_missing:
+        if miss is None:
+            mp = _norway_money_missing_prob(kind, ages_arr)
+            if mp is not None:
+                miss = rng.random(n_rows) < mp
+        if miss is not None:
+            x = np.where(miss, np.nan, x)
+    return x
 
 
 # Map detailed BEFOLKNING_REGSTAT_FAMTYP codes (25-code Norwegian standard,
@@ -2400,12 +2526,12 @@ class MockDataEngine:
         uids = np.arange(1, n_units + 1, dtype=np.int64)
         tid_vals = [int(d[:4]) if len(d) >= 4 else int(d) for d in dates_list] or [2010, 2011, 2012]
         rows = []
-        # Bygg date@panel fra tid-verdiene (YYYY -> YYYY-01-01)
+        # Bygg panel@date fra tid-verdiene (YYYY -> YYYY-01-01)
         date_map = {t: pd.Timestamp(f"{t}-01-01") for t in tid_vals}
 
         for uid in uids:
             for tid in tid_vals:
-                row = {'unit_id': uid, 'tid': tid, 'date@panel': date_map[tid]}
+                row = {'unit_id': uid, 'tid': tid, 'panel@date': date_map[tid]}
                 for var_path in vars_list:
                     vname = var_path.split('/')[-1]
                     self.ensure_variable_resolved(vname)
@@ -2423,7 +2549,7 @@ class MockDataEngine:
                         row[vname] = int(rng.choice(code_ints))
                     elif meta.get('min') is not None or meta.get('max') is not None:
                         if _norway_classify_money_demo(meta, vname):
-                            arr = _norway_demo_money_array(meta, vname, 1, rng, unit_ids=np.array([uid]))
+                            arr = _norway_demo_money_array(meta, vname, 1, rng, unit_ids=np.array([uid]), allow_missing=False)
                             v = int(arr[0]) if str(meta.get('data_type', '')).lower() == 'int' else float(arr[0])
                             lo = meta.get('min')
                             if lo is not None:
@@ -2437,7 +2563,7 @@ class MockDataEngine:
                         m, s = meta.get('mean', 500000), meta.get('std', 100000)
                         dt = str(meta.get('data_type', '')).lower()
                         if _norway_classify_money_demo(meta, vname):
-                            arr = _norway_demo_money_array(meta, vname, 1, rng, unit_ids=np.array([uid]))
+                            arr = _norway_demo_money_array(meta, vname, 1, rng, unit_ids=np.array([uid]), allow_missing=False)
                             v = int(arr[0]) if dt == 'int' else float(arr[0])
                             lo, hi = meta.get('min'), meta.get('max')
                             if dt == 'int' and lo is not None:
@@ -2457,7 +2583,7 @@ class MockDataEngine:
                             row[vname] = rng.normal(m, s)
                     else:
                         if _norway_classify_money_demo(meta, vname):
-                            row[vname] = int(_norway_demo_money_array(meta, vname, 1, rng, unit_ids=np.array([uid]))[0])
+                            row[vname] = int(_norway_demo_money_array(meta, vname, 1, rng, unit_ids=np.array([uid]), allow_missing=False)[0])
                         else:
                             row[vname] = rng.normal(500000, 100000)
                 rows.append(row)
@@ -2803,7 +2929,15 @@ class MockDataEngine:
 
         ages_vec = _norway_demo_ages_from_current_df(current_df)
         if ages_vec is None and len(_pids) > 0:
-            ages_vec = np.array([_norway_synth_age_from_uid(int(u)) for u in _pids], dtype=float)
+            # Realistisk alder per person (inkl. barn/eldre) ved importårets referanse,
+            # konsistent med BEFOLKNING_FOEDSELS_AAR_MND. Driver alders­strukturen i
+            # inntekt/missing — ALDRI 18–67-klemmen for persondata.
+            _ref_y = None
+            _d1 = (parsed_args or {}).get('date1')
+            if _d1:
+                try: _ref_y = int(str(_d1)[:4])
+                except (ValueError, TypeError): _ref_y = None
+            ages_vec = np.array([_norway_demo_age_at(int(u), _ref_y) for u in _pids], dtype=float)
         gender_vec = (np.array([_norway_synth_kjonn_from_uid(int(u)) for u in _pids], dtype=np.int8)
                       if len(_pids) > 0 else None)
         z_vec = (np.array([_norway_latent_z(int(u)) for u in _pids], dtype=float)
@@ -2944,9 +3078,14 @@ class MockDataEngine:
                 else:
                     ref_year = _DEMO_REF_YEAR
                     ref_month = 12
-                ages = rng.normal(loc=44, scale=21, size=n_rows)
-                ages = np.clip(ages, 0, 100).astype(int)
-                years = ref_year - ages
+                # Fødselsår per person (deterministisk per uid) — samme kilde som
+                # inntekts-/missing-syntesen, så alder er konsistent uavhengig av
+                # importrekkefølge/alias. Født-etter-snapshot kappes til ref_year.
+                if uids is not None and len(uids) == n_rows:
+                    years = np.array([_norway_demo_birth_year_from_uid(int(u)) for u in uids], dtype=np.int64)
+                else:
+                    ages = np.clip(rng.normal(loc=44, scale=21, size=n_rows), 0, 100).astype(int)
+                    years = ref_year - ages
                 years = np.clip(years, 1900, ref_year)
                 months = rng.integers(1, 13, size=n_rows)
                 # Kapp måned for personer født i referanseåret
@@ -3019,7 +3158,8 @@ class MockDataEngine:
                 # Heltall i kroner (microdata): mean/std → avrundet normalfordeling, valgfri min/max
                 elif str(meta.get('data_type', '')).lower() == 'int' and (meta.get('mean') is not None or meta.get('std') is not None):
                     m, s = meta.get('mean', 500000), meta.get('std', 100000)
-                    if _norway_classify_money_demo(meta, short_name):
+                    _is_money = _norway_classify_money_demo(meta, short_name)
+                    if _is_money:
                         raw = _norway_demo_money_array(
                             meta, short_name, n_rows, rng, unit_ids=uids, ages=ages_vec
                         )
@@ -3030,7 +3170,8 @@ class MockDataEngine:
                         raw = np.maximum(raw, int(lo))
                     if hi is not None:
                         raw = np.minimum(raw, int(hi))
-                    data[var_name] = [int(x) for x in raw]
+                    # Penger kan inneholde MISSING (np.nan) → behold float; ellers heltall.
+                    data[var_name] = np.asarray(raw, dtype=float) if _is_money else [int(x) for x in raw]
                 elif isinstance(labels, dict) and labels:
                     # Med labels: trekk kun blant kodeverdier (uniformt hvis ingen distribution over)
                     codes_all = list(labels.keys())
@@ -3060,7 +3201,8 @@ class MockDataEngine:
                         lo = meta.get('min')
                         if lo is not None:
                             arr = np.maximum(arr, int(lo))
-                        data[var_name] = [int(x) for x in arr] if meta.get('data_type') == 'int' else arr.astype(float)
+                        # Penger kan inneholde MISSING (np.nan) → alltid float.
+                        data[var_name] = np.asarray(arr, dtype=float)
                     else:
                         lo = meta.get('min', 0)
                         hi = meta.get('max', 9999)
@@ -3608,7 +3750,10 @@ class DataTransformHandler:
         if cmd == 'reshape-to-panel':
             prefixes = args.get('prefixes', [])
             if not prefixes:
-                return None
+                raise ValueError(
+                    "reshape-to-panel krever minst ett variabel-prefiks, "
+                    "f.eks. `reshape-to-panel lonn` når datasettet har lonn2014, lonn2018."
+                )
             id_col = _get_df_key_col(df) or df.index.name or 'id'
             id_col = id_col if id_col in df.columns else df.columns[0]
             stub_cols = {}
@@ -3622,14 +3767,22 @@ class DataTransformHandler:
                             stub_cols.setdefault(pre, []).append((col, suf))
                             time_vals.add(suf)
             if not stub_cols:
-                return None
+                _cols = ', '.join(str(c) for c in df.columns)
+                raise ValueError(
+                    "reshape-to-panel fant ingen variabler å panele for prefiks(ene) "
+                    f"{', '.join(prefixes)}. Den trenger kolonner på formen <prefiks><suffiks> "
+                    "der suffikset er tall/dato (f.eks. lonn2014, lonn2018 → prefiks `lonn`). "
+                    "Importer samme variabel på flere datoer med ulike navn FØR reshape, "
+                    f"f.eks. `import db/INNTEKT_WLONN 2014-12-31 as lonn2014`. "
+                    f"Kolonner i datasettet nå: {_cols}."
+                )
             time_vals = sorted(time_vals)
             rows = []
             for _, row in df.iterrows():
                 for t in time_vals:
                     r = {id_col: row.get(id_col, row.name)}
                     r['tid'] = t
-                    r['date@panel'] = t  # microdata.no hjelpevariabel
+                    r['panel@date'] = t  # microdata.no hjelpevariabel (jf. dok.)
                     for pre, cols in stub_cols.items():
                         for full, suf in cols:
                             if suf == t:
@@ -6241,6 +6394,11 @@ class MicroInterpreter:
         self.active_name = None
         self.parser = MicroParser()
         self.data_engine = MockDataEngine(metadata_path=metadata_path, catalog=catalog)
+        # Statisk datakilde (settes av appen når data-source=static). None => generer.
+        self.static_source = None
+        # Kolonner som er konvertert til tall via destring — overstyrer
+        # alfanumerisk-sjekken (metadata sier streng, men brukeren har destringet).
+        self._numeric_override_cols = set()
         if metadata_base_url:
             u = str(metadata_base_url).strip()
             self.data_engine._page_base_url = u if u.endswith('/') else (u + '/')
@@ -6285,9 +6443,12 @@ class MicroInterpreter:
         'dc':                 ('global', 'M2PY_DISCLOSURE_CONTROL'),
         'label-format':       ('default', 'label_format'),
         'labelformat':        ('default', 'label_format'),
+        'data-source':        ('global_str', 'M2PY_DATA_SOURCE'),
+        'datasource':         ('global_str', 'M2PY_DATA_SOURCE'),
     }
     _DIRECTIVE_ENUM_VALUES = {
         'label_format': ('both', 'label', 'code'),
+        'M2PY_DATA_SOURCE': ('dynamic', 'static'),
     }
 
     def _apply_script_directives(self, script_text):
@@ -6322,6 +6483,19 @@ class MicroInterpreter:
                     f"// m2py: {key} = "
                     f"{'PÅ' if new_val == '1' else 'AV'} (satt fra script-direktiv)"
                 )
+            elif kind == 'global_str':
+                allowed = self._DIRECTIVE_ENUM_VALUES.get(storage_key)
+                if allowed and val not in allowed:
+                    self._log(
+                        f"// m2py: ugyldig verdi '{val}' for '{key}' — ignorert "
+                        f"(tillatt: {', '.join(allowed)})"
+                    )
+                    continue
+                saved_key = ('global', storage_key)
+                if saved_key not in saved:
+                    saved[saved_key] = globals().get(storage_key, (allowed[0] if allowed else None))
+                globals()[storage_key] = val
+                self._log(f"// m2py: {key} = {val} (satt fra script-direktiv)")
             elif kind == 'default':
                 allowed = self._DIRECTIVE_ENUM_VALUES.get(storage_key)
                 if allowed and val not in allowed:
@@ -6396,7 +6570,10 @@ class MicroInterpreter:
         return _meta_is_pseudonym(meta, registry_name=reg)
 
     def _is_string_col(self, colname):
-        """True hvis kolonnen er deklarert som alfanumerisk i metadata."""
+        """True hvis kolonnen er deklarert som alfanumerisk i metadata.
+        Kolonner som er destringet til tall regnes som numeriske (overstyrer)."""
+        if colname in getattr(self, '_numeric_override_cols', ()):
+            return False
         meta = self._lookup_var_meta(colname)
         return _meta_is_string_type(meta)
 
@@ -7961,6 +8138,13 @@ class MicroInterpreter:
                                 _t6_targets.append(_tn)
                                 _t6_snapshots[_tn] = df_target[_tn].copy()
                 result = self.transform_handler.execute(cmd, df_target, args, opts_copy)
+                # destring konverterer streng → tall: merk utdata-kolonnene som
+                # numeriske, så regress/summarize ikke avviser dem som alfanumeriske.
+                if cmd == 'destring' and isinstance(args, dict):
+                    _pfx = opts.get('prefix', '') or ''
+                    _sfx = opts.get('suffix', '') or ''
+                    for _dv in (args.get('vars') or []):
+                        self._numeric_override_cols.add(f"{_pfx}{_dv}{_sfx}")
                 # T1: populasjon må være ≥1000 etter keep/drop if
                 if (cmd in ('keep', 'drop') and _row_filter and result is not None
                         and _is_disclosure_control()):
@@ -8105,17 +8289,73 @@ class MicroInterpreter:
                         self._log(
                             f"ADVARSEL: «{_vshort}» er en Fast-variabel — dato ignoreres."
                         )
+                    # Dato-validering mot Gyldighetsperiode (det årlige rutenettet).
+                    # Streng i static-modus (ingen data finnes ellers); advarsel i dynamic.
+                    _valid_dates = _valid_import_dates_for(_vmeta)
+                    if _valid_dates is not None and _date1 and _date1 not in _valid_dates:
+                        _sorted = sorted(_valid_dates)
+                        _first, _last = _sorted[0], _sorted[-1]
+                        # Vis HELE intervallet (første–siste), ikke «…», så det er
+                        # tydelig at variabelen er avsluttet hvis året er for høyt.
+                        _yr = _date1[:4]
+                        _too_late = _yr > _last[:4]
+                        _hint = (f" Variabelen er avsluttet i {_last[:4]} — for nyere år, bruk en "
+                                 f"variant som er gyldig da (f.eks. en annen årgang/registerversjon "
+                                 f"av samme variabel).") if _too_late else ""
+                        _static_mode = (globals().get('M2PY_DATA_SOURCE', 'dynamic') == 'static'
+                                        and getattr(self, 'static_source', None) is not None)
+                        if _static_mode:
+                            self._log(
+                                f"FEIL: «{_vshort}» har ingen gyldig importdato {_date1}. "
+                                f"Gyldige datoer er årlige fra {_first} til {_last}.{_hint}"
+                            )
+                            return
+                        self._log(
+                            f"ADVARSEL: {_date1} er ikke en standard importdato for «{_vshort}» "
+                            f"(gyldige er årlige fra {_first} til {_last}).{_hint}"
+                        )
 
-                new_data = self.data_engine.generate(cmd, args, df_target)
+                # Datakilde: statiske filer (hvis aktivt og tilgjengelig) ellers generering.
+                new_data = None
+                # outer_join: generer variabelen mot HELE populasjonen (ikke bare
+                # enhetene som alt finnes i datasettet), så enheter som mangler i det
+                # eksisterende datasettet faktisk kan legges til ved unionen under.
+                _gen_target = df_target
+                if opts.get('outer_join') and not (df_target.empty and len(df_target.columns) <= 1):
+                    _gen_target = df_target.iloc[0:0]
+                _use_static = (globals().get('M2PY_DATA_SOURCE', 'dynamic') == 'static'
+                               and getattr(self, 'static_source', None) is not None)
+                if _use_static:
+                    try:
+                        new_data = self.static_source.generate(cmd, args, _gen_target)
+                    except Exception as _se:
+                        self._log(f"(static-kilde feilet, faller tilbake til generering: {_se})")
+                        new_data = None
+                if new_data is None:
+                    new_data = self.data_engine.generate(cmd, args, _gen_target)
                 # Omdøp unit_id → enhetstype-korrekt nøkkelkolonne (f.eks. PERSONID_1 for persondata)
                 _id_col = _ENTITY_ID_COL.get(_var_entity, 'unit_id')
                 if _id_col != 'unit_id' and 'unit_id' in new_data.columns:
                     new_data = new_data.rename(columns={'unit_id': _id_col})
+                # values(): importer kun enheter med gitte kodeverdier for variabelen.
+                # values_from(ds): behold kun enheter som finnes i et annet datasett.
+                _alias_for_filter = args.get('alias') or (args.get('var', '').split('/')[-1] if args.get('var') else '')
+                if opts.get('values') not in (None, True) and _alias_for_filter in new_data.columns:
+                    _wanted = {v.strip() for v in str(opts['values']).split(',') if v.strip() != ''}
+                    if _wanted:
+                        _col = new_data[_alias_for_filter].astype(str).str.strip()
+                        new_data = new_data[_col.isin(_wanted)].reset_index(drop=True)
+                if opts.get('values_from') not in (None, True):
+                    _other = self.datasets.get(str(opts['values_from']).strip())
+                    if _other is not None and _id_col in _other.columns and _id_col in new_data.columns:
+                        new_data = new_data[new_data[_id_col].isin(_other[_id_col])].reset_index(drop=True)
                 if df_target.empty and len(df_target.columns) <= 1:
                     # Helt tomt datasett (ingen kolonner utenom evt. nøkkel) — fyll direkte
                     self.datasets[self.active_name] = new_data
                 else:
-                    how = 'outer' if opts.get('outer_join') else 'left'
+                    # Join-strategi: inner (kun enheter i begge), outer (full union),
+                    # ellers left (standard — behold eksisterende populasjon).
+                    how = 'inner' if opts.get('inner_join') else ('outer' if opts.get('outer_join') else 'left')
                     # NPR-datasett: bruk AGGRSHOPPID (unik per episode) som merge-nøkkel
                     _merge_key = (
                         'AGGRSHOPPID'

@@ -459,12 +459,16 @@ def resolve_driver_vector(
                 )
                 if ages is not None:
                     return ages
-        # 3) Synthetic: N(44, 14) clipped to working-age 18..67
+        # 3) Synthetic: realistisk full aldersfordeling (0–100), deterministisk per
+        #    uid og konsistent med m2py (_norway_demo_age_at) og BEFOLKNING_FOEDSELS_AAR_MND.
+        #    Aldri 18–67-klemmen — ellers slår aldersregler for barn/eldre aldri inn,
+        #    og inntekt/missing blir flat. a0 = alder ved _DEMO_REF_YEAR; juster til as_of.
+        shift = as_of_year - _DEMO_REF_YEAR
         out = np.empty(n, dtype=float)
         for i, uid in enumerate(unit_ids):
             r = np.random.default_rng(unit_seed(uid, "alder"))
-            a = int(round(r.normal(44.0, 14.0)))
-            out[i] = max(18, min(67, a))
+            a0 = max(0, min(100, int(round(r.normal(42.0, 23.0)))))
+            out[i] = max(0, min(110, a0 + shift))
         return out
 
     if name == "gender":
@@ -608,7 +612,13 @@ def apply_hard_rules_numeric(
                     continue
         if "set" in rule:
             val = rule["set"]
-            out[mask] = float('nan') if val is None else float(val)
+            # None eller "missing"/"null" → MISSING (np.nan). Registerdata er missing
+            # (ikke 0) for ikke-deltakere; bruk dette i stedet for `set: 0` der det er
+            # snakk om «ikke i registeret» (lønn for barn/eldre, trygd for ikke-mottakere).
+            if val is None or (isinstance(val, str) and val.strip().lower() in ("missing", "null", "nan")):
+                out[mask] = float('nan')
+            else:
+                out[mask] = float(val)
         elif "multiply_by" in rule:
             out[mask] = out[mask] * float(rule["multiply_by"])
         elif "add" in rule:
@@ -1166,9 +1176,14 @@ def generate_numeric(
         values = np.minimum(values, float(hi))
 
     if realism.get("as_int"):
-        values = np.rint(values).astype(np.int64)
+        # NB: int64 kan ikke representere MISSING. Har vi NaN (registeret mangler
+        # enheten — f.eks. lønn for ikke-yrkesaktive), behold float så NaN overlever;
+        # ellers cast til heltall som før.
+        values = np.rint(values)
         if lo is not None:
-            values = np.maximum(values, int(lo))
+            values = np.maximum(values, float(lo))
+        if not np.isnan(values).any():
+            values = values.astype(np.int64)
 
     return values
 

@@ -1,0 +1,86 @@
+{
+  "n_persons": 10000,
+  "years": [
+    2015,
+    2016,
+    2017,
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023
+  ],
+  "tables": {
+    "person": {
+      "rows": 16667,
+      "cols": 439
+    },
+    "person_year": {
+      "rows": 90000,
+      "cols": 11
+    },
+    "jobb": {
+      "rows": 13819,
+      "cols": 53
+    },
+    "kjoretoy": {
+      "rows": 7667,
+      "cols": 28
+    },
+    "kurs": {
+      "rows": 11565,
+      "cols": 16
+    },
+    "npr": {
+      "rows": 2000,
+      "cols": 11
+    },
+    "trafikkulykke": {
+      "rows": 200,
+      "cols": 12
+    },
+    "person_i_trafikkulykke": {
+      "rows": 349,
+      "cols": 11
+    },
+    "malepunkt": {
+      "rows": 8649,
+      "cols": 7
+    },
+    "kommune": {
+      "rows": 665,
+      "cols": 4
+    },
+    "kommune_year": {
+      "rows": 5985,
+      "cols": 114
+    },
+    "variables": {
+      "rows": 738,
+      "cols": 10
+    },
+    "value_labels": {
+      "rows": 3328,
+      "cols": 5
+    },
+    "valid_dates": {
+      "rows": 9114,
+      "cols": 2
+    },
+    "fylke": {
+      "rows": 33,
+      "cols": 2
+    },
+    "icd10_kapittel": {
+      "rows": 26,
+      "cols": 2
+    },
+    "kommune_crosswalk": {
+      "rows": 425,
+      "cols": 4
+    }
+  },
+  "metadata_file": "variable_metadata.json",
+  "skips": []
+}

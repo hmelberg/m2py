@@ -19,11 +19,11 @@
     .topbar .hamburger { background: none; border: none; color: var(--text); cursor: pointer; padding: 8px; font-size: 20px; line-height: 1; }
     .topbar .hamburger:hover { color: var(--accent); }
     .topbar .script-name { flex: 0 1 170px; margin: 0 12px; background: var(--bg-code); border: none; border-radius: 4px; padding: 6px 10px; color: var(--text); font-size: 14px; -webkit-appearance: none; appearance: none; }
-    .topbar .topbar-ask { flex: 1 1 auto; min-width: 120px; margin: 0 12px 0 0; background: var(--bg-code); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; color: var(--text); font-size: 14px; -webkit-appearance: none; appearance: none; }
+    .topbar .topbar-ask { flex: 1 1 auto; min-width: 120px; margin: 0 12px; background: var(--bg-code); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; color: var(--text); font-size: 14px; -webkit-appearance: none; appearance: none; }
     .topbar .topbar-ask:focus { outline: none; border-color: var(--accent); }
     .topbar .topbar-ask::placeholder { color: var(--text-muted); }
     .topbar .script-name:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
-    .topbar .help-icon { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 8px; font-size: 18px; }
+    .topbar .help-icon { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 6px 8px; font-size: 18px; }
     .topbar .help-icon:hover { color: var(--accent); }
     .topbar-export-wrap, .topbar-theme-wrap { position: relative; margin-left: 8px; }
     .topbar .export-icon { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 6px 8px; font-size: 18px; line-height: 1; }
@@ -1069,6 +1069,20 @@
           </div>
         </div>
         <button type="button" id="menuForklar" title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">Kj&#248;r skrittvis</button>
+        <button type="button" id="menuSokData" title="S&#248;k om tilgang til individdata" style="display:flex;align-items:center;gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
+            <circle cx="11" cy="11" r="7"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <span>S&#248;k om data</span>
+        </button>
+        <button type="button" id="menuVisData" title="&#197;pne sidemenyen for &#229; velge og se data" style="display:flex;align-items:center;gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          <span>Se data</span>
+        </button>
         <button type="button" id="menuRunnerMode" style="display:none">Kjøremodus: Microdata</button>
         <button type="button" id="menuToggleOutputMode" style="display:none">Output-modus: String</button>
         <button type="button" id="menuShowIndividata" title="Når PÅ: klikk på datasett-navnet i sidemenyen for å åpne en tabellvisning av rådataene (sorter, filtrer, bla). Når AV: dataset-navnet er inaktivt." style="display:flex;align-items:center;gap:8px;">
@@ -1079,7 +1093,7 @@
             <line x1="9" y1="4" x2="9" y2="20"/>
             <line x1="15" y1="4" x2="15" y2="20"/>
           </svg>
-          <span id="menuShowIndividataLabel">Vis data: AV</span>
+          <span id="menuShowIndividataLabel">Datatilgang: AV</span>
         </button>
         <hr style="margin:4px 0;border-color:#334155;">
         <button type="button" id="menuSettings">Innstillinger</button>
@@ -1484,6 +1498,11 @@
           <label>Avsl&#248;ringskontroll</label>
           <button type="button" class="btn btn-secondary" id="menuDisclosureControl" title="Når PÅ: matcher microdata.no — pseudonym-validering, type-sjekk, min populasjon 1000, små celler skjules, winsorisering, persentiler avrundes. Når AV: alle regler er slått av og du ser rå tall.">Avsl&#248;ringskontroll: P&#197;</button>
           <p class="settings-hint">N&#229;r P&#197;: matcher microdata.no &mdash; pseudonym-validering, type-sjekk, min populasjon 1000, sm&#229; celler skjules, winsorisering, persentiler avrundes. N&#229;r AV: alle regler er sl&#229;tt av og du ser r&#229; tall.</p>
+        </div>
+        <div class="settings-field">
+          <label>Datakilde</label>
+          <button type="button" class="btn btn-secondary" id="menuDataSource" title="Dynamisk: variabler genereres på nytt ved hver kjøring (standard). Statisk: import laster fra ferdige, konsistente datafiler (static_data/*.parquet) via DuckDB-WASM. Variabler/datoer som ikke finnes statisk faller tilbake til generering. Kan også settes per script med // m2py: data-source=static.">Datakilde: Dynamisk</button>
+          <p class="settings-hint">Dynamisk = generer ved kjøring (standard). Statisk = last fra <code>static_data/*.parquet</code> (krever at filene er tilgjengelige). Per script: <code>// m2py: data-source=static</code>.</p>
         </div>
         <div class="settings-field">
           <label>AI-svar</label>
@@ -2022,6 +2041,11 @@
       let accumulated = '';
       let inputTokens = 0;
       let outputTokens = 0;
+      // Live markdown-rendering under strømming (som kode-svar), ikke rå tekst til slutt.
+      const mdLive = (typeof window.markdownit === 'function')
+        ? window.markdownit({ html: false, linkify: true, breaks: true }) : null;
+      let _lastRender = 0;
+      if (mdLive) { body.style.fontFamily = ''; body.style.whiteSpace = ''; }
 
       try {
         // Get Anvil session token from mdAuth module
@@ -2073,7 +2097,16 @@
               const obj = JSON.parse(dataLine.slice(5).trim());
               if (obj.type === 'text') {
                 accumulated += obj.text;
-                body.textContent = accumulated;
+                if (mdLive) {
+                  const _now = Date.now();
+                  if (_now - _lastRender > 70) {
+                    _lastRender = _now;
+                    try { body.innerHTML = mdLive.render(accumulated); }
+                    catch (_) { body.textContent = accumulated; }
+                  }
+                } else {
+                  body.textContent = accumulated;
+                }
               } else if (obj.type === 'done') {
                 inputTokens = obj.inputTokens || 0;
                 outputTokens = obj.outputTokens || 0;
@@ -2102,15 +2135,14 @@
           }
         }
 
-        // Render markdown when stream is complete
-        if (typeof window.markdownit === 'function') {
+        // Final render: re-render kun hovedteksten (revidert-seksjonen vises separat).
+        if (mdLive) {
           try {
-            const md = window.markdownit({ html: false, linkify: true, breaks: true });
-            body.innerHTML = md.render(mainText);
+            body.innerHTML = mdLive.render(mainText);
             body.style.fontFamily = '';  // remove monospace styling
             body.style.whiteSpace = '';  // remove pre-wrap
           } catch (e) {
-            // Fall back to text rendering on parser error
+            // behold den strømmede renderingen ved parser-feil
           }
         }
 
@@ -3150,7 +3182,7 @@
       function updateShowIndividataLabel() {
         const lbl = document.getElementById('menuShowIndividataLabel');
         if (!lbl) return;
-        lbl.textContent = 'Vis data: ' + (getShowIndividata() ? 'PÅ' : 'AV');
+        lbl.textContent = 'Datatilgang: ' + (getShowIndividata() ? 'PÅ' : 'AV');
       }
       function applyShowIndividataToSidebar() {
         var on = getShowIndividata();
@@ -3166,6 +3198,21 @@
         menuShowIndividataBtn.addEventListener('click', function() {
           setShowIndividata(!getShowIndividata());
           updateShowIndividataLabel();
+          dropdown.classList.remove('open');
+        });
+      }
+
+      // Datakilde-bryter: dynamisk (generer) vs statisk (DuckDB-WASM + Parquet)
+      function updateDataSourceLabel() {
+        const b = document.getElementById('menuDataSource');
+        if (b) b.textContent = 'Datakilde: ' + (isStaticDataSource() ? 'Statisk' : 'Dynamisk');
+      }
+      updateDataSourceLabel();
+      const menuDataSourceBtn = document.getElementById('menuDataSource');
+      if (menuDataSourceBtn) {
+        menuDataSourceBtn.addEventListener('click', function() {
+          setDataSource(!isStaticDataSource());
+          updateDataSourceLabel();
           dropdown.classList.remove('open');
         });
       }
@@ -3358,6 +3405,61 @@
     }
     document.getElementById('sidebarCloseBtn').addEventListener('click', function() { setSidebarOpen(false); });
     document.getElementById('sidebarOpenTab').addEventListener('click', function() { setSidebarOpen(true); });
+
+    // Søk om data / Vis data (hamburgermeny). Kjøres etter at DOM (inkl. modalene
+    // lenger ned i HTML) finnes — ellers fester ikke modal-knappene seg.
+    function wireDataAccessMenu() {
+      function closeDropdown() {
+        var dd = document.getElementById('hamburgerDropdown');
+        if (dd) dd.classList.remove('open');
+      }
+      function showBackdrop(id, on) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = on ? 'flex' : 'none';
+      }
+      function on(id, handler) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('click', handler);
+      }
+      function grantDataAccess() {
+        // Godkjent → skru på «Vis data»-innstillingen (klikk på datasett-navn → tabell).
+        // setShowIndividata ligger i et indre scope, så vi setter nøkkelen direkte
+        // og oppdaterer label + sidebar via den globale apply-funksjonen.
+        try { localStorage.setItem('microdata_show_individata', '1'); } catch (e) {}
+        var lbl = document.getElementById('menuShowIndividataLabel');
+        if (lbl) lbl.textContent = 'Datatilgang: PÅ';
+        if (window.__applyShowIndividataToSidebar) {
+          try { window.__applyShowIndividataToSidebar(); } catch (e) {}
+        }
+      }
+      // Søk om data → modal med «Send forespørsel»
+      on('menuSokData', function() { closeDropdown(); showBackdrop('sokDataBackdrop', true); });
+      on('sokDataCancel', function() { showBackdrop('sokDataBackdrop', false); });
+      // Send forespørsel → godkjenn, skru på innstillingen, vis «godkjent»-modal
+      on('sokDataSend', function() {
+        showBackdrop('sokDataBackdrop', false);
+        grantDataAccess();
+        showBackdrop('sokDataApprovedBackdrop', true);
+      });
+      on('sokDataApprovedClose', function() { showBackdrop('sokDataApprovedBackdrop', false); });
+      // Vis data (i godkjent-modalen) → åpne sidemenyen
+      on('sokDataApprovedVis', function() {
+        showBackdrop('sokDataApprovedBackdrop', false);
+        setSidebarOpen(true);
+      });
+      // Vis data (hamburgermeny) → åpne sidemenyen direkte
+      on('menuVisData', function() { closeDropdown(); setSidebarOpen(true); });
+      // Klikk utenfor boksen lukker modalen
+      ['sokDataBackdrop', 'sokDataApprovedBackdrop'].forEach(function(id) {
+        var bd = document.getElementById(id);
+        if (bd) bd.addEventListener('click', function(e) { if (e.target === bd) bd.style.display = 'none'; });
+      });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', wireDataAccessMenu);
+    } else {
+      wireDataAccessMenu();
+    }
 
     document.getElementById('btnRunFooter').addEventListener('click', function() {
       document.getElementById('btnRun').click();
@@ -3591,6 +3693,61 @@
       try { var v = parseInt(localStorage.getItem(IMPORT_LIMIT_KEY), 10); if (v >= 10) return v; } catch(e) {}
       return 10000;
     }
+
+    // ── Datakilde: dynamisk (generer) vs statisk (DuckDB-WASM + Parquet) ──────
+    const DATA_SOURCE_KEY = 'microdata_data_source';
+    const STATIC_TABLES = ['person', 'person_year', 'jobb', 'kjoretoy', 'kurs',
+                           'npr', 'malepunkt', 'trafikkulykke', 'person_i_trafikkulykke'];
+    function isStaticDataSource() {
+      try { return localStorage.getItem(DATA_SOURCE_KEY) === 'static'; } catch (e) { return false; }
+    }
+    function setDataSource(on) {
+      try { localStorage.setItem(DATA_SOURCE_KEY, on ? 'static' : 'dynamic'); } catch (e) {}
+    }
+    let __duckdbDB = null;
+    async function __ensureDuckDB() {
+      if (__duckdbDB) return __duckdbDB;
+      const duckdb = await import('https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm');
+      const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
+      const wurl = URL.createObjectURL(new Blob(['importScripts("' + bundle.mainWorker + '");'],
+        { type: 'text/javascript' }));
+      const worker = new Worker(wurl);
+      const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(), worker);
+      await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+      URL.revokeObjectURL(wurl);
+      __duckdbDB = db;
+      return db;
+    }
+    function __arrowToColumns(table) {
+      const cols = {};
+      for (const f of table.schema.fields) {
+        const arr = table.getChild(f.name).toArray();
+        cols[f.name] = Array.from(arr, v => (typeof v === 'bigint' ? Number(v) : v));
+      }
+      return cols;
+    }
+    // Awaited from Pyodide during a run: execute one routed query, return columns.
+    window.runStaticQuery = async function (sql) {
+      const db = await __ensureDuckDB();
+      const conn = await db.connect();
+      try { return __arrowToColumns(await conn.query(sql)); }
+      finally { await conn.close(); }
+    };
+    // Column lists per static table (so routing knows what's materialised).
+    window.runStaticSchemas = async function (base) {
+      const db = await __ensureDuckDB();
+      const conn = await db.connect();
+      const out = {};
+      try {
+        for (const t of STATIC_TABLES) {
+          try {
+            const r = await conn.query("SELECT * FROM read_parquet('" + base + "static_data/" + t + ".parquet') LIMIT 0");
+            out[t] = r.schema.fields.map(f => f.name);
+          } catch (e) { /* table absent */ }
+        }
+      } finally { await conn.close(); }
+      return out;
+    };
     function getTtsRate() {
       try { var v = parseFloat(localStorage.getItem(TTS_RATE_KEY)); if (!isNaN(v)) return v; } catch(e) {}
       return 1.0;
@@ -4065,7 +4222,7 @@
       '',
       '// Vi kan så importere ulike variabler',
       'import db/BEFOLKNING_KJOENN as kjonn',
-      'import db/INNTEKT_LONN 2022-12-31 as inntekt  // Akkumulerte variabler krever en importdato (YYYY-MM-DD)',
+      'import db/INNTEKT_LONN 2022-01-01 as inntekt  // Akkumulerte variabler krever en importdato (YYYY-MM-DD)',
       '// Nå har vi hentet data fra databasen (db) og gitt variablene nye navn.',
       '// Husk at du kan trykke TAB for å få hjelp med kommandoer og variabler',
       '',
@@ -4526,17 +4683,19 @@
       return { start: '2010-01-01', end: '2023-12-31' };
     }
 
-    // Lag en liste gyldige datoer innenfor [start, end]. Bruker dag/måned fra
-    // sluttdatoen som årlig mønster, og inkluderer alltid start- og sluttdato.
-    function buildDateList(start, end) {
+    // Lag en liste gyldige importdatoer innenfor [start, end] på måned-dagen `mmdd`
+    // ('-MM-DD'). Tverrsnitt validerer mot et årlig rutenett på STARTdatoens
+    // måned-dag (se _valid_import_dates_for i m2py.py) — IKKE sluttdatoens.
+    // Akkumulert godtar i tillegg årsslutt-datoen, og den er mest intuitiv
+    // (helårstall), så for Akkumulert sender vi inn sluttdatoens måned-dag.
+    function buildDateList(start, end, mmdd) {
       const sy = parseInt(start.slice(0, 4), 10), ey = parseInt(end.slice(0, 4), 10);
       if (isNaN(sy) || isNaN(ey)) return [];
-      const endMMDD = end.slice(4); // '-MM-DD'
+      const md = mmdd || start.slice(4); // standard: rutenettets faste (start-)måned-dag
       const seen = new Set(), out = [];
       const add = (d) => { if (d && !seen.has(d)) { seen.add(d); out.push(d); } };
-      add(end);
-      for (let y = ey - 1; y > sy && out.length < 11; y--) add(y + endMMDD);
-      add(start);
+      for (let y = ey; y > sy && out.length < 10; y--) add(y + md); // nyeste først
+      add(sy + md); // forankre alltid eldste gyldige dato
       return out;
     }
 
@@ -4554,7 +4713,10 @@
           .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).slice().sort().reverse();
       } else {
         const range = parseValidityRange(meta.description || '');
-        dates = buildDateList(range.start, range.end);
+        // Akkumulert = sum t.o.m. datoen → foreslå årsslutt-datoen (sluttens
+        // måned-dag, f.eks. 12-31 for helårsinntekt). Tverrsnitt = startens.
+        const mmdd = temp.toLowerCase() === 'akkumulert' ? range.end.slice(4) : range.start.slice(4);
+        dates = buildDateList(range.start, range.end, mmdd);
       }
       const p = (prefix || '').trim();
       if (p) dates = dates.filter(d => d.startsWith(p));
@@ -6759,6 +6921,17 @@ e = MicroInterpreter(catalog=catalog, metadata_base_url=${JSON.stringify(pageBas
 e.data_engine.default_rows = ${getImportLimit()}
 e.default_decimals = ${getDecimals()}
 e._apply_float_format()
+# Statisk datakilde (Innstillinger: data-source=static). Cache fylles i pre-fetch.
+import sys as _sys
+try:
+    if ${isStaticDataSource() ? 'True' : 'False'} and 'static_source' in _sys.modules:
+        import static_source as _ss_mod
+        _m2py_mod.M2PY_DATA_SOURCE = 'static'
+        e.static_source = _ss_mod.StaticDataSource(catalog or {}, {})
+    else:
+        _m2py_mod.M2PY_DATA_SOURCE = 'dynamic'
+except Exception:
+    _m2py_mod.M2PY_DATA_SOURCE = 'dynamic'
 try:
     if isinstance(getattr(_m2py_mod, 'M2PY_DEFAULTS', None), dict):
         _m2py_mod.M2PY_DEFAULTS['label_format'] = ${JSON.stringify(getLabelFormat())}
@@ -7577,6 +7750,13 @@ e.translate_script_to_python(script)
       } catch (e) {
         console.warn('loadPackage bundled set:', e);
       }
+      // Demp micropip sine «Loading/Loaded/already loaded»-meldinger (INFO) — de
+      // lekker ellers inn i output når bakgrunns-prefetchen kjører under en kjøring.
+      try {
+        await pyodide.runPythonAsync(
+          'import logging\nlogging.getLogger("micropip").setLevel(logging.WARNING)\n'
+        );
+      } catch (e) { console.warn('micropip log level:', e); }
       // plotly er PyPI (ikke bundlet) og importeres inne i figurkommandoer i m2py.py
       // — auto-install i run-handler ser ikke disse, så vi installerer eager.
       // matplotlib, lifelines og linearmodels prefetches i bakgrunn etter Ready (B2).
@@ -7592,13 +7772,14 @@ await micropip.install('plotly')
       setStatus(leftStatus, 'Fetching m2py, functions, mockdata modules and variable_metadata...');
       const base = window.location.href.replace(/[^/]+$/, '');
       const _cb = '?v=' + (window.M2PY_VERSION || '1');
-      const [m2pyResp, funcResp, metaResp, coreResp, realismResp, protectResp] = await Promise.all([
+      const [m2pyResp, funcResp, metaResp, coreResp, realismResp, protectResp, staticSrcResp] = await Promise.all([
         fetch(base + 'm2py.py' + _cb),
         fetch(base + 'functions.py' + _cb),
         fetch(base + 'variable_metadata.json' + _cb),
         fetch(base + 'mockdata_core.py' + _cb),
         fetch(base + 'mockdata_realism.py' + _cb),
-        fetch(base + 'protect.py' + _cb).catch(function() { return { ok: false }; })
+        fetch(base + 'protect.py' + _cb).catch(function() { return { ok: false }; }),
+        fetch(base + 'static_source.py' + _cb).catch(function() { return { ok: false }; })
       ]);
       if (!m2pyResp.ok || !funcResp.ok) {
         throw new Error('Could not load m2py.py or functions.py. Run from a local server (e.g. python -m http.server) from the microdata folder.');
@@ -7674,6 +7855,19 @@ spec2 = importlib.util.spec_from_loader("m2py", loader=None)
 sys.modules["m2py"] = importlib.util.module_from_spec(spec2)
 exec(compile(m2py_code, "m2py.py", "exec"), sys.modules["m2py"].__dict__)
 `);
+      // Register static_source (statisk datakilde via DuckDB-WASM). Valgfri.
+      if (staticSrcResp && staticSrcResp.ok) {
+        try {
+          const staticCode = await staticSrcResp.text();
+          await pyodide.runPythonAsync(`
+static_code = ${JSON.stringify(staticCode)}
+spec_s = importlib.util.spec_from_loader("static_source", loader=None)
+sys.modules["static_source"] = importlib.util.module_from_spec(spec_s)
+exec(compile(static_code, "static_source.py", "exec"), sys.modules["static_source"].__dict__)
+`);
+          window.__staticSourceLoaded = true;
+        } catch (e) { console.warn('static_source register:', e); }
+      }
       // Speile avsløringskontroll-flagget fra localStorage til m2py.M2PY_DISCLOSURE_CONTROL.
       window.__applyDisclosureControlToPython = async function () {
         if (!pyodide) return;
@@ -7868,7 +8062,18 @@ options(width = 200)
         let stdout = '';
         let stderr = '';
         if (typeof py.setStdout === 'function') {
-          py.setStdout({ batched: s => { stdout += s + '\n'; } });
+          py.setStdout({ batched: s => {
+            // Filtrer bort Pyodide/micropip pakke-lastemeldinger (bakgrunns-prefetch)
+            // som ellers lekker inn i output ved første kjøring.
+            var f = String(s).split('\n').filter(function (l) {
+              var t = l.replace(/\s+$/, '');
+              return !(/ already loaded from default channel$/.test(t)
+                || /^Load(ing|ed) [\w.\-]+(, [\w.\-]+)+$/.test(t)
+                || /^Load(ing|ed) (statsmodels|matplotlib|patsy|lifelines|linearmodels|autograd|numpy|scipy|pandas)$/.test(t));
+            }).join('\n');
+            if (f === '' && String(s).trim() !== '') return;  // ren pakke-støy → hopp over
+            stdout += f + '\n';
+          } });
         }
         if (typeof py.setStderr === 'function') {
           py.setStderr({ batched: s => { stderr += s + '\n'; } });
@@ -7926,6 +8131,23 @@ options(width = 200)
         const segmentsStr = JSON.stringify(segments);
         const runCode = getInterpreterCorePython(catalogArg, pageBase, segmentsStr) + `
 import asyncio as _asyncio
+# ── Statisk datakilde: pre-fetch alle importer via DuckDB-WASM (JS) før kjøring ──
+if getattr(_m2py_mod, 'M2PY_DATA_SOURCE', 'dynamic') == 'static' and getattr(e, 'static_source', None) is not None:
+    import js as _js
+    try:
+        _schemas = (await _js.runStaticSchemas(${JSON.stringify(pageBase)})).to_py()
+        e.static_source.table_columns = {k: set(v) for k, v in _schemas.items()}
+        _plan = e.static_source.plan_sql(${JSON.stringify(effectiveScript)}, ${JSON.stringify(pageBase)}, ${getImportLimit()})
+        _cache = {}
+        for _q in _plan:
+            try:
+                _cache[_q['key']] = (await _js.runStaticQuery(_q['sql'])).to_py()
+            except Exception:
+                pass
+        e.static_source.set_cache(_cache)
+    except Exception as _pe:
+        print('(static pre-fetch feilet, faller tilbake til generering:', _pe, ')')
+        _m2py_mod.M2PY_DATA_SOURCE = 'dynamic'
 result = None
 for _seg in _segments:
     _st = (_seg.get("text") or "").strip()
@@ -8267,10 +8489,19 @@ for _seg in _segments:
         }
         if (py && typeof py.setStdout === 'function') {
           py.setStdout({ batched: function(s) {
-            stdout += s + '\n';
-            if (forklarChunkCapture) forklarChunkStdout += s + '\n';
+            // Filtrer bort pakke-lastemeldinger (bakgrunns-prefetch).
+            var f = String(s).split('\n').filter(function (l) {
+              var t = l.replace(/\s+$/, '');
+              return !(/ already loaded from default channel$/.test(t)
+                || /^Load(ing|ed) [\w.\-]+(, [\w.\-]+)+$/.test(t)
+                || /^Load(ing|ed) (statsmodels|matplotlib|patsy|lifelines|linearmodels|autograd|numpy|scipy|pandas)$/.test(t));
+            }).join('\n');
+            if (f === '' && String(s).trim() !== '') return;
+            stdout += f + '\n';
+            if (forklarChunkCapture) forklarChunkStdout += f + '\n';
           } });
         }
+
         if (py && typeof py.setStderr === 'function') {
           py.setStderr({ batched: function(s) { stderr += s + '\n'; } });
         }
@@ -10787,6 +11018,34 @@ def _run_microdata_chunk(_code):
       <div class="ai-modal-actions" style="margin-top:16px;">
         <button type="button" id="openUrlCancel" class="ai-modal-btn">Avbryt</button>
         <button type="button" id="openUrlGo" class="ai-modal-btn primary">&#197;pne</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Søk om data -->
+  <div id="sokDataBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 480px;">
+      <h3 style="font-size: 1.25em;">S&#248;k om data</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+        Send en foresp&#248;rsel om tilgang til individdata.
+      </p>
+      <div class="ai-modal-actions" style="margin-top:16px;">
+        <button type="button" id="sokDataCancel" class="ai-modal-btn">Avbryt</button>
+        <button type="button" id="sokDataSend" class="ai-modal-btn primary">Send foresp&#248;rsel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Søknaden er godkjent -->
+  <div id="sokDataApprovedBackdrop" class="ai-modal-backdrop" style="display:none;">
+    <div class="ai-modal" style="max-width: 480px;">
+      <h3 style="font-size: 1.25em;">S&#248;knaden er godkjent.</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+        Du har n&#229; tilgang p&#229; individdata. Du kan se data ved &#229; trykke p&#229; &laquo;Se data&raquo;.
+      </p>
+      <div class="ai-modal-actions" style="margin-top:16px;">
+        <button type="button" id="sokDataApprovedClose" class="ai-modal-btn">Lukk</button>
+        <button type="button" id="sokDataApprovedVis" class="ai-modal-btn primary">Se data</button>
       </div>
     </div>
   </div>
