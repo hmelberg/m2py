@@ -3750,7 +3750,10 @@ class DataTransformHandler:
         if cmd == 'reshape-to-panel':
             prefixes = args.get('prefixes', [])
             if not prefixes:
-                return None
+                raise ValueError(
+                    "reshape-to-panel krever minst ett variabel-prefiks, "
+                    "f.eks. `reshape-to-panel lonn` når datasettet har lonn2014, lonn2018."
+                )
             id_col = _get_df_key_col(df) or df.index.name or 'id'
             id_col = id_col if id_col in df.columns else df.columns[0]
             stub_cols = {}
@@ -3764,7 +3767,15 @@ class DataTransformHandler:
                             stub_cols.setdefault(pre, []).append((col, suf))
                             time_vals.add(suf)
             if not stub_cols:
-                return None
+                _cols = ', '.join(str(c) for c in df.columns)
+                raise ValueError(
+                    "reshape-to-panel fant ingen variabler å panele for prefiks(ene) "
+                    f"{', '.join(prefixes)}. Den trenger kolonner på formen <prefiks><suffiks> "
+                    "der suffikset er tall/dato (f.eks. lonn2014, lonn2018 → prefiks `lonn`). "
+                    "Importer samme variabel på flere datoer med ulike navn FØR reshape, "
+                    f"f.eks. `import db/INNTEKT_WLONN 2014-12-31 as lonn2014`. "
+                    f"Kolonner i datasettet nå: {_cols}."
+                )
             time_vals = sorted(time_vals)
             rows = []
             for _, row in df.iterrows():
