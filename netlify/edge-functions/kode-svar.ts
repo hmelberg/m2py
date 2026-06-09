@@ -477,12 +477,21 @@ gangen, fra første til siste år. Regler:
 
 **Avsluttede og versjonerte variabler — velg riktig årgang.** Samme begrep finnes
 ofte i FLERE varianter med ULIKE gyldighetsperioder: en eldre er avsluttet, en
-nyere (eller en med annet register-prefiks) har tatt over. Eksempel:
-\`REGSYS_FRTK_SEKTOR_2014\` dekker bare 2015–2019, mens \`ARBLONN_FRTK_SEKTOR_2014\`
-dekker 2015–2025. Et årstall i navnet (\`_2014\`) er en KLASSIFISERINGS-versjon,
-IKKE sluttåret — les alltid den faktiske gyldighetsperioden i taggen.
+nyere (eller en med annet register-prefiks) har tatt over. Variantene kan dessuten ha ulik ENHETSTYPE. Eksempel for «sektor»:
+\`REGSYS_FRTK_SEKTOR_2014\` er **Person** men dekker bare 2015–2019;
+\`ARBLONN_FRTK_SEKTOR_2014\` er **Jobb** og dekker 2015–2025. Et årstall i navnet
+(\`_2014\`) er en KLASSIFISERINGS-versjon, IKKE sluttåret — les alltid den faktiske
+gyldighetsperioden OG enhetstypen i taggen.
 - Velg den varianten hvis gyldighetsperiode DEKKER året brukeren vil ha. Trenger
   du 2022-tall, finn varianten som er gyldig i 2022 — ikke en avsluttet variabel.
+- Velg riktig ENHETSTYPE: i et Person-datasett, foretrekk Person-varianten
+  (\`import\` direkte). For sektor i 2019 → \`REGSYS_FRTK_SEKTOR_2014 2019-11-16\`
+  (Person). En Jobb-variabel kan IKKE importeres direkte i et Person-datasett —
+  den må inn i et eget Jobb-datasett, collapse til én verdi per person, så merge.
+- Hvis Person-varianten er avsluttet og bare en Jobb-variant dekker det ønskede
+  året (f.eks. sektor i 2022 → kun \`ARBLONN_FRTK_SEKTOR_2014\`, Jobb), bygg det
+  via eget Jobb-datasett + collapse + merge — ikke ved å tvinge den inn i
+  person-datasettet eller velge et år utenfor gyldighetsområdet.
 - Tving ALDRI en dato inn i en avsluttet variabel (gir «ingen gyldig importdato»,
   og i static-modus en hard feil). Ser du at siste gyldige år er før det ønskede,
   bytt variabel i stedet for å bytte år.
