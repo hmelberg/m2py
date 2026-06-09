@@ -1158,7 +1158,7 @@ def _py_eval_expr(df, expr):
         for k, v in bindings.items():
             if isinstance(k, str) and k.isidentifier():
                 env[k] = v
-    # Kolonnenavn med @ (f.eks. date@panel) er ugyldige Python-identifikatorer.
+    # Kolonnenavn med @ (f.eks. panel@date) er ugyldige Python-identifikatorer.
     # Erstatt @ med _AT_ i både env-nøkler og uttrykket.
     at_cols = {}
     for col in df.columns:
@@ -2526,12 +2526,12 @@ class MockDataEngine:
         uids = np.arange(1, n_units + 1, dtype=np.int64)
         tid_vals = [int(d[:4]) if len(d) >= 4 else int(d) for d in dates_list] or [2010, 2011, 2012]
         rows = []
-        # Bygg date@panel fra tid-verdiene (YYYY -> YYYY-01-01)
+        # Bygg panel@date fra tid-verdiene (YYYY -> YYYY-01-01)
         date_map = {t: pd.Timestamp(f"{t}-01-01") for t in tid_vals}
 
         for uid in uids:
             for tid in tid_vals:
-                row = {'unit_id': uid, 'tid': tid, 'date@panel': date_map[tid]}
+                row = {'unit_id': uid, 'tid': tid, 'panel@date': date_map[tid]}
                 for var_path in vars_list:
                     vname = var_path.split('/')[-1]
                     self.ensure_variable_resolved(vname)
@@ -3771,7 +3771,7 @@ class DataTransformHandler:
                 for t in time_vals:
                     r = {id_col: row.get(id_col, row.name)}
                     r['tid'] = t
-                    r['date@panel'] = t  # microdata.no hjelpevariabel
+                    r['panel@date'] = t  # microdata.no hjelpevariabel (jf. dok.)
                     for pre, cols in stub_cols.items():
                         for full, suf in cols:
                             if suf == t:
