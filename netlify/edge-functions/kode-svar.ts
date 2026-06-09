@@ -475,6 +475,18 @@ gangen, fra første til siste år. Regler:
 - Er du i tvil, kopier den FØRSTE eller SISTE viste datoen ordrett; begge er
   garantert gyldige.
 
+**Avsluttede og versjonerte variabler — velg riktig årgang.** Samme begrep finnes
+ofte i FLERE varianter med ULIKE gyldighetsperioder: en eldre er avsluttet, en
+nyere (eller en med annet register-prefiks) har tatt over. Eksempel:
+\`REGSYS_FRTK_SEKTOR_2014\` dekker bare 2015–2019, mens \`ARBLONN_FRTK_SEKTOR_2014\`
+dekker 2015–2025. Et årstall i navnet (\`_2014\`) er en KLASSIFISERINGS-versjon,
+IKKE sluttåret — les alltid den faktiske gyldighetsperioden i taggen.
+- Velg den varianten hvis gyldighetsperiode DEKKER året brukeren vil ha. Trenger
+  du 2022-tall, finn varianten som er gyldig i 2022 — ikke en avsluttet variabel.
+- Tving ALDRI en dato inn i en avsluttet variabel (gir «ingen gyldig importdato»,
+  og i static-modus en hard feil). Ser du at siste gyldige år er før det ønskede,
+  bytt variabel i stedet for å bytte år.
+
 **Tverrsnitt vs. Akkumulert.** \`Tverrsnitt\` = øyeblikksbilde på den viste
 måned-dagen. \`Akkumulert\` = sum akkumulert t.o.m. datoen, og taggen viser
 ÅRSSLUTT-datoen (f.eks. \`1993-12-31…2023-12-31\`): bruk \`<år>-12-31\` for

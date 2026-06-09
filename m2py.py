@@ -8282,18 +8282,26 @@ class MicroInterpreter:
                     # Streng i static-modus (ingen data finnes ellers); advarsel i dynamic.
                     _valid_dates = _valid_import_dates_for(_vmeta)
                     if _valid_dates is not None and _date1 and _date1 not in _valid_dates:
-                        _sample = ', '.join(sorted(_valid_dates)[:3])
+                        _sorted = sorted(_valid_dates)
+                        _first, _last = _sorted[0], _sorted[-1]
+                        # Vis HELE intervallet (første–siste), ikke «…», så det er
+                        # tydelig at variabelen er avsluttet hvis året er for høyt.
+                        _yr = _date1[:4]
+                        _too_late = _yr > _last[:4]
+                        _hint = (f" Variabelen er avsluttet i {_last[:4]} — for nyere år, bruk en "
+                                 f"variant som er gyldig da (f.eks. en annen årgang/registerversjon "
+                                 f"av samme variabel).") if _too_late else ""
                         _static_mode = (globals().get('M2PY_DATA_SOURCE', 'dynamic') == 'static'
                                         and getattr(self, 'static_source', None) is not None)
                         if _static_mode:
                             self._log(
                                 f"FEIL: «{_vshort}» har ingen gyldig importdato {_date1}. "
-                                f"Gyldige datoer er årlige (f.eks. {_sample}, …)."
+                                f"Gyldige datoer er årlige fra {_first} til {_last}.{_hint}"
                             )
                             return
                         self._log(
                             f"ADVARSEL: {_date1} er ikke en standard importdato for «{_vshort}» "
-                            f"(gyldige er årlige, f.eks. {_sample}, …)."
+                            f"(gyldige er årlige fra {_first} til {_last}).{_hint}"
                         )
 
                 # Datakilde: statiske filer (hvis aktivt og tilgjengelig) ellers generering.
