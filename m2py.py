@@ -44,6 +44,33 @@ def _get_default(key):
         return d[key]
     return _M2PY_HARDCODED_FALLBACKS.get(key)
 
+
+# Datakilde for import: 'dynamic' (generer) eller 'static' (last fra statiske filer).
+# Settes via // m2py: data-source=… eller fra appen (innstillinger).
+M2PY_DATA_SOURCE = 'dynamic'
+
+_GYLDIGHET_RE = re.compile(
+    r'Gyldighetsperiode:\s*(\d{4}-\d{2}-\d{2})\s*[–—-]\s*(\d{4}-\d{2}-\d{2})'
+)
+
+
+def _valid_import_dates_for(meta):
+    """Sett av gyldige importdatoer (det årlige rutenettet) for en variabel, basert
+    på Gyldighetsperiode i beskrivelsen. None hvis ikke et datovariabel-rutenett
+    (Fast/Forløp eller ukjent vindu) — da gjøres ingen dato-validering."""
+    if not isinstance(meta, dict):
+        return None
+    temporalitet = str(meta.get('temporalitet', '')).lower()
+    if temporalitet not in ('akkumulert', 'tverrsnitt'):
+        return None
+    m = _GYLDIGHET_RE.search(str(meta.get('description', '')))
+    if not m:
+        return None
+    vf, vt = m.group(1), m.group(2)
+    fy, fm, fd = vf.split('-')
+    ty = int(vt[:4])
+    return {f'{y:04d}-{fm}-{fd}' for y in range(int(fy), ty + 1)}
+
 # Variabelnavn-mønstre som identifiserer pseudonymer i microdata.no.
 # Bruker disse som backup når metadata mangler eksplisitt is_pseudonym.
 _PSEUDONYM_NAME_SUFFIXES = ('_FNR', '_PERSON_ID', '_PSEUDONYM')
@@ -6241,6 +6268,8 @@ class MicroInterpreter:
         self.active_name = None
         self.parser = MicroParser()
         self.data_engine = MockDataEngine(metadata_path=metadata_path, catalog=catalog)
+        # Statisk datakilde (settes av appen når data-source=static). None => generer.
+        self.static_source = None
         if metadata_base_url:
             u = str(metadata_base_url).strip()
             self.data_engine._page_base_url = u if u.endswith('/') else (u + '/')
@@ -6285,9 +6314,12 @@ class MicroInterpreter:
         'dc':                 ('global', 'M2PY_DISCLOSURE_CONTROL'),
         'label-format':       ('default', 'label_format'),
         'labelformat':        ('default', 'label_format'),
+        'data-source':        ('global_str', 'M2PY_DATA_SOURCE'),
+        'datasource':         ('global_str', 'M2PY_DATA_SOURCE'),
     }
     _DIRECTIVE_ENUM_VALUES = {
         'label_format': ('both', 'label', 'code'),
+        'M2PY_DATA_SOURCE': ('dynamic', 'static'),
     }
 
     def _apply_script_directives(self, script_text):
@@ -6322,6 +6354,19 @@ class MicroInterpreter:
                     f"// m2py: {key} = "
                     f"{'PÅ' if new_val == '1' else 'AV'} (satt fra script-direktiv)"
                 )
+            elif kind == 'global_str':
+                allowed = self._DIRECTIVE_ENUM_VALUES.get(storage_key)
+                if allowed and val not in allowed:
+                    self._log(
+                        f"// m2py: ugyldig verdi '{val}' for '{key}' — ignorert "
+                        f"(tillatt: {', '.join(allowed)})"
+                    )
+                    continue
+                saved_key = ('global', storage_key)
+                if saved_key not in saved:
+                    saved[saved_key] = globals().get(storage_key, (allowed[0] if allowed else None))
+                globals()[storage_key] = val
+                self._log(f"// m2py: {key} = {val} (satt fra script-direktiv)")
             elif kind == 'default':
                 allowed = self._DIRECTIVE_ENUM_VALUES.get(storage_key)
                 if allowed and val not in allowed:
@@ -8105,8 +8150,36 @@ class MicroInterpreter:
                         self._log(
                             f"ADVARSEL: «{_vshort}» er en Fast-variabel — dato ignoreres."
                         )
+                    # Dato-validering mot Gyldighetsperiode (det årlige rutenettet).
+                    # Streng i static-modus (ingen data finnes ellers); advarsel i dynamic.
+                    _valid_dates = _valid_import_dates_for(_vmeta)
+                    if _valid_dates is not None and _date1 and _date1 not in _valid_dates:
+                        _sample = ', '.join(sorted(_valid_dates)[:3])
+                        _static_mode = (globals().get('M2PY_DATA_SOURCE', 'dynamic') == 'static'
+                                        and getattr(self, 'static_source', None) is not None)
+                        if _static_mode:
+                            self._log(
+                                f"FEIL: «{_vshort}» har ingen gyldig importdato {_date1}. "
+                                f"Gyldige datoer er årlige (f.eks. {_sample}, …)."
+                            )
+                            return
+                        self._log(
+                            f"ADVARSEL: {_date1} er ikke en standard importdato for «{_vshort}» "
+                            f"(gyldige er årlige, f.eks. {_sample}, …)."
+                        )
 
-                new_data = self.data_engine.generate(cmd, args, df_target)
+                # Datakilde: statiske filer (hvis aktivt og tilgjengelig) ellers generering.
+                new_data = None
+                _use_static = (globals().get('M2PY_DATA_SOURCE', 'dynamic') == 'static'
+                               and getattr(self, 'static_source', None) is not None)
+                if _use_static:
+                    try:
+                        new_data = self.static_source.generate(cmd, args, df_target)
+                    except Exception as _se:
+                        self._log(f"(static-kilde feilet, faller tilbake til generering: {_se})")
+                        new_data = None
+                if new_data is None:
+                    new_data = self.data_engine.generate(cmd, args, df_target)
                 # Omdøp unit_id → enhetstype-korrekt nøkkelkolonne (f.eks. PERSONID_1 for persondata)
                 _id_col = _ENTITY_ID_COL.get(_var_entity, 'unit_id')
                 if _id_col != 'unit_id' and 'unit_id' in new_data.columns:
