@@ -111,12 +111,16 @@ FIRE verdier (ingen "Event"-temporalitet):
 - \`Tverrsnitt\` — verdi ved ett tidspunkt; ÉN dato.
   \`import db/INNTEKT_WLONN 2022-01-01 as innt22\`
 - \`Akkumulert\` — akkumulert fram til ett tidspunkt; ÉN dato (som Tverrsnitt).
-- \`Forløp\` — hendelses-/forløpsdata; \`import-event db/VAR <fra> to <til>\`
-  inn i et paneldatasett.
+- \`Forløp\` — hendelses-/forløpsdata. To former, BEGGE krever dato:
+  - tilstand/verdi ved ÉN dato (vanligst for kontekstvariabler som utdanning,
+    bosted, sivilstand): \`import db/NUDB_BU 2020-08-31 as utd\`
+  - hele forløpet som panel: \`import-event db/VAR <fra> to <til>\`
 
-Importerer du en Tverrsnitt/Akkumulert-variabel uten dato, feiler scriptet.
-**Sjekk alltid katalog-taggen for hver variabel du importerer** — \`[tverrsnitt]\`
-og \`[akkumulert]\` krever alltid dato; \`[fast]\` skal ikke ha dato.
+ALDRI \`import db/VAR\` UTEN dato for andre enn Fast-variabler. Importerer du en
+Tverrsnitt-, Akkumulert- ELLER Forløp-variabel uten dato, FEILER scriptet
+(«… krever en importdato»). **Sjekk alltid katalog-taggen for hver variabel** —
+bare \`[fast]\` skal være uten dato; \`[tverrsnitt]\`, \`[akkumulert]\` og
+\`[forløp]\` krever alltid en dato innenfor variabelens gyldighetsperiode.
 
 **Ikke gjett temporalitet ut fra navnet.** Et navn som ser ut som en konstant
 identifikator kan likevel være Tverrsnitt. Relasjoner som ikke endres er Fast

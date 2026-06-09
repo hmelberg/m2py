@@ -6270,6 +6270,9 @@ class MicroInterpreter:
         self.data_engine = MockDataEngine(metadata_path=metadata_path, catalog=catalog)
         # Statisk datakilde (settes av appen når data-source=static). None => generer.
         self.static_source = None
+        # Kolonner som er konvertert til tall via destring — overstyrer
+        # alfanumerisk-sjekken (metadata sier streng, men brukeren har destringet).
+        self._numeric_override_cols = set()
         if metadata_base_url:
             u = str(metadata_base_url).strip()
             self.data_engine._page_base_url = u if u.endswith('/') else (u + '/')
@@ -6441,7 +6444,10 @@ class MicroInterpreter:
         return _meta_is_pseudonym(meta, registry_name=reg)
 
     def _is_string_col(self, colname):
-        """True hvis kolonnen er deklarert som alfanumerisk i metadata."""
+        """True hvis kolonnen er deklarert som alfanumerisk i metadata.
+        Kolonner som er destringet til tall regnes som numeriske (overstyrer)."""
+        if colname in getattr(self, '_numeric_override_cols', ()):
+            return False
         meta = self._lookup_var_meta(colname)
         return _meta_is_string_type(meta)
 
@@ -8006,6 +8012,13 @@ class MicroInterpreter:
                                 _t6_targets.append(_tn)
                                 _t6_snapshots[_tn] = df_target[_tn].copy()
                 result = self.transform_handler.execute(cmd, df_target, args, opts_copy)
+                # destring konverterer streng → tall: merk utdata-kolonnene som
+                # numeriske, så regress/summarize ikke avviser dem som alfanumeriske.
+                if cmd == 'destring' and isinstance(args, dict):
+                    _pfx = opts.get('prefix', '') or ''
+                    _sfx = opts.get('suffix', '') or ''
+                    for _dv in (args.get('vars') or []):
+                        self._numeric_override_cols.add(f"{_pfx}{_dv}{_sfx}")
                 # T1: populasjon må være ≥1000 etter keep/drop if
                 if (cmd in ('keep', 'drop') and _row_filter and result is not None
                         and _is_disclosure_control()):
