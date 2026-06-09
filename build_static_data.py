@@ -27,9 +27,10 @@ from pathlib import Path
 
 import mockdata_export as mx
 
-# Tables small enough to also emit as CSV.
-_CSV_TABLES = {"person", "trafikkulykke", "person_i_trafikkulykke",
-               "kommune", "variables", "value_labels"}
+# Tables small enough to also emit as CSV (person is far too wide for CSV).
+_CSV_TABLES = {"trafikkulykke", "person_i_trafikkulykke", "kommune",
+               "variables", "value_labels", "valid_dates", "fylke",
+               "icd10_kapittel", "kommune_crosswalk"}
 
 
 def main() -> None:
@@ -49,6 +50,8 @@ def main() -> None:
                     help="person_year via life-state microsimulation (income dynamics + uføre/retirement/death events)")
     ap.add_argument("--no-normalize", action="store_true",
                     help="skip microdata-faithful dtype normalisation (codes as strings, numbers downcast)")
+    ap.add_argument("--dead-fraction", type=float, default=0.0,
+                    help="share of the person register that is deceased (DOEDS_DATO set, no panel rows); e.g. 0.4. Needs --dynamic-panel")
     args = ap.parse_args()
 
     out: Path = args.out
@@ -74,6 +77,7 @@ def main() -> None:
         wide_person=(args.person_scope == "all"),
         latent_structure=not args.no_latent_structure,
         dynamic_person_year=args.dynamic_panel,
+        dead_fraction=args.dead_fraction,
         entities=[] if args.no_entities else mx.MULTI_RECORD_ENTITIES,
         include_npr=not args.no_entities,
         include_trafikkulykke=not args.no_entities,
@@ -116,6 +120,12 @@ def main() -> None:
 
 
 def _write_duckdb(out: Path, tables: dict) -> None:
+    """Build the DuckDB bundle by reading the already-written Parquet files.
+
+    Reading Parquet (which carries an explicit typed schema) avoids DuckDB's
+    pandas type inference, which mis-narrows mixed/object columns to INT32 and
+    then overflows ("Value out of range for type INT").
+    """
     import duckdb
 
     db_path = out / "microdata.duckdb"
@@ -123,10 +133,9 @@ def _write_duckdb(out: Path, tables: dict) -> None:
         db_path.unlink()
     con = duckdb.connect(str(db_path))
     try:
-        for name, df in tables.items():
-            con.register("_df", df)
-            con.execute(f'CREATE TABLE "{name}" AS SELECT * FROM _df')
-            con.unregister("_df")
+        for name in tables:
+            pq = (out / f"{name}.parquet").as_posix()
+            con.execute(f'CREATE TABLE "{name}" AS SELECT * FROM read_parquet(\'{pq}\')')
     finally:
         con.close()
 

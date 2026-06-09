@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 from typing import Iterable, Optional
 
 import numpy as np
@@ -466,6 +467,64 @@ def build_person_year_dynamic(
         frames.append(df_y)
 
     return pd.concat(frames, ignore_index=True)
+
+
+# ---------------------------------------------------------------------------
+# Mortality / register scope — death dates and a deceased "stock"
+#
+# microdata's register returns everyone ever registered (incl. ~half dead); you
+# filter to the living via a status / death-date variable. We mirror that on a
+# small scale: BEFOLKNING_DOEDS_DATO is null for the living, set for the dead
+# (panel deaths in-window; a configurable deceased stock died before the panel
+# and has no person_year rows). Filter alive = DOEDS_DATO IS NULL.
+# ---------------------------------------------------------------------------
+
+def living_death_dates(life: dict, rng=None) -> np.ndarray:
+    """DOEDS_DATO (YYYYMMDD float) for in-panel deaths, NaN for those alive at
+    panel end."""
+    states = life["states"]
+    years = life["years"]
+    n = states.shape[0]
+    if rng is None:
+        rng = np.random.default_rng(31415)
+    out = np.full(n, np.nan)
+    for yi, y in enumerate(years):
+        died = states[:, yi] == "dod"
+        if yi > 0:
+            died = died & (states[:, yi - 1] != "dod")
+        else:
+            died = np.zeros(n, dtype=bool)
+        newly = died & np.isnan(out)
+        if newly.any():
+            mm = rng.integers(1, 13, n)
+            dd = rng.integers(1, 29, n)
+            out[newly] = (y * 10000 + mm * 100 + dd)[newly]
+    return out
+
+
+def build_deceased_stock(person_columns, n_dead: int, n_living: int,
+                         years: list) -> pd.DataFrame:
+    """A light historical-dead cohort: older birth cohorts who died before the
+    panel. Only a few demographic columns are populated (kjonn, birth, death);
+    the rest are NaN — faithful to sparse historical records and cheap to store.
+    Unit ids are offset past the living so they never collide or appear as FKs."""
+    rng = np.random.default_rng(424242)
+    uids = np.arange(n_living + 1, n_living + n_dead + 1, dtype=np.int64)
+    birth_year = rng.integers(1920, 1961, n_dead)
+    foeds = (birth_year * 100 + rng.integers(1, 13, n_dead)).astype(np.int64)
+    death_year = np.clip(birth_year + rng.integers(55, 95, n_dead), birth_year + 1, years[0] - 1)
+    doeds = (death_year * 10000 + rng.integers(1, 13, n_dead) * 100 + rng.integers(1, 29, n_dead)).astype(np.int64)
+    kjonn = np.where(rng.random(n_dead) < 0.51, "1", "2").astype(object)
+
+    data = {c: np.full(n_dead, np.nan, dtype=object) for c in person_columns}
+    data["unit_id"] = uids
+    if "BEFOLKNING_FOEDSELS_AAR_MND" in data:
+        data["BEFOLKNING_FOEDSELS_AAR_MND"] = foeds
+    if "BEFOLKNING_DOEDS_DATO" in data:
+        data["BEFOLKNING_DOEDS_DATO"] = doeds
+    if "BEFOLKNING_KJOENN" in data:
+        data["BEFOLKNING_KJOENN"] = kjonn
+    return pd.DataFrame(data)[list(person_columns)]
 
 
 # ---------------------------------------------------------------------------
@@ -1207,8 +1266,62 @@ def apply_latent_structure(
 #     ON vl.variable='BEFOLKNING_KJOENN' AND vl.code_num=p.BEFOLKNING_KJOENN
 # ---------------------------------------------------------------------------
 
+_VALIDITY_FULL_RE = re.compile(r"Gyldighetsperiode:\s*(\d{4}-\d{2}-\d{2})\s*[–—-]\s*(\d{4}-\d{2}-\d{2})")
+_VALIDITY_START_RE = re.compile(r"Gyldighetsperiode:\s*(\d{4}-\d{2}-\d{2})")
+
+
+def _parse_validity(desc: Optional[str]) -> tuple:
+    """Return (valid_from, valid_to) ISO dates from a description, or (None, None).
+
+    Handles both bounded windows and open-ended ones ('… – ∞')."""
+    if not desc:
+        return (None, None)
+    m = _VALIDITY_FULL_RE.search(desc)
+    if m:
+        return (m.group(1), m.group(2))
+    m = _VALIDITY_START_RE.search(desc)
+    if m:
+        return (m.group(1), None)
+    return (None, None)
+
+
+# temporalitet values that are imported at a single date and follow a yearly
+# grid (income snapshots, cross-sections). Forløp = event-based, Fast = constant.
+_GRID_TEMPORALITET = {"Akkumulert", "Tverrsnitt"}
+
+
+def valid_import_dates(valid_from: Optional[str], valid_to: Optional[str],
+                       temporalitet: Optional[str]) -> list:
+    """Enumerate legal import dates: each year from valid_from..valid_to at
+    valid_from's month-day (reproduces microdata's yearly grid, e.g.
+    INNTEKT_WLONN -> 2010-01-01, 2011-01-01, ...).
+
+    Returns [] for Forløp/Fast or when the window is missing — those aren't
+    imported on a yearly date grid (Fast = constant; check the window instead).
+    """
+    if not valid_from or not valid_to or temporalitet not in _GRID_TEMPORALITET:
+        return []
+    fy, fm, fd = valid_from.split("-")
+    ty = int(valid_to[:4])
+    return [f"{y:04d}-{fm}-{fd}" for y in range(int(fy), ty + 1)]
+
+
+def is_valid_import_date(date: str, valid_from: Optional[str], valid_to: Optional[str],
+                         temporalitet: Optional[str]) -> bool:
+    """True if `date` (YYYY-MM-DD) is a legal import date for the variable.
+
+    Grid variables: date must be on the yearly grid. Fast/Forløp: date must fall
+    within the validity window.
+    """
+    if temporalitet in _GRID_TEMPORALITET:
+        return date in valid_import_dates(valid_from, valid_to, temporalitet)
+    if valid_from and valid_to:
+        return valid_from <= date <= valid_to
+    return False
+
+
 def build_codebook(engine: MockDataEngine) -> dict:
-    """Build {'variables': df, 'value_labels': df} from the catalog.
+    """Build {'variables': df, 'value_labels': df, 'valid_dates': df} from the catalog.
 
     External codelists (NUS/NACE/STYRK08/KOMM) are resolved via the engine's
     ensure_variable_resolved so their labels are included. `code_num` is the
@@ -1237,6 +1350,7 @@ def build_codebook(engine: MockDataEngine) -> dict:
         labels = meta.get("labels")
         n_labels = len(labels) if isinstance(labels, dict) else 0
         seen_vars.add(short)
+        valid_from, valid_to = _parse_validity(meta.get("description"))
         var_rows.append({
             "name": short,
             "short_title": meta.get("short_title"),
@@ -1244,6 +1358,8 @@ def build_codebook(engine: MockDataEngine) -> dict:
             "microdata_datatype": meta.get("microdata_datatype"),
             "enhetstype": meta.get("enhetstype"),
             "temporalitet": meta.get("temporalitet"),
+            "valid_from": valid_from,
+            "valid_to": valid_to,
             "databank": meta.get("databank"),
             "n_labels": n_labels,
         })
@@ -1264,7 +1380,88 @@ def build_codebook(engine: MockDataEngine) -> dict:
     value_labels = pd.DataFrame(lab_rows).drop_duplicates(["variable", "code"]).reset_index(drop=True)
     if len(value_labels):
         value_labels["code_num"] = value_labels["code_num"].astype("Int64")
-    return {"variables": variables, "value_labels": value_labels}
+
+    # valid_dates: enumerated legal import dates per variable (the yearly grid).
+    date_rows = []
+    for r in var_rows:
+        for d in valid_import_dates(r["valid_from"], r["valid_to"], r["temporalitet"]):
+            date_rows.append({"variable": r["name"], "valid_date": d})
+    valid_dates = (pd.DataFrame(date_rows).drop_duplicates().reset_index(drop=True)
+                   if date_rows else pd.DataFrame(columns=["variable", "valid_date"]))
+
+    return {"variables": variables, "value_labels": value_labels, "valid_dates": valid_dates}
+
+
+# ---------------------------------------------------------------------------
+# Derived reference codebooks — small lookups for common transforms.
+# Pattern: each is a plain (code -> label) or (source -> target) table sitting
+# beside value_labels. Add more by copying the shape; no generic framework.
+# ---------------------------------------------------------------------------
+
+# Norwegian counties across reform eras (pre-2020 01–20, 2020–2023 merges,
+# 2024+ re-splits). Union — numbers don't collide across eras.
+_FYLKE_NAVN = {
+    1: "Østfold", 2: "Akershus", 3: "Oslo", 4: "Hedmark", 5: "Oppland",
+    6: "Buskerud", 7: "Vestfold", 8: "Telemark", 9: "Aust-Agder", 10: "Vest-Agder",
+    11: "Rogaland", 12: "Hordaland", 14: "Sogn og Fjordane", 15: "Møre og Romsdal",
+    16: "Sør-Trøndelag", 17: "Nord-Trøndelag", 18: "Nordland", 19: "Troms", 20: "Finnmark",
+    30: "Viken", 34: "Innlandet", 38: "Vestfold og Telemark", 42: "Agder",
+    46: "Vestland", 50: "Trøndelag", 54: "Troms og Finnmark",
+    31: "Østfold", 32: "Akershus", 33: "Buskerud", 39: "Vestfold", 40: "Telemark",
+    55: "Troms", 56: "Finnmark",
+}
+
+# ICD-10 chapter by first letter (single-letter rollup the user asked for).
+# Simplification: letters spanning two chapters (D, H) map to the primary one.
+_ICD10_KAPITTEL = {
+    "A": "I Visse infeksjonssykdommer", "B": "I Visse infeksjonssykdommer",
+    "C": "II Svulster", "D": "II Svulster / III Blod og immunsystem",
+    "E": "IV Endokrine og metabolske sykdommer", "F": "V Psykiske lidelser",
+    "G": "VI Nervesystemet", "H": "VII Øyet / VIII Øret",
+    "I": "IX Sirkulasjonssystemet", "J": "X Åndedrettssystemet",
+    "K": "XI Fordøyelsessystemet", "L": "XII Hud og underhud",
+    "M": "XIII Muskel-skjelett og bindevev", "N": "XIV Urin- og kjønnsorganer",
+    "O": "XV Svangerskap, fødsel og barseltid", "P": "XVI Perinatale tilstander",
+    "Q": "XVII Medfødte misdannelser", "R": "XVIII Symptomer og unormale funn",
+    "S": "XIX Skader og forgiftninger", "T": "XIX Skader og forgiftninger",
+    "V": "XX Ytre årsaker", "W": "XX Ytre årsaker", "X": "XX Ytre årsaker",
+    "Y": "XX Ytre årsaker", "Z": "XXI Kontakt med helsetjenesten",
+    "U": "XXII Koder for spesielle formål",
+}
+
+
+def build_reference_codebooks() -> dict:
+    """Return derived lookups: {'fylke', 'icd10_kapittel', 'kommune_crosswalk'}."""
+    fylke = pd.DataFrame(
+        {"fylke_nr": list(_FYLKE_NAVN.keys()), "fylke_navn": list(_FYLKE_NAVN.values())}
+    ).drop_duplicates("fylke_nr").sort_values("fylke_nr").reset_index(drop=True)
+
+    icd = pd.DataFrame(
+        {"icd_bokstav": list(_ICD10_KAPITTEL.keys()),
+         "kapittel": list(_ICD10_KAPITTEL.values())}
+    )
+
+    # kommune reform crosswalk from build_kommune_eras (pre2020 -> 2020 -> 2024).
+    rows = []
+    try:
+        import build_kommune_eras as bke
+        triples = bke.parse_recode_table(bke.RECODE_2019_TO_2020)
+        map2024 = bke.MAP_2020_TO_2024
+        seen = set()
+        for pre, post2020, label in triples:
+            post2024 = map2024.get(post2020, post2020)
+            key = (pre, post2020, post2024)
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append({"kommune_pre2020": pre, "kommune_2020": post2020,
+                         "kommune_2024": post2024, "kommune_navn": label})
+    except Exception:
+        pass
+    crosswalk = pd.DataFrame(rows) if rows else pd.DataFrame(
+        columns=["kommune_pre2020", "kommune_2020", "kommune_2024", "kommune_navn"])
+
+    return {"fylke": fylke, "icd10_kapittel": icd, "kommune_crosswalk": crosswalk}
 
 
 # ---------------------------------------------------------------------------
@@ -1294,6 +1491,7 @@ def build_all(
     wide_person: bool = False,
     latent_structure: bool = True,
     dynamic_person_year: bool = False,
+    dead_fraction: float = 0.0,
     entities: Iterable[str] = MULTI_RECORD_ENTITIES,
     include_npr: bool = True,
     include_trafikkulykke: bool = True,
@@ -1374,10 +1572,25 @@ def build_all(
             on_progress("kommune")
         tables.update(build_kommune(engine, tables["person_year"], years=years, on_skip=on_skip))
 
+    # Mortality / register scope: fix death dates and (optionally) add a
+    # deceased stock so `import kjonn` returns everyone and you filter to alive.
+    if life is not None:
+        if on_progress:
+            on_progress("mortality")
+        person = tables["person"]
+        if "BEFOLKNING_DOEDS_DATO" in person.columns:
+            person["BEFOLKNING_DOEDS_DATO"] = living_death_dates(life)
+        if dead_fraction and 0.0 < dead_fraction < 0.95:
+            n_living = len(person)
+            n_dead = int(round(n_living * dead_fraction / (1.0 - dead_fraction)))
+            dead = build_deceased_stock(person.columns, n_dead, n_living, life["years"])
+            tables["person"] = pd.concat([person, dead], ignore_index=True)
+
     if include_codebook:
         if on_progress:
             on_progress("codebook")
         tables.update(build_codebook(engine))
+        tables.update(build_reference_codebooks())
 
     return tables
 

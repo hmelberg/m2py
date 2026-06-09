@@ -204,6 +204,22 @@ Sparsomme variabler (`_SPARSE_FRACTION`) gir naturlig NULL for delpopulasjoner.
   Merk: int-koding av alfanumeriske koder ble *forkastet* — det ville brutt
   ledende nuller og bokstavkoder, og scriptene matcher mot `'0301'`.
 
+- ✅ **Gyldighetsperiode i kodeboka (Q1):** `variables`-tabellen har nå
+  `valid_from`/`valid_to` parset fra beskrivelsen (495 variabler med endelig
+  vindu). Statiske filer er en *cache* for 2015–2023; utenfor vinduet bør
+  konsumenten falle tilbake til motor-generering (motoren støtter vilkårlig dato).
+- ✅ **Avdøde i registeret (Q2):** `BEFOLKNING_DOEDS_DATO` er nå null for levende,
+  satt for døde (panel-dødsfall i vinduet; en konfigurerbar avdød-bestand døde før
+  panelet, ingen person_year-rader). `import kjonn` returnerer alle inkl. døde;
+  filtrer levende = `DOEDS_DATO IS NULL`. CLI: `--dead-fraction 0.4` (skalert ned
+  fra FDBs ~0.5; avdød-bestanden er lett — bare kjønn/fødsel/død, resten NaN).
+- ✅ **Avledede kodebøker (Q3):** `fylke` (fylke_nr→navn på tvers av reform-epoker),
+  `icd10_kapittel` (bokstav→kapittel for ICD-rollup), `kommune_crosswalk`
+  (pre2020→2020→2024, 425 rader, fra `build_kommune_eras`). Mønster: små
+  oppslagstabeller ved siden av `value_labels` — kopier formen for å legge til
+  flere. Kodeboka er komplett ift. metadata (lange koder med); ekte fulle
+  kodelister er F5-berikelse.
+
 ### Gjenstående
 
 - **Mulig utvidelse:** `malepunkt_year` (Akkumulert forbruk per år 2020→) og
