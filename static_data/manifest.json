@@ -21,11 +21,11 @@
       "cols": 11
     },
     "jobb": {
-      "rows": 14636,
+      "rows": 13819,
       "cols": 53
     },
     "kjoretoy": {
-      "rows": 7730,
+      "rows": 7667,
       "cols": 28
     },
     "kurs": {
@@ -65,7 +65,7 @@
       "cols": 5
     },
     "valid_dates": {
-      "rows": 6335,
+      "rows": 9114,
       "cols": 2
     },
     "fylke": {
