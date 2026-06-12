@@ -1546,13 +1546,18 @@ def _suppress_table(
         idx_iter = list(out.index)
         for idx in idx_iter:
             contribs = sorted(contributions.get(idx, []), reverse=True)
-            if len(contribs) < 3:
+            if not contribs:
+                # Ingen bidragsdata for cellen — ingenting å vurdere
                 continue
-            x1, x2 = contribs[0], contribs[1]
+            x1 = contribs[0]
+            if x1 == 0:
+                # Alle bidrag er null — ingenting å avsløre
+                continue
             sum_rest = sum(contribs[2:])
-            if sum_rest == 0 or x1 == 0:
-                continue
-            if sum_rest / x1 < p_percent:
+            # 1-2 bidragsytere er maksimalt avslørende (nest største kan
+            # beregne den største eksakt); sum_rest == 0 gir samme situasjon.
+            # Begge skal alltid undertrykkes — ikke hoppes over.
+            if len(contribs) < 3 or sum_rest == 0 or sum_rest / x1 < p_percent:
                 if isinstance(out, pd.Series):
                     out[idx] = np.nan
                 else:

@@ -773,117 +773,6 @@ class MicroParser:
         return {"name": name, "pairs": pairs}
 
 
-class LabelManager:
-    """Håndterer define-labels, assign-labels, drop-labels, list-labels."""
-
-    def __init__(self, catalog=None):
-        self.codelists = {}  # codelist_name -> {value: label}
-        self.var_to_codelist = {}  # var_name -> codelist_name
-        self._load_from_catalog(catalog or {})
-
-    def _load_from_catalog(self, catalog):
-        """Pre-last kodelister fra variable_metadata (labels eller codelist per variabel)."""
-        for var_path, meta in catalog.items():
-            if isinstance(meta, dict) and 'labels' in meta:
-                # Bruk kortnavn som codelist-navn
-                short = var_path.split('/')[-1] + '_labels'
-                self.codelists[short] = {self._conv(k): v for k, v in meta['labels'].items()}
-            if isinstance(meta, dict) and 'codelist' in meta and meta['codelist'] not in self.codelists:
-                # Referanse til codelist – må først være definert
-                pass
-
-    def _conv(self, v):
-        try:
-            return int(v) if str(v).lstrip('-').isdigit() else float(v)
-        except (ValueError, TypeError):
-            return v
-
-    def define_labels(self, name, pairs):
-        """define-labels codelist-name value label [value label ...]"""
-        self.codelists[name] = {self._conv(v): label for v, label in pairs}
-
-    def assign_labels(self, var_name, codelist_name):
-        """assign-labels var-name codelist-name"""
-        if codelist_name not in self.codelists:
-            raise ValueError(f"Kodeliste '{codelist_name}' finnes ikke. Bruk define-labels først.")
-        self.var_to_codelist[var_name] = codelist_name
-
-    def drop_labels(self, names):
-        """drop-labels codelist-name [codelist-name ...]"""
-        for n in names:
-            self.codelists.pop(n, None)
-            self.var_to_codelist = {v: c for v, c in self.var_to_codelist.items() if c != n}
-
-    def get_codelist_for_var(self, var_name, time=None):
-        """Returnerer codelist-dict for variabel, eller None."""
-        return self.codelists.get(self.var_to_codelist.get(var_name))
-
-    def format_value(self, var_name, value):
-        """Returnerer label for verdi hvis codelist finnes, ellers råverdi."""
-        cl = self.get_codelist_for_var(var_name)
-        if cl is None:
-            return value
-        # Prøv både eksakt type og konvertert (1 vs 1.0)
-        if value in cl:
-            return cl[value]
-        if pd.isna(value):
-            return value
-        try:
-            v2 = int(value) if isinstance(value, float) and value == int(value) else value
-            return cl.get(v2, value)
-        except (ValueError, TypeError):
-            return cl.get(value, value)
-
-    def list_labels_output(self, codelist_or_var, time=None, catalog=None):
-        """Formater kodeliste for list-labels. codelist_or_var er navn eller variabel."""
-        if codelist_or_var in self.codelists:
-            cl = self.codelists[codelist_or_var]
-        else:
-            cname = self.var_to_codelist.get(codelist_or_var)
-            if cname:
-                cl = self.codelists.get(cname)
-            else:
-                # Prøv register-var i katalog
-                short = codelist_or_var.split('/')[-1] if '/' in codelist_or_var else codelist_or_var
-                meta = (catalog or {}).get(codelist_or_var) or next(
-                    (v for k, v in (catalog or {}).items() if k.endswith('/' + short)), {}
-                )
-                if isinstance(meta, dict) and meta.get('labels'):
-                    cl = {self._conv(k): v for k, v in meta['labels'].items()}
-                else:
-                    return f"Kodeliste eller variabel '{codelist_or_var}' ikke funnet."
-        if not cl:
-            return f"Kodeliste '{codelist_or_var}' er tom."
-        lines = [f"\n--- Kodeliste: {codelist_or_var} ---"]
-        for val, label in sorted(cl.items(), key=lambda x: (str(x[0]), x[1])):
-            lines.append(f"  {val}  {label}")
-        return "\n".join(lines)
-
-    def apply_to_tabulate_result(self, result, var1, var2=None):
-        """Mapp rad/kolonneindeks gjennom codelist for tabulate-output."""
-        if result is None:
-            return result
-        lm = self
-        if hasattr(result, 'index'):
-            cl1 = lm.get_codelist_for_var(var1)
-            if cl1:
-                new_idx = result.index.map(lambda x: lm.format_value(var1, x) if not (isinstance(x, tuple) and len(x) > 1) else x)
-                if not (isinstance(result.index[0], tuple) if len(result.index) else False):
-                    result = result.copy()
-                    result.index = new_idx
-                else:
-                    # Flere variabler i rad – mapp første
-                    def map_row(r):
-                        if isinstance(r, tuple):
-                            return (lm.format_value(var1, r[0]),) + r[1:]
-                        return lm.format_value(var1, r)
-                    result.index = result.index.map(map_row)
-        if var2 and hasattr(result, 'columns') and hasattr(result.columns, 'map'):
-            cl2 = lm.get_codelist_for_var(var2)
-            if cl2:
-                result.columns = result.columns.map(lambda x: lm.format_value(var2, x))
-        return result
-
 
 import pandas as pd
 import numpy as np
@@ -4250,6 +4139,19 @@ class LabelManager:
         return "Kodeliste " + codelist_or_var + ":\n" + "\n".join(lines)
 
 
+def _parse_count_option(opt_val, default=10):
+    """Parse antall fra opsjoner som top(n)/bottom(n).
+
+    Parseren lagrer opsjoner uten argument som True — da gjelder default
+    (int(True) ville gitt 1, dvs. topp-1 i stedet for topp-10)."""
+    if opt_val is True:
+        return default
+    try:
+        return int(opt_val)
+    except (ValueError, TypeError):
+        return default
+
+
 class StatsEngine:
     def execute(self, cmd, df, args, options):
         if cmd == 'generate':
@@ -4675,10 +4577,6 @@ class StatsEngine:
                 elif isinstance(tb, pd.Series):
                     tb = _sort_tab_series(tb, options)
                 # top(n) / bottom(n) — bevar Total-rad/kolonne
-                def _parse_n(opt_val, default=10):
-                    if opt_val is True: return default
-                    try: return int(opt_val)
-                    except (ValueError, TypeError): return default
                 if 'top' in options or 'bottom' in options:
                     # Lagre og fjern Total før slicing
                     if isinstance(tb, pd.DataFrame) and 'Total' in tb.index:
@@ -4696,10 +4594,10 @@ class StatsEngine:
                         total_col_saved = None
                         tb_data = tb
                     if 'top' in options:
-                        n = _parse_n(options.get('top'), 10)
+                        n = _parse_count_option(options.get('top'))
                         tb_data = tb_data.head(n) if hasattr(tb_data, 'head') else tb_data.iloc[:n]
                     elif 'bottom' in options:
-                        n = _parse_n(options.get('bottom'), 10)
+                        n = _parse_count_option(options.get('bottom'))
                         tb_data = tb_data.tail(n) if hasattr(tb_data, 'tail') else tb_data.iloc[-n:]
                     # Legg tilbake Total
                     if isinstance(tb_data, pd.DataFrame) and total_row_saved is not None:
@@ -4768,10 +4666,10 @@ class StatsEngine:
                     if 'Total' in ct_data.columns:
                         ct_data = ct_data.drop(columns='Total')
                     if 'top' in options:
-                        n = int(options.get('top', 10))
+                        n = _parse_count_option(options.get('top'))
                         ct_data = ct_data.head(n)
                     else:
-                        n = int(options.get('bottom', 10))
+                        n = _parse_count_option(options.get('bottom'))
                         ct_data = ct_data.tail(n)
                     # Legg tilbake Total-kolonne og -rad
                     if total_col is not None:
@@ -4795,10 +4693,10 @@ class StatsEngine:
                 # rowsort() / colsort() FØR top/bottom og før Total legges til
                 vc = _sort_tab_series(vc, options)
                 if 'top' in options:
-                    n = int(options.get('top', 10))
+                    n = _parse_count_option(options.get('top'))
                     vc = vc.head(n)
                 elif 'bottom' in options:
-                    n = int(options.get('bottom', 10))
+                    n = _parse_count_option(options.get('bottom'))
                     vc = vc.tail(n)
                 vc = pd.concat([vc, pd.Series([total], index=['Total'])])
                 lm = options.get('_label_manager')
@@ -6898,33 +6796,45 @@ class MicroInterpreter:
                 return None
         resolved, aux = self._resolve_condition_value(var, value, df, self.label_manager)
         col = df[var]
-        # Sammenligning som fungerer for både numerisk og object
+
+        def _is_stringy(c):
+            # object (pandas 2 / Pyodide) eller str-dtype (pandas 3)
+            return pd.api.types.is_object_dtype(c) or pd.api.types.is_string_dtype(c)
+
+        def _candidate_strings():
+            # Strengvarianter av verdien: primær + kodeformer (f.eks. '301' og '0301')
+            cands = [str(resolved)]
+            for key in ('str_code', 'int_code'):
+                if key in aux and str(aux[key]) not in cands:
+                    cands.append(str(aux[key]))
+            return cands
+
+        # Sammenligning som fungerer for både numerisk og object/str
         try:
             if op == '==':
                 # Først: direkte sammenligning
                 mask = (col == resolved)
-                # Hvis ingen treff og kolonnen er object/str, prøv streng-varianter
-                if not mask.any() and pd.api.types.is_object_dtype(col):
-                    candidates = [str(resolved)]
-                    if 'str_code' in aux:
-                        candidates.append(str(aux['str_code']))
-                    if 'int_code' in aux:
-                        candidates.append(str(aux['int_code']))
-                    for cand in candidates:
-                        m2 = (col.astype(str) == cand)
+                # Hvis ingen treff og kolonnen er streng-aktig, prøv kandidatene
+                if not mask.any() and _is_stringy(col):
+                    s = col.astype(str)
+                    for cand in _candidate_strings():
+                        m2 = (s == cand)
                         if m2.any():
                             mask = m2
                             break
             elif op == '!=':
-                if pd.api.types.is_object_dtype(col):
-                    # Ulikhet: bruk samme kandidatlogikk som for likhet
-                    candidates = [str(resolved)]
-                    if 'str_code' in aux:
-                        candidates.append(str(aux['str_code']))
-                    if 'int_code' in aux:
-                        candidates.append(str(aux['int_code']))
-                    # Start med primærverdi
-                    mask = (col.astype(str) != candidates[0])
+                if _is_stringy(col):
+                    # Ulikhet: finn kandidaten som faktisk treffer (samme logikk
+                    # som ==) og negér den — ellers blir f.eks.
+                    # "kommune != '0301'" sann for alle rader.
+                    s = col.astype(str)
+                    candidates = _candidate_strings()
+                    mask = (s != candidates[0])
+                    for cand in candidates:
+                        eq = (s == cand)
+                        if eq.any():
+                            mask = ~eq
+                            break
                 else:
                     mask = (col != resolved)
             elif op in ('<', '>', '<=', '>='):

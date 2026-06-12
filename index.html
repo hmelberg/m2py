@@ -4113,7 +4113,7 @@
         if (window.updateLineNumbers) window.updateLineNumbers();
         const outputArea = document.getElementById('outputArea');
         if (outputArea) {
-          outputArea.innerHTML = '<pre class="error">Oversettingsfeil: ' + (e.message || e) + '</pre>';
+          outputArea.innerHTML = '<pre class="error">Oversettingsfeil: ' + escapeHtml(String(e.message || e)) + '</pre>';
         }
       }
     }
@@ -5337,9 +5337,12 @@ json.dumps(out)
     }
 
     function escapeHtml(s) {
+      // textContent/innerHTML escaper &, < og > — men IKKE anførselstegn.
+      // Funksjonen brukes også i attributtkontekst (data-ds="..." osv.),
+      // så " og ' må escapes for at verdier ikke skal bryte ut av attributtet.
       const div = document.createElement('div');
       div.textContent = s;
-      return div.innerHTML;
+      return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     function hideAutocomplete() {
