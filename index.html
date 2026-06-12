@@ -3240,6 +3240,7 @@
 
       function clearOutput() {
         lastOutput = '';
+        purgePlots(document.getElementById('outputArea'));
         document.getElementById('outputArea').innerHTML = '';
         const rightStatus = document.getElementById('rightStatus');
         if (rightStatus) rightStatus.textContent = '';
@@ -6242,7 +6243,7 @@ json.dumps(out)
                 }
                 const layout = Object.assign(baseLayout, spec.layout || {});
                 const config = { responsive: true, autosizable: true, staticPlot: staticPlot };
-                Plotly.newPlot(div, data, layout, config);
+                Plotly.newPlot(div, data, layout, config).catch(function(){});
               } catch (e) {
                 const pre = document.createElement('pre');
                 pre.className = 'embed-placeholder';
@@ -6263,6 +6264,7 @@ json.dumps(out)
             }
           }
         }
+        purgePlots(outputArea);
         outputArea.innerHTML = '';
         outputArea.appendChild(frag);
       } else {
@@ -6276,11 +6278,21 @@ json.dumps(out)
             text += firstLine ? `[${p.embedType}: ${firstLine.substring(0, 60)}...]\n` : `[${p.embedType}]\n`;
           } else text += `\n[${p.embedType}]\n${p.payload || ''}\n`;
         }
+        purgePlots(outputArea);
         outputArea.innerHTML = '';
         const pre = document.createElement('pre');
         pre.textContent = text;
         outputArea.appendChild(pre);
       }
+    }
+
+    // Frigjør Plotly-interne ressurser (handlers/WebGL) før innholdet
+    // fjernes med innerHTML = '' — ellers lekker hver re-rendering.
+    function purgePlots(container) {
+      if (typeof Plotly === 'undefined' || !container || !container.querySelectorAll) return;
+      container.querySelectorAll('.plotly-container').forEach(function(el) {
+        try { Plotly.purge(el); } catch (e) {}
+      });
     }
 
     function updatePlotOptionsVisibility() {
@@ -6316,6 +6328,7 @@ json.dumps(out)
     if (btnClear) {
       btnClear.addEventListener('click', () => {
         lastOutput = '';
+        purgePlots(outputArea);
         outputArea.innerHTML = '';
         setStatus(rightStatus, '');
       });
@@ -6874,6 +6887,7 @@ json.dumps(out)
 
     function prepareForklarOutputPane() {
       lastOutput = '';
+      purgePlots(outputArea);
       outputArea.innerHTML = '';
       if (outputArea) outputArea.classList.remove('forklar-output-reveal');
       if (outputScrollWrap) outputScrollWrap.scrollTop = 0;
@@ -7432,6 +7446,7 @@ json.dumps(out)
     }
 
     function renderROutputParts(outputParts) {
+      purgePlots(outputArea);
       outputArea.innerHTML = '';
       if (outputParts.length === 0) {
         outputArea.innerHTML = '<pre style="opacity:.5">(ingen output)</pre>';
@@ -7591,6 +7606,7 @@ json.dumps(out)
           if (splitJs && Array.isArray(splitJs.values)) {
             statements = splitJs.values.map(String).filter(function(s) { return s.trim().length > 0; });
           }
+          try { await webR.destroy(splitRes); } catch (e) {}
         } catch(splitErr) {
           console.warn('R statement split failed:', splitErr);
         }
@@ -7636,11 +7652,15 @@ json.dumps(out)
       }
 
       renderROutputParts(outputParts);
+      // Frigjør R-objektene captureR allokerte i denne kjøringen — uten purge
+      // vokser WebR-minnet monotont for hver kjøring i økten.
+      if (webRShelter) { try { await webRShelter.purge(); } catch (e) {} }
       setRunButtonsUi('idle');
       scriptRunInProgress = false;
     }
 
     function renderTranslationResult(script, warnings, label) {
+      purgePlots(outputArea);
       outputArea.innerHTML = '';
       if (warnings && warnings.length) {
         const d = document.createElement('div');
@@ -7718,6 +7738,7 @@ e.translate_script_to_python(script)
         }
       } catch (e) {
         const errMsg = (e && e.message) ? e.message : String(e);
+        purgePlots(outputArea);
         outputArea.innerHTML = '';
         const pre = document.createElement('pre');
         pre.className = 'error';
@@ -8193,6 +8214,7 @@ for _seg in _segments:
       } catch (e) {
         const errMsg = (e && e.message) ? e.message : String(e);
         lastOutput = 'ERROR:\n' + errMsg;
+        purgePlots(outputArea);
         outputArea.innerHTML = '';
         const pre = document.createElement('pre');
         pre.className = 'error';
@@ -8478,6 +8500,9 @@ for _seg in _segments:
             if (outputParts.length) await forklarRevealOutputAnim();
           } catch (err) {
             outputArea.innerHTML = '<pre class="error">R-feil: ' + escapeHtml(String(err.message || err)) + '</pre>';
+          } finally {
+            // Frigjør captureR-allokeringene for denne blokken (se runHybridR)
+            if (webRShelter) { try { await webRShelter.purge(); } catch (e) {} }
           }
           scrollOutputToTop();
           await forklarCheckpoint(myAbort);
@@ -8657,6 +8682,7 @@ def _run_microdata_chunk(_code):
         }
         const errMsg = (e && e.message) ? e.message : String(e);
         lastOutput = (lastOutput ? lastOutput + '\n\n' : '') + 'ERROR:\n' + errMsg;
+        purgePlots(outputArea);
         outputArea.innerHTML = '';
         const pre = document.createElement('pre');
         pre.className = 'error';

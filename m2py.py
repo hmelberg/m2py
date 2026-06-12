@@ -787,6 +787,7 @@ class MicroParser:
 import pandas as pd
 import numpy as np
 import hashlib
+from functools import lru_cache
 def _eval_int(x):
     """Element-wise int for generate expressions when functions.py is not available."""
     if hasattr(x, 'astype'):
@@ -1305,6 +1306,11 @@ _NORWAY_LATENT_LOG_INCOME_OTHER = 0.15
 _NORWAY_LATENT_TRANSFER_HURDLE_SHIFT = 0.04
 
 
+# NB: _norway_*-funksjonene under er deterministiske per (unit_id[, salt]) og
+# kalles per rad for HVER importerte variabel. lru_cache gjør gjentatte
+# importer til oppslag i stedet for md5 + Generator-konstruksjon per rad —
+# verdiene er bit-identiske med uncachet beregning.
+@lru_cache(maxsize=None)
 def _norway_latent_z(unit_id: int) -> float:
     """Deterministisk standardnormal fra unit_id (samme z for alle variabler på samme person)."""
     h = hashlib.md5(f"norway_latent_v1:{int(unit_id)}".encode()).digest()
@@ -1333,10 +1339,12 @@ def _rule_cond_value_equal(cv, v):
     return cv == v
 
 
+@lru_cache(maxsize=None)
 def _norway_demo_unit_seed(unit_id, salt: str) -> int:
     return int(hashlib.md5(f"{salt}:{int(unit_id)}".encode()).hexdigest(), 16) % (2**32)
 
 
+@lru_cache(maxsize=None)
 def _norway_synth_age_from_uid(unit_id) -> int:
     """Deterministisk alder 18–67 (typisk yrkesaktiv) for demo når fødselsdato mangler.
     Brukt av entitets-/NPR-syntesen. For person-inntekt brukes den fulle
@@ -1346,6 +1354,7 @@ def _norway_synth_age_from_uid(unit_id) -> int:
     return max(18, min(67, a))
 
 
+@lru_cache(maxsize=None)
 def _norway_demo_birth_year_from_uid(unit_id) -> int:
     """Deterministisk fødselsår per person med realistisk aldersfordeling (0–100 i
     _DEMO_REF_YEAR, inkl. barn og eldre). Samme kilde for BEFOLKNING_FOEDSELS_AAR_MND
@@ -1395,6 +1404,7 @@ def _norway_money_missing_prob(kind, ages):
     return np.interp(a, _MISS_TAXREG_X, _MISS_TAXREG_Y)
 
 
+@lru_cache(maxsize=None)
 def _norway_synth_kjonn_from_uid(unit_id) -> int:
     r = np.random.default_rng(_norway_demo_unit_seed(unit_id, "kjonn"))
     return 1 if r.random() < 0.51 else 2
@@ -3676,21 +3686,34 @@ class DataTransformHandler:
                     f"Kolonner i datasettet nå: {_cols}."
                 )
             time_vals = sorted(time_vals)
-            rows = []
-            for _, row in df.iterrows():
-                for t in time_vals:
-                    r = {id_col: row.get(id_col, row.name)}
-                    r['tid'] = t
-                    r['panel@date'] = t  # microdata.no hjelpevariabel (jf. dok.)
-                    for pre, cols in stub_cols.items():
-                        for full, suf in cols:
-                            if suf == t:
-                                r[pre] = row.get(full, np.nan)
-                    for c in df.columns:
-                        if c not in [x for pcols in stub_cols.values() for x, _ in pcols]:
-                            r[c] = row.get(c, np.nan)
-                    rows.append(r)
-            return pd.DataFrame(rows)
+            # Vektorisert long-bygging: rad-major (enhet × tid stigende), som
+            # microdata.no. Hver kolonne bygges som én (n × T)-blokk som
+            # raveles — ingen per-rad-løkker (iterrows hang nettleseren).
+            n = len(df)
+            n_t = len(time_vals)
+            stub_set = {full for pcols in stub_cols.values() for full, _ in pcols}
+            rep_idx = np.repeat(np.arange(n), n_t)  # rad 0 × T, rad 1 × T, ...
+            out = pd.DataFrame(index=pd.RangeIndex(n * n_t))
+            if id_col in df.columns:
+                out[id_col] = df[id_col].to_numpy()[rep_idx]
+            else:
+                out[id_col] = np.repeat(df.index.to_numpy(), n_t)
+            tid_block = np.tile(np.asarray(time_vals, dtype=object), n)
+            out['tid'] = tid_block
+            out['panel@date'] = tid_block  # microdata.no hjelpevariabel (jf. dok.)
+            for pre, cols in stub_cols.items():
+                suf_to_col = {suf: full for full, suf in cols}
+                per_t = [
+                    df[suf_to_col[t]].reset_index(drop=True)
+                    if t in suf_to_col else pd.Series(np.nan, index=range(n))
+                    for t in time_vals
+                ]
+                # (n × T) → ravel i rad-major rekkefølge matcher rep_idx/tile
+                out[pre] = pd.concat(per_t, axis=1).to_numpy().ravel(order='C')
+            for c in df.columns:
+                if c not in stub_set and c != id_col:
+                    out[c] = df[c].to_numpy()[rep_idx]
+            return out
 
         if cmd == 'reshape-from-panel':
             if 'tid' not in df.columns:
@@ -5688,24 +5711,23 @@ class SurvivalHandler:
             return (f"cox krever hendelse-var og tid-var.", None)
         event_var, duration_var = args[0], args[1]
         raw_covars = list(args[2:])
-        # i.VARNAME → dummies (Stata-stil)
-        factor_dummies = {}
+        if event_var not in df.columns or duration_var not in df.columns:
+            return (f"cox: variabler {event_var} eller {duration_var} finnes ikke.", None)
+        # i.VARNAME → dummies (Stata-stil). Bygges i en LOKAL arbeidsramme —
+        # forskerens datasett skal ikke få dummy-kolonner som bivirkning.
+        work_parts = [df[[event_var, duration_var]]]
         covars = []
         for v in raw_covars:
             if v.startswith('i.'):
                 base = v[2:]
                 if base in df.columns:
                     dummies = pd.get_dummies(df[base], prefix=base, drop_first=True).astype(float)
-                    for col in dummies.columns:
-                        df[col] = dummies[col]
-                    factor_dummies[v] = list(dummies.columns)
+                    work_parts.append(dummies)
                     covars.extend(dummies.columns)
             elif v in df.columns:
+                work_parts.append(df[[v]])
                 covars.append(v)
-        if event_var not in df.columns or duration_var not in df.columns:
-            return (f"cox: variabler {event_var} eller {duration_var} finnes ikke.", None)
-        cols = [event_var, duration_var] + list(covars)
-        sub = df[cols].dropna(how='any')
+        sub = pd.concat(work_parts, axis=1).dropna(how='any')
         sub = sub[sub[duration_var] > 0]
         if sub.empty or len(sub) < 3:
             return ("cox: for få observasjoner etter dropna (varighet må være > 0).", None)
@@ -5808,12 +5830,12 @@ class SurvivalHandler:
                     waf = WeibullAFTFitter(alpha=alpha)
                     waf.fit(sub, duration_col=duration_var, event_col=event_var)
                     times = np.linspace(sub[duration_var].min(), sub[duration_var].max(), 100)
-                    pred = waf.predict_survival_function(sub, times=times)
-                    if hasattr(pred, 'mean'):
-                        s = pred.mean(axis=1)
-                    else:
-                        s = pred.iloc[:, 0] if hasattr(pred, 'iloc') else pred
-                    fig.add_trace(go.Scatter(x=times, y=s.values if hasattr(s, 'values') else s, mode='lines', name=str(lbl)))
+                    # Modellen har ingen kovariater — alle rader gir identisk
+                    # kurve. Prediker for ÉN rad (N kurver à 100 punkter ville
+                    # allokert hundrevis av MB i nettleseren).
+                    pred = waf.predict_survival_function(sub.iloc[[0]], times=times)
+                    s = pred.iloc[:, 0]
+                    fig.add_trace(go.Scatter(x=times, y=s.values, mode='lines', name=str(lbl)))
                     # Hent nøkkelparametre
                     row = {'Gruppe': lbl, 'N': len(sub), 'Hendelser': int(sub[event_var].sum())}
                     if hasattr(waf, 'lambda_') and hasattr(waf, 'rho_'):
@@ -5837,8 +5859,9 @@ class SurvivalHandler:
                 waf = WeibullAFTFitter(alpha=alpha)
                 waf.fit(sub, duration_col=duration_var, event_col=event_var)
                 times = np.linspace(sub[duration_var].min(), sub[duration_var].max(), 100)
-                pred = waf.predict_survival_function(sub, times=times)
-                s = pred.mean(axis=1) if hasattr(pred, 'mean') else pred.iloc[:, 0]
+                # Én rad er nok — ingen kovariater, alle kurver identiske.
+                pred = waf.predict_survival_function(sub.iloc[[0]], times=times)
+                s = pred.iloc[:, 0]
                 fig = go.Figure(data=[go.Scatter(x=times, y=s.values, mode='lines', name='S(t)')])
                 if hasattr(waf, 'summary'):
                     summaries = [waf.summary.T]
@@ -6146,11 +6169,12 @@ class PlotHandler:
                         if not subset.empty:
                             fig.add_trace(go.Box(y=subset, name=str(label)))
                 else:
-                    _df_b = df.copy()
+                    # Kopier bare kolonnene som trengs — ikke hele datasettet
+                    _df_b = df[[over_var, var]].copy()
                     _df_b[var] = _wcol(df[var])
                     fig = px.box(_df_b, x=over_var, y=var)
             else:
-                _df_b = df.copy()
+                _df_b = df[[var]].copy()
                 _df_b[var] = _wcol(df[var])
                 fig = px.box(_df_b, y=var)
             fig.update_layout(template='plotly_white', margin=dict(l=50, r=50, t=40, b=60),
