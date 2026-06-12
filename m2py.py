@@ -6284,6 +6284,32 @@ class PlotHandler:
         return fig
 
 
+# Kommandoer der en 'if'-betingelse filtrerer radene FØR kommandoen kjører.
+# Listen følger microdata.no-manualen (kommandoer dokumentert med [if]):
+# https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer
+# I tillegg: sample, ci, collapse og scatter (emulator-utvidelser).
+# NB: generate/replace/recode/keep/drop håndterer 'if' selv (maskerer rader,
+# filtrerer ikke datasettet) og skal IKKE stå her.
+_COND_FILTER_COMMANDS = frozenset([
+    # Analyse
+    'anova', 'ci', 'correlate', 'normaltest', 'transitions-panel',
+    'summarize', 'summarize-panel', 'tabulate', 'tabulate-panel',
+    'sample', 'collapse',
+    # Grafikk
+    'barchart', 'boxplot', 'coefplot', 'hexbin', 'histogram',
+    'piechart', 'sankey', 'scatter',
+    # Regresjon
+    'hausman', 'ivregress', 'ivregress-predict',
+    'logit', 'logit-predict', 'mlogit', 'mlogit-predict',
+    'negative-binomial', 'negative-binomial-predict',
+    'poisson', 'poisson-predict', 'probit', 'probit-predict',
+    'rdd', 'regress', 'regress-panel', 'regress-panel-diff',
+    'regress-panel-predict', 'regress-predict',
+    # Overlevelsesanalyse
+    'cox', 'kaplan-meier', 'kaplan_meier', 'weibull',
+])
+
+
 class MicroInterpreter:
     def __init__(self, metadata_path=None, catalog=None, echo_commands: bool = True, metadata_base_url=None):
         self.datasets = {}
@@ -8144,12 +8170,10 @@ class MicroInterpreter:
                 self._log(f"-> Sample: beholdt {n_keep} av {n_total} observasjoner (seed={args['seed']}).")
                 return
 
-            # 2b. If-maskering: bare for kommandoer som bruker cond som delmengde (ikke for drop/keep/replace som bruker full df)
-            _cond_filter_commands = frozenset([
-                'sample', 'summarize', 'summarize-panel', 'tabulate', 'tabulate-panel', 'transitions-panel',
-                'correlate', 'ci', 'anova', 'normaltest', 'collapse'
-            ])
-            if cond and cmd != 'generate' and cmd in _cond_filter_commands:
+            # 2b. If-maskering: bare for kommandoer som bruker cond som delmengde
+            # (ikke for drop/keep/replace/recode som maskerer på full df).
+            # Kommandolisten (_COND_FILTER_COMMANDS, modulnivå) følger manualen.
+            if cond and cmd in _COND_FILTER_COMMANDS:
                 mask = self._eval_condition_mask(df_target, cond)
                 if mask is not None:
                     df_target = df_target.loc[mask].copy()
@@ -8158,6 +8182,13 @@ class MicroInterpreter:
                         df_target = df_target.loc[_py_eval_cond(df_target, cond)].copy()
                     except Exception:
                         df_target = df_target.query(cond).copy()
+            elif cond and cmd != 'generate':
+                # Kommandoen verken filtrerer eller maskerer på betingelsen —
+                # si det høyt i stedet for å stille ignorere den.
+                self._log(
+                    f"ADVARSEL: 'if'-betingelse støttes ikke for kommandoen "
+                    f"'{cmd}' — betingelsen er ignorert."
+                )
             if cond and cmd == 'generate':
                 opts = dict(opts)
                 opts['_condition'] = cond
