@@ -550,14 +550,24 @@ class MicroParser:
             return {"vars": remainder.split()}
 
         if cmd == 'recode':
-            # var1 var2 (1 2 3 = 0) (4 = 1)  -- skill vars fra rules
+            # var1 var2 (1 2 3 = 0) (4 = 1) [, prefix('ny_')]
+            # NB: recode comma-splittes ikke i parse_line (komma kan stå i
+            # etiketter), så prefix()/generate() trekkes ut her.
+            prefix = None
+            m_opt = re.search(
+                r",\s*(?:prefix|generate)\(\s*['\"]?([^'\")]*?)['\"]?\s*\)\s*$",
+                remainder,
+            )
+            if m_opt:
+                prefix = m_opt.group(1)
+                remainder = remainder[:m_opt.start()].strip()
             rule_pos = remainder.find('(')
             if rule_pos >= 0:
                 vars_part = remainder[:rule_pos].strip().split()
                 rules_part = remainder[rule_pos:]
                 rules = re.findall(r'\(([^)]+)\)', rules_part)
-                return {"vars": vars_part, "rules": rules}
-            return {"vars": remainder.split(), "rules": []}
+                return {"vars": vars_part, "rules": rules, "prefix": prefix}
+            return {"vars": remainder.split(), "rules": [], "prefix": prefix}
 
         if cmd == 'define-labels':
             return self._parse_define_labels(remainder)
@@ -3693,18 +3703,26 @@ class DataTransformHandler:
         if cmd == 'recode':
             # Samle opp nye labels per variabel når regler har tekstetiketter
             new_labels_per_var = {}
+            # Linjenivå 'if': begrens omkodingen til radene som matcher
+            row_mask = _line_condition_mask(df, cond, options) if cond else None
+            prefix = args.get('prefix') or ''
             for var in args['vars']:
                 if var not in df.columns:
                     continue
                 # Viktig: intervaller bruker >= / <= — object-strenger ("47") matcher ikke 45–47.
+                raw_orig = df[var].copy()  # bevares urørt ved prefix()
                 was_string = df[var].dtype == object or pd.api.types.is_string_dtype(df[var])
-                df[var] = pd.to_numeric(df[var], errors='coerce')
+                out_col = pd.to_numeric(df[var], errors='coerce')
+                # Manualen: "Verdier som allerede er omkodet påvirkes ikke av
+                # påfølgende regler" — masker bygges fra ORIGINALverdiene, og
+                # rader som alt er omkodet beskyttes mot senere regler.
+                orig = out_col.copy()
+                recoded = pd.Series(False, index=df.index)
                 for rule in args['rules']:
                     rule = rule.strip()
                     if '=' not in rule:
                         continue
-                    # Frisk kolonnereferanse etter hver regel (trygt ved kjedeoppdateringer)
-                    col = df[var]
+                    col = orig
                     lhs, rhs = rule.split('=', 1)
                     rhs = rhs.strip()
                     # Word/Excel kan lime inn typografiske anførsel — normaliser til ASCII for regex
@@ -3746,16 +3764,33 @@ class DataTransformHandler:
                             else:
                                 new_val = rhs
                     lhs = lhs.strip()
-                    # Sjekk for 'miss' (missing-verdi) i lhs
-                    if re.fullmatch(r'miss(?:ing)?', lhs, re.IGNORECASE):
-                        mask = col.isna()
+
+                    def _apply_rule(mask):
+                        """Skriv new_val der mask holder — unntatt rader som alt
+                        er omkodet av en tidligere regel, og (ved if) rader
+                        utenfor betingelsen."""
+                        nonlocal recoded
                         if hasattr(mask, 'fillna'):
                             mask = mask.fillna(False)
-                        df.loc[mask, var] = new_val
+                        mask = mask & ~recoded
+                        if row_mask is not None:
+                            mask = mask & row_mask
+                        out_col.loc[mask] = new_val
+                        recoded = recoded | mask
                         if label_text is not None and isinstance(new_val, (int, float)):
                             if self.label_manager is not None:
                                 d = new_labels_per_var.setdefault(var, {})
                                 d[int(new_val)] = label_text
+
+                    # Spesialkoder i lhs: missing / nonmissing / * (enhver verdi)
+                    if re.fullmatch(r'miss(?:ing)?', lhs, re.IGNORECASE):
+                        _apply_rule(col.isna())
+                        continue
+                    if re.fullmatch(r'nonmiss(?:ing)?', lhs, re.IGNORECASE):
+                        _apply_rule(col.notna())
+                        continue
+                    if lhs == '*':
+                        _apply_rule(pd.Series(True, index=df.index))
                         continue
                     # Tokeniser på whitespace først; hvert token kan være én verdi eller en range (lo/hi).
                     # Støtter mixed list+range, f.eks. "1 2 3 5/10".
@@ -3800,35 +3835,36 @@ class DataTransformHandler:
                     mask = col.isin(vals)
                     for lo_val, hi_val in ranges:
                         mask = mask | ((col >= lo_val) & (col <= hi_val))
-                    if hasattr(mask, 'fillna'):
-                        mask = mask.fillna(False)
-                    df.loc[mask, var] = new_val
-                    # Hvis vi har labeltekst og new_val er en kode, samle opp for labels
-                    if label_text is not None and isinstance(new_val, (int, float)):
-                        if self.label_manager is not None:
-                            d = new_labels_per_var.setdefault(var, {})
-                            d[int(new_val)] = label_text
+                    _apply_rule(mask)
                 # Hele tall etter recode → nullable int (bedre tabulate/etiketter; unngår 8.0 vs 8)
-                s = df[var]
-                if pd.api.types.is_numeric_dtype(s):
-                    sub = s.dropna()
+                if pd.api.types.is_numeric_dtype(out_col):
+                    sub = out_col.dropna()
                     if len(sub):
                         arr = sub.to_numpy(dtype=float, copy=False)
                         if np.all(np.isfinite(arr)) and np.all(arr == np.round(arr)):
-                            df[var] = s.round().astype('Int64')
+                            out_col = out_col.round().astype('Int64')
                 # Bevar string-dtype: var variabelen strenger FØR recode, konverter tilbake.
                 # Dette sikrer at f.eks. parstatus == '1' virker etter recode.
                 if was_string:
-                    df[var] = df[var].apply(
+                    out_col = out_col.apply(
                         lambda x: str(int(x)) if pd.notna(x) else None
                     ).astype(object)
+                # prefix()/generate(): nye variabler med omkodete verdier,
+                # originalen beholdes urørt (manualen). Uten prefix: overskriv.
+                if prefix:
+                    df[var] = raw_orig
+                    df[f"{prefix}{var}"] = out_col
+                else:
+                    df[var] = out_col
             # Etter at alle regler er brukt, oppdater LabelManager med nye labels
+            # (ved prefix() hører de nye etikettene til den nye variabelen)
             if self.label_manager is not None and new_labels_per_var:
                 for var, mapping in new_labels_per_var.items():
+                    label_var = f"{prefix}{var}" if prefix else var
                     pairs = list(mapping.items())
-                    codelist_name = f"{var}_recode"
+                    codelist_name = f"{label_var}_recode"
                     self.label_manager.define_labels(codelist_name, pairs)
-                    self.label_manager.assign_labels(var, codelist_name)
+                    self.label_manager.assign_labels(label_var, codelist_name)
             return None
 
         return None
@@ -4764,18 +4800,36 @@ class RegressionHandler:
         return sm.add_constant(X) if add else X
 
     def _apply_cov(self, model, options, df_clean=None):
-        """Bruk robust eller cluster standardfeil."""
-        if options.get('cluster') and df_clean is not None:
+        """Bruk robust eller cluster standardfeil.
+
+        Feiler høyt: brukeren har eksplisitt bedt om robuste/clustrede
+        standardfeil — å stille returnere vanlige SE-er gir et resultat som
+        ser riktig ut, men ikke er det brukeren ba om."""
+        if options.get('cluster'):
             cov = options['cluster']
+            if df_clean is None:
+                raise ValueError(
+                    f"cluster({cov}) støttes ikke for denne kommandoen."
+                )
+            if cov not in df_clean.columns:
+                raise ValueError(
+                    f"cluster({cov}): variabelen '{cov}' finnes ikke i datasettet."
+                )
             try:
                 return model.get_robustcov_results(cov_type='cluster', groups=df_clean[cov].values)
-            except Exception:
-                return model
+            except Exception as e:
+                raise ValueError(
+                    f"cluster({cov}): kunne ikke beregne cluster-standardfeil "
+                    f"({type(e).__name__}: {e})."
+                )
         if options.get('robust'):
             try:
                 return model.get_robustcov_results(cov_type='HC1')
-            except Exception:
-                return model
+            except Exception as e:
+                raise ValueError(
+                    f"robust: kunne ikke beregne robuste standardfeil "
+                    f"({type(e).__name__}: {e})."
+                )
         return model
 
     def _panel_predict_extra(self, model, Y, X, panel_df, key_col, df_clean, options, alpha, model_type, g=None, Y_orig=None, X_orig=None):
@@ -5382,6 +5436,15 @@ class RegressionHandler:
         X_actual = X_actual.reindex(columns=X2.columns, fill_value=0.0)
         predicted_vals = X_actual @ model_2s.params
         resid_vals = Y - predicted_vals
+
+        # Korrekte 2SLS-standardfeil: residualvariansen må beregnes med de
+        # FAKTISKE endogene verdiene (resid_vals), ikke trinn-2-residualene
+        # (Y - X̂b). 'fixed scale' setter cov = scale * (X2'X2)^-1, som er
+        # nettopp 2SLS-kovariansen med riktig sigma².
+        _sigma2_2sls = float(resid_vals @ resid_vals) / model_2s.df_resid
+        model_2s = model_2s.get_robustcov_results(
+            cov_type='fixed scale', scale=_sigma2_2sls
+        )
 
         # Estimator: docs-form etterstilt opsjon (, tsls/liml/gmm) har forrang,
         # ellers posisjonelt token i var-lista, ellers tsls (standard).
@@ -7912,11 +7975,18 @@ class MicroInterpreter:
                     return
 
                 # --- Gammel syntaks: merge datasett-navn [, on(nøkkel)] ---
+                if args[0] not in self.datasets:
+                    self._log(
+                        f"FEIL: Datasett '{args[0]}' finnes ikke. "
+                        f"Tilgjengelige datasett: {', '.join(self.datasets) or '(ingen)'}."
+                    )
+                    return
                 target_df = self.datasets[args[0]]
                 how = 'outer' if opts.get('outer_join') else 'left'
                 _active_entity = self.dataset_entity_types.get(self.active_name, 'person')
                 _default_key   = _ENTITY_ID_COL.get(_active_entity, 'unit_id')
-                on_opt = opts.get('on', _default_key)
+                _explicit_on = opts.get('on')
+                on_opt = _explicit_on or _default_key
                 # S2: avvis multi-key også i gammel syntaks
                 if isinstance(on_opt, str) and len(on_opt.split()) > 1:
                     _keys = on_opt.split()
@@ -7929,24 +7999,59 @@ class MicroInterpreter:
                     )
                     return
                 on_cols = on_opt.split() if isinstance(on_opt, str) else list(on_opt)
-                on_cols = [c for c in on_cols if c in self.active_df.columns and c in target_df.columns]
-                if not on_cols:
-                    on_cols = [c for c in [_default_key] if c in self.active_df.columns and c in target_df.columns]
-                if not on_cols:
-                    on_cols = list(set(self.active_df.columns) & set(target_df.columns))
+                if _explicit_on:
+                    # Eksplisitt on(): nøkkelen MÅ finnes i begge datasett —
+                    # ikke bytt stille til en annen nøkkel.
+                    _missing = [
+                        c for c in on_cols
+                        if c not in self.active_df.columns or c not in target_df.columns
+                    ]
+                    if _missing:
+                        self._log(
+                            f"FEIL: Koblingsvariabel '{', '.join(_missing)}' finnes ikke "
+                            f"i både {self.active_name} og {args[0]}. "
+                            f"Kolonner i {self.active_name}: {list(self.active_df.columns)}. "
+                            f"Kolonner i {args[0]}: {list(target_df.columns)}."
+                        )
+                        return
+                else:
+                    on_cols = [c for c in on_cols if c in self.active_df.columns and c in target_df.columns]
+                    if not on_cols:
+                        on_cols = list(set(self.active_df.columns) & set(target_df.columns))
+                    if not on_cols:
+                        self._log(
+                            f"FEIL: Fant ingen felles koblingsvariabel mellom "
+                            f"{self.active_name} og {args[0]}. Angi nøkkel med on(...)."
+                        )
+                        return
                 self.datasets[self.active_name] = pd.merge(self.active_df, target_df, on=on_cols, how=how)
                 n_str = f"{len(self.datasets[self.active_name]):,}".replace(",", " ")
-                self._log(f"Flettet variabler fra {args[0]} inn i {self.active_name} med {n_str} enheter")
+                self._log(
+                    f"Flettet variabler fra {args[0]} inn i {self.active_name} "
+                    f"med {n_str} enheter (koblet på {', '.join(on_cols)})"
+                )
                 return
 
             # Label-kommandoer (krever ikke aktivt datasett)
             if cmd == 'define-labels':
                 if 'name' in args and 'pairs' in args:
                     self.label_manager.define_labels(args['name'], args['pairs'])
+                else:
+                    self._log(
+                        "FEIL: define-labels: ugyldig syntaks — forventer "
+                        "kodelistenavn etterfulgt av verdi/etikett-par, f.eks. "
+                        "define-labels yrke 1 'Ufaglært arbeider' 2 'Faglært'. "
+                        "Husk anførselstegn rundt etiketter med mellomrom."
+                    )
                 return
             if cmd == 'assign-labels':
                 if 'var' in args and 'codelist' in args:
                     self.label_manager.assign_labels(args['var'], args['codelist'])
+                else:
+                    self._log(
+                        "FEIL: assign-labels: ugyldig syntaks — forventer "
+                        "variabelnavn og kodelistenavn: assign-labels var kodeliste"
+                    )
                 return
             if cmd == 'drop-labels':
                 if 'names' in args:
@@ -8596,6 +8701,23 @@ class MicroInterpreter:
                         self.datasets[self.active_name][col_name] = series
                     self._log(f"  -> Lagt til variabler: {list(extra.keys())}")
                 return
+
+            # Ingen handler traff — si fra i stedet for stille no-op
+            # (typisk skrivefeil i kommandonavn, eller argumenter som ikke
+            # lot seg tolke slik at kommando-grenen hoppet over dem).
+            if cmd in ('for', 'end', 'textblock', 'endblock'):
+                self._log(
+                    f"FEIL: '{cmd}' er ikke gyldig her. Nøstede for-løkker "
+                    f"støttes ikke, og 'end'/'endblock' må ha en tilhørende "
+                    f"'for'/'textblock'."
+                )
+            elif isinstance(args, dict) and 'raw' in args:
+                self._log(
+                    f"FEIL: Kunne ikke tolke argumentene til '{cmd}': "
+                    f"«{args['raw']}». Sjekk syntaksen med `help {cmd}`."
+                )
+            else:
+                self._log(f"FEIL: Ukjent kommando '{cmd}'.")
 
         except Exception as e:
             self._log(f"  FEIL PÅ KOMMANDO '{cmd}': {str(e)}")
