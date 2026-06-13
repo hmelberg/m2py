@@ -8201,8 +8201,9 @@ options(width = 200)
       explainRunActive = false;
       setRunButtonsUi('running');
       setStatus(rightStatus, 'Starting...');
+      let py = null;
       try {
-        const py = await loadPyodideAndM2py();
+        py = await loadPyodideAndM2py();
         let stdout = '';
         let stderr = '';
         if (typeof py.setStdout === 'function') {
@@ -8344,6 +8345,10 @@ for _seg in _segments:
         window.lastDatasetInfo = {};
         updateSidebarDatasets({});
       } finally {
+        // Restore default stdout/stderr even on the error path — a failed run
+        // must not leave Python output redirected to this run's stale callback.
+        if (py && typeof py.setStdout === 'function') py.setStdout();
+        if (py && typeof py.setStderr === 'function') py.setStderr();
         explainRunActive = false;
         scriptRunInProgress = false;
         setRunButtonsUi('idle');
@@ -8814,6 +8819,9 @@ def _run_microdata_chunk(_code):
         window.lastDatasetInfo = {};
         updateSidebarDatasets({});
       } finally {
+        // Restore default stdout/stderr on the error path too (see run handler).
+        if (py && typeof py.setStdout === 'function') py.setStdout();
+        if (py && typeof py.setStderr === 'function') py.setStderr();
         document.body.classList.remove('forklar-session');
         clearForklarHighlightBand();
         if (typeof snapshotScript === 'string') {
