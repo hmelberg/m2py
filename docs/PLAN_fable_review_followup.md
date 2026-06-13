@@ -125,8 +125,9 @@ Self-contained; governs whether generated data is reproducible/trustworthy.
       so childbirth (O80) only lands on real females. Test in TestNprConsistency.
 - [ ] `_generate_variable_values` drifted from `generate()` (~L2680-2796) — extract
       one shared helper (multi-record entities get random birth dates today).
-- [ ] `_generate_panel` (~L2458) corrupts zero-padded codes (`'0301'`→301) and
-      crashes on alphanumeric (`int('I')`). Reuse the correct main-path logic.
+- [x] `_generate_panel` corrupts zero-padded codes / crashes on alphanumeric —
+      DONE. Added `_coerce_code_value` (mirrors the main path): alfanumerisk codes
+      stay strings, numeric → int, non-numeric never crashes. Tests: TestPanelCodes.
 - [x] Silent metadata/codelist load failure — DONE. Engine records fallbacks;
       interpreter logs a visible ADVARSEL after import (demo labels/distributions
       may differ from the real register). Tests: TestSilentMetadataFallback.
@@ -134,10 +135,15 @@ Self-contained; governs whether generated data is reproducible/trustworthy.
       any "feil" substring (base64 figure payloads tripped false positives).
 - [ ] Static build hard-codes 2023 (mockdata_export.py ~L1198); dead persons keep
       wealth/municipality post-death; date grid enumerates past valid_to (~L1309).
-- [ ] build_static_data.py writes additively (~L58) — clean output dir first; record
-      full CLI args (--persons/--from/--to) in the manifest.
-- [ ] static_source.py uses `LIMIT n` on unguaranteed parquet order (~L174) — use
-      `WHERE unit_id <= n`.
+- [x] build_static_data.py additive writes — DONE. Cleans *.parquet/*.csv/*.duckdb
+      first; manifest records every CLI arg (build_args). Verified with a small build.
+- [x] static_source.py `LIMIT n` → `WHERE unit_id <= n` — DONE. Person universe is
+      now exactly {1..n}, consistent with the entity `ref_col <= n` filter.
+      Tests: TestStaticSourceLimit.
+
+Phase 3 status: 7/9 done. REMAINING: the `_generate_variable_values`↔`generate()`
+dedup refactor (structural; multi-record birth dates), and the static-build date
+bugs in mockdata_export.py (hard-coded 2023 / post-death rows / valid_to grid).
 
 ## Phase 4 — Frontend robustness
 Non-security UX/reliability (index.html unless noted).
