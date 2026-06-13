@@ -108,6 +108,47 @@ def try_np_where(target: str, value_node, translator: ExprTranslator) -> Optiona
     return lines
 
 
+# ── Series.where / Series.mask → generate + replace if ───────────────────────
+
+def _is_series_where_mask(node):
+    """Return (kind, series_node, cond_node, other_node) for s.where/s.mask, else None.
+    Excludes np.where/pd.* (handled elsewhere)."""
+    if not isinstance(node, ast.Call):
+        return None
+    f = node.func
+    if (isinstance(f, ast.Attribute) and f.attr in ("where", "mask")
+            and len(node.args) >= 2):
+        if isinstance(f.value, ast.Name) and f.value.id in ("np", "pd"):
+            return None
+        return (f.attr, f.value, node.args[0], node.args[1])
+    return None
+
+
+def try_where_mask(target: str, value_node, translator: ExprTranslator) -> Optional[list]:
+    """
+    df['target'] = df['a'].where(cond, other)  → keep a where cond, else other
+        generate target = other
+        replace target = a if cond
+    df['target'] = df['a'].mask(cond, other)   → other where cond, else a
+        generate target = a
+        replace target = other if cond
+    """
+    m = _is_series_where_mask(value_node)
+    if m is None:
+        return None
+    kind, series_node, cond_node, other_node = m
+    series = translator.translate(series_node)
+    cond   = translator.translate(cond_node)
+    other  = translator.translate(other_node)
+    if series is None or cond is None or other is None:
+        return None
+    if kind == "where":
+        return [f"generate {target} = {other}",
+                f"replace {target} = {series} if {cond}"]
+    return [f"generate {target} = {series}",
+            f"replace {target} = {other} if {cond}"]
+
+
 # ── .map({k: v}) → generate + replace if ────────────────────────────────────
 
 def _is_df_col_map(node, df_name: str):

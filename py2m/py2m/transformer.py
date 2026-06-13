@@ -16,7 +16,7 @@ from typing import Optional
 from .expr import ExprTranslator
 from .formula import parse_formula
 from .expander import (
-    try_np_where, try_map, try_pd_cut, try_fillna, try_clip,
+    try_np_where, try_map, try_pd_cut, try_fillna, try_clip, try_where_mask,
     try_apply_simple_func, try_str_method_assign,
     try_groupby_transform, try_groupby_collapse,
     extract_groupby_transform_info,
@@ -467,6 +467,9 @@ class Py2MTransformer:
             # df = df.join(df2)
             if self._try_join(value, lineno):
                 return
+            # df = df.assign(x=..., y=...) → one generate per keyword
+            if self._try_df_assign(value, lineno):
+                return
             self._untranslated(node)
             self._warn("Unrecognised df-level reassignment", lineno)
             return
@@ -700,6 +703,13 @@ class Py2MTransformer:
                 self._emit(l)
             return True
 
+        # df['col'] = df['col2'].where(cond, other) / .mask(cond, other)
+        lines = try_where_mask(col, value, tr)
+        if lines:
+            for l in lines:
+                self._emit(l)
+            return True
+
         # df['col'] = df['col2'].fillna(val)
         lines = try_fillna(col, value, self.df_name, tr)
         if lines:
@@ -870,6 +880,27 @@ class Py2MTransformer:
             else:
                 self._warn("Non-literal rename keys/values", lineno)
         return True
+
+    def _try_df_assign(self, value, lineno: int) -> bool:
+        """df = df.assign(x=expr, y=expr) → one `generate` per keyword."""
+        if not _is_method_call(value, "assign"):
+            return False
+        if not value.keywords:
+            return False
+        tr = self._translator
+        handled = False
+        for kw in value.keywords:
+            if kw.arg is None:  # df.assign(**mapping) — can't introspect
+                self._warn("assign(**mapping) is not translatable", lineno)
+                continue
+            expr = tr.translate(kw.value)
+            if expr is not None:
+                self._emit(f"generate {kw.arg} = {expr}")
+            else:
+                self._emit(f"// UNTRANSLATED: assign {kw.arg} = ...")
+                self._warn(f"Could not translate assign({kw.arg}=...)", lineno)
+            handled = True
+        return handled
 
     def _try_df_sample(self, value, lineno: int) -> bool:
         if not _is_method_call(value, "sample"):
