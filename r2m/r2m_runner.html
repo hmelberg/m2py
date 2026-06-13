@@ -328,10 +328,18 @@ lm(income ~ age + edu + sex, data = df)
   function renderOutput(script, warnings) {
     // Syntax-highlight the output
     const lines = script.split('\n');
+    // `//` lines that flag something the user must act on (untranslated /
+    // skipped / no equivalent / placeholder to replace) are shown amber so they
+    // stand out from benign comments.
+    const ACTION_RE = /untranslated|skipped|no microdata equivalent|cannot|could not|not supported|unsupported|replace <|note:/i;
+    let actionCount = 0;
     const html  = lines.map(line => {
       const esc = line
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      if (esc.startsWith('//')) return `<span class="comment">${esc}</span>`;
+      if (esc.startsWith('//')) {
+        if (ACTION_RE.test(esc)) { actionCount++; return `<span class="warning">${esc}</span>`; }
+        return `<span class="comment">${esc}</span>`;
+      }
       if (esc.startsWith('#'))  return `<span class="comment">${esc}</span>`;
       if (/^\s*$/.test(esc))    return esc;
       // Bold the first word (command keyword)
@@ -340,12 +348,13 @@ lm(income ~ age + edu + sex, data = df)
 
     outDiv.innerHTML = html || '<span style="color:#a0aec0">(empty output)</span>';
 
-    // Warnings panel
-    if (warnings && warnings.trim()) {
-      warnDiv.textContent = '⚠ Warnings:\n' + warnings.trim();
-    } else {
-      warnDiv.textContent = '';
-    }
+    // Warnings panel — combine the count of in-output notices with the warnings list
+    const parts = [];
+    if (actionCount > 0)
+      parts.push(`⚠ ${actionCount} line${actionCount === 1 ? '' : 's'} need attention (highlighted above)`);
+    if (warnings && warnings.trim())
+      parts.push('⚠ Warnings:\n' + warnings.trim());
+    warnDiv.textContent = parts.join('\n\n');
   }
 
   // ── copy ───────────────────────────────────────────────────────────────────

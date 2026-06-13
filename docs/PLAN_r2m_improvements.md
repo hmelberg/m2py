@@ -1,8 +1,9 @@
 # r2m Improvement Plan — R→microdata.no Translator
 
-> Status: planning (drafted 2026-06-13). Analysis of the R→microdata.no
-> translator in `r2m/`. Verified against the official microdata.no command and
-> function manuals. Not yet implemented.
+> Status (updated 2026-06-13): Phases 0–4 implemented; test suite at 171 tests
+> (was crashing mid-run), CI added. Remaining: Phase 3 `md_*` helpers and the
+> `predict()`→`regress-predict` model registry are deferred; the import family
+> is parked (write it directly in microdata). Original analysis below.
 
 Scope: `r2m/r2m/{expr.R, commands.R, translator.R}` (~1950 lines), `r2m/test_r2m.R` (607 lines), `r2m/r2m_runner.html` (703 lines), against the manuals. File paths below are relative to `r2m/`.
 
