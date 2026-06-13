@@ -175,11 +175,21 @@ DevTools (no JS unit harness).
 - [x] Smalls — DONE: `res.json()` parsed defensively before `res.ok`; dead
       `? 'no':'no'` ternary removed; sw.js stops caching opaque responses + never
       resolves respondWith to undefined (CACHE v3→v4).
-- [ ] REMAINING (diffuse, error-path AI-stream robustness): release the fetch
-      reader in a finally on the 3 AI streams (~L9709/L9801/L9573); AbortController
-      on the Anvil AI path (UI can hang ~3 min); request-token guard so a stale
-      async response can't repaint a closed modal; flush the trailing SSE buffer.
-      Lower value (error/edge paths), harder to verify — left as a focused follow-up.
+Phase 4 status: CLOSED. The high/medium-value items above are done and
+browser-verified. The remaining tail (below) is consciously NOT being done —
+all low-value error/edge paths, deemed not worth the change + verification cost.
+
+- [~] WON'T DO (diffuse, error-path AI-stream robustness; all LOW value):
+      (a) release the fetch reader in a finally on the AI streams (~L9709/L9801)
+          — leaks a connection only on an error mid-stream;
+      (b) request-token guard so a stale async response can't repaint a closed
+          modal — rare visual glitch (fast open/close/reopen);
+      (c) flush the trailing SSE buffer — drops the last event only if the stream
+          ends without a final `\n\n` (the edge anthropic.ts always emits one);
+      (d) AbortController on the Anvil AI path — DEPRIORITIZED: the user notes the
+          direct-Anvil AI path is rarely used (the Netlify edge path is the norm
+          and already has an AbortController), so the ~3-min hang is largely moot.
+      Harder to verify (need to induce failures); fine to leave as a focused follow-up.
 
 ## Phase 5 — Cross-repo sync & hygiene cleanup
 Lowest risk; run after Phases 2–3 so engine fixes are captured.
