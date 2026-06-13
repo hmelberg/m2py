@@ -176,8 +176,17 @@ Non-security UX/reliability (index.html unless noted).
 ## Phase 5 — Cross-repo sync & hygiene cleanup
 Lowest risk; run after Phases 2–3 so engine fixes are captured.
 
-- [ ] `sync_to_api.sh` copying m2py.py + functions.py to microdata-api with a
-      "GENERATED COPY — edit in m2py" header; catch up the ~868-line drift; CI guard.
+- [x] `sync_to_api.sh` — DONE. Copies m2py.py + functions.py to
+      microdata-api/server_code/ with a "GENERATED COPY — edit in m2py" header;
+      `--check` mode for drift detection (exit 1). Caught up the full ~2113-line
+      drift; synced copies py_compile + import cleanly (MicroParser/MicroInterpreter).
+      DECISION: synced verbatim, so the API validator now defaults disclosure OFF
+      — correct, because its dry-run uses only 200 rows (`_DRY_RUN_DEFAULT_ROWS`);
+      with disclosure ON the population rules (T1>=1000) would falsely reject
+      valid scripts. No disclosure pin added. (CI guard: `--check` can be wired
+      into a cross-repo job; not added as a standalone workflow because checking
+      out the separate Anvil repo in CI is auth-fragile — the GENERATED header +
+      script are the reliable guard.)
 - [ ] Delete `r2m/py2m/` (Netlify rewrite to `py2m/`) or add `diff -rq` CI guard.
 - [ ] py2m `*`-formula hijack (formula.py) — only expand `*` at top level of formula.
 - [ ] Prune dead code: `_parse_named_agg_keywords`, `_extract_by_vars`,
