@@ -206,3 +206,108 @@ class TestForEachWordBoundary:
     def test_iterator_replaces_bare_token_each_item(self):
         out = self._expand("for-each v in a b {\nsummarize v\n}")
         assert "summarize a" in out and "summarize b" in out
+
+
+# ---------------------------------------------------------------------------
+# Rank-swap byttet på feil akse: rad-indeks ble forvekslet med rang-posisjon,
+# så naerhetsgarantien (swap_range_pct) holdt ikke når data ikke var sortert.
+# ---------------------------------------------------------------------------
+
+class TestRankSwapProximity:
+    def test_rank_swap_is_local_in_value_rank(self):
+        rng = np.random.default_rng(42)
+        vals = np.arange(1000, dtype=float)
+        rng.shuffle(vals)  # rad-rekkefølge != verdi-rekkefølge
+        df = pd.DataFrame({"x": vals})
+        out = protect.swap(df, "x", method="rank", level="row",
+                           share=0.1, swap_range_pct=0.02, random_state=0)
+        rank = pd.Series(df["x"].values).rank(method="first").values
+        val_to_rank = {v: r for v, r in zip(df["x"].values, rank)}
+        newrank = np.array([val_to_rank[v] for v in out["x"].values])
+        drank = np.abs(newrank - rank)
+        changed = out["x"].values != df["x"].values
+        window = int(1000 * 0.02)
+        assert changed.sum() > 0
+        # Hver byttet verdi skal flyttes bare noen få vinduer i rang, ikke
+        # over hele fordelingen.
+        assert drank[changed].max() <= 4 * window
+
+
+# ---------------------------------------------------------------------------
+# plot-jitter brukte en useeded RNG, i motsetning til alle andre verb, så
+# resultatet var ikke reproduserbart med random_state.
+# ---------------------------------------------------------------------------
+
+class TestPlotJitterSeeded:
+    def test_jitter_is_reproducible_with_seed(self):
+        x = np.arange(50.0)
+        y = np.arange(50.0)
+        r1 = protect.suppress((x, y), jitter=(1.0, 1.0), random_state=0)
+        r2 = protect.suppress((x, y), jitter=(1.0, 1.0), random_state=0)
+        assert np.allclose(r1[0], r2[0]) and np.allclose(r1[1], r2[1])
+
+
+# ---------------------------------------------------------------------------
+# k-anonymisering returnerte stille data som IKKE var k-anonyme når
+# iterasjonene tok slutt. Nå verifiseres målet og funksjonen feiler tydelig.
+# ---------------------------------------------------------------------------
+
+class TestKAnonymizeVerifiesTarget:
+    def test_raises_when_target_not_reached(self):
+        df = pd.DataFrame({"a": list(range(20)), "b": list(range(20))})
+        with pytest.raises(ValueError, match="[kK]"):
+            protect.profile(df, "k_anonymize", quasi_ids=["a", "b"],
+                            k=5, max_iterations=1)
+
+    def test_succeeds_when_reachable(self):
+        df = pd.DataFrame({"a": [1, 1, 1, 2, 2, 2, 3, 4]})
+        out, log = protect.profile(df, "k_anonymize", quasi_ids=["a"], k=2)
+        assert protect.risk(out, quasi_ids=["a"]).k_min >= 2
+
+
+# ---------------------------------------------------------------------------
+# RiskReport.t_max (t-closeness) ble skrevet ut men aldri beregnet (alltid
+# None). Nå beregnes den som maks total-variasjonsavstand per gruppe.
+# ---------------------------------------------------------------------------
+
+class TestTClosenessComputed:
+    def test_t_max_computed_when_sensitive_given(self):
+        df = pd.DataFrame({
+            "q": [0, 0, 0, 1, 1, 1],
+            "s": ["A", "A", "A", "A", "B", "B"],
+        })
+        rep = protect.risk(df, quasi_ids=["q"], sensitive=["s"])
+        assert rep.t_max is not None
+        assert rep.t_max > 0.3
+
+    def test_t_max_none_without_sensitive(self):
+        df = pd.DataFrame({"q": [0, 0, 1, 1]})
+        rep = protect.risk(df, quasi_ids=["q"])
+        assert rep.t_max is None
+
+
+# ---------------------------------------------------------------------------
+# Deterministiske verb (coarsen/year/month) godtok share<1 men ignorerte den
+# stille. Delvis anvendelse ville gitt inkonsistente data — avvis tydelig.
+# ---------------------------------------------------------------------------
+
+class TestDeterministicVerbsRejectPartialShare:
+    def test_coarsen_rejects_partial_share(self):
+        df = pd.DataFrame({"x": [1.0, 2, 3, 4]})
+        with pytest.raises(ValueError, match="share"):
+            protect.coarsen(df, "x", to=10, share=0.5)
+
+    def test_year_rejects_partial_share(self):
+        df = pd.DataFrame({"d": pd.to_datetime(["2001-05-01", "2002-06-01"])})
+        with pytest.raises(ValueError, match="share"):
+            protect.year(df, "d", share=0.5)
+
+    def test_month_rejects_partial_share(self):
+        df = pd.DataFrame({"d": pd.to_datetime(["2001-05-01", "2002-06-01"])})
+        with pytest.raises(ValueError, match="share"):
+            protect.month(df, "d", share=0.5)
+
+    def test_default_share_is_accepted(self):
+        df = pd.DataFrame({"x": [1.0, 2, 3, 4]})
+        out = protect.coarsen(df, "x", to=10)  # share=1.0 default
+        assert list(out["x"]) == [0.0, 0.0, 0.0, 0.0]

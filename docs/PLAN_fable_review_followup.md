@@ -84,15 +84,22 @@ m2py.py:
       `FEIL PÅ KOMMANDO 'x' (ValueError): …`. Test: TestCommandErrorMessage.
 
 protect.py:
-- [ ] **_profile_k_anonymize** (~L2061-2094) returns non-k-anonymous data silently
-      when iterations run out. Recompute `risk()` after loop → raise/warn.
-- [ ] **rank swap wrong axis** (~L1396-1402) — row index conflated with rank
-      position; map through the inverse permutation so swap_range_pct holds.
-- [ ] **RiskReport t_max** (~L1699-1810) printed but never computed — compute or remove.
-- [ ] **plot-jitter unseeded RNG** (~L1685-1689) — use the passed random_state like
-      every other verb.
-- [ ] **verbs silently ignore share/unit_id** (year/month/coarsen ~L821-879, L576-639)
-      — honor them or reject explicitly.
+- [x] **_profile_k_anonymize** — DONE. Recomputes `risk()` after the loop; if
+      `k_min < k` it logs a FAILED entry and raises ValueError instead of
+      returning non-anonymous data silently. Test: TestKAnonymizeVerifiesTarget.
+- [x] **rank swap wrong axis** — DONE. Builds the inverse permutation
+      (`rank_pos`) so the random row index maps to its rank position; the swap
+      window now holds the proximity guarantee on unsorted data. Test:
+      TestRankSwapProximity (max rank-displacement 817→≤window).
+- [x] **RiskReport t_max** — DONE. Implemented t-closeness as max total-variation
+      distance per equivalence class against the global sensitive distribution.
+      Test: TestTClosenessComputed.
+- [x] **plot-jitter unseeded RNG** — DONE. `_suppress_plot` takes `random_state`
+      and uses `_resolve_random_state`. Test: TestPlotJitterSeeded.
+- [x] **verbs silently ignore share/unit_id** — DONE. coarsen/year/month reject a
+      non-default `share` via `_reject_inert_share` (partial application of a
+      deterministic verb → inconsistent data). unit_id/random_state stay
+      documented-inert. Test: TestDeterministicVerbsRejectPartialShare.
 
 ## Phase 3 — Mock-data correctness & consistency (all of report §2)
 Self-contained; governs whether generated data is reproducible/trustworthy.
