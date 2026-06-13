@@ -487,10 +487,11 @@ translate_expr <- function(node, df_name = "df") {
     if (!any(sapply(parts, is.null)))
       return(paste0(fn_m, "(", paste(unlist(parts), collapse = ", "), ")"))
   }
-  if (fn %in% c("paste", "paste0")) {
+  if (fn %in% c("paste", "paste0", "str_c")) {
     sep_node <- args[["sep"]]
-    sep_str  <- if (fn == "paste0") ""
-                else if (!is.null(sep_node) && is.character(sep_node)) sep_node
+    sep_str  <- if (fn %in% c("paste0", "str_c")) {  # str_c default sep is ""
+                  if (!is.null(sep_node) && is.character(sep_node)) sep_node else ""
+                } else if (!is.null(sep_node) && is.character(sep_node)) sep_node
                 else " "
     # translate positional (non-keyword) args only
     nms_p    <- names(args) %||% rep("", length(args))

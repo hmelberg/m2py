@@ -70,3 +70,92 @@
   list(lines = paste0("recode ", col, " ", paste(pair_strs, collapse = " ")),
        warnings = character(0))
 }
+
+# case_match(src, v1 ~ r1, c(v2,v3) ~ r2, .default = d) — value matching.
+# Each row's src matches at most one arm, so order is irrelevant (no reverse).
+.expand_case_match <- function(col, cargs, df_name) {
+  if (length(cargs) < 2)
+    return(list(lines = character(0), warnings = paste0("// case_match: too few args for ", col)))
+  src <- translate_expr(cargs[[1]], df_name)
+  if (is.null(src))
+    return(list(lines = character(0), warnings = paste0("// case_match: untranslatable source for ", col)))
+  warns <- character(0)
+  lines <- paste0("generate ", col, " = .")
+  nms <- names(cargs) %||% rep("", length(cargs))
+  for (i in 2:length(cargs)) {
+    if (nms[i] == ".default") next   # handled after the loop
+    arm <- cargs[[i]]
+    if (!is.call(arm) || .callee_name(arm) != "~") next
+    res <- translate_expr(arm[[3]], df_name)
+    if (is.null(res)) { warns <- c(warns, paste0("// case_match: untranslatable result for ", col)); next }
+    val_node <- arm[[2]]
+    if (is.call(val_node) && .callee_name(val_node) == "c") {
+      vals <- sapply(as.list(val_node)[-1], translate_expr, df_name = df_name)
+      if (any(sapply(vals, is.null))) { warns <- c(warns, paste0("// case_match: untranslatable values for ", col)); next }
+      cond <- paste0("inlist(", src, ", ", paste(unlist(vals), collapse = ", "), ")")
+    } else {
+      v <- translate_expr(val_node, df_name)
+      if (is.null(v)) { warns <- c(warns, paste0("// case_match: untranslatable value for ", col)); next }
+      cond <- paste0(src, " == ", v)
+    }
+    lines <- c(lines, paste0("replace ", col, " = ", res, " if ", cond))
+  }
+  if (".default" %in% nms) {
+    dv <- translate_expr(cargs[[".default"]], df_name)
+    if (!is.null(dv)) lines <- c(lines, paste0("replace ", col, " = ", dv, " if sysmiss(", col, ")"))
+  }
+  list(lines = lines, warnings = warns)
+}
+
+# Column names from an across() column spec: c(a, b) or a bare name.
+.across_cols <- function(node) {
+  if (is.call(node) && .callee_name(node) == "c")
+    return(unlist(lapply(as.list(node)[-1], function(a)
+      if (is.name(a)) as.character(a) else if (is.character(a)) a else NULL)))
+  if (is.name(node)) return(as.character(node))
+  NULL
+}
+
+# Replace the across lambda placeholder (.x / .) with a column symbol.
+.subst_placeholder <- function(node, col) {
+  if (is.name(node)) {
+    if (as.character(node) %in% c(".x", ".")) return(as.name(col))
+    return(node)
+  }
+  if (is.call(node)) {
+    for (i in seq_along(node)) node[[i]] <- .subst_placeholder(node[[i]], col)
+    return(node)
+  }
+  node
+}
+
+# across(cols, ~ .x * 2) in mutate → one `generate col = expr` per column.
+.expand_across_mutate <- function(cargs, df_name) {
+  if (length(cargs) < 2)
+    return(list(lines = character(0), warnings = "// across: needs columns and a function"))
+  cols <- .across_cols(cargs[[1]])
+  fn_node <- cargs[[2]]
+  if (is.null(cols) || !is.call(fn_node) || .callee_name(fn_node) != "~")
+    return(list(lines = character(0), warnings = "// across: only the ~ lambda form is supported in mutate"))
+  body <- fn_node[[2]]
+  lines <- character(0); warns <- character(0)
+  for (col in cols) {
+    val <- translate_expr(.subst_placeholder(body, col), df_name)
+    if (!is.null(val)) lines <- c(lines, paste0("generate ", col, " = ", val))
+    else warns <- c(warns, paste0("// across: cannot translate for ", col))
+  }
+  list(lines = lines, warnings = warns)
+}
+
+# across(cols, mean) in summarise → one "(stat) col -> col" spec per column.
+.expand_across_summarise <- function(cargs, df_name) {
+  if (length(cargs) < 2)
+    return(list(specs = character(0), warnings = "// across: needs columns and a function"))
+  cols <- .across_cols(cargs[[1]])
+  fn   <- .callee_name_or_name(cargs[[2]])
+  stat <- AGG_STAT_MAP[[fn]]
+  if (is.null(cols) || is.null(stat))
+    return(list(specs = character(0),
+                warnings = paste0("// across: unsupported function '", fn, "' in summarise")))
+  list(specs = paste0("(", stat, ") ", cols, " -> ", cols), warnings = character(0))
+}

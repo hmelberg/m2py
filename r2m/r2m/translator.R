@@ -31,9 +31,23 @@ translate <- function(r_code, df_name = "df") {
     df_name    = df_name,
     current_df = NULL,
     known_dfs  = character(0),
+    seed       = NULL,      # most recent set.seed() value, for `sample`
     lines      = character(0),
     warnings   = character(0)
   )
+}
+
+# Append the captured (or default) seed to a seedless `sample X` line — microdata
+# requires `sample count|fraction seed`, and m2py rejects a seedless sample.
+.inject_sample_seed <- function(result, state) {
+  if (is.null(result) || is.null(result$lines)) return(result)
+  needs <- grepl("^sample [^ ]+$", result$lines)
+  if (!any(needs)) return(result)
+  result$lines[needs] <- paste0(result$lines[needs], " ", state$seed %||% "1")
+  if (is.null(state$seed))
+    result$warnings <- c(result$warnings,
+      "// sample: ingen set.seed() funnet — bruker seed=1; legg til set.seed() for reproduserbarhet")
+  result
 }
 
 .append <- function(state, lines = NULL, warnings = NULL) {
@@ -135,6 +149,14 @@ translate <- function(r_code, df_name = "df") {
                 "install.packages"))
     return(state)
 
+  # set.seed(N): capture the seed for a later `sample` (emits nothing itself)
+  if (fn == "set.seed") {
+    seed_args <- as.list(expr)[-1]
+    sv <- if (length(seed_args) >= 1) translate_expr(seed_args[[1]], state$df_name) else NULL
+    if (!is.null(sv)) state$seed <- sv
+    return(state)
+  }
+
   # ggplot2 chain: ggplot(...) + geom_*() + ...
   if (fn == "+" && .is_ggplot_chain(expr)) {
     result <- handle_ggplot_chain(expr, state$df_name)
@@ -153,6 +175,11 @@ translate <- function(r_code, df_name = "df") {
   }
   if (!is.null(result))
     return(.append(state, lines = result$lines, warnings = result$warnings))
+
+  # Base-R data verbs used as a bare statement (no assignment)
+  dz <- .desugar_base_verb(expr)
+  if (!is.null(dz))
+    return(.run_pipe_steps(NULL, dz$src, dz$steps, state))
 
   # Desugared native pipe used as a statement: summarise(group_by(df, g), ...)
   chain <- .unroll_dplyr(expr)
@@ -242,6 +269,66 @@ translate <- function(r_code, df_name = "df") {
 
 # ── dataframe assignment: df2 <- rhs ─────────────────────────────────────────
 
+# Desugar a base-R data verb into its dplyr-pipe equivalent so it reuses the
+# existing pipe machinery (clone-on-new-name, group_by, seed, joins).
+# Returns list(src, steps) of synthetic dplyr call nodes, or NULL.
+.desugar_base_verb <- function(expr) {
+  fn   <- .callee_name(expr)
+  args <- as.list(expr)[-1]
+  .src_name <- function(node) if (is.name(node)) as.character(node) else NULL
+
+  if (fn == "subset") {
+    src  <- .src_name(args[["x"]] %||% (if (length(args) >= 1) args[[1]] else NULL))
+    cond <- args[["subset"]] %||% (if (length(args) >= 2) args[[2]] else NULL)
+    if (is.null(src) || is.null(cond)) return(NULL)
+    steps <- list(as.call(list(as.name("filter"), cond)))
+    sel <- args[["select"]] %||% (if (length(args) >= 3) args[[3]] else NULL)
+    if (!is.null(sel)) steps <- c(steps, list(as.call(list(as.name("select"), sel))))
+    return(list(src = src, steps = steps))
+  }
+
+  if (fn == "transform") {
+    src <- .src_name(if (length(args) >= 1) args[[1]] else NULL)
+    if (is.null(src)) return(NULL)
+    mut_args <- args[-1]
+    if (length(mut_args) == 0) return(NULL)
+    return(list(src = src, steps = list(as.call(c(list(as.name("mutate")), mut_args)))))
+  }
+
+  if (fn == "aggregate") {
+    f_node <- args[["formula"]] %||% (if (length(args) >= 1) args[[1]] else NULL)
+    data_n <- .src_name(args[["data"]])
+    fun_n  <- if (!is.null(args[["FUN"]])) .callee_name_or_name(args[["FUN"]]) else "mean"
+    if (is.null(f_node) || !is.call(f_node) || .callee_name(f_node) != "~" || is.null(data_n))
+      return(NULL)
+    y <- if (is.name(f_node[[2]])) as.character(f_node[[2]]) else return(NULL)
+    groups <- .formula_terms(f_node[[3]])
+    gb  <- as.call(c(list(as.name("group_by")), lapply(groups, as.name)))
+    agg <- as.call(c(list(as.name("summarise")),
+                     setNames(list(as.call(list(as.name(fun_n), as.name(y)))), y)))
+    return(list(src = data_n, steps = list(gb, agg)))
+  }
+
+  if (fn == "merge") {
+    src <- .src_name(if (length(args) >= 1) args[[1]] else NULL)
+    y   <- if (length(args) >= 2) args[[2]] else NULL
+    if (is.null(src) || is.null(y)) return(NULL)
+    join_args <- list(as.name("left_join"), y)
+    if (!is.null(args[["by"]])) join_args <- c(join_args, list(by = args[["by"]]))
+    return(list(src = src, steps = list(as.call(join_args))))
+  }
+
+  NULL
+}
+
+# Bare name of a function-valued argument: FUN = mean (a symbol) or FUN = "mean".
+.callee_name_or_name <- function(node) {
+  if (is.character(node)) return(node)
+  if (is.name(node))      return(as.character(node))
+  if (is.call(node))      return(.callee_name(node))
+  "mean"
+}
+
 .translate_df_assign <- function(lhs_name, rhs, state) {
   df_name <- state$df_name
 
@@ -272,6 +359,11 @@ translate <- function(r_code, df_name = "df") {
   # Base-R bracket filter: df2 <- df[cond, ]
   if (rhs_fn == "[")
     return(.translate_bracket_filter(lhs_name, rhs, state))
+
+  # Base-R data verbs (subset / transform / aggregate / merge) → dplyr pipe
+  dz <- .desugar_base_verb(rhs)
+  if (!is.null(dz))
+    return(.run_pipe_steps(lhs_name, dz$src, dz$steps, state))
 
   # ggplot2 chain assigned: p <- ggplot(...) + geom_*()
   if (rhs_fn == "+" && .is_ggplot_chain(rhs)) {
@@ -432,6 +524,7 @@ DPLYR_VERBS <- c(
     if (fn_clean == "ungroup") { group_by_str <- NULL; next }
 
     result <- dispatch_dplyr(fn_clean, sargs, eff_df, group_by_str)
+    result <- .inject_sample_seed(result, state)
 
     if (!is.null(result)) {
       state <- .append(state, lines = result$lines, warnings = result$warnings)

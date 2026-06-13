@@ -160,6 +160,56 @@ expect("select",
   "df <- df |> select(income, age, sex)",
   "keep income age sex")
 
+cat("\n── base-R idioms ────────────────────────────────────────────\n")
+
+expect("base transform → generate",
+  "df <- transform(df, z = age + 1)",
+  "generate z = (age + 1)")
+
+expect("base subset → keep if (with clone for new name)",
+  "df2 <- subset(df, age > 18)",
+  c("clone-dataset df2", "use df2", "keep if age > 18"))
+
+expect("base aggregate → collapse",
+  "agg <- aggregate(income ~ sector, data = df, FUN = mean)",
+  c("clone-dataset agg", "use agg",
+    "collapse (mean) income -> income, by(sector)"))
+
+# base merge → join (same shape as left_join)
+res_bmerge <- translate('df3 <- merge(df, df2, by = "id")')
+if (grepl("clone-dataset df3", res_bmerge$script) &&
+    grepl("merge <vars_from_df2> into df3 on id", res_bmerge$script)) {
+  cat("  PASS: base merge → join\n"); PASS <- PASS + 1L
+} else {
+  cat("  FAIL: base merge → join\n"); cat(res_bmerge$script, "\n"); FAIL <- FAIL + 1L
+}
+
+cat("\n── across / case_match / na_if / str_c ──────────────────────\n")
+
+expect("case_match in mutate",
+  'df <- df |> mutate(region = case_match(code, 1 ~ "North", 2 ~ "South", .default = "Other"))',
+  c("generate region = .",
+    "replace region = 'North' if code == 1",
+    "replace region = 'South' if code == 2",
+    "replace region = 'Other' if sysmiss(region)"))
+
+expect("across with lambda in mutate",
+  "df <- df |> mutate(across(c(a, b), ~ .x * 2))",
+  c("generate a = (a * 2)", "generate b = (b * 2)"))
+
+expect("across with bare function in summarise",
+  "stats <- df |> group_by(sex) |> summarise(across(c(income, age), mean))",
+  c("clone-dataset stats", "use stats",
+    "collapse (mean) income -> income (mean) age -> age, by(sex)"))
+
+expect("na_if in mutate",
+  "df <- df |> mutate(grade = na_if(grade, -1))",
+  c("generate grade = grade", "replace grade = . if grade == (-1)"))
+
+expect("str_c → rowconcat",
+  "df$full <- str_c(first, last)",
+  "generate full = rowconcat(first, last)")
+
 expect("select negative",
   "df <- df |> select(-edu_raw)",
   "drop edu_raw")
@@ -399,17 +449,28 @@ expect("ivreg",
 
 cat("\n── survival analysis ────────────────────────────────────────\n")
 
+# microdata order is `cox hendelse-var tid-var` = event first, time second
+# (m2py reads args[0]=event, args[1]=duration). R's Surv(time, event) is the
+# reverse, so the handler must swap.
 expect("coxph",
   "survival::coxph(Surv(time, event) ~ age + sex, data = df)",
-  "cox time event age sex")
+  "cox event time age sex")
 
 expect("survfit",
   "survfit(Surv(time, event) ~ sex, data = df)",
-  "kaplan-meier time event, by(sex)")
+  "kaplan-meier event time, by(sex)")
 
 expect("survfit no group",
   "survfit(Surv(time, event) ~ 1, data = df)",
-  "kaplan-meier time event")
+  "kaplan-meier event time")
+
+expect("survreg weibull",
+  "survival::survreg(Surv(time, event) ~ age + sex, dist = 'weibull', data = df)",
+  "weibull event time age sex")
+
+expect("survreg weibull no covariates",
+  "survreg(Surv(time, event) ~ 1, dist = 'weibull', data = df)",
+  "weibull event time")
 
 cat("\n── factor labels ────────────────────────────────────────────\n")
 
@@ -471,17 +532,34 @@ expect("pivot_wider",
 
 cat("\n── sampling & count ─────────────────────────────────────────\n")
 
-expect("sample_n",
-  "df <- df |> sample_n(1000)",
-  "sample 1000")
+# microdata `sample` requires a seed (sample count|fraction seed). A preceding
+# set.seed() supplies it; without one a default seed is emitted with a warning.
+expect("sample_n with set.seed",
+  paste("set.seed(42)", "df <- df |> sample_n(1000)", sep = "\n"),
+  "sample 1000 42")
 
-expect("sample_frac",
-  "df <- df |> sample_frac(0.1)",
-  "sample 10")
+expect("sample_frac emits fraction not percent",
+  paste("set.seed(42)", "df <- df |> sample_frac(0.1)", sep = "\n"),
+  "sample 0.1 42")
 
-expect("slice_sample n maps to sample",
-  "df <- df |> slice_sample(n = 100)",
-  "sample 100")
+expect("slice_sample n with set.seed",
+  paste("set.seed(7)", "df <- df |> slice_sample(n = 100)", sep = "\n"),
+  "sample 100 7")
+
+expect("slice_sample prop emits fraction",
+  paste("set.seed(7)", "df <- df |> slice_sample(prop = 0.25)", sep = "\n"),
+  "sample 0.25 7")
+
+# no set.seed -> default seed + warning (m2py rejects a seedless sample)
+res_noseed <- translate("df <- df |> sample_n(1000)")
+if (grepl("sample 1000 1", res_noseed$script) &&
+    any(grepl("set.seed", c(res_noseed$script, res_noseed$warnings)))) {
+  cat("  PASS: sample without set.seed gets default seed + warning\n"); PASS <- PASS + 1L
+} else {
+  cat("  FAIL: sample without set.seed gets default seed + warning\n")
+  cat("    script:", res_noseed$script, "\n")
+  cat("    warnings:", paste(res_noseed$warnings, collapse=" | "), "\n"); FAIL <- FAIL + 1L
+}
 
 expect("count",
   "df |> count(sex, edu)",
@@ -621,7 +699,7 @@ cat("\n── namespaced calls (pkg::fun) ────────────�
 
 expect("survival::coxph emits cox",
   "fit <- survival::coxph(Surv(time, event) ~ age + sex, data = df)",
-  "cox time event age sex")
+  "cox event time age sex")
 
 expect("plm::plm emits regress-panel",
   "fit <- plm::plm(income ~ edu + age, data = df, model = 'within')",
