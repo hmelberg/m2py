@@ -97,7 +97,10 @@ def _valid_import_dates_for(meta):
     # ett øyeblikksbilde på ÉN måned-dag (startens), så der utvider vi ikke.
     if temporalitet == 'akkumulert' and (tm, td) != (fm, fd):
         dates |= {f'{y:04d}-{tm}-{td}' for y in range(fy_i, ty_i + 1)}
-    return dates
+    # Klem til gyldighetsvinduet: siste års start-måned-dag kan falle ETTER vt
+    # (og en Akkumulert periodeslutt i første år FØR vf). En utgått variabel
+    # skal ikke tilby slike datoer.
+    return {d for d in dates if vf <= d <= vt}
 
 # Variabelnavn-mønstre som identifiserer pseudonymer i microdata.no.
 # Bruker disse som backup når metadata mangler eksplisitt is_pseudonym.

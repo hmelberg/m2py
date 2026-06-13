@@ -151,3 +151,56 @@ class TestStaticSourceLimit:
             "import db/INNTEKT_X", base_url="https://x/", limit=5)
         sql = sqls[0]["sql"]
         assert "unit_id <= 5" in sql and "LIMIT" not in sql.upper()
+
+
+class TestValidImportDateGrid:
+    """The yearly import-date grid must not enumerate dates outside the
+    variable's [valid_from, valid_to] window (a discontinued variable must not
+    offer dates after valid_to)."""
+
+    def test_export_grid_respects_valid_to(self):
+        import mockdata_export as mx
+        ds = mx.valid_import_dates("2010-06-01", "2018-03-31", "Tverrsnitt")
+        assert all("2010-06-01" <= d <= "2018-03-31" for d in ds)
+        assert "2018-06-01" not in ds      # past valid_to -> excluded
+        assert "2017-06-01" in ds          # valid years still present
+
+    def test_export_akkumulert_window_bounds(self):
+        import mockdata_export as mx
+        ds = mx.valid_import_dates("2010-06-01", "2018-03-31", "Akkumulert")
+        assert all("2010-06-01" <= d <= "2018-03-31" for d in ds)
+        assert "2010-03-31" not in ds      # period-end before valid_from
+        assert "2018-06-01" not in ds      # period-start past valid_to
+
+    def test_m2py_grid_respects_valid_to(self):
+        import m2py
+        meta = {"temporalitet": "Tverrsnitt",
+                "description": "Gyldighetsperiode: 2010-06-01 – 2018-03-31"}
+        ds = m2py._valid_import_dates_for(meta)
+        assert ds is not None
+        assert all("2010-06-01" <= d <= "2018-03-31" for d in ds)
+        assert "2018-06-01" not in ds
+
+
+class TestStaticDynamicPanelDeath:
+    """In the dynamic static-build panel, a dead person must have no record
+    after death — income, wealth AND municipality all missing (the register
+    returns nothing post-death; carrying last year's value makes dead people
+    'live' and 'own')."""
+
+    def test_dead_persons_have_no_wealth_or_municipality(self):
+        import json
+        import mockdata_export as mx
+        catalog = json.load(open("variable_metadata.json"))["variables"]
+        engine = mx.make_engine(800, catalog)
+        tables = mx.build_all(engine, years=[2018, 2019, 2020],
+                              dynamic_person_year=True, dead_fraction=0.3,
+                              entities=[], include_npr=False,
+                              include_trafikkulykke=False)
+        py = tables["person_year"]
+        dead = py[py["livsstatus"] == "dod"]
+        assert len(dead) > 0
+        assert dead["SKATT_NETTOFORMUE"].isna().all()
+        assert dead["BOSATT_KOMMUNE"].isna().all()
+        # sanity: the living still have values
+        assert py[py["livsstatus"] == "sysselsatt"]["SKATT_NETTOFORMUE"].notna().any()
