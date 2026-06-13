@@ -2700,35 +2700,50 @@
       }
       window.renderScriptHighlight = renderScriptHighlight;
 
+      const _BP_TITLE = 'Stoppunkt som angir hvor skriptet skal stoppe kjøringen';
+      // One delegated click handler instead of one per line span — the gutter
+      // used to attach N listeners on every keystroke.
+      lineNumbers.addEventListener('click', function (e) {
+        const span = e.target.closest && e.target.closest('span[data-line]');
+        if (!span || !lineNumbers.contains(span)) return;
+        const line = parseInt(span.dataset.line, 10);
+        const hadThis = breakpoints.has(line);
+        // Kun ett stoppunkt om gangen: fjern alle eksisterende
+        breakpoints.clear();
+        lineNumbers.querySelectorAll('span.breakpoint').forEach(function (s) {
+          s.classList.remove('breakpoint');
+          s.removeAttribute('title');
+        });
+        if (!hadThis) {
+          breakpoints.add(line);
+          span.classList.add('breakpoint');
+          span.title = _BP_TITLE;
+        }
+      });
+
       function updateLineNumbers() {
-        const lines = scriptInput.value.split('\n');
-        const n = Math.max(lines.length, 1);
-        lineNumbers.innerHTML = '';
-        for (let i = 1; i <= n; i++) {
+        const n = Math.max(scriptInput.value.split('\n').length, 1);
+        // Add/remove only the trailing spans to match the line count — don't
+        // rebuild the whole gutter (and its listeners) on every keystroke.
+        let cur = lineNumbers.children.length;
+        for (; cur < n; cur++) {
           const span = document.createElement('span');
-          span.textContent = i;
-          span.dataset.line = String(i);
-          if (breakpoints.has(i)) {
-            span.classList.add('breakpoint');
-            span.title = 'Stoppunkt som angir hvor skriptet skal stoppe kjøringen';
-          }
-          span.addEventListener('click', function() {
-            const line = parseInt(this.dataset.line, 10);
-            const hadThis = breakpoints.has(line);
-            // Kun ett stoppunkt om gangen: fjern alle eksisterende
-            breakpoints.clear();
-            lineNumbers.querySelectorAll('span.breakpoint').forEach(function(s) {
-              s.classList.remove('breakpoint');
-              s.removeAttribute('title');
-            });
-            // Hvis klikket linje ikke allerede var satt, sett den nå
-            if (!hadThis) {
-              breakpoints.add(line);
-              this.classList.add('breakpoint');
-              this.title = 'Stoppunkt som angir hvor skriptet skal stoppe kjøringen';
-            }
-          });
+          span.textContent = cur + 1;
+          span.dataset.line = String(cur + 1);
           lineNumbers.appendChild(span);
+        }
+        for (; cur > n; cur--) lineNumbers.removeChild(lineNumbers.lastChild);
+        // Sync breakpoint styling against the current set.
+        for (let i = 0; i < n; i++) {
+          const span = lineNumbers.children[i];
+          const isBp = breakpoints.has(i + 1);
+          if (isBp && !span.classList.contains('breakpoint')) {
+            span.classList.add('breakpoint');
+            span.title = _BP_TITLE;
+          } else if (!isBp && span.classList.contains('breakpoint')) {
+            span.classList.remove('breakpoint');
+            span.removeAttribute('title');
+          }
         }
       }
 
