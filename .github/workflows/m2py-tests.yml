@@ -8,6 +8,10 @@ on:
       - 'protect.py'
       - 'py2m/**'
       - 'tests/**'
+      - 'mockdata_export.py'
+      - 'mockdata_realism.py'
+      - 'static_source.py'
+      - 'manual_scripts/**'
       - '.github/workflows/m2py-tests.yml'
   pull_request:
     paths:
@@ -16,6 +20,10 @@ on:
       - 'protect.py'
       - 'py2m/**'
       - 'tests/**'
+      - 'mockdata_export.py'
+      - 'mockdata_realism.py'
+      - 'static_source.py'
+      - 'manual_scripts/**'
       - '.github/workflows/m2py-tests.yml'
 
 jobs:
@@ -37,3 +45,5 @@ jobs:
         run: pip install pytest pandas numpy scipy statsmodels plotly lifelines
       - name: Run repo-root suite (m2py engine + translation equivalence)
         run: python -m pytest tests/ -q
+      - name: Run manual example scripts (fails on CRASH or PARTIAL)
+        run: python manual_scripts/run_manual_scripts.py

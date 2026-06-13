@@ -835,35 +835,10 @@ def _parse_agg_arg(agg_arg, translator: ExprTranslator) -> Optional[list]:
     return specs if specs else None
 
 
-def _parse_named_agg_keywords(keywords) -> Optional[list]:
-    """
-    Parse .agg(out_col=('src_col', 'stat'), ...) from a list of AST keyword nodes.
-    Returns list of (src_col, stat, target_col) tuples, or None.
-    """
-    specs = []
-    for kw in keywords:
-        if kw.arg is None:   # **kwargs spread — bail out
-            return None
-        tgt = kw.arg
-        val = kw.value
-        if not isinstance(val, ast.Tuple) or len(val.elts) < 2:
-            return None
-        col_node, stat_node = val.elts[0], val.elts[1]
-        if not (isinstance(col_node, ast.Constant) and isinstance(col_node.value, str)):
-            return None
-        if not (isinstance(stat_node, ast.Constant) and isinstance(stat_node.value, str)):
-            return None
-        stat = _stat_alias(stat_node.value)
-        if stat is None:
-            return None
-        specs.append((col_node.value, stat, tgt))
-    return specs if specs else None
-
-
 def _parse_named_agg_kwargs(kwargs: dict) -> Optional[list]:
     """
-    Like _parse_named_agg_keywords but takes the {str: ast_node} dict produced
-    by the chain decomposer (MethodStep.kwargs).
+    Parse named-agg kwargs .agg(out=('src','stat'), …) from the {str: ast_node}
+    dict produced by the chain decomposer (MethodStep.kwargs).
     """
     specs = []
     for tgt, val in kwargs.items():
@@ -879,24 +854,6 @@ def _parse_named_agg_kwargs(kwargs: dict) -> Optional[list]:
             return None
         specs.append((col_node.value, stat, tgt))
     return specs if specs else None
-
-
-def _extract_by_vars(groupby_call, translator: ExprTranslator) -> Optional[list]:
-    """Extract the list of groupby variable names from df.groupby(...)."""
-    if not groupby_call.args:
-        return None
-    by_node = groupby_call.args[0]
-    if isinstance(by_node, ast.Constant) and isinstance(by_node.value, str):
-        return [by_node.value]
-    if isinstance(by_node, (ast.List, ast.Tuple)):
-        result = []
-        for elt in by_node.elts:
-            if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
-                result.append(elt.value)
-            else:
-                return None
-        return result if result else None
-    return None
 
 
 def _stat_alias(name: str) -> Optional[str]:

@@ -1024,20 +1024,6 @@ def _value_counts(value, ctx: Ctx) -> Optional[list]:
 
 
 @REGISTRY.expr
-def _series_hist(value, ctx: Ctx) -> Optional[list]:
-    """df['col'].hist() → histogram col  (explicit series-hist pattern)"""
-    root, steps = decompose(value)
-    if not is_df_root(root, ctx.df_name) or len(steps) < 2:
-        return None
-    if not (isinstance(steps[-1], MethodStep) and steps[-1].name == "hist"):
-        return None
-    col_step = steps[-2]
-    col = str_const(col_step.key) if isinstance(col_step, SubscriptStep) else None
-    if col:
-        return [f"histogram {col}"]
-    return None
-
-
 @REGISTRY.expr
 def _normaltest(value, ctx: Ctx) -> Optional[list]:
     """scipy.stats.normaltest(df['col']) → normaltest col"""

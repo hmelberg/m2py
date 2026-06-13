@@ -1,3 +1,11 @@
+# The Python translator runner lives only at /py2m/. The old duplicate under
+# /r2m/ was deleted (it shipped a stale copy of the whole py2m package); keep the
+# URL working for any external bookmark.
+[[redirects]]
+  from = "/r2m/py2m_runner.html"
+  to = "/py2m/py2m_runner.html"
+  status = 301
+
 [[headers]]
   for = "/sw.js"
   [headers.values]

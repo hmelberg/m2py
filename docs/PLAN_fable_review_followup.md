@@ -187,12 +187,18 @@ Lowest risk; run after Phases 2–3 so engine fixes are captured.
       into a cross-repo job; not added as a standalone workflow because checking
       out the separate Anvil repo in CI is auth-fragile — the GENERATED header +
       script are the reliable guard.)
-- [ ] Delete `r2m/py2m/` (Netlify rewrite to `py2m/`) or add `diff -rq` CI guard.
-- [ ] py2m `*`-formula hijack (formula.py) — only expand `*` at top level of formula.
-- [ ] Prune dead code: `_parse_named_agg_keywords`, `_extract_by_vars`,
-      `_lifelines_kind_from_fit`, unreachable `_series_hist`.
-- [ ] CI: run_manual_scripts with `sys.exit(1)` on CRASH; `deno test` for
-      `_lib/`; cross-repo + py2m-copy diff guards.
+- [x] Delete `r2m/py2m/` — DONE. It was an unused, drifted 5161-line copy plus a
+      duplicate `r2m/py2m_runner.html`; nothing in the app referenced them. Deleted
+      both; added a Netlify 301 `/r2m/py2m_runner.html` → `/py2m/py2m_runner.html`.
+- [x] py2m `*`-formula hijack — ALREADY FIXED (during py2m Phase work). Verified:
+      `I(x*z)` → `generate _py2m_t1 = (x * z)` + `regress y x _py2m_t1` (not
+      hijacked). formula.py `_expand_star_terms` only expands `*` at top level.
+- [x] Prune dead code — DONE. Removed `_parse_named_agg_keywords`,
+      `_extract_by_vars` (expander.py), `_lifelines_kind_from_fit` (transformer.py),
+      unreachable `_series_hist` (commands.py). 236 tests still pass.
+- [x] CI: run_manual_scripts now `sys.exit(1)` on CRASH **or** PARTIAL, and is run
+      in m2py-tests.yml. `deno test` already in edge-tests.yml (Phase 1). (Cross-repo
+      m2py.py diff guard = `sync_to_api.sh --check`; py2m-copy guard moot — copy deleted.)
 - [ ] Docs: root README (tests / build_static_data.py / generate_manifest.py);
       reconcile PLAN.md "ikke implementert" vs shipped share-link; remove edge
       README's nonexistent `/api/dm-quick`.

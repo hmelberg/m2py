@@ -104,4 +104,11 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    import sys
+    _results = main()
+    _crash = sum(1 for r in _results if r['status'] == 'CRASH')
+    _partial = sum(1 for r in _results if r['status'] == 'PARTIAL')
+    # Baseline is all-OK; any crash or partial is a regression -> fail CI.
+    if _crash or _partial:
+        print(f"\nFAIL: {_crash} crashed, {_partial} partial (baseline is 17 OK / 0 PARTIAL / 0 CRASH).")
+        sys.exit(1)

@@ -1934,13 +1934,6 @@ def _is_lifelines_fit(node, lifelines_vars: dict) -> bool:
     )
 
 
-def _lifelines_kind_from_fit(node, lifelines_vars: dict) -> Optional[str]:
-    root, _ = decompose(node)
-    if isinstance(root, ast.Name):
-        return lifelines_vars.get(root.id)
-    return None
-
-
 def _kwarg_str(kwargs: dict, key: str) -> Optional[str]:
     node = kwargs.get(key)
     if node is None:
