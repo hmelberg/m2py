@@ -39,13 +39,20 @@ Slices A + B DONE (commit, this repo). Slice C (companion repo) still open.
       `data-var1/2` attributes unescaped (~L8774). Var names are identifiers so
       low risk, but html-escape for defence-in-depth.
 
-### Phase 1 — Slice C (companion repo, separate deploy) — NOT STARTED
-- [ ] **microdata-api/auth_endpoints.py** — rate-limit `/auth/email/request` (~L70)
-      and `/auth/email/verify` (~L103). Codes are 3 EFF words, multi-use, 30-day
-      valid → email-bomb + online brute-force. Also single-use + shorter TTL if feasible.
-- [ ] **microdata-api/utils.py** — timing-safe token compare (~L58 `value == header_key`);
-      rate limiter currently fails open silently (~L67-93); `eval_runs` logs full
-      question/script indefinitely → truncate + add retention.
+### Phase 1 — Slice C (companion repo `microdata-api`, branch admin-shared-codes) — DONE
+Committed + pushed to microdata-api (separate Anvil deploy). Runtime behaviour
+confirmable only on deploy; verified locally via py_compile + pure window logic.
+- [x] **auth_endpoints.py** — `/auth/email/request` rate-limited per-email
+      (5/h) + per-IP (30/h) before issuing/sending; `/auth/email/verify`
+      per-IP (30/10min). Magic codes kept multi-use/30-day (deliberate
+      multi-device UX) — rate-limiting is the mitigation, not single-use.
+- [x] **utils.py** — constant-time API-key compare (`hmac.compare_digest`);
+      `check_rate_limit` now takes max_calls/window_sec + logs failures (no
+      longer silent fail-open); `log_request` truncates question/script to
+      4000 chars; `purge_old_eval_runs(90d)` retention helper (wire to an
+      Anvil Scheduled Task; not client-callable).
+- [ ] TODO (Anvil IDE, manual): create the daily Scheduled Task that calls
+      `utils.purge_old_eval_runs`.
 
 ## Phase 2 — Disclosure-control & remaining engine correctness  ← STARTING HERE
 The "researchers trust this for analysis + privacy" batch. Strong TDD fit.
