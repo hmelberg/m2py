@@ -2,6 +2,7 @@
 # Run with: source("test_r2m.R")
 
 source("r2m/expr.R")
+source("r2m/expanders.R")
 source("r2m/commands.R")
 source("r2m/translator.R")
 
@@ -145,6 +146,11 @@ expect("filter via native pipe",
 expect("mutate via native pipe",
   "df <- df |> mutate(log_inc = log(income))",
   "generate log_inc = ln(income)")
+
+# transmute keeps only the new columns (unlike mutate, which keeps all)
+expect("transmute drops other columns",
+  "df <- df |> transmute(double_age = age * 2)",
+  c("generate double_age = (age * 2)", "keep double_age"))
 
 expect("filter + mutate chain",
   "df <- df |> filter(age >= 18, income > 0) |> mutate(log_inc = log(income))",
@@ -472,6 +478,10 @@ expect("sample_n",
 expect("sample_frac",
   "df <- df |> sample_frac(0.1)",
   "sample 10")
+
+expect("slice_sample n maps to sample",
+  "df <- df |> slice_sample(n = 100)",
+  "sample 100")
 
 expect("count",
   "df |> count(sex, edu)",

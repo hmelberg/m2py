@@ -266,7 +266,7 @@ lm(income ~ age + edu + sex, data = df)
   status.textContent = 'Loading translator modules…';
 
   // Load R source files in dependency order
-  const R_FILES = ['r2m/expr.R', 'r2m/commands.R', 'r2m/translator.R'];
+  const R_FILES = ['r2m/expr.R', 'r2m/expanders.R', 'r2m/commands.R', 'r2m/translator.R'];
 
   for (const file of R_FILES) {
     try {

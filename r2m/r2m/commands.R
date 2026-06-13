@@ -236,60 +236,18 @@ handle_mutate <- function(args, df_name, group_by = NULL) {
   list(lines = c(agg_line, gen_lines), warnings = warnings)
 }
 
-.expand_ifelse <- function(col, cargs, df_name) {
-  if (length(cargs) < 3)
-    return(list(lines = character(0), warnings = paste0("// ifelse: too few args for ", col)))
-  cond  <- translate_expr(cargs[[1]], df_name)
-  tval  <- translate_expr(cargs[[2]], df_name)
-  fval  <- translate_expr(cargs[[3]], df_name)
-  if (is.null(cond) || is.null(tval) || is.null(fval))
-    return(list(lines = character(0), warnings = paste0("// ifelse: untranslatable for ", col)))
-  list(
-    lines    = c(paste0("generate ", col, " = ", fval),
-                 paste0("replace ",  col, " = ", tval, " if ", cond)),
-    warnings = character(0)
-  )
+# transmute = mutate, then keep only the newly created columns (drops the rest).
+handle_transmute <- function(args, df_name, group_by = NULL) {
+  r   <- handle_mutate(args, df_name, group_by)
+  nms <- names(args)
+  new_cols <- if (is.null(nms)) character(0) else nms[nzchar(nms)]
+  if (length(new_cols) > 0)
+    r$lines <- c(r$lines, paste0("keep ", paste(new_cols, collapse = " ")))
+  r
 }
 
-.expand_case_when <- function(col, cargs, df_name) {
-  lines <- paste0("generate ", col, " = .")
-  warns <- character(0)
-  for (cw in cargs) {
-    if (!is.call(cw) || as.character(cw[[1]]) != "~") next
-    cond_node <- cw[[2]]
-    val_node  <- cw[[3]]
-    val <- translate_expr(val_node, df_name)
-    if (is.null(val)) { warns <- c(warns, paste0("// case_when: untranslatable value for ", col)); next }
-    is_default <- (is.name(cond_node) && as.character(cond_node) %in% c("TRUE", "T")) ||
-                  (is.logical(cond_node) && isTRUE(cond_node))
-    if (is_default) {
-      lines <- c(lines, paste0("replace ", col, " = ", val, " if sysmiss(", col, ")"))
-    } else {
-      cond <- translate_expr(cond_node, df_name)
-      if (!is.null(cond)) {
-        lines <- c(lines, paste0("replace ", col, " = ", val, " if ", cond))
-      } else {
-        warns <- c(warns, paste0("// case_when: untranslatable condition for ", col))
-      }
-    }
-  }
-  list(lines = lines, warnings = warns)
-}
-
-.expand_recode <- function(col, pairs, df_name) {
-  nms <- names(pairs)
-  if (is.null(nms) || !any(nzchar(nms)))
-    return(list(lines = character(0), warnings = paste0("// recode: no names found for ", col)))
-  pair_strs <- sapply(seq_along(pairs), function(j) {
-    val <- translate_expr(pairs[[j]], df_name)
-    if (is.null(val)) return(NULL)
-    paste0("(", nms[j], "=", val, ")")
-  })
-  if (any(sapply(pair_strs, is.null)))
-    return(list(lines = character(0), warnings = paste0("// recode: untranslatable values for ", col)))
-  list(lines = paste0("recode ", col, " ", paste(pair_strs, collapse = " ")),
-       warnings = character(0))
-}
+# .expand_ifelse / .expand_case_when / .expand_recode live in expanders.R
+# (shared source, sourced before this file).
 
 .expand_coalesce <- function(col, cargs, df_name) {
   if (length(cargs) < 2)
@@ -432,6 +390,21 @@ handle_slice_head <- function(args, df_name, group_by = NULL) {
   n_val  <- if (!is.null(n_node)) as.character(n_node) else "."
   list(lines = paste0("// slice_head(n = ", n_val, "): use 'sample' if needed"),
        warnings = character(0))
+}
+
+handle_slice <- function(args, df_name, group_by = NULL)
+  list(lines = "// slice: no microdata equivalent (positional row selection)",
+       warnings = character(0))
+
+handle_slice_tail <- function(args, df_name, group_by = NULL)
+  list(lines = "// slice_tail: no microdata equivalent", warnings = character(0))
+
+# slice_sample(n=) / slice_sample(prop=) → the sample command (reuses the
+# sample_n / sample_frac handlers so all sampling paths stay consistent).
+handle_slice_sample <- function(args, df_name, group_by = NULL) {
+  if (!is.null(args[["n"]]))    return(handle_sample_n(list(n = args[["n"]]), df_name))
+  if (!is.null(args[["prop"]])) return(handle_sample_frac(list(size = args[["prop"]]), df_name))
+  list(lines = "// slice_sample: needs n= or prop=", warnings = character(0))
 }
 
 # ── regression models ─────────────────────────────────────────────────────────
@@ -1240,7 +1213,7 @@ handle_count <- function(args, df_name, group_by = NULL) {
 DPLYR_DISPATCH <- list(
   filter    = handle_filter,
   mutate    = handle_mutate,
-  transmute = handle_mutate,
+  transmute = handle_transmute,
   select    = handle_select,
   rename    = handle_rename,
   summarise = handle_summarise,
@@ -1248,9 +1221,12 @@ DPLYR_DISPATCH <- list(
   arrange   = handle_arrange,
   drop_na   = handle_drop_na,
   distinct  = handle_distinct,
-  slice_head = handle_slice_head,
-  slice_max  = handle_slice_head,
-  slice_min  = handle_slice_head,
+  slice       = handle_slice,
+  slice_head  = handle_slice_head,
+  slice_tail  = handle_slice_tail,
+  slice_max   = handle_slice_head,
+  slice_min   = handle_slice_head,
+  slice_sample = handle_slice_sample,
   # tidy helpers
   count        = handle_count,
   sample_n     = handle_sample_n,
