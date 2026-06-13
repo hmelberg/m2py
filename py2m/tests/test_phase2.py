@@ -78,6 +78,22 @@ class TestExpressionCoverage:
 # Approximations stay loud (non-ISO strftime can't map)
 # ---------------------------------------------------------------------------
 
+class TestQueryBooleanOps:
+    def test_query_with_ampersand(self):
+        # pandas query() & is low-precedence logical AND, unlike Python's &
+        assert tr("df = df.query('a > 2 & b < 9')") == "keep if (a > 2) & (b < 9)"
+
+    def test_query_with_pipe(self):
+        assert tr("df = df.query('a > 2 | b < 9')") == "keep if (a > 2) | (b < 9)"
+
+
+class TestCloneDatasetTwoArg:
+    def test_collapse_emits_two_arg_clone(self):
+        # microdata clone-dataset takes <source> <target>
+        out = tr("summary = df.groupby('g').agg(m=('x','mean')).reset_index()")
+        assert out.startswith("clone-dataset df summary")
+
+
 class TestStillLoud:
     def test_non_iso_strftime_is_untranslated(self):
         out = tr("df['s'] = df['d'].dt.strftime('%d.%m.%Y')")

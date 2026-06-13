@@ -175,6 +175,7 @@ class TestSelfClone:
     def test_no_self_clone_on_in_place_filter(self):
         out = tr("df2 = df[df['x'] > 0]\ndf2 = df2[df2['y'] > 0]")
         # second statement is an in-place filter on the already-active df2:
-        # only one clone-dataset df2 expected (from the first statement).
-        assert out.count("clone-dataset df2") == 1
+        # only one clone-dataset expected (from the first statement).
+        assert out.count("clone-dataset") == 1
+        assert "clone-dataset df df2" in out
         assert "keep if y > 0" in out

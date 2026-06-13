@@ -80,7 +80,7 @@ class TestAggregation:
 
     def test_groupby_agg_to_collapse(self):
         assert tr("summary = df.groupby('g').agg(m=('x','mean')).reset_index()") == \
-            "clone-dataset summary\nuse summary\ncollapse (mean) x -> m, by(g)"
+            "clone-dataset df summary\nuse summary\ncollapse (mean) x -> m, by(g)"
 
 
 # ---------------------------------------------------------------------------

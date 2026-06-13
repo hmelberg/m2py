@@ -209,7 +209,8 @@ class Py2MTransformer:
         self._ensure_active(src)
         if new_name == src:
             return
-        self._emit(f"clone-dataset {new_name}")
+        # microdata: clone-dataset <source> <target>
+        self._emit(f"clone-dataset {src} {new_name}")
         self._known_dfs.add(new_name)
         self._emit(f"use {new_name}")
         self._current_df = new_name
@@ -346,7 +347,7 @@ class Py2MTransformer:
         # ── .query('expr') ───────────────────────────────────────────────────
         if isinstance(step, MethodStep) and step.name == "query":
             if step.args and isinstance(step.args[0], ast.Constant):
-                expr_str = src_tr.translate(step.args[0].value)
+                expr_str = src_tr.translate(_query_str_to_python(step.args[0].value))
                 if expr_str:
                     self._clone_and_switch(src, new_name)
                     self._emit(f"keep if {expr_str}")
@@ -382,7 +383,7 @@ class Py2MTransformer:
         """
         tmp = self._tmp("disp")
         self._ensure_active(self.df_name)
-        self._emit(f"clone-dataset {tmp}")
+        self._emit(f"clone-dataset {self.df_name} {tmp}")
         self._emit(f"use {tmp}")
         for ln in collapse_lines:
             self._emit(ln)
@@ -790,7 +791,7 @@ class Py2MTransformer:
         # df.query("expr")
         if isinstance(step, MethodStep) and step.name == "query":
             if step.args and isinstance(step.args[0], ast.Constant):
-                expr = tr.translate(step.args[0].value)
+                expr = tr.translate(_query_str_to_python(step.args[0].value))
                 if expr:
                     self._emit(f"keep if {expr}")
                     return True
@@ -1599,7 +1600,8 @@ class Py2MTransformer:
 
         if var in self._pending_collapses:
             lines = self._pending_collapses.pop(var)
-            self._emit(f"clone-dataset {name}")
+            src = self._dataset_name or self.df_name
+            self._emit(f"clone-dataset {src} {name}")
             for ln in lines:
                 self._emit(ln)
             # Switch back to original dataset after the clone
@@ -1744,6 +1746,17 @@ class Py2MTransformer:
 
 
 # ── module-level helpers ──────────────────────────────────────────────────────
+
+def _query_str_to_python(s):
+    """pandas query() treats & / | as low-precedence logical ops, but Python
+    parses `a > 2 & b < 9` as `a > (2 & b) < 9`. Rewrite to `and`/`or` so the
+    AST groups the way query means it."""
+    if not isinstance(s, str):
+        return s
+    s = re.sub(r"\s*&\s*", " and ", s)
+    s = re.sub(r"\s*\|\s*", " or ", s)
+    return s
+
 
 def _is_method_call(node, method: str) -> bool:
     return (

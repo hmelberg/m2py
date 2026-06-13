@@ -1,0 +1,32 @@
+name: m2py engine + equivalence tests
+
+on:
+  push:
+    paths:
+      - 'm2py.py'
+      - 'functions.py'
+      - 'protect.py'
+      - 'py2m/**'
+      - 'tests/**'
+      - '.github/workflows/m2py-tests.yml'
+  pull_request:
+    paths:
+      - 'm2py.py'
+      - 'functions.py'
+      - 'protect.py'
+      - 'py2m/**'
+      - 'tests/**'
+      - '.github/workflows/m2py-tests.yml'
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install pytest pandas numpy scipy statsmodels plotly lifelines
+      - name: Run repo-root suite (m2py engine + translation equivalence)
+        run: python -m pytest tests/ -q
