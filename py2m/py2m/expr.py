@@ -148,6 +148,12 @@ class ExprTranslator:
         if isinstance(v, (int, float)):
             return repr(v)
         if isinstance(v, str):
+            # microdata string literals are single-quoted with no documented
+            # escape mechanism. A value containing a single quote would produce
+            # malformed output (e.g. 'O'Brien'), so signal untranslatable
+            # rather than emit something broken.
+            if "'" in v:
+                return None
             return f"'{v}'"
         return None
 
@@ -560,9 +566,12 @@ class ExprTranslator:
             try:
                 lo = int(ast.literal_eval(key.lower)) if key.lower else 0
                 hi = int(ast.literal_eval(key.upper)) if key.upper else None
-                if hi is not None:
+                # microdata substr needs both bounds and a known length; an
+                # open-ended or negative slice can't be expressed, so signal
+                # untranslatable (None) rather than silently dropping it.
+                if hi is not None and lo >= 0 and hi >= 0:
                     return f"substr({col_expr}, {lo + 1}, {hi - lo})"
-                return col_expr  # str[i:] with no upper bound — return as-is
+                return None
             except (ValueError, TypeError):
                 pass
         return None

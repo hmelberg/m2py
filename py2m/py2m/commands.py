@@ -195,8 +195,13 @@ def _df_fillna(value, ctx: Ctx) -> Optional[list]:
     fill = ctx.tr.translate(fill_node)
     if fill is None:
         return None
-    # We don't know column names at translation time — emit a comment placeholder
-    return [f"# replace [each col] = {fill} if sysmiss([each col])  (df.fillna)"]
+    # Column names are unknown at translation time, so a df-wide fillna can't be
+    # expanded. Emit a loud UNTRANSLATED marker rather than a fake command line.
+    return [
+        "// UNTRANSLATED: df.fillna() over all columns — apply per column "
+        "(df['col'] = df['col'].fillna(...)) so each can become "
+        "'replace col = ... if sysmiss(col)'"
+    ]
 
 
 # ── col= extractors ───────────────────────────────────────────────────────────

@@ -53,7 +53,8 @@ def parse_formula(formula: str, df_name: str = "df") -> ParsedFormula:
     result = ParsedFormula(depvar=depvar, no_constant=no_constant)
     counter = [0]
 
-    # Expand a*b → a + b + a:b
+    # Expand a*b → a + b + a:b at the top level only (never inside I()/C(),
+    # where '*' is an arithmetic product, not a factorial interaction).
     rhs = _expand_star_terms(rhs)
 
     raw_terms = _split_top_level(rhs, "+")
@@ -76,14 +77,24 @@ def parse_formula(formula: str, df_name: str = "df") -> ParsedFormula:
 
 
 def _expand_star_terms(rhs: str) -> str:
-    """Replace a*b with a + b + a:b (statsmodels full-factorial expansion)."""
-    # Only handle simple var*var (no nested parens)
-    def replacer(m):
-        a, b = m.group(1).strip(), m.group(2).strip()
-        if re.match(r"^\w+$", a) and re.match(r"^\w+$", b):
-            return f"{a} + {b} + {a}:{b}"
-        return m.group(0)
-    return re.sub(r"(\w+)\s*\*\s*(\w+)", replacer, rhs)
+    """Replace top-level a*b with a + b + a:b (statsmodels full-factorial
+    expansion). Operates per top-level '+' term and leaves I(...)/C(...)
+    terms untouched, since inside those '*' is an arithmetic product."""
+    out_terms = []
+    for term in _split_top_level(rhs, "+"):
+        stripped = term.strip()
+        # Don't touch transform/categorical wrappers — '*' there is a product.
+        if re.match(r"^[IC]\(", stripped) or "(" in stripped:
+            out_terms.append(term)
+            continue
+        parts = _split_top_level(stripped, "*")
+        if len(parts) == 2:
+            a, b = parts[0].strip(), parts[1].strip()
+            if re.match(r"^\w+$", a) and re.match(r"^\w+$", b):
+                out_terms.append(f"{a} + {b} + {a}:{b}")
+                continue
+        out_terms.append(term)
+    return " + ".join(out_terms)
 
 
 def _parse_one_term(term: str, counter: list, df_name: str) -> Optional[FormulaTerm]:

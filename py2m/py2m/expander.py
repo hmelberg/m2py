@@ -181,6 +181,36 @@ def _is_pd_cut(node) -> bool:
     )
 
 
+def _inf_kind(node) -> Optional[str]:
+    """Detect an infinity bin edge at the AST level.
+
+    Recognises np.inf / numpy.inf / math.inf, float('inf'), and their negations
+    (-np.inf, -float('inf'), float('-inf')). Returns 'inf', '-inf', or None.
+    """
+    # -X  → negate the inner result
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        inner = _inf_kind(node.operand)
+        if inner == "inf":
+            return "-inf"
+        if inner == "-inf":
+            return "inf"
+        return None
+    # np.inf / numpy.inf / math.inf  (attribute access ending in 'inf')
+    if isinstance(node, ast.Attribute) and node.attr == "inf":
+        return "inf"
+    # float('inf') / float('-inf')
+    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+            and node.func.id == "float" and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)):
+        s = node.args[0].value.strip().lower()
+        if s in ("inf", "+inf", "infinity"):
+            return "inf"
+        if s in ("-inf", "-infinity"):
+            return "-inf"
+    return None
+
+
 def try_pd_cut(target: str, value_node, df_name: str, translator: ExprTranslator) -> Optional[list]:
     """
     df['target'] = pd.cut(df['col'], bins=[b0,b1,b2], labels=[l1,l2], right=True)
@@ -219,6 +249,12 @@ def try_pd_cut(target: str, value_node, df_name: str, translator: ExprTranslator
         return None
     bins = []
     for b in bins_node.elts:
+        inf = _inf_kind(b)
+        if inf is not None:
+            # Sentinel that the cond builder recognises (translator returns
+            # None for np.inf / float('inf'), which would otherwise fail here).
+            bins.append(inf)
+            continue
         t = translator.translate(b)
         if t is None:
             return None
@@ -824,20 +860,22 @@ def _extract_by_vars(groupby_call, translator: ExprTranslator) -> Optional[list]
 
 def _stat_alias(name: str) -> Optional[str]:
     """Map pandas aggregation name to microdata stat keyword."""
+    # Only exact microdata statistics are mapped. 'var', 'first' and 'last'
+    # have NO microdata equivalent (aggregate supports: mean, min, max, median,
+    # count, sum, semean, sebinomial, sd, percent, iqr, gini) and must NOT be
+    # silently substituted with a different statistic — they return None so the
+    # caller emits an UNTRANSLATED/warning.
     _MAP = {
         "mean": "mean", "average": "mean",
         "sum": "sum",
         "count": "count", "size": "count",
-        "std": "sd", "std": "sd",
-        "var": "sd",   # approximate: use sd
+        "std": "sd",
         "median": "median",
         "min": "min",
         "max": "max",
         "sem": "semean",
         "iqr": "iqr",
         "gini": "gini",
-        "first": "min",  # approximate
-        "last": "max",   # approximate
     }
     return _MAP.get(name.lower())
 
