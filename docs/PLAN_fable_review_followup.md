@@ -68,14 +68,20 @@ m2py.py:
       quoted text. Tests in test_regressions.py::TestLoneDotQuoteAware.
 - [x] **for-each expansion raw substring replace** — DONE. Word-boundary regex
       substitution. Tests in test_regressions.py::TestForEachWordBoundary.
-- [ ] **destring `force`** — both branches use `errors='coerce'` (~L3654); make
-      non-force surface unparseable values instead of silent NaN.
-- [ ] **configure seed/alpha/cache write-only** (~L8112-8127 stored, never read) —
-      wire through or log "har ingen effekt ennå".
-- [ ] **nested `for … end`** (~L7186-7192) no depth tracking → mis-executes. Track
-      depth or reject nesting with a clear error.
-- [ ] **top-level error message** (~L8747) — include exception type, not just
-      command name + `str(e)`.
+- [x] **destring `force`** — DONE. Without force, non-numeric values now abort
+      the operation with a clear error (per manual); with force → missing. Real
+      missing (NaN) is not treated as non-numeric. Tests: TestDestringForce.
+- [x] **configure seed/alpha/cache write-only** — DONE (honest-logging variant).
+      Values are still recorded but the log now says "(lagret, men påvirker ikke
+      beregninger ennå)" instead of the misleading "Satt seed = 42". FOLLOW-UP:
+      actually wire alpha→ci/regress and seed→sample if desired. Tests:
+      TestConfigureHonest.
+- [x] **nested `for … end`** — DONE. Detected during body collection and
+      rejected cleanly with one FEIL pointing to the `;` multi-level syntax;
+      the outer loop is skipped depth-aware so the body never partially runs
+      (fixed in both run_script and run_script_async). Tests: TestNestedForRejected.
+- [x] **top-level error message** — DONE. Now includes the exception type:
+      `FEIL PÅ KOMMANDO 'x' (ValueError): …`. Test: TestCommandErrorMessage.
 
 protect.py:
 - [ ] **_profile_k_anonymize** (~L2061-2094) returns non-k-anonymous data silently

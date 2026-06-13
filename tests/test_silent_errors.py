@@ -264,3 +264,109 @@ class TestTabulateSummarizeDisclosure:
         it = _interp(df)
         out = _run(it, "tabulate grp kjonn, summarize(inntekt) mean")
         assert "FEIL" in out and "celler" in out
+
+
+# ---------------------------------------------------------------------------
+# 7. destring force: uten force skal ikke-numeriske verdier gi FEIL (hele
+# operasjonen avbrytes, jf. manualen). Med force → missing. Tidligere var
+# begge grener errors='coerce', så force var død og verdier ble stille NaN.
+# ---------------------------------------------------------------------------
+
+class TestDestringForce:
+    def test_non_numeric_without_force_errors(self):
+        it = _interp(pd.DataFrame({"x": ["1", "2", "abc", "4"]}))
+        out = _run(it, "destring x")
+        assert "FEIL" in out
+        # Operasjonen skal ikke ha konvertert kolonnen
+        assert it.datasets[it.active_name]["x"].tolist() == ["1", "2", "abc", "4"]
+
+    def test_non_numeric_with_force_becomes_missing(self):
+        it = _interp(pd.DataFrame({"x": ["1", "2", "abc", "4"]}))
+        out = _run(it, "destring x, force")
+        assert "FEIL" not in out
+        col = it.datasets[it.active_name]["x"]
+        assert col[0] == 1 and col[1] == 2 and col[3] == 4
+        assert pd.isna(col[2])
+
+    def test_clean_numeric_without_force_converts(self):
+        it = _interp(pd.DataFrame({"x": ["1", "2", "3"]}))
+        out = _run(it, "destring x")
+        assert "FEIL" not in out
+        assert it.datasets[it.active_name]["x"].tolist() == [1, 2, 3]
+
+    def test_missing_values_are_not_treated_as_non_numeric(self):
+        # Ekte missing (NaN) skal ikke utløse force-feilen.
+        it = _interp(pd.DataFrame({"x": ["1", None, "3"]}))
+        out = _run(it, "destring x")
+        assert "FEIL" not in out
+        col = it.datasets[it.active_name]["x"]
+        assert col[0] == 1 and col[2] == 3 and pd.isna(col[1])
+
+
+# ---------------------------------------------------------------------------
+# 8. Toppnivå-feilmelding skal inkludere unntakstypen (ikke bare str(e)),
+# slik at kryptiske feil (f.eks. KeyError) blir lettere å diagnostisere.
+# ---------------------------------------------------------------------------
+
+class TestCommandErrorMessage:
+    def test_error_includes_exception_type(self):
+        it = _interp(pd.DataFrame({"x": [1.0] * 12}))
+        out = _run(it, "regress y q")
+        assert "FEIL PÅ KOMMANDO 'regress'" in out
+        assert "ValueError" in out
+
+
+# ---------------------------------------------------------------------------
+# 9. Nøstede for...end-blokker: microdata bruker `;` mellom nivåer i ÉN for.
+# Et nøstet for...end ble tidligere stille feilkjørt (ytre body ble kuttet
+# ved indre `end`). Nå skal det gi en tydelig FEIL.
+# ---------------------------------------------------------------------------
+
+class TestNestedForRejected:
+    def test_nested_for_end_errors_clearly(self):
+        it = _interp(pd.DataFrame({"x": [1.0] * 12}))
+        it.run_script(
+            "for i in 1:2\nfor j in 3:4\nsummarize x\nend\nend"
+        )
+        out = "\n".join(str(m) for m in it.output_log)
+        assert "FEIL" in out
+        assert "nøst" in out.lower() or "nest" in out.lower()
+        # Skal avvises rent: nøyaktig én feil, og kroppen kjøres ikke
+        assert out.lower().count("feil") == 1
+        assert "Gj.snitt" not in out  # summarize skal ikke ha kjørt
+
+    def test_single_level_for_still_works(self):
+        it = _interp(pd.DataFrame({"x": [1.0] * 12}))
+        it.run_script("for i in 1:2\nsummarize x\nend")
+        out = "\n".join(str(m) for m in it.output_log)
+        assert "FEIL" not in out
+
+    def test_multilevel_semicolon_for_still_works(self):
+        # microdata-idiomet for nøsting: `;` mellom nivåer
+        it = _interp(pd.DataFrame({"x": [1.0] * 12}))
+        it.run_script("for i in 1:2; j in 3:4\nsummarize x\nend")
+        out = "\n".join(str(m) for m in it.output_log)
+        assert "FEIL" not in out
+
+
+# ---------------------------------------------------------------------------
+# 10. configure seed/alpha/cache var skrive-bare: verdiene ble lagret men
+# aldri lest. Loggen ("Satt seed = 42") villedet til å tro de virket. Nå
+# skal loggen være ærlig om at innstillingen ikke påvirker beregninger ennå.
+# ---------------------------------------------------------------------------
+
+class TestConfigureHonest:
+    def test_seed_states_no_effect_yet(self):
+        it = _interp(pd.DataFrame({"x": [1.0]}))
+        out = _run(it, "configure seed 42")
+        assert "42" in out and "ikke" in out.lower()
+
+    def test_alpha_states_no_effect_yet(self):
+        it = _interp(pd.DataFrame({"x": [1.0]}))
+        out = _run(it, "configure alpha 0.1")
+        assert "0.1" in out and "ikke" in out.lower()
+
+    def test_cache_states_no_effect_yet(self):
+        it = _interp(pd.DataFrame({"x": [1.0]}))
+        out = _run(it, "configure nocache")
+        assert "ikke" in out.lower()

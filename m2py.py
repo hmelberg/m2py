@@ -3691,13 +3691,27 @@ class DataTransformHandler:
             for v in args['vars']:
                 if v not in df.columns:
                     continue
+                orig_na = df[v].isna()
                 src = df[v].astype(str)
                 if dpcomma:
                     # Erstatt desimalkomma med punktum
                     src = src.str.replace(',', '.', regex=False)
                 for ch in str(ignore_chars):
                     src = src.str.replace(ch, '', regex=False)
-                converted = pd.to_numeric(src, errors='coerce' if force else 'coerce')
+                converted = pd.to_numeric(src, errors='coerce')
+                if not force:
+                    # Manualen: uten force avbrytes HELE operasjonen hvis noen
+                    # verdier inneholder ikke-numeriske karakterer. Ekte missing
+                    # (NaN / tom streng) regnes ikke som ikke-numerisk.
+                    bad = converted.isna() & ~orig_na & (src.str.strip() != '')
+                    if bad.any():
+                        sample = list(dict.fromkeys(src[bad].tolist()))[:3]
+                        raise ValueError(
+                            f"destring: variabelen '{v}' inneholder ikke-numeriske "
+                            f"verdier (f.eks. {', '.join(repr(s) for s in sample)}). "
+                            f"Operasjonen ble ikke gjennomført. Bruk 'force' for å "
+                            f"konvertere slike verdier til missing."
+                        )
                 new_col = f"{prefix}{v}{suffix}"
                 df[new_col] = converted
             return None
@@ -7238,13 +7252,38 @@ class MicroInterpreter:
             if cmd == 'for' and isinstance(args, dict) and 'levels' in args:
                 body_lines = []
                 j = i + 1
+                nested_for = False
                 while j < len(lines):
                     sub_line = self._substitute_bindings(lines[j])
                     sub_instr = self.parser.parse_line(sub_line)
                     if sub_instr and sub_instr['command'] == 'end':
                         break
+                    if sub_instr and sub_instr['command'] == 'for':
+                        nested_for = True
+                        break
                     body_lines.append(lines[j])
                     j += 1
+                if nested_for:
+                    # microdata.no har ingen nøstede for...end-blokker — flere
+                    # nivåer skrives med `;` i én løkke (for i in 1:2; j in 3:4).
+                    # Avvis rent og hopp forbi HELE den ytre løkka (dybde-bevisst),
+                    # slik at kroppen ikke delkjøres.
+                    self._log(
+                        "FEIL: nøstede for...end-blokker støttes ikke i microdata.no. "
+                        "Bruk flere nivåer i én løkke med `;`, f.eks. "
+                        "`for i in 1:2; j in 3:4`."
+                    )
+                    depth = 1
+                    k = i + 1
+                    while k < len(lines) and depth > 0:
+                        ki = self.parser.parse_line(lines[k].strip())
+                        if ki and ki.get('command') == 'for':
+                            depth += 1
+                        elif ki and ki.get('command') == 'end':
+                            depth -= 1
+                        k += 1
+                    i = k
+                    continue
                 outer_bindings = dict(self.bindings)
                 try:
                     levels = args['levels']
@@ -7350,13 +7389,38 @@ class MicroInterpreter:
             if cmd == 'for' and isinstance(args, dict) and 'levels' in args:
                 body_lines = []
                 j = i + 1
+                nested_for = False
                 while j < len(lines):
                     sub_line = self._substitute_bindings(lines[j])
                     sub_instr = self.parser.parse_line(sub_line)
                     if sub_instr and sub_instr['command'] == 'end':
                         break
+                    if sub_instr and sub_instr['command'] == 'for':
+                        nested_for = True
+                        break
                     body_lines.append(lines[j])
                     j += 1
+                if nested_for:
+                    # microdata.no har ingen nøstede for...end-blokker — flere
+                    # nivåer skrives med `;` i én løkke (for i in 1:2; j in 3:4).
+                    # Avvis rent og hopp forbi HELE den ytre løkka (dybde-bevisst),
+                    # slik at kroppen ikke delkjøres.
+                    self._log(
+                        "FEIL: nøstede for...end-blokker støttes ikke i microdata.no. "
+                        "Bruk flere nivåer i én løkke med `;`, f.eks. "
+                        "`for i in 1:2; j in 3:4`."
+                    )
+                    depth = 1
+                    k = i + 1
+                    while k < len(lines) and depth > 0:
+                        ki = self.parser.parse_line(lines[k].strip())
+                        if ki and ki.get('command') == 'for':
+                            depth += 1
+                        elif ki and ki.get('command') == 'end':
+                            depth -= 1
+                        k += 1
+                    i = k
+                    continue
                 outer_bindings = dict(self.bindings)
                 try:
                     levels = args['levels']
@@ -8162,24 +8226,28 @@ class MicroInterpreter:
                 args_list = args if isinstance(args, (list, tuple)) else []
                 if args_list:
                     key = str(args_list[0]).lower()
+                    # Merk: disse innstillingene lagres men er ikke koblet inn i
+                    # beregningene ennå. Vær ærlig om det i loggen i stedet for å
+                    # gi inntrykk av at de virker ("Satt seed = 42").
+                    _NO_EFFECT = "(lagret, men påvirker ikke beregninger ennå)"
                     if key == 'alpha' and len(args_list) >= 2:
                         try:
                             self._config['alpha'] = float(args_list[1])
-                            self._log(f"Satt alpha = {self._config['alpha']}")
+                            self._log(f"alpha = {self._config['alpha']} {_NO_EFFECT}")
                         except ValueError:
                             self._log(f"FEIL: Ugyldig alpha-verdi: {args_list[1]}")
                     elif key == 'seed' and len(args_list) >= 2:
                         try:
                             self._config['seed'] = int(args_list[1])
-                            self._log(f"Satt seed = {self._config['seed']}")
+                            self._log(f"seed = {self._config['seed']} {_NO_EFFECT}")
                         except ValueError:
                             self._log(f"FEIL: Ugyldig seed-verdi: {args_list[1]}")
                     elif key == 'nocache':
                         self._config['cache'] = False
-                        self._log("Cache deaktivert")
+                        self._log(f"cache av {_NO_EFFECT}")
                     elif key == 'cache':
                         self._config['cache'] = True
-                        self._log("Cache aktivert")
+                        self._log(f"cache på {_NO_EFFECT}")
                     else:
                         self._log(f"configure: ukjent innstilling '{key}'")
                 return
@@ -8799,7 +8867,7 @@ class MicroInterpreter:
                 self._log(f"FEIL: Ukjent kommando '{cmd}'.")
 
         except Exception as e:
-            self._log(f"  FEIL PÅ KOMMANDO '{cmd}': {str(e)}")
+            self._log(f"  FEIL PÅ KOMMANDO '{cmd}' ({type(e).__name__}): {str(e)}")
 
     def _log(self, msg, indent=True):
         # Microdata-lignende: forklaringer/kommentarer under kommandoen innrykket med to mellomrom.
