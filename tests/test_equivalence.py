@@ -30,8 +30,9 @@ def _ground_truth(python: str, df_in: pd.DataFrame, result: str) -> pd.DataFrame
     return ns[result]
 
 
-def _emulator(python: str, df_in: pd.DataFrame, result: str):
-    script = transform(python).script()
+def _run_microdata(script: str, df_in: pd.DataFrame, result: str) -> pd.DataFrame:
+    """Run a microdata script in the emulator against df_in; return the resulting
+    dataset. Shared by the py2m and r2m backends."""
     assert "UNTRANSLATED" not in script, f"did not translate:\n{script}"
     it = MicroInterpreter(metadata_path=None)
     it.datasets["df"] = df_in.copy()
@@ -43,7 +44,12 @@ def _emulator(python: str, df_in: pd.DataFrame, result: str):
     assert not feil, f"emulator errors for script:\n{script}\n{feil}"
     assert result in it.datasets, (
         f"emulator produced no dataset '{result}'; have {list(it.datasets)}\n{script}")
-    return it.datasets[result], script
+    return it.datasets[result]
+
+
+def _emulator(python: str, df_in: pd.DataFrame, result: str):
+    script = transform(python).script()
+    return _run_microdata(script, df_in, result), script
 
 
 def _normalize(df: pd.DataFrame) -> pd.DataFrame:
@@ -236,4 +242,84 @@ def test_xfail_semantic_difference(name, python, data, result, reason):
     df_in = _to_dates(data)
     df_a = _ground_truth(python, df_in, result)
     df_b, script = _emulator(python, df_in, result)
+    assert_equivalent(df_a, df_b, script)
+
+
+# ── r2m backend ──────────────────────────────────────────────────────────────
+# Same pipeline, R side: run the R snippet in base R (ground truth A), translate
+# it with r2m, run that microdata in the emulator (B), compare. Scoped to base-R
+# idioms so no R packages are needed (dplyr/tidyverse cases need dplyr installed).
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+
+_RSCRIPT = shutil.which("Rscript")
+_REPO = Path(__file__).resolve().parent.parent
+_R2M_DIR = _REPO / "r2m" / "r2m"
+_R_HELPER = Path(__file__).resolve().parent / "r_equiv_helper.R"
+
+
+def _r2m_pipeline(r_snippet: str, data: dict, result: str):
+    """Run R ground truth + r2m translation via Rscript; return (df_a, df_b, script)."""
+    df_in = pd.DataFrame(data)
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        in_csv = d / "in.csv"
+        df_in.to_csv(in_csv, index=False)
+        snip = d / "snippet.R"
+        snip.write_text(r_snippet)
+        out_csv = d / "out.csv"
+        proc = subprocess.run(
+            [_RSCRIPT, str(_R_HELPER), str(_R2M_DIR), str(in_csv),
+             str(snip), result, str(out_csv)],
+            capture_output=True, text=True, timeout=120,
+        )
+        assert proc.returncode == 0, f"R helper failed:\n{proc.stderr}"
+        script = proc.stdout.strip()
+        df_a = pd.read_csv(out_csv)
+    df_b = _run_microdata(script, df_in, result)
+    return df_a, df_b, script
+
+
+# (id, r_snippet, data, result_var) — base-R idioms only
+R_CASES = [
+    ("r_assign_arith",
+     "df$x <- df$a + df$b * 2",
+     {"a": [1, 2, 3, 4], "b": [10, 20, 30, 40]}, "df"),
+    ("r_assign_log",
+     "df$lx <- log(df$x)",
+     {"x": [1.0, 2.0, 3.0, 10.0]}, "df"),
+    ("r_ifelse",
+     "df$adult <- ifelse(df$age >= 18, 1, 0)",
+     {"age": [5, 17, 18, 40, 67]}, "df"),
+    ("r_ifelse_inlist",
+     "df$hi <- ifelse(df$k %in% c(1, 3), 1, 0)",
+     {"k": [1, 2, 3, 1, 2, 3]}, "df"),
+    ("r_pmax",
+     "df$mx <- pmax(df$a, df$b)",
+     {"a": [1, 5, 2, 9], "b": [4, 1, 9, 0]}, "df"),
+    ("r_subset",
+     "sub <- subset(df, age > 18)",
+     {"age": [10, 20, 30, 18, 40], "inc": [1, 2, 3, 4, 5]}, "sub"),
+    ("r_bracket_filter",
+     "sub <- df[df$age > 18, ]",
+     {"age": [10, 20, 30, 18, 40], "inc": [1, 2, 3, 4, 5]}, "sub"),
+    ("r_transform",
+     "df <- transform(df, x2 = a * 2)",
+     {"a": [1, 2, 3, 4]}, "df"),
+    ("r_aggregate_mean",
+     "agg <- aggregate(x ~ g, data = df, FUN = mean)",
+     {"g": [1, 1, 2, 2, 3], "x": [10.0, 20.0, 5.0, 15.0, 100.0]}, "agg"),
+    ("r_aggregate_sum",
+     "agg <- aggregate(x ~ g, data = df, FUN = sum)",
+     {"g": [1, 1, 2, 2], "x": [10.0, 20.0, 5.0, 15.0]}, "agg"),
+]
+
+
+@pytest.mark.skipif(_RSCRIPT is None, reason="Rscript not available")
+@pytest.mark.parametrize("name,r_snippet,data,result", R_CASES,
+                         ids=[c[0] for c in R_CASES])
+def test_r2m_equivalent(name, r_snippet, data, result):
+    df_a, df_b, script = _r2m_pipeline(r_snippet, data, result)
     assert_equivalent(df_a, df_b, script)

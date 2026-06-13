@@ -78,9 +78,18 @@ written reason — visible, not silently skipped, and not blocking CI.
   will add `py2m/`).
 - Run by pytest; included in the repo test CI.
 
+## r2m backend (implemented)
+
+Same pipeline, R side: `tests/r_equiv_helper.R` runs the R snippet in base R
+(ground truth A) and emits the r2m translation; the Python harness runs that
+microdata in the emulator (B) and compares. Scoped to base-R idioms (df$col<-,
+ifelse, %in%, pmax, subset, df[cond,], transform, aggregate) so no R packages
+are required; dplyr/tidyverse cases would need dplyr installed. CI installs R so
+these run rather than skip.
+
 ## Out of scope / later
 
-- r2m (R) backend (next increment).
+- dplyr/tidyverse cases in the r2m backend (need dplyr in CI).
 - Analysis-command comparison (coefficients, counts, stats with tolerance).
 - Browser/WebR + static-parquet end-to-end (the heaviest, production-closest
   variant).
