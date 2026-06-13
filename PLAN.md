@@ -1,6 +1,9 @@
 # Plan: dele, åpne og lagre scripts — «tre verb»-løsningen
 
-Status: planlagt, ikke implementert. Gjelder `index.html` (script-editoren).
+Status: **implementert** i `index.html` (script-editoren) — deling via
+`#s=`-fragment («Del (kopier lenke)»), «Åpne fra URL», og GitHub-fillager
+(Innstillinger/Åpne/Lagre i hamburgermenyen). Dette dokumentet er den
+opprinnelige designen; behold som referanse.
 
 ## Mål og prinsipper
 

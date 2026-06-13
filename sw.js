@@ -1,3 +1,7 @@
+// IMPORTANT: bump CACHE whenever PRECACHE_URLS (or any precached asset) changes,
+// otherwise clients keep serving the stale cache. The Pyodide version string is
+// duplicated across this file (PRECACHE_URLS below), index.html, and
+// py2m/py2m_runner.html — update all of them together when upgrading Pyodide.
 const CACHE = 'm2py-v3';
 const CDN_HOSTS = new Set([
   'cdn.jsdelivr.net',

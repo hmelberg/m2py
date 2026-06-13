@@ -199,12 +199,15 @@ Lowest risk; run after Phases 2–3 so engine fixes are captured.
 - [x] CI: run_manual_scripts now `sys.exit(1)` on CRASH **or** PARTIAL, and is run
       in m2py-tests.yml. `deno test` already in edge-tests.yml (Phase 1). (Cross-repo
       m2py.py diff guard = `sync_to_api.sh --check`; py2m-copy guard moot — copy deleted.)
-- [ ] Docs: root README (tests / build_static_data.py / generate_manifest.py);
-      reconcile PLAN.md "ikke implementert" vs shipped share-link; remove edge
-      README's nonexistent `/api/dm-quick`.
-- [ ] Misc: build_kommune_eras.py force UTF-8 stdout; remove stale poc_static.html;
-      pin microdata-api requirements.txt; sw.js comment that Pyodide version lives
-      in 3 places + bump CACHE on precache change.
+- [x] Docs — DONE. Added a root README (layout + all the run commands + sync).
+      Reconciled PLAN.md (the three verbs ship — share-link/open-URL/GitHub).
+      Rewrote netlify/edge-functions/README.md to the real endpoints (dm-vurder/
+      kode-svar/tolk-resultat + auth) — the old `/api/dm-quick` doesn't exist.
+- [x] Misc — MOSTLY DONE. build_kommune_eras.py forces UTF-8 stdout; deleted
+      stale poc_static.html; sw.js comment (bump CACHE on precache change; Pyodide
+      version duplicated in 3 places). DEFERRED: pinning microdata-api/
+      requirements.txt — risky without the actual Anvil-deployed versions; pinning
+      to wrong versions could break the live app. Best done from the Anvil env.
 
 ---
 
