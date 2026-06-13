@@ -13,6 +13,45 @@
       .replace(/"/g, '&quot;');
   }
 
+  // Saner-isér rå HTML/SVG fra widget-payloads før innerHTML. Widgets kan
+  // defineres i delte script (#s=-lenker), så payloaden er angriper-leverbar —
+  // og siden holder bl.a. GitHub-tokens i localStorage. Dette er ikke en full
+  // DOMPurify, men fjerner de praktiske skript-kjørings-vektorene
+  // (script/iframe/object/embed, on*-handlere, javascript:-URLer, og for SVG
+  // også foreignObject).
+  function sanitizeMarkup(markup, opts) {
+    opts = opts || {};
+    var tpl = document.createElement('template');
+    tpl.innerHTML = String(markup == null ? '' : markup);
+    var BANNED = opts.svg
+      ? { script: 1, foreignobject: 1, iframe: 1, object: 1, embed: 1 }
+      : { script: 1, iframe: 1, object: 1, embed: 1, link: 1, meta: 1, base: 1 };
+    var URL_ATTRS = { href: 1, 'xlink:href': 1, src: 1, action: 1, formaction: 1, 'xml:base': 1 };
+    var nodes = tpl.content.querySelectorAll('*');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      var tag = (el.tagName || '').toLowerCase();
+      if (BANNED[tag]) { el.remove(); continue; }
+      var attrs = Array.prototype.slice.call(el.attributes);
+      for (var j = 0; j < attrs.length; j++) {
+        var name = attrs[j].name.toLowerCase();
+        var val = attrs[j].value || '';
+        if (name.indexOf('on') === 0) { el.removeAttribute(attrs[j].name); continue; }
+        if (URL_ATTRS[name]) {
+          var v = val.replace(/[\s\x00-\x1F]+/g, '').toLowerCase();
+          if (v.indexOf('javascript:') === 0 || v.indexOf('vbscript:') === 0 ||
+              v.indexOf('data:text/html') === 0) {
+            el.removeAttribute(attrs[j].name);
+          }
+        }
+        if (name === 'style' && /expression\s*\(|javascript:/i.test(val)) {
+          el.removeAttribute(attrs[j].name);
+        }
+      }
+    }
+    return tpl.innerHTML;
+  }
+
   function parseWidgetLine(line) {
     const t = (line || '').trim();
     if (!t.startsWith('//')) return null;
@@ -854,7 +893,7 @@
     body.innerHTML = '';
     const wrap = document.createElement('div');
     wrap.className = 'forklar-w-html-wrap';
-    wrap.innerHTML = html;
+    wrap.innerHTML = sanitizeMarkup(html);
     body.appendChild(wrap);
     const canHideOk = p.hide_ok === true && p.auto_advance_ms != null;
     const userDone = new Promise(function (resolve) {
@@ -890,7 +929,7 @@
     const holder = document.createElement('div');
     holder.className = 'forklar-w-svg-holder';
     holder.style.maxHeight = maxH;
-    holder.innerHTML = svg || '<p>SVG mangler.</p>';
+    holder.innerHTML = svg ? sanitizeMarkup(svg, { svg: true }) : '<p>SVG mangler.</p>';
     const svgEl = holder.querySelector('svg');
     if (svgEl) {
       if (!svgEl.getAttribute('width') && !svgEl.style.width) svgEl.style.maxWidth = '100%';

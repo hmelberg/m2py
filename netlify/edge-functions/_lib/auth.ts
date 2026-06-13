@@ -1,0 +1,166 @@
+// Shared request gate for the AI edge functions (kode-svar, dm-vurder,
+// tolk-resultat). Consolidates what was ~40 lines of copy-pasted auth /
+// rate-limit / body-guard logic in each handler, and fixes several issues the
+// duplicated version had:
+//   - rate-limit runs BEFORE the (network) Anvil validation, so an attacker
+//     can no longer amplify requests against the free-tier Anvil app;
+//   - the shared-token comparison is constant-time;
+//   - the Anvil call has a timeout (no hung isolates);
+//   - positive validations are cached briefly in-isolate (fewer Anvil calls);
+//   - the spoofable x-forwarded-for fallback for the client IP is dropped
+//     (only the platform-set x-nf-client-connection-ip is trusted).
+import { checkRateLimit as defaultCheckRateLimit } from "./rate-limit.ts";
+
+const ANVIL_DEFAULT_URL = "https://mdataapi.anvil.app/_/api/auth/me";
+const AUTH_CACHE_TTL_MS = 5 * 60 * 1000; // positive-validation cache lifetime
+const ANVIL_TIMEOUT_MS = 4000;
+
+// In-isolate positive-auth cache: token -> expiry epoch ms. Deliberately not
+// persisted (no token material written to Blobs); a cold isolate just
+// re-validates. A revoked token keeps working for at most AUTH_CACHE_TTL_MS.
+const _authCache = new Map<string, number>();
+
+/** Constant-time string comparison (no early return on first mismatch). */
+export function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  const len = Math.max(ab.length, bb.length);
+  let diff = ab.length ^ bb.length;
+  for (let i = 0; i < len; i++) {
+    diff |= (ab[i] ?? 0) ^ (bb[i] ?? 0);
+  }
+  return diff === 0;
+}
+
+/**
+ * Client IP for rate limiting. On Netlify, x-nf-client-connection-ip is set by
+ * the platform and cannot be forged by the client; x-forwarded-for can, so we
+ * do NOT fall back to it (that fallback let a client spoof its IP to dodge the
+ * per-IP limit).
+ */
+export function clientIp(request: Request): string {
+  return request.headers.get("x-nf-client-connection-ip") ?? "";
+}
+
+export interface GateOptions {
+  endpoint: string;
+  maxBodyBytes: number;
+}
+
+export interface GateDeps {
+  sharedToken?: string;
+  checkRateLimit: (
+    endpoint: string,
+    ip: string,
+  ) => Promise<{ allowed: boolean; retryAfterSeconds: number }>;
+  validateToken: (token: string) => Promise<boolean>;
+  now: () => number;
+  cache: Map<string, number>;
+}
+
+/**
+ * Core gate logic with injected dependencies (testable). Returns a Response to
+ * short-circuit the request, or null when the caller should proceed.
+ */
+export async function runGate(
+  request: Request,
+  opts: GateOptions,
+  deps: GateDeps,
+): Promise<Response | null> {
+  // 1. token presence (free)
+  const authHeader = request.headers.get("authorization") ?? "";
+  const presentedToken = authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+  if (!presentedToken) {
+    return new Response("Unauthorized: missing token", { status: 401 });
+  }
+
+  // 2. method (free)
+  if (request.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+
+  // 3. content-length guard (free)
+  const contentLength = parseInt(
+    request.headers.get("content-length") ?? "0",
+    10,
+  );
+  if (contentLength > opts.maxBodyBytes) {
+    return new Response("Payload too large", { status: 413 });
+  }
+
+  // 4. rate-limit BEFORE the expensive Anvil validation (no amplification)
+  const rate = await deps.checkRateLimit(opts.endpoint, clientIp(request));
+  if (!rate.allowed) {
+    return new Response("Rate limited", {
+      status: 429,
+      headers: { "Retry-After": String(rate.retryAfterSeconds) },
+    });
+  }
+
+  // 5. auth: cheap shared-token (constant-time) -> positive cache -> Anvil
+  const now = deps.now();
+  let authenticated = false;
+  if (deps.sharedToken && timingSafeEqual(presentedToken, deps.sharedToken)) {
+    authenticated = true;
+  }
+  if (!authenticated) {
+    const exp = deps.cache.get(presentedToken);
+    if (exp && exp > now) authenticated = true;
+    else if (exp) deps.cache.delete(presentedToken);
+  }
+  if (!authenticated && await deps.validateToken(presentedToken)) {
+    authenticated = true;
+    deps.cache.set(presentedToken, now + AUTH_CACHE_TTL_MS);
+  }
+  if (!authenticated) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  return null;
+}
+
+/** Build an Anvil /auth/me validator with an abort timeout. */
+export function makeAnvilValidator(
+  anvilUrl: string,
+  timeoutMs: number = ANVIL_TIMEOUT_MS,
+  fetchImpl: typeof fetch = fetch,
+): (token: string) => Promise<boolean> {
+  return async (token: string): Promise<boolean> => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const resp = await fetchImpl(anvilUrl, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${token}` },
+        signal: ctrl.signal,
+      });
+      if (!resp.ok) return false;
+      const data = await resp.json();
+      // /auth/me returns { principal_kind, user, ... }. Accept any successful
+      // response — Anvil's whitelist gates who can log in.
+      return !!(data &&
+        (data.user || data.principal_kind === "service_token" ||
+          data.principal_kind === "anonymous"));
+    } catch (_e) {
+      // network error / timeout -> treat as unauthorized rather than crashing
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
+/** Env-wired gate used by the handlers. */
+export function gate(request: Request, opts: GateOptions): Promise<Response | null> {
+  const anvilUrl = Deno.env.get("M2PY_ANVIL_VALIDATE_URL") ?? ANVIL_DEFAULT_URL;
+  return runGate(request, opts, {
+    sharedToken: Deno.env.get("M2PY_ACCESS_TOKEN") ?? undefined,
+    checkRateLimit: defaultCheckRateLimit,
+    validateToken: makeAnvilValidator(anvilUrl),
+    now: () => Date.now(),
+    cache: _authCache,
+  });
+}

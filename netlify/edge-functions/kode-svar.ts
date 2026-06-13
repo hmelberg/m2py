@@ -1,5 +1,5 @@
 import { streamAnthropic } from "./_lib/anthropic.ts";
-import { checkRateLimit } from "./_lib/rate-limit.ts";
+import { gate } from "./_lib/auth.ts";
 
 // ====================================================================
 // kode-svar — "Spør raskt": single-shot, no-repair code assistant.
@@ -1145,63 +1145,8 @@ async function buildCachedPrefix(origin: string): Promise<string> {
 // ====================================================================
 
 export default async (request: Request): Promise<Response> => {
-  const ANVIL_VALIDATE_URL = Deno.env.get("M2PY_ANVIL_VALIDATE_URL")
-    ?? "https://mdataapi.anvil.app/_/api/auth/me";
-  const sharedToken = Deno.env.get("M2PY_ACCESS_TOKEN");
-
-  const authHeader = request.headers.get("authorization") ?? "";
-  const presentedToken = authHeader.startsWith("Bearer ")
-    ? authHeader.slice(7).trim()
-    : "";
-
-  if (!presentedToken) {
-    return new Response("Unauthorized: missing token", { status: 401 });
-  }
-
-  let authenticated = false;
-  if (sharedToken && presentedToken === sharedToken) {
-    authenticated = true;
-  }
-  if (!authenticated) {
-    try {
-      const anvilResp = await fetch(ANVIL_VALIDATE_URL, {
-        method: "GET",
-        headers: { "Authorization": `Bearer ${presentedToken}` },
-      });
-      if (anvilResp.ok) {
-        const data = await anvilResp.json();
-        if (data && (data.user || data.principal_kind === "service_token" || data.principal_kind === "anonymous")) {
-          authenticated = true;
-        }
-      }
-    } catch (_e) {
-      // network error to Anvil — treat as unauthorized rather than crashing
-    }
-  }
-  if (!authenticated) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
-  if (request.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
-
-  const MAX_BODY_BYTES = 50_000;
-  const contentLength = parseInt(request.headers.get("content-length") ?? "0", 10);
-  if (contentLength > MAX_BODY_BYTES) {
-    return new Response("Payload too large", { status: 413 });
-  }
-
-  const ip = request.headers.get("x-nf-client-connection-ip")
-    ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-    ?? "";
-  const rate = await checkRateLimit("kode-svar", ip);
-  if (!rate.allowed) {
-    return new Response("Rate limited", {
-      status: 429,
-      headers: { "Retry-After": String(rate.retryAfterSeconds) },
-    });
-  }
+  const gateResp = await gate(request, { endpoint: "kode-svar", maxBodyBytes: 50_000 });
+  if (gateResp) return gateResp;
 
   let body: RequestBody;
   try {

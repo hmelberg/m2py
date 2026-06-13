@@ -25,6 +25,60 @@ export interface StreamEvent {
   message?: string;
 }
 
+const ANTHROPIC_TIMEOUT_MS = 30_000;
+const ANTHROPIC_RETRIES = 2;
+
+export interface RetryDeps {
+  fetchImpl?: typeof fetch;
+  sleep?: (ms: number) => Promise<void>;
+  retries?: number;
+  timeoutMs?: number;
+}
+
+/**
+ * POST with an abort timeout and retry/backoff on 429 (rate limited) and 529
+ * (overloaded). Honours a numeric Retry-After when present. Network errors are
+ * retried too; the final error propagates. Injectable for tests.
+ */
+export async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  deps: RetryDeps = {},
+): Promise<Response> {
+  const fetchImpl = deps.fetchImpl ?? fetch;
+  const sleep = deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+  const retries = deps.retries ?? ANTHROPIC_RETRIES;
+  const timeoutMs = deps.timeoutMs ?? ANTHROPIC_TIMEOUT_MS;
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const resp = await fetchImpl(url, { ...init, signal: ctrl.signal });
+      clearTimeout(timer);
+      if ((resp.status === 429 || resp.status === 529) && attempt < retries) {
+        const ra = parseInt(resp.headers.get("retry-after") ?? "", 10);
+        const delay = Number.isFinite(ra) && ra > 0
+          ? Math.min(ra * 1000, 10_000)
+          : Math.min(1000 * 2 ** attempt, 8000);
+        await sleep(delay);
+        continue;
+      }
+      return resp;
+    } catch (e) {
+      clearTimeout(timer);
+      lastError = e;
+      if (attempt < retries) {
+        await sleep(Math.min(1000 * 2 ** attempt, 8000));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastError;
+}
+
 export async function streamAnthropic(
   opts: AnthropicStreamOptions,
 ): Promise<ReadableStream<Uint8Array>> {
@@ -56,15 +110,18 @@ export async function streamAnthropic(
     ];
   }
 
-  const upstream = await fetch(ANTHROPIC_API, {
+  const upstream = await fetchWithRetry(ANTHROPIC_API, {
     method: "POST",
     headers,
     body: JSON.stringify(requestBody),
   });
 
   if (!upstream.ok || !upstream.body) {
-    const body = await upstream.text();
-    throw new Error(`Anthropic API error ${upstream.status}: ${body}`);
+    // Log the upstream detail server-side, but do NOT echo it to the client
+    // (it can contain account/key diagnostics). Callers surface a generic 502.
+    const detail = await upstream.text().catch(() => "");
+    console.error(`Anthropic API error ${upstream.status}: ${detail}`);
+    throw new Error(`Anthropic API error ${upstream.status}`);
   }
 
   return transformAnthropicStream(upstream.body);
