@@ -727,6 +727,23 @@ if (deg_ok) { cat("  PASS: one bad statement degrades to a warning\n"); PASS <- 
   cat("    script:\n"); cat(res_deg$script, "\n")
   cat("    warnings:", paste(res_deg$warnings, collapse=" | "), "\n"); FAIL <- FAIL + 1L }
 
+cat("\n── loader completeness (regression guard) ───────────────────\n")
+# Every r2m/*.R source must be loaded by BOTH the standalone runner and the
+# main app. (A new file missing from a loader silently breaks translation —
+# e.g. expanders.R was added but index.html's loader was not updated.)
+r_files <- basename(list.files("r2m", pattern = "\\.R$"))
+for (loader in c("r2m_runner.html", "../index.html")) {
+  if (!file.exists(loader)) next
+  html    <- paste(readLines(loader, warn = FALSE), collapse = "\n")
+  missing <- r_files[!vapply(r_files, function(f) grepl(f, html, fixed = TRUE), logical(1))]
+  if (length(missing) == 0) {
+    cat("  PASS:", loader, "loads all r2m/*.R\n"); PASS <- PASS + 1L
+  } else {
+    cat("  FAIL:", loader, "is missing:", paste(missing, collapse = ", "), "\n")
+    FAIL <- FAIL + 1L
+  }
+}
+
 cat(sprintf("\n══ Results: %d passed, %d failed ══\n", PASS, FAIL))
 
 # Non-zero exit on failure so CI (and `Rscript test_r2m.R`) fails loudly.

@@ -7962,7 +7962,10 @@ has and "int" in (m.get_microdata_functions() or {})
         setStatus(leftStatus, 'Laster r2m\u2026');
         const base = window.location.href.replace(/[^/]+$/, '');
         const root = base + 'r2m/r2m/';
-        for (const f of ['commands.R', 'expr.R', 'translator.R']) {
+        // Order matches r2m/test_r2m.R: expr.R defines helpers used by
+        // expanders.R; expanders.R must load before commands.R/translator.R
+        // (which call .expand_ifelse etc.).
+        for (const f of ['expr.R', 'expanders.R', 'commands.R', 'translator.R']) {
           const src = await fetch(root + f).then(function(r) {
             if (!r.ok) throw new Error(f);
             return r.text();
