@@ -3684,6 +3684,9 @@ class DataTransformHandler:
 
         if cmd == 'destring':
             ignore_chars = options.get('ignore', '') or ''
+            # ignore('.,-'): anførselstegnene er streng-skilletegn, ikke tegn
+            # som skal fjernes. Strip dem så de ikke ved et uhell fjernes fra data.
+            ignore_chars = str(ignore_chars).strip('\'"')
             force = bool(options.get('force'))
             dpcomma = bool(options.get('dpcomma'))
             prefix = options.get('prefix', '') or ''

@@ -370,3 +370,23 @@ class TestConfigureHonest:
         it = _interp(pd.DataFrame({"x": [1.0]}))
         out = _run(it, "configure nocache")
         assert "ikke" in out.lower()
+
+
+# ---------------------------------------------------------------------------
+# 11. destring ignore(): anførselstegn rundt tegnlisten er streng-skilletegn,
+# ikke tegn som skal fjernes. ignore(',') skal bare fjerne komma — en apostrof
+# i dataene er ikke-numerisk og skal utløse force-feilen, ikke fjernes stille.
+# ---------------------------------------------------------------------------
+
+class TestDestringIgnoreQuoting:
+    def test_ignore_quotes_are_delimiters_not_ignored_chars(self):
+        it = _interp(pd.DataFrame({"v": ["1'0", "2"]}))
+        out = _run(it, "destring v, ignore(',')")
+        assert "FEIL" in out  # apostrofen er ikke-numerisk og ikke i ignore-settet
+
+    def test_ignore_quoted_and_unquoted_equivalent(self):
+        a = _interp(pd.DataFrame({"v": ["1.000", "2.500"]}))
+        _run(a, "destring v, ignore('.')")
+        b = _interp(pd.DataFrame({"v": ["1.000", "2.500"]}))
+        _run(b, "destring v, ignore(.)")
+        assert a.datasets["testdata"]["v"].tolist() == b.datasets["testdata"]["v"].tolist() == [1000, 2500]
