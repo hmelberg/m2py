@@ -204,3 +204,21 @@ class TestStaticDynamicPanelDeath:
         assert dead["BOSATT_KOMMUNE"].isna().all()
         # sanity: the living still have values
         assert py[py["livsstatus"] == "sysselsatt"]["SKATT_NETTOFORMUE"].notna().any()
+
+
+class TestMultiRecordDeterministicDates:
+    """_generate_variable_values (used by multi-record entities: jobb/kjøretøy/
+    kurs) drifted from generate(): it produced RANDOM birth years instead of the
+    deterministic per-person ones, so a person's age differed between their
+    person record and their entity records."""
+
+    def test_birthdate_is_deterministic_per_person(self):
+        eng = MicroInterpreter(metadata_path=None).data_engine
+        uids = np.arange(1, 201, dtype=np.int64)
+        meta = {"data_type": "date:yyyymm"}
+        vals = eng._generate_variable_values(
+            "BEFOLKNING_FOEDSELS_AAR_MND", "BEFOLKNING_FOEDSELS_AAR_MND",
+            meta, len(uids), np.random.default_rng(0), uids=uids)
+        years = [int(v) // 100 for v in vals]
+        expected = [m2py._norway_demo_birth_year_from_uid(int(u)) for u in uids]
+        assert years == expected

@@ -123,8 +123,14 @@ Self-contained; governs whether generated data is reproducible/trustworthy.
       baseline so UTDATO ≥ INNDATO regardless of import order. Tests: TestNprConsistency.
 - [x] NPR gender from income latent-z — DONE. Uses `_norway_synth_kjonn_from_uid`
       so childbirth (O80) only lands on real females. Test in TestNprConsistency.
-- [ ] `_generate_variable_values` drifted from `generate()` (~L2680-2796) — extract
-      one shared helper (multi-record entities get random birth dates today).
+- [x] `_generate_variable_values` drifted from `generate()` — DONE (targeted,
+      safe fix). The concrete symptom — multi-record entities (jobb/kjøretøy/
+      kurs) getting RANDOM birth years instead of the deterministic per-person
+      ones — is fixed by mirroring the main path's `_norway_demo_birth_year_from_uid`
+      logic in the date:yyyymm branch. Test: TestMultiRecordDeterministicDates.
+      NOTE: deliberately did NOT do the full "merge the two large methods into one
+      shared helper" — that's pure maintainability with high regression risk and
+      is better done as a dedicated refactor behind golden-output tests. Deferred.
 - [x] `_generate_panel` corrupts zero-padded codes / crashes on alphanumeric —
       DONE. Added `_coerce_code_value` (mirrors the main path): alfanumerisk codes
       stay strings, numeric → int, non-numeric never crashes. Tests: TestPanelCodes.
@@ -141,9 +147,9 @@ Self-contained; governs whether generated data is reproducible/trustworthy.
       now exactly {1..n}, consistent with the entity `ref_col <= n` filter.
       Tests: TestStaticSourceLimit.
 
-Phase 3 status: 7/9 done. REMAINING: the `_generate_variable_values`↔`generate()`
-dedup refactor (structural; multi-record birth dates), and the static-build date
-bugs in mockdata_export.py (hard-coded 2023 / post-death rows / valid_to grid).
+Phase 3 status: COMPLETE (9/9). The full generate()/_generate_variable_values
+method merge was intentionally deferred (maintainability only, high risk) — the
+behavioral drift it caused is fixed.
 
 ## Phase 4 — Frontend robustness
 Non-security UX/reliability (index.html unless noted).

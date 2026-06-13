@@ -2841,12 +2841,23 @@ class MockDataEngine:
             days = rng.integers(1, 29, size=n_rows)
             return (years * 10000 + months * 100 + days).astype(int).tolist()
         if data_type.startswith('date:yyyymm'):
+            # Samme deterministiske-per-uid fødselsår som hovedløpet (generate()):
+            # ellers fikk multi-record-enheter (jobb/kjøretøy/kurs) tilfeldige
+            # fødselsdatoer, så en persons alder var ulik på person- og enhetsrad.
             _d1 = (parsed_args or {}).get('date1')
-            ref_year = int(str(_d1)[:4]) if _d1 else _DEMO_REF_YEAR
-            ages = rng.normal(loc=44, scale=21, size=n_rows)
-            ages = np.clip(ages, 0, 100).astype(int)
-            years = np.clip(ref_year - ages, 1900, ref_year)
+            if _d1:
+                ref_year = int(str(_d1)[:4]); ref_month = int(str(_d1)[5:7])
+            else:
+                ref_year = _DEMO_REF_YEAR; ref_month = 12
+            if uids is not None and len(uids) == n_rows:
+                years = np.array([_norway_demo_birth_year_from_uid(int(u)) for u in uids], dtype=np.int64)
+            else:
+                ages = np.clip(rng.normal(loc=44, scale=21, size=n_rows), 0, 100).astype(int)
+                years = ref_year - ages
+            years = np.clip(years, 1900, ref_year)
             months = rng.integers(1, 13, size=n_rows)
+            at_ref_year = (years == ref_year)
+            months = np.where(at_ref_year, np.minimum(months, ref_month), months)
             return (years * 100 + months).astype(int).tolist()
         if data_type.startswith('date:epoch'):
             years = rng.integers(1990, 2026, size=n_rows)
