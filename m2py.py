@@ -1421,6 +1421,17 @@ def _norway_npr_inndato_days(unit_id, ep_id) -> int:
     return _NPR_INNDATO_LO + int(h, 16) % (_NPR_INNDATO_HI - _NPR_INNDATO_LO)
 
 
+def _coerce_code_value(code, is_alfa: bool):
+    """Tolk én kodeverdi som hovedløpet (_generate_variable_values): behold
+    streng for alfanumeriske/nullpolstrede koder ('0301', 'I'); konverter bare
+    rene heltall til int for numeriske variabler. Krasjer ALDRI på en
+    ikke-numerisk kode (panelet brukte tidligere int() på alt → ValueError)."""
+    cs = str(code)
+    if is_alfa:
+        return cs
+    return int(cs) if cs.lstrip('-').isdigit() else cs
+
+
 @lru_cache(maxsize=None)
 def _norway_synth_age_from_uid(unit_id) -> int:
     """Deterministisk alder 18–67 (typisk yrkesaktiv) for demo når fødselsdato mangler.
@@ -2543,15 +2554,15 @@ class MockDataEngine:
                     seed = int(hashlib.md5(f"{vname}_{uid}_{tid}".encode()).hexdigest(), 16) % (10**8)
                     rng = np.random.default_rng(seed)
                     meta = self.catalog.get(vname) or getattr(self, '_catalog_by_short', {}).get(vname) or {}
+                    _is_alfa = ('alfanumerisk' in str(meta.get('microdata_datatype', '')).lower()
+                                or meta.get('data_type') == 'string')
                     if meta.get('distribution'):
                         codes, probs = _normalize_distribution_weights(meta['distribution'])
                         if codes:
-                            row[vname] = int(rng.choice(codes, p=probs)) if str(codes[0]).isdigit() else rng.choice(codes, p=probs)
+                            row[vname] = _coerce_code_value(rng.choice(codes, p=probs), _is_alfa)
                     elif meta.get('labels') and isinstance(meta.get('labels'), dict):
                         codes = list(meta['labels'].keys())
-                        key_to_int = lambda k: int(k) if isinstance(k, str) and (k.lstrip('-').isdigit()) else k
-                        code_ints = [key_to_int(k) for k in codes]
-                        row[vname] = int(rng.choice(code_ints))
+                        row[vname] = _coerce_code_value(rng.choice(codes), _is_alfa)
                     elif meta.get('min') is not None or meta.get('max') is not None:
                         if _norway_classify_money_demo(meta, vname):
                             arr = _norway_demo_money_array(meta, vname, 1, rng, unit_ids=np.array([uid]), allow_missing=False)

@@ -98,3 +98,31 @@ class TestSilentMetadataFallback:
         it = _run(_interp(), "create-dataset d", "import db/INNTEKT_WYRKINNT 2019-01-01")
         text = "\n".join(str(m) for m in it.output_log)
         assert "ADVARSEL" not in text
+
+
+class TestPanelCodes:
+    """import-panel must preserve zero-padded/alphanumeric label codes and not
+    crash on non-numeric ones (it used to int() every code)."""
+
+    def _panel(self):
+        it = MicroInterpreter(metadata_path=None)
+        eng = it.data_engine
+        eng.catalog["NPRNIVA"] = {"labels": {"I": "Innlagt", "U": "Ute", "R": "Rehab"},
+                                  "data_type": "string", "microdata_datatype": "Alfanumerisk"}
+        eng.catalog["KOMM"] = {"labels": {"0301": "Oslo", "1103": "Stavanger", "5001": "Trondheim"},
+                               "data_type": "string", "microdata_datatype": "Alfanumerisk"}
+        return _run(it, "create-dataset d",
+                    "import-panel db/NPRNIVA db/KOMM 2018-01-01 2019-01-01")
+
+    def test_no_crash_on_alphanumeric_codes(self):
+        it = self._panel()
+        text = "\n".join(str(m) for m in it.output_log)
+        assert "FEIL" not in text
+        df = it.datasets[it.active_name]
+        assert set(df["NPRNIVA"].unique()) <= {"I", "U", "R"}
+
+    def test_zero_padded_codes_preserved(self):
+        it = self._panel()
+        df = it.datasets[it.active_name]
+        # '0301' must stay the 4-char string, not become int 301
+        assert all(isinstance(v, str) and len(v) == 4 for v in df["KOMM"].unique())
