@@ -855,7 +855,7 @@ handle_aov <- function(args, df_name) {
 
 handle_t_test <- function(args, df_name) {
   x_node <- args[[1]]
-  fn_x   <- if (is.call(x_node)) as.character(x_node[[1]]) else ""
+  fn_x   <- if (is.call(x_node)) .callee_name(x_node) else ""
 
   # t.test(income ~ sex, data=df) — formula form
   if (fn_x == "~") {
@@ -871,7 +871,7 @@ handle_t_test <- function(args, df_name) {
            (if (is.name(x_node)) as.character(x_node) else NULL)
 
   # t.test(df$x, df$y) — two-sample
-  y_node <- args[["y"]] %||% args[[2]]
+  y_node <- args[["y"]] %||% (if (length(args) >= 2) args[[2]] else NULL)
   if (!is.null(y_node)) {
     y_col <- col_from_node(y_node, df_name) %||%
              (if (is.name(y_node)) as.character(y_node) else NULL)
@@ -992,7 +992,7 @@ handle_rdrobust <- function(args, df_name) {
   c_node <- args[["c"]] %||% args[["cutoff"]]
   opts   <- character(0)
   if (!is.null(c_node) && is.numeric(c_node) && c_node != 0)
-    opts <- c(opts, paste0("cutoff(", c_node, ")"))
+    opts <- c(opts, paste0("cutoff(", format(c_node, scientific = FALSE, trim = TRUE), ")"))
   cmd <- paste0("rdd ", y, " ", x)
   if (length(opts)) cmd <- paste0(cmd, ", ", paste(opts, collapse = " "))
   list(lines = cmd, warnings = character(0))

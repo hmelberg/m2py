@@ -128,10 +128,13 @@ expect("df$col <- ifelse",
   "df$adult <- ifelse(df$age >= 18, 1, 0)",
   c("generate adult = 0", "replace adult = 1 if age >= 18"))
 
-expect("df$col <- case_when",
+expect("df$col <- case_when (first-match priority)",
   "df$grp <- case_when(df$age < 30 ~ 1, df$age < 60 ~ 2, TRUE ~ 3)",
-  c("generate grp = .", "replace grp = 1 if age < 30",
-    "replace grp = 2 if age < 60", "replace grp = 3 if sysmiss(grp)"))
+  # dplyr case_when is first-match-wins. Sequential `replace` overwrites, so
+  # non-default branches must be emitted in REVERSE order for the first listed
+  # condition to win (a row with age 25 must get 1, not 2).
+  c("generate grp = .", "replace grp = 2 if age < 60",
+    "replace grp = 1 if age < 30", "replace grp = 3 if sysmiss(grp)"))
 
 cat("\n── translator.R — native pipe (desugared |>) ────────────────\n")
 
@@ -604,4 +607,39 @@ expect("no spurious use when data= matches current active dataset",
         sep = "\n"),
   c("keep if age >= 18", "regress income age"))
 
+cat("\n── namespaced calls (pkg::fun) ──────────────────────────────\n")
+
+expect("survival::coxph emits cox",
+  "fit <- survival::coxph(Surv(time, event) ~ age + sex, data = df)",
+  "cox time event age sex")
+
+expect("plm::plm emits regress-panel",
+  "fit <- plm::plm(income ~ edu + age, data = df, model = 'within')",
+  "regress-panel income edu age, fe")
+
+expect("namespaced expr function (stats::sd in mutate)",
+  "df$z <- dplyr::if_else(df$age > 40, 1, 0)",
+  c("generate z = 0", "replace z = 1 if age > 40"))
+
+cat("\n── graceful degradation (one bad line must not abort) ────────\n")
+
+# A statement that errors inside a handler must degrade to a warning, not
+# crash the whole translation — the good lines before/after must still emit.
+res_deg <- tryCatch(
+  translate(paste("df$a <- df$x + 1",
+                  "fit <- lm()",          # malformed: throws inside handler
+                  "df$b <- df$y * 2",
+                  sep = "\n")),
+  error = function(e) list(script = paste("ABORTED:", conditionMessage(e)), warnings = character(0)))
+deg_ok <- grepl("generate a = (x + 1)", res_deg$script, fixed = TRUE) &&
+          grepl("generate b = (y * 2)", res_deg$script, fixed = TRUE) &&
+          any(grepl("SKIPPED", c(res_deg$script, res_deg$warnings)))
+if (deg_ok) { cat("  PASS: one bad statement degrades to a warning\n"); PASS <- PASS + 1L
+} else { cat("  FAIL: one bad statement degrades to a warning\n")
+  cat("    script:\n"); cat(res_deg$script, "\n")
+  cat("    warnings:", paste(res_deg$warnings, collapse=" | "), "\n"); FAIL <- FAIL + 1L }
+
 cat(sprintf("\n══ Results: %d passed, %d failed ══\n", PASS, FAIL))
+
+# Non-zero exit on failure so CI (and `Rscript test_r2m.R`) fails loudly.
+if (FAIL > 0) quit(status = 1)

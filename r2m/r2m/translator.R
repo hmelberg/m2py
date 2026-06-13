@@ -44,8 +44,10 @@ translate <- function(r_code, df_name = "df") {
 
 # Emit "use <df_var>" when switching active dataset; updates current_df.
 .ensure_active <- function(df_var, state) {
-  if (!is.null(state$current_df) && !is.null(df_var) &&
-      nzchar(df_var) && state$current_df != df_var)
+  # The initial active dataset is df_name (no `use` emitted yet), so treat a
+  # NULL current_df as df_name — switching away from it must emit `use`.
+  cur <- state$current_df %||% state$df_name
+  if (!is.null(cur) && !is.null(df_var) && nzchar(df_var) && cur != df_var)
     state <- .append(state, lines = paste0("use ", df_var))
   state$current_df <- df_var
   state
@@ -103,7 +105,16 @@ translate <- function(r_code, df_name = "df") {
     }
   )
   if (is.null(exprs) || length(exprs) == 0) return(state)
-  for (i in seq_along(exprs)) state <- .translate_stmt(exprs[[i]], state)
+  for (i in seq_along(exprs)) {
+    # One statement that errors inside a handler must not abort the whole
+    # translation — degrade it to a warning and continue with the rest.
+    state <- tryCatch(
+      .translate_stmt(exprs[[i]], state),
+      error = function(e) .append(state, warnings = paste0(
+        "// SKIPPED (translator error): ", deparse(exprs[[i]])[1],
+        " — ", conditionMessage(e)))
+    )
+  }
   state
 }
 
@@ -112,7 +123,7 @@ translate <- function(r_code, df_name = "df") {
 .translate_stmt <- function(expr, state) {
   if (!is.call(expr)) return(state)
 
-  fn <- tryCatch(as.character(expr[[1]]), error = function(e) "")
+  fn <- .callee_name(expr)
 
   if (fn %in% c("<-", "=", "->", "<<-"))
     return(.translate_assign(expr, state, fn))
@@ -161,7 +172,7 @@ translate <- function(r_code, df_name = "df") {
 
   # df$col / df[["col"]] / df["col"]
   if (is.call(lhs)) {
-    lhs_fn <- tryCatch(as.character(lhs[[1]]), error = function(e) "")
+    lhs_fn <- .callee_name(lhs)
     if (lhs_fn %in% c("$", "[[", "[")) {
       eff_df <- tryCatch(as.character(lhs[[2]]), error = function(e) NULL) %||% df_name
       col    <- col_from_node(lhs, eff_df)
@@ -181,7 +192,7 @@ translate <- function(r_code, df_name = "df") {
 # ── column assignment: df$col <- rhs ─────────────────────────────────────────
 
 .translate_col_assign <- function(col, rhs, df_var, state) {
-  fn    <- if (is.call(rhs)) tryCatch(as.character(rhs[[1]]), error = function(e) "") else ""
+  fn    <- if (is.call(rhs)) .callee_name(rhs) else ""
   cargs <- if (is.call(rhs)) as.list(rhs)[-1] else list()
 
   if (fn %in% c("ifelse", "if_else")) {
@@ -252,7 +263,7 @@ translate <- function(r_code, df_name = "df") {
     return(state)
   }
   if (!is.call(rhs)) return(state)
-  rhs_fn <- tryCatch(as.character(rhs[[1]]), error = function(e) "")
+  rhs_fn <- .callee_name(rhs)
 
   # Magrittr or native pipe (only magrittr survives as |>/%%>%% in the AST)
   if (rhs_fn %in% c("|>", "%>%"))
@@ -334,7 +345,7 @@ DPLYR_VERBS <- c(
 )
 
 .unroll_dplyr <- function(expr) {
-  fn_clean <- tryCatch(sub("^.*::", "", as.character(expr[[1]])), error = function(e) "")
+  fn_clean <- .callee_name(expr)
   if (!(fn_clean %in% DPLYR_VERBS)) return(NULL)
 
   all_args <- as.list(expr)[-1]          # named list of args
@@ -358,7 +369,7 @@ DPLYR_VERBS <- c(
   }
 
   if (is.call(data_arg)) {
-    inner_fn <- tryCatch(sub("^.*::", "", as.character(data_arg[[1]])), error = function(e) "")
+    inner_fn <- .callee_name(data_arg)
     if (inner_fn %in% DPLYR_VERBS) {
       inner <- .unroll_dplyr(data_arg)
       if (!is.null(inner))
@@ -372,7 +383,7 @@ DPLYR_VERBS <- c(
 # ── pipe chain — flatten magrittr/native (when not yet desugared) ─────────────
 
 .flatten_pipe <- function(expr) {
-  fn <- tryCatch(as.character(expr[[1]]), error = function(e) "")
+  fn <- .callee_name(expr)
   if (fn %in% c("|>", "%>%"))
     c(.flatten_pipe(expr[[2]]), list(expr[[3]]))
   else
@@ -400,6 +411,7 @@ DPLYR_VERBS <- c(
                                       paste0("use ", target_df)))
     state <- .register_df(target_df, state)
     state$current_df <- target_df
+    eff_df <- target_df  # subsequent steps operate on the clone, not the source
   } else if (!is.null(src_df)) {
     state <- .ensure_active(src_df, state)
   }
@@ -408,8 +420,7 @@ DPLYR_VERBS <- c(
 
   for (step in steps) {
     if (!is.call(step)) next
-    fn_raw   <- tryCatch(as.character(step[[1]]), error = function(e) "")
-    fn_clean <- sub("^.*::", "", fn_raw)
+    fn_clean <- .callee_name(step)
     sargs    <- as.list(step)[-1]
 
     if (fn_clean == "group_by") {
@@ -425,7 +436,7 @@ DPLYR_VERBS <- c(
     if (!is.null(result)) {
       state <- .append(state, lines = result$lines, warnings = result$warnings)
     } else {
-      result2 <- dispatch_standalone(fn_raw, sargs, eff_df)
+      result2 <- dispatch_standalone(fn_clean, sargs, eff_df)
       if (!is.null(result2))
         state <- .append(state, lines = result2$lines, warnings = result2$warnings)
       else
@@ -457,11 +468,15 @@ DPLYR_VERBS <- c(
 }
 
 .expand_case_when <- function(col, cargs, df_name) {
-  lines <- paste0("generate ", col, " = .")
-  warns <- character(0)
+  # dplyr case_when is FIRST-match-wins. Sequential `replace` overwrites, so the
+  # non-default branches must be emitted in REVERSE source order (then the
+  # earliest-listed condition is applied last and wins). The TRUE ~ default is
+  # applied last via sysmiss so it only fills rows no branch matched.
+  warns        <- character(0)
+  non_default  <- character(0)   # replace lines, source order
+  default_line <- NULL
   for (cw in cargs) {
-    if (!is.call(cw) ||
-        tryCatch(as.character(cw[[1]]), error = function(e) "") != "~") next
+    if (!is.call(cw) || .callee_name(cw) != "~") next
     cond_node <- cw[[2]]
     val_node  <- cw[[3]]
     val <- translate_expr(val_node, df_name)
@@ -471,15 +486,16 @@ DPLYR_VERBS <- c(
     is_default <- (is.name(cond_node) && as.character(cond_node) %in% c("TRUE", "T")) ||
                   (is.logical(cond_node) && isTRUE(cond_node))
     if (is_default) {
-      lines <- c(lines, paste0("replace ", col, " = ", val, " if sysmiss(", col, ")"))
+      default_line <- paste0("replace ", col, " = ", val, " if sysmiss(", col, ")")
     } else {
       cond <- translate_expr(cond_node, df_name)
       if (!is.null(cond))
-        lines <- c(lines, paste0("replace ", col, " = ", val, " if ", cond))
+        non_default <- c(non_default, paste0("replace ", col, " = ", val, " if ", cond))
       else
         warns <- c(warns, paste0("// case_when: untranslatable condition for ", col))
     }
   }
+  lines <- c(paste0("generate ", col, " = ."), rev(non_default), default_line)
   list(lines = lines, warnings = warns)
 }
 
