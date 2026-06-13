@@ -31,11 +31,21 @@ _DC_PERCENTILE_SIG_DIGITS = 3    # T8: signifikante sifre for median/persentiler
 # entries her midlertidig og restaurerer etter script-kjøring.
 M2PY_DEFAULTS = {
     'label_format': 'both',      # 'both' | 'label' | 'code' — tabulate-output
+    # Avsløringsterskler (konfigurerbare under Innstillinger). Standardene
+    # matcher microdata.no; de skaleres IKKE automatisk til mock-populasjonen.
+    'dc_min_population': _DC_MIN_POPULATION,      # T1
+    'dc_tabulate_low_cell': _DC_TABULATE_LOW_CELL,  # T5 (celle-frekvens)
+    'dc_min_affected': _DC_MIN_AFFECTED,          # T6
+    'dc_min_summarize': _DC_MIN_SUMMARIZE,        # T7
     # Framtidige defaults legges til her.
 }
 
 _M2PY_HARDCODED_FALLBACKS = {
     'label_format': 'both',
+    'dc_min_population': _DC_MIN_POPULATION,
+    'dc_tabulate_low_cell': _DC_TABULATE_LOW_CELL,
+    'dc_min_affected': _DC_MIN_AFFECTED,
+    'dc_min_summarize': _DC_MIN_SUMMARIZE,
 }
 
 def _get_default(key):
@@ -44,6 +54,15 @@ def _get_default(key):
     if isinstance(d, dict) and key in d:
         return d[key]
     return _M2PY_HARDCODED_FALLBACKS.get(key)
+
+
+def _dc_threshold(key):
+    """Hent en konfigurerbar avsløringsterskel som heltall, robust mot
+    ugyldige verdier (faller tilbake til den hardkodede standarden)."""
+    try:
+        return int(_get_default(key))
+    except (TypeError, ValueError):
+        return _M2PY_HARDCODED_FALLBACKS.get(key)
 
 
 # Datakilde for import: 'dynamic' (generer) eller 'static' (last fra statiske filer).
@@ -4569,13 +4588,14 @@ class StatsEngine:
                 _flat = _raw_counts.values.flatten() if hasattr(_raw_counts, 'values') else _raw_counts.to_numpy().flatten()
                 _total_cells = len(_flat)
                 if _total_cells > 0:
-                    _low_cells = int((_flat < _DC_TABULATE_LOW_CELL).sum())
+                    _low_cell = _dc_threshold('dc_tabulate_low_cell')
+                    _low_cells = int((_flat < _low_cell).sum())
                     _low_ratio = _low_cells / _total_cells
                     if _low_ratio > _DC_TABULATE_LOW_RATIO:
                         raise ValueError(
                             f"Tabellen kan ikke vises pga. for mange små celler "
                             f"({_low_cells} av {_total_cells} celler har frekvens "
-                            f"<{_DC_TABULATE_LOW_CELL}, dvs. {_low_ratio*100:.0f}% — "
+                            f"<{_low_cell}, dvs. {_low_ratio*100:.0f}% — "
                             f"grensen er {int(_DC_TABULATE_LOW_RATIO*100)}%). "
                             f"Reduser antall kategorier eller utvid populasjonen."
                         )
@@ -6712,40 +6732,43 @@ class MicroInterpreter:
         # Unntak: 0 eller alle rader endret = OK
         if n_affected == 0 or n_affected == n_total:
             return
+        _min_affected = _dc_threshold('dc_min_affected')
         # Forbudt: 1-9 endret
-        if 0 < n_affected < _DC_MIN_AFFECTED:
+        if 0 < n_affected < _min_affected:
             raise ValueError(
                 f"{cmd} '{target_name}' påvirker bare {n_affected} av {n_total} enheter. "
                 f"microdata.no tillater ikke endringer som påvirker færre enn "
-                f"{_DC_MIN_AFFECTED} enheter (unntak: alle eller ingen)."
+                f"{_min_affected} enheter (unntak: alle eller ingen)."
             )
         # Forbudt: alle bortsett fra <10 (dvs. n - affected ∈ 1..9)
         n_unchanged = n_total - n_affected
-        if 0 < n_unchanged < _DC_MIN_AFFECTED:
+        if 0 < n_unchanged < _min_affected:
             raise ValueError(
                 f"{cmd} '{target_name}' lar bare {n_unchanged} av {n_total} enheter være "
                 f"uendret. microdata.no tillater ikke endringer som påvirker alle bortsett "
-                f"fra færre enn {_DC_MIN_AFFECTED} enheter."
+                f"fra færre enn {_min_affected} enheter."
             )
 
     def _check_t1_population(self, n, context):
-        """T1: avvis hvis populasjonen er <1000 enheter."""
+        """T1: avvis hvis populasjonen er under terskelen (standard 1000)."""
         if not _is_disclosure_control():
             return
-        if n < _DC_MIN_POPULATION:
+        _min_pop = _dc_threshold('dc_min_population')
+        if n < _min_pop:
             raise ValueError(
                 f"Populasjonen er {n} enheter ({context}). microdata.no tillater ikke "
-                f"populasjoner med færre enn {_DC_MIN_POPULATION} enheter."
+                f"populasjoner med færre enn {_min_pop} enheter."
             )
 
     def _check_t7_summarize_pop(self, n, cmd):
-        """T7: avvis deskriptiv statistikk på populasjoner <10."""
+        """T7: avvis deskriptiv statistikk på for små populasjoner (standard 10)."""
         if not _is_disclosure_control():
             return
-        if n < _DC_MIN_SUMMARIZE:
+        _min_pop = _dc_threshold('dc_min_summarize')
+        if n < _min_pop:
             raise ValueError(
                 f"Populasjonen er {n} enheter. microdata.no krever minst "
-                f"{_DC_MIN_SUMMARIZE} enheter for deskriptiv statistikk ({cmd}). "
+                f"{_min_pop} enheter for deskriptiv statistikk ({cmd}). "
                 f"Unntak: ren count/sum er tillatt."
             )
 
@@ -8336,14 +8359,15 @@ class MicroInterpreter:
                     _sfx = opts.get('suffix', '') or ''
                     for _dv in (args.get('vars') or []):
                         self._numeric_override_cols.add(f"{_pfx}{_dv}{_sfx}")
-                # T1: populasjon må være ≥1000 etter keep/drop if
+                # T1: populasjon må være over terskelen (standard 1000) etter keep/drop if
                 if (cmd in ('keep', 'drop') and _row_filter and result is not None
                         and _is_disclosure_control()):
                     _n_new = len(result)
-                    if _n_new < _DC_MIN_POPULATION:
+                    _min_pop = _dc_threshold('dc_min_population')
+                    if _n_new < _min_pop:
                         self._log(
                             f"FEIL: {cmd} ville redusere populasjonen til {_n_new} enheter. "
-                            f"microdata.no krever minst {_DC_MIN_POPULATION} enheter per "
+                            f"microdata.no krever minst {_min_pop} enheter per "
                             f"populasjon. Datasettet er uendret."
                         )
                         return
@@ -8413,11 +8437,12 @@ class MicroInterpreter:
                 else:
                     n_keep = max(1, int(n_total * args['fraction']))
                     idx = rng.choice(df_src.index, size=n_keep, replace=False)
-                # T1: sample-resultatet må være ≥1000 enheter
-                if _is_disclosure_control() and n_keep < _DC_MIN_POPULATION:
+                # T1: sample-resultatet må være over terskelen (standard 1000)
+                _min_pop = _dc_threshold('dc_min_population')
+                if _is_disclosure_control() and n_keep < _min_pop:
                     self._log(
                         f"FEIL: sample ville redusere populasjonen til {n_keep} enheter. "
-                        f"microdata.no krever minst {_DC_MIN_POPULATION} enheter per "
+                        f"microdata.no krever minst {_min_pop} enheter per "
                         f"populasjon. Datasettet er uendret."
                     )
                     return

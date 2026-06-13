@@ -390,3 +390,58 @@ class TestDestringIgnoreQuoting:
         b = _interp(pd.DataFrame({"v": ["1.000", "2.500"]}))
         _run(b, "destring v, ignore(.)")
         assert a.datasets["testdata"]["v"].tolist() == b.datasets["testdata"]["v"].tolist() == [1000, 2500]
+
+
+# ---------------------------------------------------------------------------
+# 12. Konfigurerbare avsløringsterskler (Innstillinger): T1/T5/T6/T7 skal
+# kunne settes via M2PY_DEFAULTS. Standardene er uendret (1000/5/10/10).
+# ---------------------------------------------------------------------------
+
+class TestConfigurableThresholds:
+    def test_defaults_unchanged(self):
+        assert m2py._dc_threshold("dc_min_population") == 1000
+        assert m2py._dc_threshold("dc_tabulate_low_cell") == 5
+        assert m2py._dc_threshold("dc_min_affected") == 10
+        assert m2py._dc_threshold("dc_min_summarize") == 10
+
+    # T7 — minste populasjon for deskriptiv statistikk
+    def test_t7_default_blocks(self, dc_on):
+        it = _interp(pd.DataFrame({"x": list(map(float, range(8)))}))
+        assert "FEIL" in _run(it, "summarize x")
+
+    def test_t7_lowered_allows(self, dc_on, monkeypatch):
+        monkeypatch.setitem(m2py.M2PY_DEFAULTS, "dc_min_summarize", 5)
+        it = _interp(pd.DataFrame({"x": list(map(float, range(8)))}))
+        assert "FEIL" not in _run(it, "summarize x")
+
+    # T1 — minste populasjon etter keep/drop
+    def test_t1_default_blocks(self, dc_on):
+        it = _interp(pd.DataFrame({"g": [1] * 500 + [0] * 1000}))
+        assert "FEIL" in _run(it, "keep if g == 1")
+
+    def test_t1_lowered_allows(self, dc_on, monkeypatch):
+        monkeypatch.setitem(m2py.M2PY_DEFAULTS, "dc_min_population", 100)
+        it = _interp(pd.DataFrame({"g": [1] * 500 + [0] * 1000}))
+        assert "FEIL" not in _run(it, "keep if g == 1")
+
+    # T6 — minste antall påvirkede rader
+    def test_t6_default_blocks(self, dc_on):
+        it = _interp(pd.DataFrame({"x": [1] * 5 + [2] * 2000}))
+        assert "FEIL" in _run(it, "recode x (1 = 9)")
+
+    def test_t6_lowered_allows(self, dc_on, monkeypatch):
+        monkeypatch.setitem(m2py.M2PY_DEFAULTS, "dc_min_affected", 2)
+        it = _interp(pd.DataFrame({"x": [1] * 5 + [2] * 2000}))
+        assert "FEIL" not in _run(it, "recode x (1 = 9)")
+
+    # T5 — minste cellefrekvens i tabeller
+    def _tiny3(self):
+        grp = [g for g in range(6) for _ in range(3)]  # 6 celler à 3 rader
+        return pd.DataFrame({"grp": grp})
+
+    def test_t5_default_blocks(self, dc_on):
+        assert "FEIL" in _run(_interp(self._tiny3()), "tabulate grp")
+
+    def test_t5_lowered_allows(self, dc_on, monkeypatch):
+        monkeypatch.setitem(m2py.M2PY_DEFAULTS, "dc_tabulate_low_cell", 2)
+        assert "FEIL" not in _run(_interp(self._tiny3()), "tabulate grp")

@@ -1504,6 +1504,20 @@
           <p class="settings-hint">N&#229;r P&#197;: matcher microdata.no &mdash; pseudonym-validering, type-sjekk, min populasjon 1000, sm&#229; celler skjules, winsorisering, persentiler avrundes. N&#229;r AV: alle regler er sl&#229;tt av og du ser r&#229; tall.</p>
         </div>
         <div class="settings-field">
+          <label>Avsl&#248;ringsterskler</label>
+          <div class="range-row" style="gap:6px;flex-wrap:wrap;">
+            <label for="settingDcMinPop" style="font-size:12px;flex:1 1 46%;">Min. populasjon (T1)
+              <input type="number" id="settingDcMinPop" min="1" step="1" value="1000" style="width:100%;"></label>
+            <label for="settingDcLowCell" style="font-size:12px;flex:1 1 46%;">Min. cellefrekvens (T5)
+              <input type="number" id="settingDcLowCell" min="1" step="1" value="5" style="width:100%;"></label>
+            <label for="settingDcMinAffected" style="font-size:12px;flex:1 1 46%;">Min. p&#229;virkede rader (T6)
+              <input type="number" id="settingDcMinAffected" min="1" step="1" value="10" style="width:100%;"></label>
+            <label for="settingDcMinSummarize" style="font-size:12px;flex:1 1 46%;">Min. populasjon, statistikk (T7)
+              <input type="number" id="settingDcMinSummarize" min="1" step="1" value="10" style="width:100%;"></label>
+          </div>
+          <p class="settings-hint">Tersklene microdata.no bruker. Mock-populasjonen er mindre enn ekte data, s&#229; standardene (1000/5/10/10) stopper ofte mer enn de ville p&#229; ekte register &mdash; senk dem her ved behov. Skaleres ikke automatisk. Gjelder bare n&#229;r avsl&#248;ringskontroll er P&#197;.</p>
+        </div>
+        <div class="settings-field">
           <label>Datakilde</label>
           <button type="button" class="btn btn-secondary" id="menuDataSource" title="Dynamisk: variabler genereres på nytt ved hver kjøring (standard). Statisk: import laster fra ferdige, konsistente datafiler (static_data/*.parquet) via DuckDB-WASM. Variabler/datoer som ikke finnes statisk faller tilbake til generering. Kan også settes per script med // m2py: data-source=static.">Datakilde: Dynamisk</button>
           <p class="settings-hint">Dynamisk = generer ved kjøring (standard). Statisk = last fra <code>static_data/*.parquet</code> (krever at filene er tilgjengelige). Per script: <code>// m2py: data-source=static</code>.</p>
@@ -3694,6 +3708,25 @@
     const LABEL_FORMAT_VALUES = ['both', 'label', 'code'];
     const SHOW_COMMANDS_KEY = 'microdata_show_commands';
 
+    // Konfigurerbare avsløringsterskler (Innstillinger). Standardene matcher
+    // microdata.no og skaleres IKKE automatisk til mock-populasjonen.
+    const DC_THRESHOLDS = {
+      dc_min_population: { key: 'microdata_dc_min_population', def: 1000 },
+      dc_tabulate_low_cell: { key: 'microdata_dc_low_cell', def: 5 },
+      dc_min_affected: { key: 'microdata_dc_min_affected', def: 10 },
+      dc_min_summarize: { key: 'microdata_dc_min_summarize', def: 10 },
+    };
+    function getDcThreshold(name) {
+      var spec = DC_THRESHOLDS[name];
+      try { var v = parseInt(localStorage.getItem(spec.key), 10); if (!isNaN(v) && v >= 1) return v; } catch (e) {}
+      return spec.def;
+    }
+    function setDcThreshold(name, val) {
+      var spec = DC_THRESHOLDS[name];
+      var v = parseInt(val, 10);
+      if (!isNaN(v) && v >= 1) { try { localStorage.setItem(spec.key, String(v)); } catch (e) {} }
+    }
+
     function getImportLimit() {
       try { var v = parseInt(localStorage.getItem(IMPORT_LIMIT_KEY), 10); if (v >= 10) return v; } catch(e) {}
       return 10000;
@@ -3791,6 +3824,10 @@
       var decimalsEl = document.getElementById('settingDecimals');
       var labelFmtEl = document.getElementById('settingLabelFormat');
       var showCmdsEl = document.getElementById('settingShowCommands');
+      var dcPopEl    = document.getElementById('settingDcMinPop');
+      var dcCellEl   = document.getElementById('settingDcLowCell');
+      var dcAffEl    = document.getElementById('settingDcMinAffected');
+      var dcSumEl    = document.getElementById('settingDcMinSummarize');
       var saveBtn   = document.getElementById('settingsSaveBtn');
       var cancelBtn = document.getElementById('settingsCancelBtn');
       if (!overlay) return;
@@ -3808,6 +3845,10 @@
         if (decimalsEl) decimalsEl.value = getDecimals();
         if (labelFmtEl) labelFmtEl.value = getLabelFormat();
         if (showCmdsEl) showCmdsEl.value = getShowCommandsDefault() ? 'on' : 'off';
+        if (dcPopEl)  dcPopEl.value  = getDcThreshold('dc_min_population');
+        if (dcCellEl) dcCellEl.value = getDcThreshold('dc_tabulate_low_cell');
+        if (dcAffEl)  dcAffEl.value  = getDcThreshold('dc_min_affected');
+        if (dcSumEl)  dcSumEl.value  = getDcThreshold('dc_min_summarize');
         overlay.classList.add('open');
       }
       function closeSettings() { overlay.classList.remove('open'); }
@@ -3847,6 +3888,10 @@
           var sc = showCmdsEl.value === 'off' ? 'off' : 'on';
           try { localStorage.setItem(SHOW_COMMANDS_KEY, sc); } catch(e2) {}
         }
+        if (dcPopEl)  setDcThreshold('dc_min_population', dcPopEl.value);
+        if (dcCellEl) setDcThreshold('dc_tabulate_low_cell', dcCellEl.value);
+        if (dcAffEl)  setDcThreshold('dc_min_affected', dcAffEl.value);
+        if (dcSumEl)  setDcThreshold('dc_min_summarize', dcSumEl.value);
         closeSettings();
       });
       cancelBtn.addEventListener('click', closeSettings);
@@ -6956,6 +7001,10 @@ except Exception:
 try:
     if isinstance(getattr(_m2py_mod, 'M2PY_DEFAULTS', None), dict):
         _m2py_mod.M2PY_DEFAULTS['label_format'] = ${JSON.stringify(getLabelFormat())}
+        _m2py_mod.M2PY_DEFAULTS['dc_min_population'] = ${getDcThreshold('dc_min_population')}
+        _m2py_mod.M2PY_DEFAULTS['dc_tabulate_low_cell'] = ${getDcThreshold('dc_tabulate_low_cell')}
+        _m2py_mod.M2PY_DEFAULTS['dc_min_affected'] = ${getDcThreshold('dc_min_affected')}
+        _m2py_mod.M2PY_DEFAULTS['dc_min_summarize'] = ${getDcThreshold('dc_min_summarize')}
 except Exception:
     pass
 import __main__
