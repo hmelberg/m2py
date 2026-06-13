@@ -127,6 +127,62 @@ CASES = [
     ("collapse_two_stats",
      "summary = df.groupby('g').agg(m=('x', 'mean'), s=('x', 'sum')).reset_index()",
      {"g": [1, 1, 2, 2], "x": [10.0, 20.0, 5.0, 15.0]}, "summary"),
+
+    # ── broadened coverage (added 2026-06-13) ────────────────────────────────
+    ("fillna_scalar",
+     "df['x'] = df['a'].fillna(0)",
+     {"a": [1.0, None, 3.0, None, 5.0]}, "df"),
+    ("map_string_values",
+     "df['lab'] = df['k'].map({1: 'low', 2: 'mid', 3: 'high'})",
+     {"k": [1, 2, 3, 1, 2, 3]}, "df"),
+    ("map_same_col_recode",
+     "df['k'] = df['k'].map({1: 10, 2: 20, 3: 30})",
+     {"k": [1, 2, 3, 1, 2, 3]}, "df"),
+    ("where_other_scalar",
+     "df['x'] = df['a'].where(df['a'] > 0, -1)",
+     {"a": [-2, 3, -1, 5, 0, 7]}, "df"),
+    ("mask_other_scalar",
+     "df['x'] = df['a'].mask(df['a'] < 0, 0)",
+     {"a": [-2, 3, -1, 5, 0, 7]}, "df"),
+    ("np_where_three_branches",
+     "df['g'] = np.where(df['a'] >= 20, 3, "
+     "np.where(df['a'] >= 10, 2, np.where(df['a'] >= 5, 1, 0)))",
+     {"a": [2, 5, 12, 25, 8, 30]}, "df"),
+    ("str_cat_sep",
+     "df['full'] = df['a'].str.cat(df['b'], sep='-')",
+     {"a": ["x", "y", "z"], "b": ["1", "2", "3"]}, "df"),
+    ("str_cat_nosep",
+     "df['full'] = df['a'].str.cat(df['b'])",
+     {"a": ["x", "y", "z"], "b": ["1", "2", "3"]}, "df"),
+    ("qcut_labels_false",
+     "df['q'] = pd.qcut(df['a'], 4, labels=False)",
+     {"a": list(range(1, 13))}, "df"),
+    ("rowmax_axis1",
+     "df['mx'] = df[['a', 'b', 'c']].max(axis=1)",
+     {"a": [1, 5, 2, 9], "b": [4, 1, 9, 0], "c": [3, 3, 3, 3]}, "df"),
+    ("rowmin_axis1",
+     "df['mn'] = df[['a', 'b', 'c']].min(axis=1)",
+     {"a": [1, 5, 2, 9], "b": [4, 1, 9, 0], "c": [3, 3, 3, 3]}, "df"),
+    ("rowmean_axis1",
+     "df['avg'] = df[['a', 'b']].mean(axis=1)",
+     {"a": [1.0, 5.0, 2.0], "b": [3.0, 1.0, 8.0]}, "df"),
+    ("astype_str_new_col",
+     "df['c'] = df['a'].astype(str)",
+     {"a": [1, 2, 3, 42]}, "df"),
+    ("filter_between",
+     "df = df[df['a'].between(2, 5)]",
+     {"a": [1, 2, 3, 4, 5, 6], "g": [1, 1, 2, 2, 3, 3]}, "df"),
+    ("filter_isin",
+     "df = df[df['k'].isin([1, 3])]",
+     {"k": [1, 2, 3, 1, 2, 3], "v": [10, 20, 30, 40, 50, 60]}, "df"),
+    ("cut_finite_bins",
+     "df['lab'] = pd.cut(df['a'], bins=[0, 10, 20, 30], labels=[1, 2, 3])",
+     {"a": [5, 15, 25, 8, 22, 30]}, "df"),
+    ("multi_assign_filter_collapse",
+     "df['x'] = df['a'] + 1\n"
+     "df = df[df['x'] > 3]\n"
+     "summary = df.groupby('g').agg(m=('x', 'mean'), s=('x', 'sum')).reset_index()",
+     {"a": [1, 2, 3, 4, 5, 6], "g": [1, 1, 2, 2, 3, 3]}, "summary"),
 ]
 
 
@@ -139,4 +195,45 @@ def test_equivalent(name, python, data, result):
 
 
 # ── allow-list: genuine, documented microdata-vs-pandas semantic differences ──
-# (xfail with a reason so they stay visible without blocking CI). Empty for now.
+# (xfail with a reason so they stay visible without blocking CI).
+#
+# Each entry: (id, python, data, result_var, reason). The translation is
+# correct microdata; the harness simply cannot model the representation
+# difference with a single synthetic fixture.
+XFAIL_CASES = [
+    ("date_diff_days",
+     "df['d'] = (df['d2'] - df['d1']).dt.days",
+     {"d1": ["2020-01-01", "2020-03-01"], "d2": ["2020-01-11", "2020-03-15"]},
+     "df",
+     "Microdata stores dates as integer days, so '(d2 - d1)' yields an integer "
+     "day count directly — the correct translation of (d2-d1).dt.days. The "
+     "emulator keeps the fixture's pandas Timestamps and subtracts them to a "
+     "Timedelta (nanoseconds under to_numeric), which cannot equal pandas' "
+     "integer .dt.days in a single fixture representation."),
+]
+
+
+def _to_dates(data):
+    """Convert any ISO-date string columns to pandas datetime for the fixture."""
+    df = pd.DataFrame(data)
+    for c in df.columns:
+        if df[c].dtype == object:
+            try:
+                df[c] = pd.to_datetime(df[c])
+            except (ValueError, TypeError):
+                pass
+    return df
+
+
+@pytest.mark.parametrize(
+    "name,python,data,result,reason",
+    XFAIL_CASES,
+    ids=[c[0] for c in XFAIL_CASES],
+)
+def test_xfail_semantic_difference(name, python, data, result, reason):
+    """Documented genuine microdata-vs-pandas differences. xfail with a reason."""
+    pytest.xfail(reason)
+    df_in = _to_dates(data)
+    df_a = _ground_truth(python, df_in, result)
+    df_b, script = _emulator(python, df_in, result)
+    assert_equivalent(df_a, df_b, script)

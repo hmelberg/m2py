@@ -68,6 +68,18 @@ class TestRowsAndColumns:
     def test_destring(self):
         assert tr("df['x'] = pd.to_numeric(df['x'])") == "destring x"
 
+    def test_astype_str_new_column_refs_source(self):
+        # df['c'] = df['a'].astype(str) must read the SOURCE column 'a',
+        # not the (not-yet-existing) target column 'c'.
+        assert tr("df['c'] = df['a'].astype(str)") == "generate c = string(a)"
+
+    def test_astype_str_quoted_new_column_refs_source(self):
+        assert tr("df['c'] = df['a'].astype('str')") == "generate c = string(a)"
+
+    def test_astype_str_same_column(self):
+        # In-place string cast still works.
+        assert tr("df['a'] = df['a'].astype(str)") == "generate a = string(a)"
+
 
 # ---------------------------------------------------------------------------
 # Aggregation

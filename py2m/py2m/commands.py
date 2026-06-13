@@ -237,17 +237,30 @@ def _destring(col: str, value, ctx: Ctx) -> Optional[list]:
         astype = steps[-1]
         if astype.args:
             arg = astype.args[0]
+            # Source column: the value .astype() was called on (df['src'].astype(...)).
+            # Falls back to the target when the source can't be resolved (e.g. an
+            # in-place df['x'].astype(...)), preserving previous behaviour.
+            src_col = _astype_source_col(value, ctx) or col
             if isinstance(arg, ast.Name):
                 if arg.id in ("float", "int"):
                     return [f"destring {col}"]
                 if arg.id == "str":
-                    return [f"generate {col} = string({col})"]
+                    return [f"generate {col} = string({src_col})"]
             if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
                 if any(t in arg.value.lower() for t in ("float", "int")):
                     return [f"destring {col}"]
                 if arg.value.lower() in ("str", "string", "object"):
-                    return [f"generate {col} = string({col})"]
+                    return [f"generate {col} = string({src_col})"]
     return None
+
+
+def _astype_source_col(value, ctx: Ctx) -> Optional[str]:
+    """For df['src'].astype(...), return the source column name 'src', else None."""
+    if not (isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Attribute)
+            and value.func.attr == "astype"):
+        return None
+    return _col_name(value.func.value, ctx.df_name, ctx.tr)
 
 
 # ── expr-stmt extractors ──────────────────────────────────────────────────────
