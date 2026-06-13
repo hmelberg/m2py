@@ -261,9 +261,12 @@ class MicroParser:
             var_name = loop_match.group(1)
             items = loop_match.group(2).strip().split()
             body = loop_match.group(3).strip()
+            # Erstatt kun frittstående forekomster av iteratoren (ordgrense),
+            # ellers mangles ord som `import` → `1mport` for iterator `i`.
+            _iter_re = re.compile(r'(?<!\w)' + re.escape(var_name) + r'(?!\w)')
             expanded = ""
             for item in items:
-                expanded += body.replace(var_name, item) + "\n"
+                expanded += _iter_re.sub(item, body) + "\n"
             script_text = script_text[:loop_match.start()] + expanded + script_text[loop_match.end():]
 
         # 2) Linjefortsettelse ala microdata: backslash på slutten av linjen
@@ -925,6 +928,40 @@ def _stata_like_bool_fixup(expr):
     return s
 
 
+def _split_quote_segments(expr):
+    """Del et uttrykk i segmenter (is_quoted, tekst) der is_quoted angir om
+    teksten ligger inni et streng-litteral. Brukes for å gjøre omskrivinger
+    anførselstegn-bevisste. Håndterer både ' og " samt \\-escaping."""
+    segs = []
+    i = 0
+    n = len(expr)
+    q = None
+    start = 0
+    while i < n:
+        ch = expr[i]
+        if q:
+            if ch == '\\' and i + 1 < n:
+                i += 2
+                continue
+            if ch == q:
+                segs.append((True, expr[start:i + 1]))
+                q = None
+                start = i + 1
+            i += 1
+            continue
+        if ch in "'\"":
+            if start < i:
+                segs.append((False, expr[start:i]))
+            q = ch
+            start = i
+            i += 1
+            continue
+        i += 1
+    if start < n:
+        segs.append((q is not None, expr[start:]))
+    return segs
+
+
 def _micro_expr_fixup(expr):
     """Oversett microdata-syntaks til gyldig Python:
     - ! → ~ (negasjon), men bevar !=
@@ -944,17 +981,25 @@ def _micro_expr_fixup(expr):
         r'|(?<![\w.])\.\s*(?:==|!=|>=|<=|>|<)'
     )
     if '.' in expr:
-        if _is_disclosure_control() and re.search(_DOT_COMPARE_RE, expr):
+        # Strenglitteraler kan inneholde `.` (f.eks. generate kode = '.'),
+        # så både sammenligningssjekken og np.nan-omskrivingen må hoppe over
+        # tekst i anførselstegn (ellers ble '.' til litteralen 'np.nan').
+        _segs = _split_quote_segments(expr)
+        if _is_disclosure_control() and any(
+            (not is_q) and re.search(_DOT_COMPARE_RE, t) for is_q, t in _segs
+        ):
             raise ValueError(
                 "Sammenligning med `.` (Stata-syntaks som `x == .`) er ikke "
                 "gyldig i microdata.no. Bruk `sysmiss(x)` for å teste om en "
                 "verdi er missing (f.eks. `drop if sysmiss(x)`). "
                 "Tildeling med `= .` (f.eks. `generate x = .`) er OK."
             )
-        # Konverter enslige `.` til np.nan slik at både tildeling og
-        # arithmetikk med missing fungerer.
-        if re.search(_DOT_RE, expr):
-            expr = re.sub(_DOT_RE, 'np.nan', expr)
+        # Konverter enslige `.` (utenfor strenger) til np.nan slik at både
+        # tildeling og aritmetikk med missing fungerer.
+        if any((not is_q) and re.search(_DOT_RE, t) for is_q, t in _segs):
+            expr = ''.join(
+                t if is_q else re.sub(_DOT_RE, 'np.nan', t) for is_q, t in _segs
+            )
     # Steg 1: fjern ledende nuller utenfor strenger (f.eks. 01 → 1, 007 → 7)
     # Matcher komma/parentes + 0-prefiks + siffer(e), men ikke 0 alene eller 0.noe
     if '0' in expr:
@@ -4493,6 +4538,30 @@ class StatsEngine:
             else:
                 label_fmt = _get_default('label_format') or 'both'
 
+            def _t5_small_cell_check():
+                """T5: avsløringskontroll — stopp tabeller med for mange små
+                celler. Sjekkes på RÅ tellinger av cellene (uavhengig av om
+                bruker vil ha prosenter eller en volumtabell via summarize())."""
+                if not _is_disclosure_control():
+                    return
+                if var2:
+                    _raw_counts = pd.crosstab(df[var1], df[var2], dropna=dropna)
+                else:
+                    _raw_counts = df[var1].value_counts(dropna=not dropna)
+                _flat = _raw_counts.values.flatten() if hasattr(_raw_counts, 'values') else _raw_counts.to_numpy().flatten()
+                _total_cells = len(_flat)
+                if _total_cells > 0:
+                    _low_cells = int((_flat < _DC_TABULATE_LOW_CELL).sum())
+                    _low_ratio = _low_cells / _total_cells
+                    if _low_ratio > _DC_TABULATE_LOW_RATIO:
+                        raise ValueError(
+                            f"Tabellen kan ikke vises pga. for mange små celler "
+                            f"({_low_cells} av {_total_cells} celler har frekvens "
+                            f"<{_DC_TABULATE_LOW_CELL}, dvs. {_low_ratio*100:.0f}% — "
+                            f"grensen er {int(_DC_TABULATE_LOW_RATIO*100)}%). "
+                            f"Reduser antall kategorier eller utvid populasjonen."
+                        )
+
             def _parse_sort_arg(opt_val):
                 """Parse argument til rowsort()/colsort(). Returnerer kodeverdi eller None."""
                 if opt_val is True or opt_val is None:
@@ -4601,6 +4670,9 @@ class StatsEngine:
 
             if 'summarize' in options:
                 # Volumtabell: summarize(var [, var2 ...]) [mean|std|sum|p50|p25|p75|gini|iqr]
+                # En gjennomsnitts-/sum-tabell over små celler avslører nær-individuelle
+                # verdier akkurat som en frekvenstabell, så T5 gjelder også her.
+                _t5_small_cell_check()
                 # summarize kan inneholde én eller flere komma-separerte variabler
                 val_var_spec = options['summarize']
                 val_vars = [v.strip() for v in str(val_var_spec).split(',') if v.strip()]
@@ -4683,26 +4755,8 @@ class StatsEngine:
             elif 'colpct' in options: normalize = 'columns'
             elif 'cellpct' in options: normalize = 'all'
 
-            # T5: avsløringskontroll — stopp tabeller med for mange små celler.
-            # Sjekk på RÅ tellinger, uavhengig av om bruker vil ha prosenter.
-            if _is_disclosure_control():
-                if var2:
-                    _raw_counts = pd.crosstab(df[var1], df[var2], dropna=dropna)
-                else:
-                    _raw_counts = df[var1].value_counts(dropna=not dropna)
-                _flat = _raw_counts.values.flatten() if hasattr(_raw_counts, 'values') else _raw_counts.to_numpy().flatten()
-                _total_cells = len(_flat)
-                if _total_cells > 0:
-                    _low_cells = int((_flat < _DC_TABULATE_LOW_CELL).sum())
-                    _low_ratio = _low_cells / _total_cells
-                    if _low_ratio > _DC_TABULATE_LOW_RATIO:
-                        raise ValueError(
-                            f"Tabellen kan ikke vises pga. for mange små celler "
-                            f"({_low_cells} av {_total_cells} celler har frekvens "
-                            f"<{_DC_TABULATE_LOW_CELL}, dvs. {_low_ratio*100:.0f}% — "
-                            f"grensen er {int(_DC_TABULATE_LOW_RATIO*100)}%). "
-                            f"Reduser antall kategorier eller utvid populasjonen."
-                        )
+            # T5: avsløringskontroll — stopp frekvenstabeller med for mange små celler.
+            _t5_small_cell_check()
 
             if var2:
                 ct = pd.crosstab(df[var1], df[var2], normalize=normalize, dropna=dropna,

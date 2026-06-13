@@ -19,7 +19,11 @@ from py2m import transform
 
 
 # Disclosure control would block small synthetic populations (T1/T6 thresholds).
-m2py.M2PY_DISCLOSURE_CONTROL = "0"
+# Scope it to this module via an autouse fixture so it does not leak into other
+# test files (which rely on the default ON behaviour).
+@pytest.fixture(autouse=True)
+def _disclosure_off(monkeypatch):
+    monkeypatch.setattr(m2py, "M2PY_DISCLOSURE_CONTROL", "0", raising=False)
 
 
 # ── pipeline ────────────────────────────────────────────────────────────────

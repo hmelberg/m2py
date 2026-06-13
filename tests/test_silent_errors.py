@@ -205,3 +205,43 @@ class TestTwoStageLeastSquaresSE:
         # Naiv SE (trinn-2-residualer) er ~66 % større i dette oppsettet,
         # så 3 % toleranse skiller skarpt mellom riktig og galt.
         assert se_reported == pytest.approx(se_expected, rel=0.03)
+
+
+# ---------------------------------------------------------------------------
+# 6. tabulate ..., summarize(): volumtabeller skal også avsløringskontrolleres
+# ---------------------------------------------------------------------------
+
+class TestTabulateSummarizeDisclosure:
+    """En gjennomsnitts-/sum-tabell over celler med 1–2 observasjoner avslører
+    nær-individuelle verdier. Frekvenstabeller stoppes av T5; volumtabellen
+    (summarize(...)) gikk tidligere utenom kontrollen og ble vist."""
+
+    def _tiny_cells_df(self):
+        # 6 grupper à 2 rader => alle 6 celler har frekvens < 5 (100 % små)
+        grp = [g for g in range(6) for _ in range(2)]
+        inntekt = [100000 + 1000 * i for i in range(12)]
+        return pd.DataFrame({"grp": grp, "inntekt": [float(x) for x in inntekt]})
+
+    def test_frequency_table_blocked(self):
+        # Kontroll: frekvenstabellen stoppes allerede (T5).
+        it = _interp(self._tiny_cells_df())
+        out = _run(it, "tabulate grp")
+        assert "FEIL" in out and "celler" in out
+
+    def test_summarize_volume_table_blocked(self):
+        it = _interp(self._tiny_cells_df())
+        out = _run(it, "tabulate grp, summarize(inntekt) mean")
+        assert "FEIL" in out and "celler" in out
+
+    def test_summarize_volume_table_allowed_when_dc_off(self, dc_off):
+        it = _interp(self._tiny_cells_df())
+        out = _run(it, "tabulate grp, summarize(inntekt) mean")
+        assert "FEIL" not in out
+
+    def test_summarize_crosstab_blocked(self):
+        # To-veis volumtabell med små celler skal også stoppes.
+        df = self._tiny_cells_df()
+        df["kjonn"] = [0, 1] * 6
+        it = _interp(df)
+        out = _run(it, "tabulate grp kjonn, summarize(inntekt) mean")
+        assert "FEIL" in out and "celler" in out

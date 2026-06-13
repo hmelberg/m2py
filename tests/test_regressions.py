@@ -164,3 +164,45 @@ class TestSingleLabelManager:
         lm.drop_labels("cl")
         assert "cl" not in lm.codelists
         assert "x" not in lm.var_to_codelist
+
+
+# ---------------------------------------------------------------------------
+# Enslig `.` → np.nan: omskrivingen var blind for strenger, så et
+# strenglitteral som '.' ble til litteralen 'np.nan'.
+# ---------------------------------------------------------------------------
+
+class TestLoneDotQuoteAware:
+    def test_dot_string_literal_preserved(self):
+        # '.' er en gyldig strengverdi, ikke missing
+        assert m2py._micro_expr_fixup("kode = '.'") == "kode = '.'"
+
+    def test_dot_inside_double_quotes_preserved(self):
+        assert m2py._micro_expr_fixup('kode = ". "') == 'kode = ". "'
+
+    def test_bare_dot_still_becomes_nan(self):
+        # Utenfor strenger skal `.` fortsatt bli np.nan (tildeling)
+        assert m2py._micro_expr_fixup("x = .") == "x = np.nan"
+
+    def test_dot_in_string_with_bare_dot_outside(self):
+        # Blandet: strengen bevares, det frie punktet konverteres
+        assert m2py._micro_expr_fixup("x = . if s == 'a'") == "x = np.nan if s == 'a'"
+
+
+# ---------------------------------------------------------------------------
+# for-each-ekspansjon brukte rå substring-replace: en iterator som `i` manglet
+# ord som `import` (→ `1mport`) og `summarize` (→ `summar1ze`).
+# ---------------------------------------------------------------------------
+
+class TestForEachWordBoundary:
+    def _expand(self, text):
+        return m2py.MicroParser().preprocess_script(text)
+
+    def test_iterator_does_not_mangle_keywords(self):
+        out = self._expand("for-each i in 1 {\nimport INNTEKT\nsummarize i\n}")
+        assert "1mport" not in out and "summar1ze" not in out
+        assert "import INNTEKT" in out
+        assert "summarize 1" in out
+
+    def test_iterator_replaces_bare_token_each_item(self):
+        out = self._expand("for-each v in a b {\nsummarize v\n}")
+        assert "summarize a" in out and "summarize b" in out
