@@ -337,7 +337,7 @@ translate <- function(r_code, df_name = "df") {
     src <- as.character(rhs)
     if (src != lhs_name) {
       state <- .register_df(lhs_name, state)
-      state <- .append(state, lines = paste0("clone-dataset ", lhs_name))
+      state <- .append(state, lines = paste0("clone-dataset ", src, " ", lhs_name))
     }
     return(state)
   }
@@ -404,7 +404,7 @@ translate <- function(r_code, df_name = "df") {
   cond_node <- if (length(rhs_args) >= 2) rhs_args[[2]] else NULL
 
   if (src_df != lhs_name) {
-    state <- .append(state, lines = c(paste0("clone-dataset ", lhs_name),
+    state <- .append(state, lines = c(paste0("clone-dataset ", src_df, " ", lhs_name),
                                       paste0("use ", lhs_name)))
     state <- .register_df(lhs_name, state)
     state$current_df <- lhs_name
@@ -499,7 +499,7 @@ DPLYR_VERBS <- c(
 
   # Clone if assigning to a new name
   if (!is.null(target_df) && !is.null(src_df) && target_df != src_df) {
-    state <- .append(state, lines = c(paste0("clone-dataset ", target_df),
+    state <- .append(state, lines = c(paste0("clone-dataset ", src_df, " ", target_df),
                                       paste0("use ", target_df)))
     state <- .register_df(target_df, state)
     state$current_df <- target_df

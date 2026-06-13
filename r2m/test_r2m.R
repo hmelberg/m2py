@@ -168,16 +168,16 @@ expect("base transform → generate",
 
 expect("base subset → keep if (with clone for new name)",
   "df2 <- subset(df, age > 18)",
-  c("clone-dataset df2", "use df2", "keep if age > 18"))
+  c("clone-dataset df df2", "use df2", "keep if age > 18"))
 
 expect("base aggregate → collapse",
   "agg <- aggregate(income ~ sector, data = df, FUN = mean)",
-  c("clone-dataset agg", "use agg",
+  c("clone-dataset df agg", "use agg",
     "collapse (mean) income -> income, by(sector)"))
 
 # base merge → join (same shape as left_join)
 res_bmerge <- translate('df3 <- merge(df, df2, by = "id")')
-if (grepl("clone-dataset df3", res_bmerge$script) &&
+if (grepl("clone-dataset df df3", res_bmerge$script) &&
     grepl("merge <vars_from_df2> into df3 on id", res_bmerge$script)) {
   cat("  PASS: base merge → join\n"); PASS <- PASS + 1L
 } else {
@@ -199,7 +199,7 @@ expect("across with lambda in mutate",
 
 expect("across with bare function in summarise",
   "stats <- df |> group_by(sex) |> summarise(across(c(income, age), mean))",
-  c("clone-dataset stats", "use stats",
+  c("clone-dataset df stats", "use stats",
     "collapse (mean) income -> income (mean) age -> age, by(sex)"))
 
 expect("na_if in mutate",
@@ -224,7 +224,7 @@ expect("drop_na",
 
 expect("clone when target != source",
   "df2 <- df |> filter(age >= 18)",
-  c("clone-dataset df2", "use df2", "keep if age >= 18"))
+  c("clone-dataset df df2", "use df2", "keep if age >= 18"))
 
 cat("\n── translator.R — group_by chains ──────────────────────────\n")
 
@@ -234,7 +234,7 @@ expect("group_by + summarise",
 
 expect("group_by + summarise assigned",
   "stats <- df |> group_by(sex) |> summarise(mean_inc = mean(income))",
-  c("clone-dataset stats", "use stats",
+  c("clone-dataset df stats", "use stats",
     "collapse (mean) income -> mean_inc, by(sex)"))
 
 expect("group_by + mutate (aggregate)",
@@ -340,7 +340,7 @@ cat("\n── translator.R — base R bracket filter ─────────
 
 expect("base R filter assigned to new df",
   "df2 <- df[df$age >= 18, ]",
-  c("clone-dataset df2", "use df2", "keep if age >= 18"))
+  c("clone-dataset df df2", "use df2", "keep if age >= 18"))
 
 cat("\n── full examples (smoke tests) ──────────────────────────────\n")
 
@@ -395,7 +395,7 @@ stats <- df |>
   summarise(mean_inc = mean(income), n = n())
 '
 res_grp <- translate(r_grp)
-if (grepl("clone-dataset stats", res_grp$script) &&
+if (grepl("clone-dataset df stats", res_grp$script) &&
     grepl("collapse \\(mean\\) income -> mean_inc \\(count\\) n -> n, by\\(sector sex\\)", res_grp$script)) {
   cat("  PASS: group_by + summarise example\n"); PASS <- PASS + 1L
 } else {
@@ -515,7 +515,7 @@ expect("left_join in pipe",
 
 expect("left_join assigned",
   "df3 <- df |> left_join(df2, by = 'id')",
-  c("clone-dataset df3", "use df3",
+  c("clone-dataset df df3", "use df3",
     "use df2",
     "merge <vars_from_df2> into df3 on id",
     "// Replace <vars_from_df2> with the variable names to bring in from df2"))
@@ -683,7 +683,7 @@ expect("standalone call uses current_df after pipe switch",
   paste("df2 <- df |> filter(age >= 18)",
         "shapiro.test(df2$income)",
         sep = "\n"),
-  c("clone-dataset df2", "use df2", "keep if age >= 18", "normaltest income"))
+  c("clone-dataset df df2", "use df2", "keep if age >= 18", "normaltest income"))
 
 expect("assigned model call with data= emits use",
   "fit <- lm(income ~ edu + age, data = df_adults)",

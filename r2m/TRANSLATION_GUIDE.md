@@ -138,8 +138,8 @@ These are desugared into their dplyr equivalents and translate identically:
 
 | R | microdata |
 |---|-----------|
-| `df2 <- df` | `clone-dataset df2` |
-| `df2 <- df[cond, ]` | `clone-dataset df2` + `use df2` + `keep if cond` |
+| `df2 <- df` | `clone-dataset df df2` |
+| `df2 <- df[cond, ]` | `clone-dataset df df2` + `use df2` + `keep if cond` |
 | `YEAR <- 2020` | `let YEAR = 2020` |
 | `label <- "text"` | `let label = 'text'` |
 
