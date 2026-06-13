@@ -76,14 +76,19 @@
   }
 
   function pollAbort(explainAbortRef) {
-    return new Promise(function (resolve) {
-      const iv = setInterval(function () {
+    // Returns { promise, cancel }. Promise.race leaves the loser pending, so
+    // the caller MUST call cancel() after the race — otherwise this 60ms
+    // interval leaks (one per widget interaction).
+    let iv;
+    const promise = new Promise(function (resolve) {
+      iv = setInterval(function () {
         if (explainAbortRef && explainAbortRef.aborted) {
           clearInterval(iv);
           resolve(true);
         }
       }, 60);
     });
+    return { promise: promise, cancel: function () { clearInterval(iv); } };
   }
 
   function getMdRenderer() {
@@ -288,12 +293,13 @@
         await speakForWidget(api, p);
       } catch (e) {}
     })();
-    const racers = [userDone, pollAbort(explainAbortRef)];
+    const poll = pollAbort(explainAbortRef);
+    const racers = [userDone, poll.promise];
     if (p.auto_advance_ms != null && !isNaN(parseFloat(p.auto_advance_ms))) {
       const ms = Math.max(0, parseFloat(p.auto_advance_ms));
       racers.push(new Promise(function (resolve) { setTimeout(function () { resolve(false); }, ms); }));
     }
-    await Promise.race(racers);
+    try { await Promise.race(racers); } finally { poll.cancel(); }
     try { if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel(); } catch (e) {}
   }
 
@@ -421,7 +427,8 @@
   }
 
   function raceUserOrAbort(userPromise, explainAbortRef) {
-    return Promise.race([userPromise, pollAbort(explainAbortRef)]);
+    const poll = pollAbort(explainAbortRef);
+    return Promise.race([userPromise, poll.promise]).finally(function () { poll.cancel(); });
   }
 
   async function renderError(payload, explainAbortRef, api) {
@@ -637,6 +644,9 @@
       } else {
         correctIndex = 0;
       }
+      // Clamp to a real choice: an out-of-range index with require_correct:true
+      // would make the correct answer unreachable and soft-lock the quiz modal.
+      if (correctIndex < 0 || correctIndex >= choices.length) correctIndex = 0;
     } else {
       correctStr = p.correct != null ? String(p.correct) : '';
     }
