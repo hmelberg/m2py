@@ -48,6 +48,16 @@ Attacker-reachable today; highest leverage.
 ## Phase 2 — Disclosure-control & remaining engine correctness  ← STARTING HERE
 The "researchers trust this for analysis + privacy" batch. Strong TDD fit.
 
+Feature (requested 2026-06-13): **disclosure control optional, default OFF.**
+- [x] Flipped default to OFF in m2py.py (`_is_disclosure_control` fallback `'0'`,
+      directive-save fallback) and in index.html (`getDisclosureControl`, the
+      apply-to-Python fallback, prev-value defaults, menu placeholder label).
+      The hamburger switch (`menuDisclosureControl`) and the `// m2py:
+      disclosure-control=on` / `dc=on` directive already existed — both verified.
+      Tests: test_default_disclosure_control_is_off, test_directive_can_turn_disclosure_on.
+      NOTE for Phase 5: decide whether the microdata-api copy keeps default ON
+      (it validates scripts against platform restrictions).
+
 m2py.py:
 - [x] **`tabulate …, summarize()` bypasses small-cell disclosure check** — DONE.
       Extracted `_t5_small_cell_check()`; summarize volume tables (1D + crosstab)

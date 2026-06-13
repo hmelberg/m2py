@@ -5,10 +5,11 @@ import math
 # Avsløringskontroll (microdata.no-stil sensurering)
 # Når PÅ: matcher microdata.no — pseudonym-validering, type-sjekk, blokker små
 # populasjoner og tabeller, winsoriserer, runder persentiler.
-# Default: PÅ. Også PÅ når flagget mangler (API/script-bruk).
+# Default: AV. Slås på via hamburgermenyen (bryter) eller script-direktivet
+# `// m2py: disclosure-control=on` (alias `dc=on`). Også AV når flagget mangler.
 # ─────────────────────────────────────────────────────────────────────────────
 def _is_disclosure_control():
-    v = globals().get('M2PY_DISCLOSURE_CONTROL', '1')
+    v = globals().get('M2PY_DISCLOSURE_CONTROL', '0')
     return v in (True, 1, '1', 'true', 'True', 'yes', 'on')
 
 # Bakoverkompatibilitet: tidligere het pseudonym-/type-/for-løkke-sjekkene
@@ -6542,7 +6543,7 @@ class MicroInterpreter:
                     continue
                 saved_key = ('global', storage_key)
                 if saved_key not in saved:
-                    saved[saved_key] = globals().get(storage_key, '1')
+                    saved[saved_key] = globals().get(storage_key, '0')
                 globals()[storage_key] = new_val
                 self._log(
                     f"// m2py: {key} = "

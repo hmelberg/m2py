@@ -1500,7 +1500,7 @@
         </div>
         <div class="settings-field">
           <label>Avsl&#248;ringskontroll</label>
-          <button type="button" class="btn btn-secondary" id="menuDisclosureControl" title="Når PÅ: matcher microdata.no — pseudonym-validering, type-sjekk, min populasjon 1000, små celler skjules, winsorisering, persentiler avrundes. Når AV: alle regler er slått av og du ser rå tall.">Avsl&#248;ringskontroll: P&#197;</button>
+          <button type="button" class="btn btn-secondary" id="menuDisclosureControl" title="Når PÅ: matcher microdata.no — pseudonym-validering, type-sjekk, min populasjon 1000, små celler skjules, winsorisering, persentiler avrundes. Når AV: alle regler er slått av og du ser rå tall.">Avsl&#248;ringskontroll: AV</button>
           <p class="settings-hint">N&#229;r P&#197;: matcher microdata.no &mdash; pseudonym-validering, type-sjekk, min populasjon 1000, sm&#229; celler skjules, winsorisering, persentiler avrundes. N&#229;r AV: alle regler er sl&#229;tt av og du ser r&#229; tall.</p>
         </div>
         <div class="settings-field">
@@ -3135,14 +3135,14 @@
         });
       }
 
-      // Avsløringskontroll: default PÅ; også PÅ når flagget mangler. Speiles
-      // til Pyodide via globals()['M2PY_DISCLOSURE_CONTROL'].
+      // Avsløringskontroll: default AV; også AV når flagget mangler. Slås på
+      // via menybryteren her eller direktivet `// m2py: disclosure-control=on`.
+      // Speiles til Pyodide via globals()['M2PY_DISCLOSURE_CONTROL'].
       const DC_KEY = 'microdata_disclosure_control';
       function getDisclosureControl() {
         try {
-          const v = localStorage.getItem(DC_KEY);
-          return v === null || v === '1';
-        } catch (e) { return true; }
+          return localStorage.getItem(DC_KEY) === '1';
+        } catch (e) { return false; }
       }
       function setDisclosureControl(on) {
         try { localStorage.setItem(DC_KEY, on ? '1' : '0'); } catch (e) {}
@@ -7899,7 +7899,7 @@ exec(compile(static_code, "static_source.py", "exec"), sys.modules["static_sourc
       // Speile avsløringskontroll-flagget fra localStorage til m2py.M2PY_DISCLOSURE_CONTROL.
       window.__applyDisclosureControlToPython = async function () {
         if (!pyodide) return;
-        const on = window.__getDisclosureControl ? window.__getDisclosureControl() : true;
+        const on = window.__getDisclosureControl ? window.__getDisclosureControl() : false;
         try {
           await pyodide.runPythonAsync(
             `import sys\n` +
@@ -9768,7 +9768,7 @@ def _run_microdata_chunk(_code):
           '_catalog_json = ' + (catalogJson !== null ? JSON.stringify(catalogJson) : 'None') + '\n' +
           '_base = ' + JSON.stringify(base) + '\n' +
           '_m = sys.modules.get("m2py")\n' +
-          '_prev_dc = getattr(_m, "M2PY_DISCLOSURE_CONTROL", "1") if _m is not None else "1"\n' +
+          '_prev_dc = getattr(_m, "M2PY_DISCLOSURE_CONTROL", "0") if _m is not None else "0"\n' +
           '_out = json.dumps({"passed": False, "errors": [{"kind": "runtime", "message": "validator unavailable"}]})\n' +
           'try:\n' +
           '    if _m is not None:\n' +
@@ -9820,7 +9820,7 @@ def _run_microdata_chunk(_code):
           '_catalog_json = ' + (catalogJson !== null ? JSON.stringify(catalogJson) : 'None') + '\n' +
           '_base = ' + JSON.stringify(base) + '\n' +
           '_m = sys.modules.get("m2py")\n' +
-          'globals()["_prev_dc"] = getattr(_m, "M2PY_DISCLOSURE_CONTROL", "1") if _m is not None else "1"\n' +
+          'globals()["_prev_dc"] = getattr(_m, "M2PY_DISCLOSURE_CONTROL", "0") if _m is not None else "0"\n' +
           'if _m is not None:\n' +
           '    _m.M2PY_DISCLOSURE_CONTROL = "0"\n' +
           'from m2py import MicroInterpreter\n' +

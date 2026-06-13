@@ -41,6 +41,11 @@ def dc_off(monkeypatch):
     monkeypatch.setattr(m2py, "M2PY_DISCLOSURE_CONTROL", "0", raising=False)
 
 
+@pytest.fixture
+def dc_on(monkeypatch):
+    monkeypatch.setattr(m2py, "M2PY_DISCLOSURE_CONTROL", "1", raising=False)
+
+
 # ---------------------------------------------------------------------------
 # 1. Ukjent kommando / ugyldige argumenter
 # ---------------------------------------------------------------------------
@@ -222,13 +227,27 @@ class TestTabulateSummarizeDisclosure:
         inntekt = [100000 + 1000 * i for i in range(12)]
         return pd.DataFrame({"grp": grp, "inntekt": [float(x) for x in inntekt]})
 
-    def test_frequency_table_blocked(self):
-        # Kontroll: frekvenstabellen stoppes allerede (T5).
+    def test_default_disclosure_control_is_off(self):
+        # Standarden er AV: uten bryter/direktiv blokkeres ikke små tabeller.
+        assert m2py._is_disclosure_control() is False
+        it = _interp(self._tiny_cells_df())
+        out = _run(it, "tabulate grp, summarize(inntekt) mean")
+        assert "FEIL" not in out
+
+    def test_directive_can_turn_disclosure_on(self):
+        # // m2py: disclosure-control=on slår kontrollen på for scriptet.
+        it = _interp(self._tiny_cells_df())
+        it.run_script("// m2py: disclosure-control=on\ntabulate grp, summarize(inntekt) mean")
+        out = "\n".join(str(m) for m in it.output_log)
+        assert "FEIL" in out and "celler" in out
+
+    def test_frequency_table_blocked(self, dc_on):
+        # Når kontrollen er på stoppes frekvenstabellen (T5).
         it = _interp(self._tiny_cells_df())
         out = _run(it, "tabulate grp")
         assert "FEIL" in out and "celler" in out
 
-    def test_summarize_volume_table_blocked(self):
+    def test_summarize_volume_table_blocked(self, dc_on):
         it = _interp(self._tiny_cells_df())
         out = _run(it, "tabulate grp, summarize(inntekt) mean")
         assert "FEIL" in out and "celler" in out
@@ -238,7 +257,7 @@ class TestTabulateSummarizeDisclosure:
         out = _run(it, "tabulate grp, summarize(inntekt) mean")
         assert "FEIL" not in out
 
-    def test_summarize_crosstab_blocked(self):
+    def test_summarize_crosstab_blocked(self, dc_on):
         # To-veis volumtabell med små celler skal også stoppes.
         df = self._tiny_cells_df()
         df["kjonn"] = [0, 1] * 6
