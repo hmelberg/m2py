@@ -27,6 +27,10 @@ def main():
         "--warnings", action="store_true",
         help="Print warnings to stderr"
     )
+    parser.add_argument(
+        "--strict", action="store_true",
+        help="Exit with status 1 if any warning or UNTRANSLATED line is produced"
+    )
     args = parser.parse_args()
 
     if args.input == "-":
@@ -50,6 +54,13 @@ def main():
     elif result.warnings:
         print(f"\n// {len(result.warnings)} warning(s) — run with --warnings to see details",
               file=sys.stderr)
+
+    if args.strict:
+        untranslated = "UNTRANSLATED" in script
+        if result.warnings or untranslated:
+            n = len(result.warnings) + (1 if untranslated else 0)
+            print(f"strict: {n} unresolved issue(s) — failing", file=sys.stderr)
+            sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,25 @@
+name: py2m tests
+
+on:
+  push:
+    paths:
+      - 'py2m/**'
+      - '.github/workflows/py2m-tests.yml'
+  pull_request:
+    paths:
+      - 'py2m/**'
+      - '.github/workflows/py2m-tests.yml'
+
+jobs:
+  py2m:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run py2m test suite
+        # py2m's translator is pure-AST — no pandas/numpy needed to run the tests.
+        run: python -m pytest py2m/tests/ -q
