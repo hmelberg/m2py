@@ -126,3 +126,28 @@ class TestPanelCodes:
         df = it.datasets[it.active_name]
         # '0301' must stay the 4-char string, not become int 301
         assert all(isinstance(v, str) and len(v) == 4 for v in df["KOMM"].unique())
+
+
+class TestStaticSourceLimit:
+    """The static (DuckDB/Parquet) source must bound the population by
+    `WHERE unit_id <= n`, not `LIMIT n` — parquet row order is unguaranteed, so
+    LIMIT could select a person set inconsistent with the entity tables (which
+    already filter `ref_col <= n`), leaving dangling unit_ids."""
+
+    def _src(self):
+        import static_source
+        return static_source.StaticDataSource({"INNTEKT_X": {}}, {})
+
+    def test_person_population_bounded_by_where_not_limit(self):
+        descs = self._src().plan([{"var": "db/INNTEKT_X", "date1": None}], limit=5)
+        assert len(descs) == 1
+        d = descs[0]
+        assert d.get("kind") == "person"
+        assert not d.get("limit"), "person scan must not use LIMIT"
+        assert d.get("where") and "unit_id <= 5" in d["where"]
+
+    def test_person_sql_uses_where(self):
+        sqls = self._src().plan_sql(
+            "import db/INNTEKT_X", base_url="https://x/", limit=5)
+        sql = sqls[0]["sql"]
+        assert "unit_id <= 5" in sql and "LIMIT" not in sql.upper()

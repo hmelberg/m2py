@@ -56,6 +56,16 @@ def main() -> None:
 
     out: Path = args.out
     out.mkdir(parents=True, exist_ok=True)
+    # Clean stale generated artifacts first. Writes are otherwise additive, so a
+    # smaller rebuild (e.g. --no-entities, or fewer persons) would leave parquet
+    # tables from a previous, larger person universe on disk — served with
+    # dangling unit_ids that don't exist in the new person table.
+    for _pattern in ("*.parquet", "*.csv", "*.duckdb"):
+        for _f in out.glob(_pattern):
+            try:
+                _f.unlink()
+            except OSError:
+                pass
     years = list(range(args.year_from, args.year_to + 1))
 
     catalog = json.loads(args.metadata.read_text(encoding="utf-8"))["variables"]
@@ -108,6 +118,9 @@ def main() -> None:
         "tables": {name: {"rows": len(df), "cols": len(df.columns)} for name, df in tables.items()},
         "metadata_file": str(args.metadata),
         "skips": sorted(set(skips)),
+        # Full provenance: every CLI argument that produced this build, so a
+        # served bundle can be reproduced and its scope is unambiguous.
+        "build_args": {k: (str(v) if isinstance(v, Path) else v) for k, v in vars(args).items()},
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
 
