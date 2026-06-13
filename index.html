@@ -1816,7 +1816,10 @@
             },
             body: JSON.stringify({ label, expires_days, max_uses }),
           });
-          const data = await res.json();
+          // Parse defensively: an error response may not be JSON (e.g. a 502
+          // HTML page), which would otherwise throw before the res.ok check.
+          let data = {};
+          try { data = await res.json(); } catch (_) {}
           if (!res.ok || data.error) {
             errorDiv.textContent = data.error || `Feil: ${res.status}`;
             return;
@@ -2101,6 +2104,7 @@
         const reader = resp.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let streamError = null;
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
@@ -2129,10 +2133,18 @@
                 inputTokens = obj.inputTokens || 0;
                 outputTokens = obj.outputTokens || 0;
               } else if (obj.type === 'error') {
-                status.textContent = `Feil fra server: ${obj.message}`;
+                streamError = obj.message || 'ukjent feil';
+                break;
               }
             } catch (_) { /* ignore */ }
           }
+          if (streamError) break;
+        }
+        // A server-side stream error must NOT fall through to the success path
+        // (which otherwise repaints the result and sets a "Ferdig" status).
+        if (streamError) {
+          status.textContent = `Feil fra server: ${streamError}`;
+          return;
         }
         // Split out "## Revidert script" section if present
         let mainText = accumulated;
@@ -3742,19 +3754,25 @@
     function setDataSource(on) {
       try { localStorage.setItem(DATA_SOURCE_KEY, on ? 'static' : 'dynamic'); } catch (e) {}
     }
-    let __duckdbDB = null;
-    async function __ensureDuckDB() {
-      if (__duckdbDB) return __duckdbDB;
-      const duckdb = await import('https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm');
-      const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
-      const wurl = URL.createObjectURL(new Blob(['importScripts("' + bundle.mainWorker + '");'],
-        { type: 'text/javascript' }));
-      const worker = new Worker(wurl);
-      const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(), worker);
-      await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-      URL.revokeObjectURL(wurl);
-      __duckdbDB = db;
-      return db;
+    let __duckdbPromise = null;
+    function __ensureDuckDB() {
+      // Memoize the in-flight promise: two concurrent callers would otherwise
+      // both pass the null check and each spin up a separate DuckDB worker (the
+      // second overwrites the global and leaks the first).
+      if (!__duckdbPromise) {
+        __duckdbPromise = (async function () {
+          const duckdb = await import('https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm');
+          const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
+          const wurl = URL.createObjectURL(new Blob(['importScripts("' + bundle.mainWorker + '");'],
+            { type: 'text/javascript' }));
+          const worker = new Worker(wurl);
+          const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(), worker);
+          await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+          URL.revokeObjectURL(wurl);
+          return db;
+        })().catch(function (e) { __duckdbPromise = null; throw e; });
+      }
+      return __duckdbPromise;
     }
     function __arrowToColumns(table) {
       const cols = {};
@@ -7214,7 +7232,7 @@ json.dumps(out)
         if (!female && (/female|woman|kvinne|female|marie|nora|ida|stine|vilde|linda/i.test(n) || /female/i.test(pool[i].voiceURI || ''))) {
           female = pool[i];
         }
-        if (!male && (/male|man|mann|henrik|olav|thomas|lars|jonathan/i.test(n) || /male/i.test(pool[i].voiceURI || ''))) {
+        if (!male && (/\bmale\b|\bman\b|\bmann\b|henrik|olav|thomas|lars|jonathan/i.test(n) || /\bmale\b/i.test(pool[i].voiceURI || ''))) {
           male = pool[i];
         }
       }
@@ -7275,8 +7293,26 @@ json.dumps(out)
           ? Math.max(0.1, Math.min(10, parseFloat(o.rate)))
           : getTtsRate();
         if (o.volume != null && !isNaN(parseFloat(o.volume))) u.volume = Math.max(0, Math.min(1, parseFloat(o.volume)));
-        u.onend = function() { resolve(); };
-        u.onerror = function() { resolve(); };
+        // Chrome notoriously drops 'onend' (especially on long utterances) and
+        // silently pauses synthesis after ~15s. Guard with a keep-alive resume()
+        // and a length-based fallback so a dropped event can't hang tutorial mode.
+        let settled = false;
+        let keepAlive = 0, fallbackTimer = 0;
+        function finish() {
+          if (settled) return;
+          settled = true;
+          clearInterval(keepAlive);
+          clearTimeout(fallbackTimer);
+          resolve();
+        }
+        u.onend = finish;
+        u.onerror = finish;
+        keepAlive = setInterval(function () {
+          try { if (speechSynthesis.speaking) speechSynthesis.resume(); } catch (e) {}
+        }, 5000);
+        // ~12 chars/sec at rate 1; +3s slack, capped at 2 min.
+        const est = (String(text).length / (12 * Math.max(0.1, u.rate))) * 1000 + 3000;
+        fallbackTimer = setTimeout(finish, Math.min(est, 120000));
         speechSynthesis.speak(u);
       });
     }
@@ -7802,8 +7838,21 @@ e.translate_script_to_python(script)
       btnTranslate.disabled = false;
     });
 
-    async function loadPyodideAndM2py() {
-      if (pyodide) return pyodide;
+    let __pyodidePromise = null;
+    function loadPyodideAndM2py() {
+      // Memoize the in-flight bootstrap promise. The old guard returned the
+      // `pyodide` global as soon as loadPyodide() resolved — before packages +
+      // functions/m2py registration finished — so a concurrent caller could get
+      // a half-initialized interpreter (or double-run the bootstrap).
+      if (!__pyodidePromise) {
+        __pyodidePromise = _loadPyodideAndM2pyImpl().catch(function (e) {
+          __pyodidePromise = null;  // allow a retry after a failed bootstrap
+          throw e;
+        });
+      }
+      return __pyodidePromise;
+    }
+    async function _loadPyodideAndM2pyImpl() {
       setStatus(leftStatus, 'Loading Pyodide...');
       pyodide = await loadPyodide();
       if (pyInterruptBuf === null) {
@@ -8826,7 +8875,7 @@ def _run_microdata_chunk(_code):
       function hideLogin() { dom.loginBackdrop && dom.loginBackdrop.classList.remove('open'); }
 
       async function requestMagicLink(email) {
-        const lang = /[æøå]/i.test(email) ? 'no' : 'no'; // default Norwegian
+        const lang = 'no'; // the login UI is Norwegian-first; email follows it
         const res = await fetch(apiBase() + '/_/api/auth/email/request', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -10698,7 +10747,10 @@ def _run_microdata_chunk(_code):
         if (!ghConfigured()) { openSettings('Sett opp GitHub-tilkobling først.'); return; }
         const s = ghSettings();
         const cur = getCurrent();
-        if (!cur || !cur.path || cur.repo !== s.repo) { openSaveAs(); return; }
+        // Also require the branch to match: a file opened from `dev` must not be
+        // silently PUT to the profile's current branch (e.g. `main`). On a repo
+        // OR branch mismatch, route to "Save As" so the destination is explicit.
+        if (!cur || !cur.path || cur.repo !== s.repo || cur.branch !== s.branch) { openSaveAs(); return; }
         const si = $('scriptInput');
         try {
           await putFile(s, cur.path, si ? si.value : '');
