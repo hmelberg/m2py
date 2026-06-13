@@ -152,26 +152,34 @@ method merge was intentionally deferred (maintainability only, high risk) — th
 behavioral drift it caused is fixed.
 
 ## Phase 4 — Frontend robustness
-Non-security UX/reliability (index.html unless noted).
+Non-security UX/reliability (index.html unless noted). Browser-verified via Chrome
+DevTools (no JS unit harness).
 
-- [ ] Memoize in-flight Pyodide bootstrap promise (~L7758) and `__ensureDuckDB`.
-- [ ] TTS tutorial hang (~L7229) — length-based fallback timeout +
-      `speechSynthesis.resume()` keep-alive; fix male-voice regex matching female
-      voices; voiceschanged 400ms clobbering.
-- [ ] GitHub save cross-branch overwrite (~L10637) — guard `cur.branch !== s.branch`.
-- [ ] dm-vurder SSE error masked as success (~L2082-2130) — flag + break, skip the
-      "Ferdig" render.
-- [ ] Streaming readers leak (~L9588, L2087) — try/finally; AbortController on Anvil
-      path; restore setStdout/setStderr in finally; request-token guard for stale
-      modal repaints.
-- [ ] Plotly never purged (~L6298 partial) — `Plotly.purge()` before `innerHTML=''`;
-      WebR shelter purge in finally.
-- [ ] forklar-widgets.js 60ms setInterval leak (~L41); quiz out-of-range correct
-      index soft-locks modal (~L714).
-- [ ] Line-number gutter rebuilds N listeners per keystroke (~L2682) — delegate.
-- [ ] Smalls: SSE buffer never flushed; `res.json()` before `res.ok` (~L1805);
-      identical `/[æøå]/i.test ? 'no':'no'` branches (~L8780); sw.js opaque-response
-      quota + resolveWith undefined.
+- [x] Pyodide + `__ensureDuckDB` bootstrap races — DONE. Memoized the in-flight
+      promise (cleared on failure for retry). Browser-verified: app boots + runs.
+- [x] TTS tutorial hang — DONE. resume() keep-alive + length-based fallback
+      timeout; male-voice regex uses word boundaries (`\bmale\b`) so it no longer
+      matches "female"/"woman" (browser-verified).
+- [x] GitHub save cross-branch overwrite — DONE. doSave() routes a repo OR branch
+      mismatch to "Save As".
+- [x] dm-vurder SSE error masked as success — DONE. Flag + break + return; no
+      "Ferdig" on a server error.
+- [x] stdout/stderr restore — DONE. Both run handlers restore setStdout/setStderr
+      in `finally` (error paths too).
+- [x] Plotly + WebR purge — ALREADY DONE (earlier leak commit): purgePlots() purges
+      `.plotly-container` before every clear; WebR shelter purged in finally. Verified.
+- [x] forklar-widgets 60ms setInterval leak + quiz soft-lock — DONE
+      (pollAbort returns cancel; correctIndex clamped).
+- [x] Line-number gutter — DONE. One delegated handler; add/remove only trailing
+      spans (browser-verified: span count tracks lines, breakpoint toggle works).
+- [x] Smalls — DONE: `res.json()` parsed defensively before `res.ok`; dead
+      `? 'no':'no'` ternary removed; sw.js stops caching opaque responses + never
+      resolves respondWith to undefined (CACHE v3→v4).
+- [ ] REMAINING (diffuse, error-path AI-stream robustness): release the fetch
+      reader in a finally on the 3 AI streams (~L9709/L9801/L9573); AbortController
+      on the Anvil AI path (UI can hang ~3 min); request-token guard so a stale
+      async response can't repaint a closed modal; flush the trailing SSE buffer.
+      Lower value (error/edge paths), harder to verify — left as a focused follow-up.
 
 ## Phase 5 — Cross-repo sync & hygiene cleanup
 Lowest risk; run after Phases 2–3 so engine fixes are captured.
