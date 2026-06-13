@@ -1,8 +1,11 @@
 # py2m Improvement Plan — Concrete, Sequenced, File-Cited
 
-> Status: planning (drafted 2026-06-13). Analysis of the Python→microdata.no
-> translator in `py2m/`. Verified against the official microdata.no command and
-> function manuals. Not yet implemented.
+> Status (updated 2026-06-13): Phases 0–2 implemented + UX/docs polish; 65 tests
+> (was zero), CI added, TRANSLATION_GUIDE.md written, runner highlights
+> untranslated lines. Remaining: Phase 3 `md` helper module (import family,
+> parked — write it directly in microdata) and the Phase 4 architecture refactor
+> (declarative Pattern table — deferred; not a big-structural-change priority).
+> Original analysis below.
 
 py2m (`py2m/py2m/`) is an AST-pattern translator: `transformer.py` (1979 ln, dispatch + stateful handlers), `commands.py` (1344 ln, pure pattern→string extractors in a `Registry`), `expander.py` (854 ln, one-Python-construct→many-commands), `expr.py` (568 ln, expression-level AST→microdata), `formula.py` (220 ln, R-formula parsing), `chain.py` (163 ln, method-chain flattener). There is a stale `functions.py` at the package root and `tests/` contains only `__init__.py` (zero tests).
 
