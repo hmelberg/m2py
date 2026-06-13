@@ -323,3 +323,56 @@ R_CASES = [
 def test_r2m_equivalent(name, r_snippet, data, result):
     df_a, df_b, script = _r2m_pipeline(r_snippet, data, result)
     assert_equivalent(df_a, df_b, script)
+
+
+# ── r2m dplyr/tidyverse cases (need dplyr installed) ─────────────────────────
+def _has_dplyr():
+    if _RSCRIPT is None:
+        return False
+    try:
+        r = subprocess.run([_RSCRIPT, "-e", 'cat(requireNamespace("dplyr", quietly=TRUE))'],
+                           capture_output=True, text=True, timeout=30)
+        return r.stdout.strip() == "TRUE"
+    except Exception:
+        return False
+
+
+_HAS_DPLYR = _has_dplyr()
+
+# Snippets load dplyr so base-R execution (ground truth) works; r2m drops the
+# library() call in translation.
+R_DPLYR_CASES = [
+    ("r_dplyr_mutate",
+     "library(dplyr)\ndf <- df |> mutate(x = a + b * 2)",
+     {"a": [1, 2, 3, 4], "b": [10, 20, 30, 40]}, "df"),
+    ("r_dplyr_filter",
+     "library(dplyr)\ndf <- df |> filter(age > 18)",
+     {"age": [10, 20, 30, 18, 40], "inc": [1, 2, 3, 4, 5]}, "df"),
+    ("r_dplyr_filter_two_conds",
+     "library(dplyr)\ndf <- df |> filter(a > 2, b < 9)",
+     {"a": [1, 3, 5, 2, 4], "b": [10, 8, 7, 6, 9]}, "df"),
+    ("r_dplyr_case_when_first_match",
+     "library(dplyr)\n"
+     "df <- df |> mutate(grp = case_when(age < 30 ~ 1, age < 60 ~ 2, TRUE ~ 3))",
+     {"age": [25, 45, 70, 18, 60]}, "df"),   # 25 matches both → first-match must give 1
+    ("r_dplyr_ifelse",
+     "library(dplyr)\ndf <- df |> mutate(adult = if_else(age >= 18, 1, 0))",
+     {"age": [5, 17, 18, 40, 67]}, "df"),
+    ("r_dplyr_mutate_chain",
+     "library(dplyr)\ndf <- df |> filter(income > 0) |> mutate(log_inc = log(income))",
+     {"income": [100.0, 0.0, 500.0, 250.0, 0.0]}, "df"),
+    ("r_dplyr_groupby_summarise",
+     "library(dplyr)\nout <- df |> group_by(g) |> summarise(m = mean(x))",
+     {"g": [1, 1, 2, 2, 3], "x": [10.0, 20.0, 5.0, 15.0, 100.0]}, "out"),
+    ("r_dplyr_groupby_two_stats",
+     "library(dplyr)\nout <- df |> group_by(g) |> summarise(m = mean(x), s = sum(x))",
+     {"g": [1, 1, 2, 2], "x": [10.0, 20.0, 5.0, 15.0]}, "out"),
+]
+
+
+@pytest.mark.skipif(not _HAS_DPLYR, reason="dplyr not installed")
+@pytest.mark.parametrize("name,r_snippet,data,result", R_DPLYR_CASES,
+                         ids=[c[0] for c in R_DPLYR_CASES])
+def test_r2m_dplyr_equivalent(name, r_snippet, data, result):
+    df_a, df_b, script = _r2m_pipeline(r_snippet, data, result)
+    assert_equivalent(df_a, df_b, script)

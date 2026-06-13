@@ -87,9 +87,13 @@ ifelse, %in%, pmax, subset, df[cond,], transform, aggregate) so no R packages
 are required; dplyr/tidyverse cases would need dplyr installed. CI installs R so
 these run rather than skip.
 
+dplyr/tidyverse cases are also covered (mutate, filter, case_when first-match,
+if_else, mutate chains, group_by+summarise) — snippets `library(dplyr)` so base
+execution works and r2m drops the library() call; guarded by a dplyr-available
+skipif, and CI installs dplyr (binary via RSPM).
+
 ## Out of scope / later
 
-- dplyr/tidyverse cases in the r2m backend (need dplyr in CI).
 - Analysis-command comparison (coefficients, counts, stats with tolerance).
 - Browser/WebR + static-parquet end-to-end (the heaviest, production-closest
   variant).
