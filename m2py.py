@@ -1409,6 +1409,18 @@ def _norway_demo_unit_seed(unit_id, salt: str) -> int:
     return int(hashlib.md5(f"{salt}:{int(unit_id)}".encode()).hexdigest(), 16) % (2**32)
 
 
+# NPR: dager siden 1970-01-01 for innleggelse (år 2015–2024). Deterministisk per
+# (person, episode) slik at UTDATO kan utlede den SAMME innleggelsesdatoen
+# uavhengig av importrekkefølge — ellers kan UTDATO < INNDATO (negativt opphold).
+_NPR_INNDATO_LO = 16436
+_NPR_INNDATO_HI = 20090
+
+
+def _norway_npr_inndato_days(unit_id, ep_id) -> int:
+    h = hashlib.md5(f"npr_inndato_v1:{int(unit_id)}:{int(ep_id)}".encode()).hexdigest()
+    return _NPR_INNDATO_LO + int(h, 16) % (_NPR_INNDATO_HI - _NPR_INNDATO_LO)
+
+
 @lru_cache(maxsize=None)
 def _norway_synth_age_from_uid(unit_id) -> int:
     """Deterministisk alder 18–67 (typisk yrkesaktiv) for demo når fødselsdato mangler.
@@ -2144,6 +2156,12 @@ class MockDataEngine:
         self._catalog_by_short = {}
         self.rule_based = {}
         self._external_meta_cache = {}
+        # Variabler der ekstern metadata/kodeliste IKKE lot seg laste, så vi
+        # falt tilbake til innebygde demo-verdier. Tømmes (drenéres) av
+        # interpretøren etter import for å vise en synlig ADVARSEL — ellers
+        # tabulerer forskeren mot demo-etiketter i den tro at de er ekte.
+        self._fallback_warnings = []
+        self._fallback_warned = set()
         # Globalt person-univers: deles av alle datasett slik at person-IDer
         # er konsistente uavhengig av importrekkefølge (person, jobb, NPR, …).
         self._person_universe = None
@@ -2291,6 +2309,13 @@ class MockDataEngine:
                 continue
         return {}
 
+    def drain_fallback_warnings(self) -> list:
+        """Returner og nullstill variabler som falt tilbake til demo-metadata
+        siden forrige kall (interpretøren logger dem som ADVARSEL)."""
+        w = self._fallback_warnings
+        self._fallback_warnings = []
+        return w
+
     def ensure_variable_resolved(self, short_name: str) -> None:
         """Lazy: slå inn external_metadata for én variabel når den skal brukes (import/generering).
 
@@ -2319,6 +2344,12 @@ class MockDataEngine:
         else:
             stub = dict(meta)
             stub['_external_merged_v1'] = True
+            # Ekstern metadata var konfigurert (ext_path satt) men kunne ikke
+            # lastes (404/nett/ugyldig JSON). Registrer en synlig advarsel én
+            # gang per variabel; vi faller tilbake til demo-verdier under.
+            if short_name not in self._fallback_warned:
+                self._fallback_warnings.append(short_name)
+                self._fallback_warned.add(short_name)
             # Nettverk/feil: bruk innebygd reservekun for kjente store variabler
             fb = _DEMO_FALLBACK_META.get(short_name)
             if fb:
@@ -2605,9 +2636,11 @@ class MockDataEngine:
             n = int(len(current_df))
             base_df = None
 
-        # Deterministisk alder og kjønn per person (brukes til ICD-10-vekting)
+        # Deterministisk alder og kjønn per person (brukes til ICD-10-vekting).
+        # Kjønn må komme fra personens FAKTISKE kjønn, ikke inntekts-latenten —
+        # ellers får menn fødselsdiagnoser (O80) og «kvinner» er høyinntekt.
         ages   = np.array([_norway_synth_age_from_uid(int(uid)) for uid in unit_ids], dtype=np.int64)
-        gender = np.where(np.array([_norway_latent_z(int(uid)) for uid in unit_ids]) > 0, 2, 1).astype(np.int64)
+        gender = np.array([_norway_synth_kjonn_from_uid(int(uid)) for uid in unit_ids], dtype=np.int64)
 
         # Generer kolonneverdien
         col_name = var_name
@@ -2623,13 +2656,22 @@ class MockDataEngine:
                 col_vals = col_vals.astype(object)
                 col_vals[mask] = np.nan
         elif var_name == 'INNDATO':
-            # Dager siden 1970-01-01, år 2015–2024
-            col_vals = rng.integers(16436, 20090, size=n, dtype=np.int64)
+            # Deterministisk per episode (se _norway_npr_inndato_days), så UTDATO
+            # kan reprodusere samme dato uavhengig av importrekkefølge.
+            col_vals = np.array(
+                [_norway_npr_inndato_days(unit_ids[i], ep_ids[i]) for i in range(n)],
+                dtype=np.int64,
+            )
         elif var_name == 'UTDATO':
             if not fresh and 'INNDATO' in current_df.columns:
                 inn = current_df['INNDATO'].values.astype(np.float64)
             else:
-                inn = rng.integers(16436, 20090, size=n, dtype=np.int64).astype(np.float64)
+                # INNDATO ikke importert (ennå): utled den samme deterministiske
+                # innleggelsesdatoen, så UTDATO = INNDATO + opphold >= INNDATO.
+                inn = np.array(
+                    [_norway_npr_inndato_days(unit_ids[i], ep_ids[i]) for i in range(n)],
+                    dtype=np.float64,
+                )
             omsorg = current_df['OMSORGSNIVA'].values if (not fresh and 'OMSORGSNIVA' in current_df.columns) else None
             extra = np.zeros(n, dtype=np.float64)
             for i in range(n):
@@ -2716,8 +2758,12 @@ class MockDataEngine:
         id_col = _ENTITY_ID_COL.get(entity_type, 'unit_id')
         ref_col = _ENTITY_PERSON_REF_COL.get(entity_type, 'person_ref')
 
-        # Generer variabelverdier med person-basert latent-z for realisme
-        var_seed = int(hashlib.md5(var_name.encode()).hexdigest(), 16) % (10**8)
+        # Generer variabelverdier med person-basert latent-z for realisme.
+        # Seed på short_name (kanonisk variabel) + dato, ikke alias — ellers gir
+        # `import X as y` andre verdier enn `import X` (men ulike datoer skal
+        # fortsatt variere).
+        _seed_date = (parsed_args.get('date1') or '') if parsed_args else ''
+        var_seed = int(hashlib.md5(f"{short_name or var_name}:{_seed_date}".encode()).hexdigest(), 16) % (10**8)
         var_rng = np.random.default_rng(var_seed)
 
         ages_vec = np.array([_norway_synth_age_from_uid(int(u)) for u in person_ids], dtype=float)
@@ -2917,7 +2963,12 @@ class MockDataEngine:
         z_vec = (np.array([_norway_latent_z(int(u)) for u in _pids], dtype=float)
                  if len(_pids) > 0 else None)
 
-        seed = int(hashlib.md5(var_name.encode()).hexdigest(), 16) % (10**8)
+        # Seed på short_name (kanonisk variabel) + dato, IKKE alias. Da gir
+        # `import X as y` samme verdier som `import X` (alias-uavhengig), mens
+        # samme variabel på ulike datoer fortsatt varierer over tid (datoen er
+        # den legitime differensiatoren, ikke aliaset).
+        _seed_date = (parsed_args.get('date1') or '') if parsed_args else ''
+        seed = int(hashlib.md5(f"{short_name or var_name}:{_seed_date}".encode()).hexdigest(), 16) % (10**8)
         rng = np.random.default_rng(seed)
 
         data = {_src_id: uids}
@@ -8554,6 +8605,14 @@ class MicroInterpreter:
                         new_data = None
                 if new_data is None:
                     new_data = self.data_engine.generate(cmd, args, _gen_target)
+                # Synlig advarsel når ekstern metadata/kodeliste ikke kunne lastes
+                # og vi falt tilbake til demo-verdier (etiketter/fordelinger kan avvike).
+                for _w in self.data_engine.drain_fallback_warnings():
+                    self._log(
+                        f"ADVARSEL: klarte ikke å laste ekstern metadata/kodeliste for "
+                        f"'{_w}' — bruker innebygde demo-verdier. Etiketter og fordelinger "
+                        f"kan avvike fra det ekte registeret."
+                    )
                 # Omdøp unit_id → enhetstype-korrekt nøkkelkolonne (f.eks. PERSONID_1 for persondata)
                 _id_col = _ENTITY_ID_COL.get(_var_entity, 'unit_id')
                 if _id_col != 'unit_id' and 'unit_id' in new_data.columns:

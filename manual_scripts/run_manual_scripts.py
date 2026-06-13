@@ -40,7 +40,10 @@ def run_one_script(script_path: Path, meta_path) -> dict:
         result['output'] = output or ''
         result['duration_s'] = time.time() - start
 
-        feil = [l for l in (output or '').splitlines() if 'FEIL' in l.upper()]
+        # Match the actual error-line prefix ("FEIL: …" / "FEIL PÅ KOMMANDO …"),
+        # not any line that merely CONTAINS "feil" — base64 figure payloads can
+        # coincidentally include the substring and trip a false positive.
+        feil = [l for l in (output or '').splitlines() if l.strip().upper().startswith('FEIL')]
         result['feil_lines'] = feil
         result['status'] = 'PARTIAL' if feil else 'OK'
 

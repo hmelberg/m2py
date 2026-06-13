@@ -113,16 +113,25 @@ protect.py:
 ## Phase 3 — Mock-data correctness & consistency (all of report §2)
 Self-contained; governs whether generated data is reproducible/trustworthy.
 
-- [ ] Seed on `short_name`, not alias (m2py.py ~L2705/2881) — `import X as y` must
-      give the same person the same values; align dynamic with static.
-- [ ] NPR UTDATO can precede INNDATO (~L2564) — derive INNDATO with a fixed seed.
-- [ ] NPR gender from income latent-z (~L2545) — use `_norway_synth_kjonn_from_uid`.
+- [x] Seed on `short_name` + date, not alias — DONE. `import X as y` now gives a
+      person the same values as `import X` (alias-independent), while the SAME
+      variable at different dates still varies (date is the legit differentiator,
+      not the alias — caught a sankey regression when seeding on short_name alone).
+      Fixed person path + multi-record path. Tests: TestAliasSeedConsistency.
+- [x] NPR UTDATO can precede INNDATO — DONE. INNDATO is now deterministic per
+      (person, episode) via `_norway_npr_inndato_days`; UTDATO derives the same
+      baseline so UTDATO ≥ INNDATO regardless of import order. Tests: TestNprConsistency.
+- [x] NPR gender from income latent-z — DONE. Uses `_norway_synth_kjonn_from_uid`
+      so childbirth (O80) only lands on real females. Test in TestNprConsistency.
 - [ ] `_generate_variable_values` drifted from `generate()` (~L2680-2796) — extract
       one shared helper (multi-record entities get random birth dates today).
 - [ ] `_generate_panel` (~L2458) corrupts zero-padded codes (`'0301'`→301) and
       crashes on alphanumeric (`int('I')`). Reuse the correct main-path logic.
-- [ ] Silent metadata/codelist load failure (~L2248-2268) — emit a visible
-      Norwegian warning on final fallback.
+- [x] Silent metadata/codelist load failure — DONE. Engine records fallbacks;
+      interpreter logs a visible ADVARSEL after import (demo labels/distributions
+      may differ from the real register). Tests: TestSilentMetadataFallback.
+- [x] BONUS: manual-runner FEIL detection now matches the error-line prefix, not
+      any "feil" substring (base64 figure payloads tripped false positives).
 - [ ] Static build hard-codes 2023 (mockdata_export.py ~L1198); dead persons keep
       wealth/municipality post-death; date grid enumerates past valid_to (~L1309).
 - [ ] build_static_data.py writes additively (~L58) — clean output dir first; record
