@@ -1,0 +1,23 @@
+# Eksempel: across() og tilfeldig utvalg
+# across() -> én generate per kolonne; set.seed + slice_sample -> sample.
+
+#micro
+require no.ssb.fdb:54 as fd
+create-dataset folk
+import fd/INNTEKT_WLONN 2022-01-01 as lonn
+import fd/INNTEKT_WKAPINNT 2022-01-01 as kapital
+import fd/BEFOLKNING_KJOENN as kjonn
+
+#r
+library(dplyr)
+
+# Skaler flere beløpskolonner samtidig til tusen kroner
+folk <- folk |> mutate(across(c(lonn, kapital), ~ .x / 1000))
+
+# Tilfeldig utvalg — seed gir reproduserbart resultat
+set.seed(2022)
+utvalg <- folk |> slice_sample(prop = 0.3)
+
+utvalg |>
+  group_by(kjonn) |>
+  summarise(snitt_lonn = mean(lonn))

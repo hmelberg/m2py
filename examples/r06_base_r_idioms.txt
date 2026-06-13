@@ -1,0 +1,18 @@
+# Eksempel: base R — subset, transform, aggregate
+# Disse oversettes til keep if / generate / collapse.
+
+#micro
+require no.ssb.fdb:54 as fd
+create-dataset folk
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+
+#r
+# Behold bare personer med positiv inntekt
+voksne <- subset(folk, inntekt > 0)
+
+# Lag en ny variabel (inntekt i tusen kroner)
+voksne <- transform(voksne, inntekt_tusen = inntekt / 1000)
+
+# Gjennomsnittsinntekt per kjønn
+aggregate(inntekt ~ kjonn, data = voksne, FUN = mean)
