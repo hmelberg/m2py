@@ -4123,6 +4123,9 @@
       updateTranslateBtnLabel();
       // Trigger lazy WebR load when switching to R
       if (newMode === 'r' && !webRReady && !webRLoading) loadWebR();
+      // Refresh the GitHub save indicator: hide the floppy when the bound file's
+      // extension no longer matches the active mode (cross-IIFE via window).
+      if (window.mdGithubRefreshIndicator) window.mdGithubRefreshIndicator();
     }
 
     function updateModeButtonsUi() {
@@ -10755,7 +10758,7 @@ def _run_microdata_chunk(_code):
         updateRecentChevron();
         const cur = getCurrent();
         const save = $('ghSaveIcon');
-        if (cur && cur.path) {
+        if (cur && cur.path && langFromPath(cur.path) === currentLang()) {
           const dirty = ghIsDirty();
           if (save) {
             save.style.display = 'inline-flex';
@@ -10971,6 +10974,9 @@ def _run_microdata_chunk(_code):
         // silently PUT to the profile's current branch (e.g. `main`). On a repo
         // OR branch mismatch, route to "Save As" so the destination is explicit.
         if (!cur || !cur.path || cur.repo !== s.repo || cur.branch !== s.branch) { openSaveAs(); return; }
+        // Don't overwrite a file whose extension belongs to a different editor
+        // mode (e.g. saving a Python buffer over a microdata .txt) — route to Save As.
+        if (langFromPath(cur.path) !== currentLang()) { openSaveAs(); return; }
         const si = $('scriptInput');
         try {
           await putFile(s, cur.path, si ? si.value : '');
@@ -10986,7 +10992,7 @@ def _run_microdata_chunk(_code):
         const cur = getCurrent();
         const input = $('ghSaveAsPath');
         if (input) {
-          if (cur && cur.path && cur.repo === s.repo) {
+          if (cur && cur.path && cur.repo === s.repo && langFromPath(cur.path) === currentLang()) {
             input.value = cur.path;
           } else {
             const nm = (($('scriptName') && $('scriptName').value) || 'script').trim();
@@ -11164,6 +11170,7 @@ def _run_microdata_chunk(_code):
       // Lar eksterne lastere (Nytt script, lokal fil, eksempler) koble fra
       // gjeldende GitHub-fil, så «Lagre» ikke overskriver feil fil.
       window.mdGithubClearCurrent = function () { setCurrent(null); };
+      window.mdGithubRefreshIndicator = function () { updateCurrentIndicator(); };
 
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
       else wire();
