@@ -973,6 +973,8 @@
     body[data-theme="dark"] .ai-send-fast-btn { color: #1a1b26; }
     .ai-send-fast-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .ai-send-fast-btn:hover:not(:disabled) { filter: brightness(1.1); }
+    .ai-send-v2-btn { opacity: 0.85; }
+    .ai-send-v2-btn:hover { opacity: 1; }
     .ai-abort-btn {
       height: 32px; padding: 0 9px; border: 1px solid #c0392b; background: transparent;
       color: #c0392b; border-radius: 8px; cursor: pointer; display: inline-flex;
@@ -1222,6 +1224,9 @@
         <button type="button" class="ai-send-fast-btn" id="aiSendFastBtn"
           title="Send spørsmål til AI (AI-modus velges i menyen)"
           aria-label="Send">Send</button>
+        <button type="button" class="ai-send-fast-btn ai-send-v2-btn" id="aiSendV2Btn"
+          title="Eksperimentell: 2-stegs variabelvalg + auto-retting (kan være tregere)"
+          aria-label="Send (eksperimentell)">Send⚗︎</button>
       </div>
     </div>
   </aside>
@@ -9117,7 +9122,7 @@ def _run_microdata_chunk(_code):
       const dom = {};
       function cacheDom() {
         ['aiToggleBtn','aiSidebar','aiCloseBtn','aiSettingsBtn','aiClearBtn',
-         'aiThread','aiInput','aiSendFastBtn','aiAbortBtn',
+         'aiThread','aiInput','aiSendFastBtn','aiSendV2Btn','aiAbortBtn',
          'aiIncludeScript','menuAiMode',
          'aiSettingsBackdrop','aiCfgBaseUrl','aiCfgApiKey','aiCfgSave','aiCfgCancel',
          'aiCfgLoggedIn','aiCfgLoggedOut','aiCfgUserEmail','aiCfgUserMeta',
@@ -9548,7 +9553,7 @@ def _run_microdata_chunk(_code):
         return 'no';
       }
 
-      async function sendMessage(fast) {
+      async function sendMessage(fast, useV2) {
         if (state.sending) return;
         const text = dom.aiInput.value.trim();
         if (!text) return;
@@ -9582,7 +9587,9 @@ def _run_microdata_chunk(_code):
           state.abortCtrl = ctrl;
           if (dom.aiAbortBtn) dom.aiAbortBtn.style.display = '';
           try {
-            const meta = await runFastQuery(text, lang, includeScript ? dom.scriptInput.value : '', thinkingNode, ctrl.signal);
+            const meta = useV2
+              ? await runFastQueryV2(text, lang, includeScript ? dom.scriptInput.value : '', thinkingNode, ctrl.signal)
+              : await runFastQuery(text, lang, includeScript ? dom.scriptInput.value : '', thinkingNode, ctrl.signal);
             state.history.push({ role: 'assistant', meta });
           } catch (e) {
             if (e.name !== 'AbortError') appendError(thinkingNode, '✗ ' + e.message);
@@ -10067,6 +10074,7 @@ def _run_microdata_chunk(_code):
         // full Anvil-path (sendMessage(fast) — fast=true => rask).
         function sendCurrent() { sendMessage(!state.anvilMode); }
         if (dom.aiSendFastBtn) dom.aiSendFastBtn.addEventListener('click', sendCurrent);
+        if (dom.aiSendV2Btn) dom.aiSendV2Btn.addEventListener('click', () => sendMessage(true, true));
         if (dom.aiAbortBtn) dom.aiAbortBtn.addEventListener('click', () => { if (state.abortCtrl) state.abortCtrl.abort(); });
         dom.aiInput.addEventListener('input', autoresize);
         dom.aiInput.addEventListener('keydown', (e) => {
