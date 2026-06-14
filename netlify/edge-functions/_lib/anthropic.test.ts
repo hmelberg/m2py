@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { fetchWithRetry } from "./anthropic.ts";
+import { fetchWithRetry, messageAnthropic } from "./anthropic.ts";
 
 const noSleep = (_ms: number) => Promise.resolve();
 
@@ -85,4 +85,33 @@ Deno.test("fetchWithRetry: honours numeric Retry-After (capped)", async () => {
     retries: 2,
   });
   assertEquals(sleeps[0], 3000);
+});
+
+Deno.test("messageAnthropic returns text and usage from a non-streamed response", async () => {
+  const fakeResponse = new Response(
+    JSON.stringify({
+      content: [{ type: "text", text: '["BEFOLKNING_KJOENN","INNTEKT_WLONN"]' }],
+      usage: { input_tokens: 100, output_tokens: 12 },
+    }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+  );
+  const fetchImpl = (() => Promise.resolve(fakeResponse)) as typeof fetch;
+
+  const out = await messageAnthropic(
+    { apiKey: "k", model: "m", prompt: "q", system: "s", maxTokens: 64 },
+    { fetchImpl },
+  );
+  assertEquals(out.text, '["BEFOLKNING_KJOENN","INNTEKT_WLONN"]');
+  assertEquals(out.usage.outputTokens, 12);
+});
+
+Deno.test("messageAnthropic throws on non-OK upstream", async () => {
+  const fetchImpl = (() => Promise.resolve(new Response("boom", { status: 500 }))) as typeof fetch;
+  let threw = false;
+  try {
+    await messageAnthropic({ apiKey: "k", model: "m", prompt: "q" }, { fetchImpl });
+  } catch (_e) {
+    threw = true;
+  }
+  assertEquals(threw, true);
 });

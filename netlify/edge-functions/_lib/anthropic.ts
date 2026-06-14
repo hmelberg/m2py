@@ -127,6 +127,78 @@ export async function streamAnthropic(
   return transformAnthropicStream(upstream.body);
 }
 
+export interface AnthropicMessageResult {
+  text: string;
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+    cacheCreationTokens: number;
+  };
+}
+
+/**
+ * Single, non-streaming completion. Used by the v2 variable-picker pass, which
+ * needs the full result (a JSON array of variable names) before generation can
+ * start. Reuses fetchWithRetry for timeout + 429/529 backoff. `deps` is
+ * injectable for tests.
+ */
+export async function messageAnthropic(
+  opts: AnthropicStreamOptions,
+  deps: RetryDeps = {},
+): Promise<AnthropicMessageResult> {
+  const useLongTtl = opts.cacheTtl === "1h";
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "x-api-key": opts.apiKey,
+    "anthropic-version": ANTHROPIC_VERSION,
+  };
+  if (opts.system && useLongTtl) {
+    headers["anthropic-beta"] = "extended-cache-ttl-2025-04-11";
+  }
+  const requestBody: Record<string, unknown> = {
+    model: opts.model,
+    max_tokens: opts.maxTokens ?? 1024,
+    stream: false,
+    messages: [{ role: "user", content: opts.prompt }],
+  };
+  if (opts.system) {
+    requestBody.system = [
+      {
+        type: "text",
+        text: opts.system,
+        cache_control: useLongTtl ? { type: "ephemeral", ttl: "1h" } : { type: "ephemeral" },
+      },
+    ];
+  }
+
+  const resp = await fetchWithRetry(
+    ANTHROPIC_API,
+    { method: "POST", headers, body: JSON.stringify(requestBody) },
+    deps,
+  );
+  if (!resp.ok) {
+    const detail = await resp.text().catch(() => "");
+    console.error(`Anthropic API error ${resp.status}: ${detail}`);
+    throw new Error(`Anthropic API error ${resp.status}`);
+  }
+  const json = await resp.json();
+  const text = Array.isArray(json?.content)
+    ? json.content.filter((b: { type?: string }) => b?.type === "text")
+        .map((b: { text?: string }) => b.text ?? "").join("")
+    : "";
+  const u = json?.usage ?? {};
+  return {
+    text,
+    usage: {
+      inputTokens: u.input_tokens ?? 0,
+      outputTokens: u.output_tokens ?? 0,
+      cacheReadTokens: u.cache_read_input_tokens ?? 0,
+      cacheCreationTokens: u.cache_creation_input_tokens ?? 0,
+    },
+  };
+}
+
 function transformAnthropicStream(
   upstream: ReadableStream<Uint8Array>,
 ): ReadableStream<Uint8Array> {
