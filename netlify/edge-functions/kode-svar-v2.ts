@@ -1,6 +1,6 @@
 import { messageAnthropic, streamAnthropic } from "./_lib/anthropic.ts";
 import { gate } from "./_lib/auth.ts";
-import { buildCachedPrefix } from "./kode-svar.ts";
+import { buildCachedPrefix, coerceMode, type GenMode } from "./kode-svar.ts";
 import {
   type CatalogMeta,
   type CodelistMap,
@@ -25,6 +25,7 @@ interface RequestBody {
   script?: string;
   prior_script?: string;   // present on a repair round
   errors?: string;         // validator error text on a repair round
+  mode?: GenMode;          // editor mode: microdata (default) | python | r
 }
 
 const PICKER_INSTRUCTIONS = `\
@@ -119,7 +120,8 @@ export default async (request: Request): Promise<Response> => {
   }
 
   const origin = new URL(request.url).origin;
-  const system = await buildCachedPrefix(origin);
+  const mode: GenMode = coerceMode(body.mode);
+  const system = await buildCachedPrefix(origin, mode);
   const lang = body.lang === "en" ? "en" : "no";
   const scriptContext = (body.script ?? "").trim();
   const priorScript = (body.prior_script ?? "").trim();
@@ -164,7 +166,7 @@ export default async (request: Request): Promise<Response> => {
     `**Språk:** ${lang}`,
     ``,
     focusedBlock ? `${focusedBlock}\n` : ``,
-    scriptContext ? `**Gjeldende skript i editor (kontekst):**\n\`\`\`microdata\n${scriptContext}\n\`\`\`\n` : ``,
+    scriptContext ? `**Gjeldende skript i editor (kontekst):**\n\`\`\`${mode === "microdata" ? "microdata" : mode}\n${scriptContext}\n\`\`\`\n` : ``,
     priorScript ? `**Forrige skript som feilet — fiks feilene under, ikke gjenta dem:**\n\`\`\`microdata\n${priorScript}\n\`\`\`\n` : ``,
     errors ? `**Valideringsfeil å rette:**\n${errors}\n` : ``,
     SVARFORMAT_TILLEGG,
