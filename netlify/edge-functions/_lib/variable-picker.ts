@@ -79,18 +79,36 @@ export function renderNameList(meta: CatalogMeta): string {
   return lines.join("\n");
 }
 
-// Uncapped label rendering for a single variable (the focused block needs the
-// full codelist even for big classifications like NUS/NACE/ICD).
-function renderLabelsFull(labels: unknown): string {
-  if (!labels || typeof labels !== "object") return "";
-  const entries = Object.entries(labels as Record<string, unknown>);
+// Larger-budget label rendering for a single picked variable. Shows up to
+// FOCUS_CAP codes (the focused block can afford fuller codelists than the
+// prefix catalog), summarising any remainder with a count.
+const FOCUS_CAP = 200;
+function renderEntriesCapped(entries: Array<[string, unknown]>): string {
   if (entries.length === 0) return "";
-  return ` {${entries.map(([k, val]) => `${k}=${String(val)}`).join(", ")}}`;
+  const shown = entries.slice(0, FOCUS_CAP).map(([k, val]) => `${k}=${String(val)}`);
+  const extra = entries.length - shown.length;
+  const tail = extra > 0 ? `, …(+${extra} flere)` : "";
+  return ` {${shown.join(", ")}${tail}}`;
 }
 
+function renderLabelsFull(labels: unknown): string {
+  if (!labels || typeof labels !== "object") return "";
+  return renderEntriesCapped(Object.entries(labels as Record<string, unknown>));
+}
+
+// Optional per-variable codelists fetched on demand (from /codelists/<NAME>.json),
+// keyed by variable name → { code: label }. Used for big classifications
+// (STYRK/NACE/…) whose codes are NOT inlined in variable_metadata.json.
+export type CodelistMap = Record<string, Record<string, unknown>>;
+
 // Rich block for the picked variables, injected at the top of the generation
-// user turn. Returns "" when there are no picks (caller then omits the block).
-export function renderFocusedBlock(names: string[], meta: CatalogMeta): string {
+// user turn. For a variable with an injected codelist, that fuller list wins
+// over the (often empty) inline labels. Returns "" when there are no picks.
+export function renderFocusedBlock(
+  names: string[],
+  meta: CatalogMeta,
+  codelists: CodelistMap = {},
+): string {
   const variables = meta?.variables ?? {};
   const picked = names.filter((n) => Object.prototype.hasOwnProperty.call(variables, n));
   if (picked.length === 0) return "";
@@ -105,7 +123,10 @@ export function renderFocusedBlock(names: string[], meta: CatalogMeta): string {
   for (const name of picked) {
     const v = variables[name];
     const text = cleanDescription(String(v.description ?? ""), String(v.short_title ?? ""));
-    const labels = renderLabelsFull(v.labels);
+    const cl = codelists[name];
+    const labels = cl && typeof cl === "object" && Object.keys(cl).length > 0
+      ? renderEntriesCapped(Object.entries(cl))
+      : renderLabelsFull(v.labels);
     lines.push(text ? `- \`${name}\` ${tagFor(v)} — ${text}${labels}` : `- \`${name}\` ${tagFor(v)}${labels}`);
   }
   return lines.join("\n");

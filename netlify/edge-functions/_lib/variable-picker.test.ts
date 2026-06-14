@@ -68,3 +68,26 @@ Deno.test("renderFocusedBlock includes full (uncapped) codelist for picked vars"
 Deno.test("renderFocusedBlock returns empty string for no picks", () => {
   assertEquals(renderFocusedBlock([], META), "");
 });
+
+Deno.test("renderFocusedBlock uses injected codelist when var lacks inline labels", () => {
+  const meta = {
+    variables: {
+      REGSYS_X: {
+        databank: "no.ssb.fdb", microdata_datatype: "Alfanumerisk", data_type: "",
+        temporalitet: "Tverrsnitt", enhetstype: "Person", short_title: "Yrke",
+        description: "Yrkeskode", labels: {},
+      },
+    },
+  };
+  const codelists = { REGSYS_X: { "1": "Ledere", "2": "Akademiske yrker" } };
+  const out = renderFocusedBlock(["REGSYS_X"], meta, codelists);
+  assertEquals(out.includes("Akademiske yrker"), true);
+});
+
+Deno.test("renderFocusedBlock caps very large codelists", () => {
+  const big: Record<string, string> = {};
+  for (let i = 0; i < 250; i++) big[String(i)] = "k" + i;
+  const meta = { variables: { V: { labels: {} } } };
+  const out = renderFocusedBlock(["V"], meta, { V: big });
+  assertEquals(out.includes("(+50 flere)"), true); // 250 - 200
+});
