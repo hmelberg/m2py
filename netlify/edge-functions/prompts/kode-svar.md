@@ -39,7 +39,13 @@ FELLES med v1 og v2 (delt prefiks via `buildCachedPrefix`).
 KUN v2 (`kode-svar-v2.ts`, IKKE i v1/prompts.py): picker-instruksjonen ber også
 om mekanisme-/proxy-kandidater; `SVARFORMAT_TILLEGG` legger til en «Vurderinger
 og forslag»-seksjon i user-turn; focused-blokken henter on-demand kodelister fra
-`/codelists/<NAVN>.json` for plukkede variabler uten inline-koder. -->
+`/codelists/<NAVN>.json` for plukkede variabler uten inline-koder.
+
+Modus-bevisst generering (2026-06-14): `buildCachedPrefix(origin, mode)` gir
+microdata/python/r-varianter. Python/R = felles data-blokker + pakke-preamble +
+`#micro`-bro + språk-`SYSTEM_INTRO`/`OUTPUT` (ingen kommando-/funksjons-referanse
+eller microdata-analyse-grammatikk). Klienten sender editor-modus; Python/R kjører
+ikke m2py-repair, kun navne-grounding på `#micro`-importen. microdata uendret. -->
 
 Se `dm-vurder.ts` / `kode-svar.ts` — reglene er inlinet som TS-konstanter fordi
 Deno Deploy ikke bundler .md-filer ved kjøretid. Denne filen er kilde-dokument.
