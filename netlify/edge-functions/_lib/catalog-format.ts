@@ -54,13 +54,19 @@ export function cleanDescription(description: string, shortTitle: string): strin
   return d;
 }
 
-// Inline enum labels only for low-cardinality variables (≤12); big codelists
-// would blow the token budget, so skip them. (v2 focused block uses its own
-// uncapped renderer.)
+// Inline enum labels. Show up to LABEL_SHOW codes (empirically almost every
+// catalog variable has ≤30, so most show in full); beyond that, show the first
+// LABEL_SHOW and summarise the remainder with a count. Even a partial sample
+// anchors the stored code FORMAT (string vs numeric, leading zeros, dotted
+// hierarchy), which is what the model most often lacks. (v2's focused block
+// uses its own larger-budget renderer for picked variables.)
+const LABEL_SHOW = 30;
 export function renderLabels(labels: unknown): string {
   if (!labels || typeof labels !== "object") return "";
   const entries = Object.entries(labels as Record<string, unknown>);
-  if (entries.length === 0 || entries.length > 12) return "";
-  const parts = entries.map(([k, val]) => `${k}=${String(val)}`);
-  return ` {${parts.join(", ")}}`;
+  if (entries.length === 0) return "";
+  const shown = entries.slice(0, LABEL_SHOW).map(([k, val]) => `${k}=${String(val)}`);
+  const extra = entries.length - shown.length;
+  const tail = extra > 0 ? `, …(+${extra} flere)` : "";
+  return ` {${shown.join(", ")}${tail}}`;
 }

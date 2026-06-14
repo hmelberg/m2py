@@ -625,6 +625,11 @@ const INFERENCE_RULES = `\
 
 Når spørsmålet gjelder **effekt, årsak, virkning eller sammenheng**: still deg i rollen som ekspert på kvasi-eksperimentelle metoder i observasjonsdata. Velg den enkleste metoden som identifikasjonsstrategien tillater, og oppgi den sentrale antakelsen.
 
+**Analytisk strategi — tenk gjennom dette FØR metodevalg:**
+- **Konfunderende variabler.** En rå forskjell er sjelden svaret. Kjør først den enkle sammenligningen, deretter en justert modell som kontrollerer for de bakenforliggende faktorene som er RELEVANTE FOR NETTOPP DETTE SPØRSMÅLET og som finnes i katalogen — ikke en fast liste. (Alder, kjønn og utdanning er bare mulige eksempler; for mange spørsmål er noen av dem irrelevante.) Vis hvordan estimatet flytter seg fra rått til justert, og si i en kommentar hvilke du kontrollerer for og hvorfor.
+- **Heterogenitet.** Effekter varierer ofte mellom grupper. Ta med ÉN grov, godt befolket oppdeling der det er naturlig (interaksjon \`a##b\` eller analyse innen undergrupper) — men hold gruppene grove nok til å overleve personvernreglene (≥ 1000 i populasjon, unngå små celler; se personvern-blokken). Foreslå dypere oppdelinger i prosa heller enn å sprenge utvalget.
+- **Variabelvalg og avtrykk i registeret.** Den mest åpenbare variabelen er ikke alltid den beste — verken konseptuelt eller statistisk. Spør: hvilket avtrykk setter fenomenet i registrene? Den direkte etiketterte variabelen kan (a) være konseptuelt forurenset (f.eks. «arv» som også fanger gaver) eller (b) dekke få personer. Et konstruert mål bygd fra beslektede variabler — datoer, hendelser, familiepekere, tilhørende stønader (f.eks. «året etter siste forelders død» som arvetidspunkt, eller sykdomsrelaterte ytelser som signal på sykdom) — kan være både renere og dekke langt flere. Vei det etiketterte målet mot et indirekte/proxy-mål på BÅDE gyldighet og antall enheter, og oppgi proxyens sentrale antakelse.
+
 **Faktor- og interaksjonssyntaks** (regress, regress-panel, logit, probit, poisson, negative-binomial, mlogit):
 - \`i.var\` — kategorisk → dummyer (referansekategori droppes). \`c.var\` — behandle kategorisk som kontinuerlig.
 - \`a#b\` — interaksjon; \`a##b\` — full kryssing (hovedeffekter + interaksjon). \`c.x#c.y\` for to metriske.
@@ -736,6 +741,12 @@ function renderCatalog(meta: unknown): string {
     "samme register og deler vanligvis enhetstype og temporalitet — bruk prefikset",
     "til å finne beslektede variabler, og les beskrivelsene i samme prefiks-klynge",
     "for å forstå hva registeret dekker.",
+    "",
+    "ARBEIDSMÅTE: katalogen er stor. Identifiser FØRST hvilke(t) register-prefiks",
+    "(klynge) som er relevant for spørsmålet, les den klyngen nøye, og velg",
+    "variabler derfra — i stedet for å skumme hele listen. Husk at den mest",
+    "åpenbare variabelen ikke alltid er den beste; vurder også indirekte mål",
+    "(datoer, hendelser, stønader, familiepekere) som fanger fenomenet.",
     "",
     "Radformat: `NAVN [type, temporalitet, enhetstype, gyldig-datoer] — beskrivelse {verdier}`",
     "- type: `alfa` = alfanumerisk (streng — ingen numeriske operasjoner);",

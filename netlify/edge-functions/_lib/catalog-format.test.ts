@@ -32,9 +32,17 @@ Deno.test("cleanDescription strips boilerplate tail and truncates", () => {
   assertEquals(cleanDescription("x".repeat(250), "").length, 200);
 });
 
-Deno.test("renderLabels inlines ≤12 labels and skips big codelists", () => {
+Deno.test("renderLabels shows up to 30 labels, truncates beyond with a count", () => {
   assertEquals(renderLabels({ "1": "Mann", "2": "Kvinne" }), " {1=Mann, 2=Kvinne}");
+  // 28 ≤ 30 → all shown, no truncation tail (previously hidden entirely).
+  const mid: Record<string, string> = {};
+  for (let i = 0; i < 28; i++) mid[String(i)] = "x";
+  assertEquals(renderLabels(mid).includes("flere"), false);
+  assertEquals(renderLabels(mid).startsWith(" {0=x,"), true);
+  // 57 > 30 → first 30 shown, remainder summarised.
   const big: Record<string, string> = {};
-  for (let i = 0; i < 13; i++) big[String(i)] = "x";
-  assertEquals(renderLabels(big), "");
+  for (let i = 0; i < 57; i++) big[String(i)] = "x";
+  assertEquals(renderLabels(big).includes("(+27 flere)"), true);
+  // empty stays empty.
+  assertEquals(renderLabels({}), "");
 });
