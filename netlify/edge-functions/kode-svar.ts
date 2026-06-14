@@ -880,7 +880,7 @@ export function assemblePrefix(mode: GenMode, parts: PrefixParts): string {
     .join("\n\n");
 }
 
-let _cachedPrefix: string | null = null;
+const _cachedPrefix: Record<GenMode, string | null> = { microdata: null, python: null, r: null };
 
 const DATABANK_ALIAS: Record<string, string> = {
   "no.ssb.fdb": "db",
@@ -1206,11 +1206,12 @@ async function fetchText(origin: string, path: string): Promise<string> {
   return await res.text();
 }
 
-export async function buildCachedPrefix(origin: string): Promise<string> {
-  if (_cachedPrefix !== null) return _cachedPrefix;
+export async function buildCachedPrefix(origin: string, mode: GenMode = "microdata"): Promise<string> {
+  const cached = _cachedPrefix[mode];
+  if (cached !== null) return cached;
+
   let catalogBlock = "";
   let kommuneBlock = "";
-  let commandBlock = "";
   try {
     const metaText = await fetchText(origin, "/variable_metadata.json");
     const meta = JSON.parse(metaText);
@@ -1219,23 +1220,26 @@ export async function buildCachedPrefix(origin: string): Promise<string> {
   } catch (_e) {
     catalogBlock = "";   // degrade: rules-only prompt is still usable
   }
-  try {
-    const cmdText = await fetchText(origin, "/command_help.js");
-    commandBlock = renderCommands(cmdText);
-  } catch (_e) {
-    commandBlock = "";
-  }
+
+  // command/function reference is microdata-only.
+  let commandBlock = "";
   let functionBlock = "";
-  try {
-    const fnText = await fetchText(origin, "/functions.py");
-    functionBlock = renderFunctions(fnText);
-  } catch (_e) {
-    functionBlock = "";
+  if (mode === "microdata") {
+    try {
+      commandBlock = renderCommands(await fetchText(origin, "/command_help.js"));
+    } catch (_e) {
+      commandBlock = "";
+    }
+    try {
+      functionBlock = renderFunctions(await fetchText(origin, "/functions.py"));
+    } catch (_e) {
+      functionBlock = "";
+    }
   }
-  _cachedPrefix = [RULE_BLOCKS, catalogBlock, kommuneBlock, commandBlock, functionBlock, CANONICAL_EXAMPLES]
-    .filter((s) => s && s.length > 0)
-    .join("\n\n");
-  return _cachedPrefix;
+
+  const prefix = assemblePrefix(mode, { catalogBlock, kommuneBlock, commandBlock, functionBlock });
+  _cachedPrefix[mode] = prefix;
+  return prefix;
 }
 
 // ====================================================================
