@@ -2975,6 +2975,7 @@
             scriptInput.value = text;
             scriptName.value = selectedScript.label;
             if (window.mdClearOutput) window.mdClearOutput();
+            if (window.mdGithubClearCurrent) window.mdGithubClearCurrent();
             if (window.updateLineNumbers) window.updateLineNumbers();
             closeOverlay();
             // Returner fokus til textarea så Tab-autosuggestion virker rett etter lasting.
