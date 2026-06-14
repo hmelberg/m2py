@@ -1,9 +1,14 @@
 # Edge Functions — lokal testing
 
-Tre AI-endepunkter (se `netlify.toml` for path-mapping):
+AI-endepunkter (se `netlify.toml` for path-mapping):
 
 - `dm-vurder` → `/api/dm-vurder` — personvern-/dataminimerings-vurdering av et script
 - `kode-svar` → `/api/kode-svar` — AI-assistent som genererer/forklarer microdata-kode
+- `kode-svar-v2` → `/api/kode-svar-v2` — eksperimentell 2-stegs variant: en
+  «variabel-velger»-modell (env `PICKER_MODEL`, standard rask Haiku) plukker
+  relevante variabler som vises med full kodeliste i generasjons-prompten;
+  klienten kjører én auto-rettingsrunde mot lokal Pyodide-validering. v1
+  (`kode-svar`) er urørt, og v2 degraderer til v1-lik oppførsel hvis velgeren feiler.
 - `tolk-resultat` → `/api/tolk-resultat` — tolker output fra en kjøring
 
 ## Forutsetninger
