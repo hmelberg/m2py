@@ -45,5 +45,9 @@
   path = "/api/kode-svar"
 
 [[edge_functions]]
+  function = "kode-svar-v2"
+  path = "/api/kode-svar-v2"
+
+[[edge_functions]]
   function = "tolk-resultat"
   path = "/api/tolk-resultat"

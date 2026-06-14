@@ -1024,7 +1024,7 @@ async function fetchText(origin: string, path: string): Promise<string> {
   return await res.text();
 }
 
-async function buildCachedPrefix(origin: string): Promise<string> {
+export async function buildCachedPrefix(origin: string): Promise<string> {
   if (_cachedPrefix !== null) return _cachedPrefix;
   let catalogBlock = "";
   let kommuneBlock = "";
