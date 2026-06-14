@@ -47,3 +47,66 @@ export function groundNames(names: string[], meta: CatalogMeta, cap = 20): strin
   }
   return out;
 }
+
+function tagFor(v: Record<string, unknown>): string {
+  const dataType = String(v.data_type ?? "");
+  const mdt = String(v.microdata_datatype ?? "");
+  const temp = String(v.temporalitet ?? "");
+  const ehtp = String(v.enhetstype ?? "");
+  const period = extractValidPeriod(String(v.description ?? ""), temp);
+  const parts = [abbrevType(mdt, dataType), temp, ehtp];
+  if (period) parts.push(period);
+  return `[${parts.filter(Boolean).join(", ")}]`;
+}
+
+// Compact catalog for the picker model: one line per variable, grouped by bank.
+// Enough signal (name, tag, short description) to judge relevance; cheap enough
+// to send as a stable, cacheable system block.
+export function renderNameList(meta: CatalogMeta): string {
+  const variables = meta?.variables ?? {};
+  const lines: string[] = [
+    "## Variabelliste (velg fra disse navnene)",
+    "",
+    "Hver linje: `NAVN [type, temporalitet, enhetstype, gyldig-datoer] — kort beskrivelse`.",
+    "",
+  ];
+  const names = Object.keys(variables).sort((a, b) => a.localeCompare(b));
+  for (const name of names) {
+    const v = variables[name];
+    const text = cleanDescription(String(v.description ?? ""), String(v.short_title ?? ""));
+    lines.push(text ? `- \`${name}\` ${tagFor(v)} — ${text}` : `- \`${name}\` ${tagFor(v)}`);
+  }
+  return lines.join("\n");
+}
+
+// Uncapped label rendering for a single variable (the focused block needs the
+// full codelist even for big classifications like NUS/NACE/ICD).
+function renderLabelsFull(labels: unknown): string {
+  if (!labels || typeof labels !== "object") return "";
+  const entries = Object.entries(labels as Record<string, unknown>);
+  if (entries.length === 0) return "";
+  return ` {${entries.map(([k, val]) => `${k}=${String(val)}`).join(", ")}}`;
+}
+
+// Rich block for the picked variables, injected at the top of the generation
+// user turn. Returns "" when there are no picks (caller then omits the block).
+export function renderFocusedBlock(names: string[], meta: CatalogMeta): string {
+  const variables = meta?.variables ?? {};
+  const picked = names.filter((n) => Object.prototype.hasOwnProperty.call(variables, n));
+  if (picked.length === 0) return "";
+  const lines: string[] = [
+    "## Mest relevante variabler for dette spørsmålet",
+    "",
+    "Disse er valgt som mest relevante for spørsmålet (med fullstendig kodeliste).",
+    "Bruk dem hvis de passer — men hele katalogen er fortsatt tilgjengelig i",
+    "systemkonteksten, så velg andre variabler derfra om disse ikke dekker behovet.",
+    "",
+  ];
+  for (const name of picked) {
+    const v = variables[name];
+    const text = cleanDescription(String(v.description ?? ""), String(v.short_title ?? ""));
+    const labels = renderLabelsFull(v.labels);
+    lines.push(text ? `- \`${name}\` ${tagFor(v)} — ${text}${labels}` : `- \`${name}\` ${tagFor(v)}${labels}`);
+  }
+  return lines.join("\n");
+}

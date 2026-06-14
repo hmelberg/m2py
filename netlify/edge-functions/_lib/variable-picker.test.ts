@@ -22,3 +22,49 @@ Deno.test("groundNames keeps only real names, dedupes, and caps", () => {
   assertEquals(groundNames(["A", "B", "C"], meta, 2), ["A", "B"]);
   assertEquals(groundNames(["nope"], meta, 20), []);
 });
+
+import { renderFocusedBlock, renderNameList } from "./variable-picker.ts";
+
+const META = {
+  variables: {
+    BEFOLKNING_KJOENN: {
+      databank: "no.ssb.fdb",
+      microdata_datatype: "Alfanumerisk",
+      data_type: "",
+      temporalitet: "Fast",
+      enhetstype: "Person",
+      short_title: "Kjønn",
+      description: "Personens kjønn. Enhetstype: Person",
+      labels: { "1": "Mann", "2": "Kvinne" },
+    },
+    NUS2000: {
+      databank: "no.ssb.fdb",
+      microdata_datatype: "Alfanumerisk",
+      data_type: "",
+      temporalitet: "Tverrsnitt",
+      enhetstype: "Person",
+      short_title: "Utdanning",
+      description: "Utdanningskode. Gyldighetsperiode: 2000-10-01 – 2020-10-01",
+      labels: Object.fromEntries(Array.from({ length: 30 }, (_, i) => [String(i), "niva" + i])),
+    },
+  },
+};
+
+Deno.test("renderNameList lists every variable name with a tag", () => {
+  const out = renderNameList(META);
+  assertEquals(out.includes("BEFOLKNING_KJOENN"), true);
+  assertEquals(out.includes("NUS2000"), true);
+  // Description is preferred over short_title (matches v1 renderCatalog).
+  assertEquals(out.includes("Personens kjønn"), true);
+});
+
+Deno.test("renderFocusedBlock includes full (uncapped) codelist for picked vars", () => {
+  const out = renderFocusedBlock(["NUS2000"], META);
+  assertEquals(out.includes("niva29"), true);
+  assertEquals(out.includes("NUS2000"), true);
+  assertEquals(out.includes("Tverrsnitt"), true);
+});
+
+Deno.test("renderFocusedBlock returns empty string for no picks", () => {
+  assertEquals(renderFocusedBlock([], META), "");
+});
