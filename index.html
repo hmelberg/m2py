@@ -9842,6 +9842,16 @@ def _run_microdata_chunk(_code):
         return { accumulated, tokens: { input: inputTokens, output: outputTokens, cacheRead, cacheCreate } };
       }
 
+      // Concatenate all fenced code-block bodies (any language) so name-grounding
+      // can scan the #micro import inside a python/r answer without prose noise.
+      function extractAllCode(md) {
+        if (!md) return '';
+        const re = /```\w*\s*\n([\s\S]*?)```/g;
+        let m, out = [];
+        while ((m = re.exec(md)) !== null) out.push(m[1]);
+        return out.join('\n');
+      }
+
       // Collect db/NAME (or alias/NAME) tokens whose NAME is not in the loaded
       // catalog — the cheapest, most damaging failure (invented variable names).
       function findUnknownVarNames(script) {
@@ -9880,7 +9890,8 @@ def _run_microdata_chunk(_code):
         bubble.textContent = 'Finner relevante variabler…';
         thinkingNode.appendChild(bubble);
 
-        const payload = { question: text, lang, script: scriptContext || '' };
+        const mode = (typeof activeEditorMode !== 'undefined' && activeEditorMode) ? activeEditorMode : 'microdata';
+        const payload = { question: text, lang, script: scriptContext || '', mode };
         const { accumulated, tokens } = await streamKodeSvarV2(payload, bubble, signal);
 
         // Final render + actions (reuse v1 helpers).
@@ -9893,55 +9904,67 @@ def _run_microdata_chunk(_code):
         appendMeta(thinkingNode, meta);
         attachResponseInsertBar(thinkingNode, accumulated);
 
-        // Validate; on failure, attempt ONE repair round, then badge.
-        let script = extractFirstMicrodataBlock(accumulated);
-        let repaired = false;
-        let finalBubble = bubble;
-        while (script) {
-          let vr;
-          try { vr = await validateMicrodataLocal(script); } catch (_) { vr = { skipped: true }; }
-          const unknown = findUnknownVarNames(script);
-          const hasErrors = (!vr.skipped && !vr.passed) || unknown.length > 0;
-          if (!hasErrors || repaired) {
-            if (hasErrors) {
-              const warn = renderValidationWarnings(
-                vr.skipped ? { passed: false, errors: unknown.map(n => ({ kind: 'unknown_variable', token: n, message: 'finnes ikke i katalogen' })) } : vr
-              );
-              if (warn) finalBubble.appendChild(warn);
+        if (mode === 'microdata') {
+          // Validate; on failure, attempt ONE repair round, then badge.
+          let script = extractFirstMicrodataBlock(accumulated);
+          let repaired = false;
+          let finalBubble = bubble;
+          while (script) {
+            let vr;
+            try { vr = await validateMicrodataLocal(script); } catch (_) { vr = { skipped: true }; }
+            const unknown = findUnknownVarNames(script);
+            const hasErrors = (!vr.skipped && !vr.passed) || unknown.length > 0;
+            if (!hasErrors || repaired) {
+              if (hasErrors) {
+                const warn = renderValidationWarnings(
+                  vr.skipped ? { passed: false, errors: unknown.map(n => ({ kind: 'unknown_variable', token: n, message: 'finnes ikke i katalogen' })) } : vr
+                );
+                if (warn) finalBubble.appendChild(warn);
+              }
+              break;
             }
-            break;
-          }
-          // One repair round: new bubble, re-call with prior script + errors.
-          repaired = true;
-          const note = document.createElement('div');
-          note.className = 'ai-thinking';
-          note.textContent = 'Retter feil og prøver på nytt…';
-          thinkingNode.appendChild(note);
-          const repairBubble = document.createElement('div');
-          repairBubble.className = 'ai-bubble';
-          thinkingNode.appendChild(repairBubble);
-          const errStr = buildRepairErrors(vr, unknown);
-          let r2;
-          try {
-            r2 = await streamKodeSvarV2(
-              { question: text, lang, script: scriptContext || '', prior_script: script, errors: errStr },
-              repairBubble, signal,
-            );
-          } catch (e) {
+            // One repair round: new bubble, re-call with prior script + errors.
+            repaired = true;
+            const note = document.createElement('div');
+            note.className = 'ai-thinking';
+            note.textContent = 'Retter feil og prøver på nytt…';
+            thinkingNode.appendChild(note);
+            const repairBubble = document.createElement('div');
+            repairBubble.className = 'ai-bubble';
+            thinkingNode.appendChild(repairBubble);
+            const errStr = buildRepairErrors(vr, unknown);
+            let r2;
+            try {
+              r2 = await streamKodeSvarV2(
+                { question: text, lang, script: scriptContext || '', mode, prior_script: script, errors: errStr },
+                repairBubble, signal,
+              );
+            } catch (e) {
+              note.remove();
+              repairBubble.textContent = '✗ ' + (e && e.message ? e.message : String(e));
+              break;
+            }
             note.remove();
-            repairBubble.textContent = '✗ ' + (e && e.message ? e.message : String(e));
-            break;
+            if (md) { try { repairBubble.innerHTML = md.render(r2.accumulated || ''); } catch (_) { repairBubble.textContent = r2.accumulated; } }
+            else { repairBubble.textContent = r2.accumulated; }
+            attachCodeBlockActions(repairBubble);
+            repairBubble._rawMd = r2.accumulated;
+            attachResponseInsertBar(thinkingNode, r2.accumulated);
+            finalBubble = repairBubble;
+            meta.tokens.input += r2.tokens.input; meta.tokens.output += r2.tokens.output;
+            meta.tokens.cacheRead += r2.tokens.cacheRead; meta.tokens.cacheCreate += r2.tokens.cacheCreate;
+            script = extractFirstMicrodataBlock(r2.accumulated);
           }
-          note.remove();
-          if (md) { try { repairBubble.innerHTML = md.render(r2.accumulated || ''); } catch (_) { repairBubble.textContent = r2.accumulated; } }
-          else { repairBubble.textContent = r2.accumulated; }
-          attachCodeBlockActions(repairBubble);
-          repairBubble._rawMd = r2.accumulated;
-          attachResponseInsertBar(thinkingNode, r2.accumulated);
-          finalBubble = repairBubble;
-          meta.tokens.input += r2.tokens.input; meta.tokens.output += r2.tokens.output;
-          meta.tokens.cacheRead += r2.tokens.cacheRead; meta.tokens.cacheCreate += r2.tokens.cacheCreate;
-          script = extractFirstMicrodataBlock(r2.accumulated);
+        } else {
+          // Python/R: no m2py repair. Ground variable names in the #micro block only.
+          const unknown = findUnknownVarNames(extractAllCode(accumulated));
+          if (unknown.length) {
+            const warn = renderValidationWarnings({
+              passed: false,
+              errors: unknown.map(n => ({ kind: 'unknown_variable', token: n, message: 'finnes ikke i katalogen' })),
+            });
+            if (warn) bubble.appendChild(warn);
+          }
         }
         return meta;
       }
