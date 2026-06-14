@@ -1,5 +1,6 @@
 import { streamAnthropic } from "./_lib/anthropic.ts";
 import { gate } from "./_lib/auth.ts";
+import { abbrevType, cleanDescription, extractValidPeriod, renderLabels } from "./_lib/catalog-format.ts";
 
 // ====================================================================
 // kode-svar — "Spør raskt": single-shot, no-repair code assistant.
@@ -709,91 +710,6 @@ const DATABANK_ALIAS: Record<string, string> = {
   "no.ssb.fdb": "db",
   "no.fhi.npr": "fnpr",
 };
-
-// "Numerisk (heltall)"/"Numerisk (desimaltall)" → "num"; "Alfanumerisk" → "alfa".
-// The type-class drives the numeric-vs-string rules; data_type adds date format.
-function abbrevType(microdataDatatype: string, dataType: string): string {
-  const mdt = microdataDatatype.toLowerCase();
-  let cls = "";
-  if (mdt.startsWith("alfa")) cls = "alfa";
-  else if (mdt.startsWith("num")) cls = "num";
-  else cls = (microdataDatatype || dataType || "").trim();
-  // Surface integer/date formats too (matters for the date-quirk rules).
-  const dt = dataType.toLowerCase();
-  if (dt.startsWith("date")) return `${cls || "num"}·${dataType}`;
-  return cls || dataType;
-}
-
-// Pull the validity window out of the description's "Gyldighetsperiode: ..."
-// clause (more reliable here than the truncated `available_years` array).
-//
-// CRITICAL: for Tverrsnitt/Akkumulert variables with a FULL start AND end date
-// (YYYY-MM-DD on both sides) the runtime validates import dates against an
-// ANNUAL grid that recurs on the START date's month-day, for every year from
-// start-year to end-year inclusive (see `_valid_import_dates_for` in m2py.py).
-// The end date's own month-day is NOT a valid import date. So we surface the
-// first and last VALID import dates — both on the start month-day — instead of
-// a bare year span, so the model emits a grid date instead of guessing a
-// month-day (e.g. -11-01). Forløp is NOT grid-validated: it uses `import-event
-// <fra> to <til>` over a free range, so we show the true window dates verbatim.
-// Returns "2015-02-16…2025-02-16" (annual grid), "2011-01-01…2017-12-31" (free
-// Forløp window), "1993–2023"/"1993–" (coarse year span), or "" (fixed/∞/none).
-function extractValidPeriod(description: string, temporalitet = ""): string {
-  // Full date window on both ends.
-  const full = description.match(
-    /Gyldighetsperiode:\s*(\d{4})-(\d{2}-\d{2})\s*[–—-]\s*(\d{4})-(\d{2}-\d{2})/i,
-  );
-  if (full) {
-    const [, startYear, startMD, endYear, endMD] = full;
-    const temp = temporalitet.toLowerCase();
-    // Tverrsnitt → annual snapshot grid on the START month-day.
-    if (temp === "tverrsnitt") {
-      return `${startYear}-${startMD}…${endYear}-${startMD}`;
-    }
-    // Akkumulert = value accrued UP TO the date, so the intuitive/primary date
-    // is the period-END month-day each year (full-year income on ÅR-12-31, or
-    // ÅR-09-30 for a Q3-cutoff series). ÅR-01-01 also validates but means the
-    // prior year's total, so we surface the year-end grid.
-    if (temp === "akkumulert") {
-      return `${startYear}-${endMD}…${endYear}-${endMD}`;
-    }
-    // Forløp / other → true window (any date in range is valid for import-event).
-    return `${startYear}-${startMD}…${endYear}-${endMD}`;
-  }
-  // Year-only / open-ended: no date-grid validation; show the coarse year span.
-  const m = description.match(/Gyldighetsperiode:\s*([0-9]{4})[^.]*?(?:[–—-]\s*([0-9]{4}))?/i);
-  if (!m) return "";
-  const start = m[1];
-  const end = m[2];
-  if (description.includes("Gyldighetsperiode") && /∞/.test(description) && !end) {
-    return `${start}–`;   // explicit open-ended
-  }
-  if (start && end) return `${start}–${end}`;
-  if (start) return `${start}–`;
-  return "";
-}
-
-// Strip the structured boilerplate tail ("Enhetstype: … Temporalitet: …
-// Gyldighetsperiode: …") so only the human-readable description remains.
-function cleanDescription(description: string, shortTitle: string): string {
-  let d = (description || "").trim();
-  const cut = d.search(/\s*(Enhetstype:|Temporalitet:|Gyldighetsperiode:)/i);
-  if (cut >= 0) d = d.slice(0, cut).trim();
-  d = d.replace(/\s+/g, " ").trim();
-  if (!d) d = (shortTitle || "").trim();
-  if (d.length > 200) d = d.slice(0, 197) + "...";
-  return d;
-}
-
-// Inline enum labels only for low-cardinality variables; big codelists
-// (e.g. 399 kommuner) would blow the token budget, so skip them.
-function renderLabels(labels: unknown): string {
-  if (!labels || typeof labels !== "object") return "";
-  const entries = Object.entries(labels as Record<string, unknown>);
-  if (entries.length === 0 || entries.length > 12) return "";
-  const parts = entries.map(([k, val]) => `${k}=${String(val)}`);
-  return ` {${parts.join(", ")}}`;
-}
 
 function renderCatalog(meta: unknown): string {
   const variables = (meta as { variables?: Record<string, Record<string, unknown>> })?.variables;
