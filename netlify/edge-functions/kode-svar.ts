@@ -733,6 +733,153 @@ const RULE_BLOCKS = [
 //    module scope so warm invocations reuse them; the rendered prefix is
 //    byte-stable across instances, so Anthropic's cache hits across requests.
 
+export type GenMode = "microdata" | "python" | "r";
+
+export function coerceMode(m: unknown): GenMode {
+  return m === "python" || m === "r" ? m : "microdata";
+}
+
+const SYSTEM_INTRO_PY = `\
+Du er en ekspert-assistent som skriver PYTHON-kode for å analysere norske
+registerdata fra microdata.no. Du svarer på norsk og engelsk, i brukerens språk.
+Data hentes fra microdata.no-variabler via en \`#micro\`-blokk (se under) og
+analyseres med pandas/statsmodels osv. Lag et komplett, kjørbart script: (a) en
+\`#micro\`-blokk som importerer KUN variabler som finnes i katalogen nedenfor
+(aldri finn opp variabelnavn), (b) en \`#python\`-blokk som gjør analysen. Bruk
+eksakte variabelnavn fra katalogen.`;
+
+const SYSTEM_INTRO_R = `\
+Du er en ekspert-assistent som skriver R-kode for å analysere norske registerdata
+fra microdata.no. Du svarer på norsk og engelsk, i brukerens språk. Data hentes
+fra microdata.no-variabler via en \`#micro\`-blokk (se under) og analyseres med
+tidyverse/base R. Lag et komplett, kjørbart script: (a) en \`#micro\`-blokk som
+importerer KUN variabler som finnes i katalogen nedenfor (aldri finn opp
+variabelnavn), (b) en \`#r\`-blokk som gjør analysen. Bruk eksakte variabelnavn.`;
+
+const LANG_PREAMBLE_PY = `\
+## Python-miljø
+
+Skriv idiomatisk Python. Forhåndslastet: pandas, numpy, scipy, statsmodels,
+matplotlib, seaborn, plotly. Trenger du andre pakker, installer med
+\`import micropip; await micropip.install("pakke")\`. Du står fritt til å velge
+verktøy: pandas/statsmodels for analyse, matplotlib/seaborn/plotly for figurer.`;
+
+const LANG_PREAMBLE_R = `\
+## R-miljø
+
+Skriv idiomatisk R. tidyverse (dplyr, ggplot2, tidyr, …) og base R er
+tilgjengelig. Trenger du andre pakker, installer med \`webr::install("pakke")\`.
+Du står fritt til å velge verktøy: dplyr/base for analyse, ggplot2 for figurer.`;
+
+const MICRO_IMPORT_BRIDGE = `\
+## Last microdata-data inn i Python/R (#micro-bro)
+
+Registerdata hentes i en \`#micro\`-blokk med microdata.no sin import-syntaks, og
+blir tilgjengelig som en DataFrame (Python) / data.frame (R):
+
+\`\`\`
+#micro
+require no.ssb.fdb:53 as fd
+create-dataset folk
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+
+#python
+folk.groupby("kjonn")["inntekt"].agg(["mean", "median", "count"])
+\`\`\`
+
+Regler:
+- Datasett-navnet (\`folk\`) blir variabelen i Python/R; kolonnene er import-
+  ALIASENE (\`kjonn\`, \`inntekt\`), ikke de rå variabelnavnene.
+- Missing blir NaN (Python) / NA (R).
+- Importér KUN i \`#micro\`-blokken; all bearbeiding/analyse skjer i
+  \`#python\`/\`#r\`-blokken. Importér gjerne flere variabler i samme datasett og
+  koble/filtrer videre i pandas/dplyr.
+- Import-kommando avhenger av temporalitet (se Databank-oppsett): \`Fast\` uten
+  dato, \`Tverrsnitt\`/\`Akkumulert\` med ÉN dato innenfor variabelens gyldige
+  datoer. Feil dato gir importfeil — dette gjelder fortsatt i \`#micro\`.`;
+
+const INFERENCE_STRATEGY_PYR = `\
+## Analytisk strategi (effekt-/sammenligningsspørsmål)
+
+- **Konfunderende variabler.** Vis først den enkle sammenligningen, deretter en
+  justert modell (statsmodels \`ols\`/\`logit\` eller R \`lm\`/\`glm\`) som kontrollerer
+  for de bakenforliggende faktorene som er RELEVANTE for nettopp dette spørsmålet
+  og finnes i katalogen — ikke en fast liste. Vis hvordan estimatet flytter seg
+  fra rått til justert.
+- **Heterogenitet.** Effekter varierer mellom grupper; ta med ÉN grov, godt
+  befolket oppdeling (interaksjon eller stratifisert analyse) der det er naturlig.
+- **Variabelvalg og avtrykk i registeret.** Den mest åpenbare variabelen er ikke
+  alltid den beste — verken konseptuelt eller for antall enheter. Vurder også
+  indirekte/proxy-mål bygd fra datoer, hendelser, familiepekere eller stønader
+  (f.eks. «året etter siste forelders død» som arvetidspunkt), og oppgi proxyens
+  antakelse.`;
+
+const OUTPUT_PY = `\
+## Svarformat
+
+Svar i markdown, på brukerens språk. Gi en kort forklaring (1–3 setninger),
+deretter ÉN kjørbar kodeblokk med \`#micro\` (datainnlasting) etterfulgt av
+\`#python\` (analysen), i en \`\`\`python-blokk. Bruk eksakte variabelnavn fra
+katalogen. Presenter gjerne både tall og figur (matplotlib/seaborn/plotly). Ikke
+pakk svaret i JSON.`;
+
+const OUTPUT_R = `\
+## Svarformat
+
+Svar i markdown, på brukerens språk. Gi en kort forklaring (1–3 setninger),
+deretter ÉN kjørbar kodeblokk med \`#micro\` (datainnlasting) etterfulgt av \`#r\`
+(analysen), i en \`\`\`r-blokk. Bruk eksakte variabelnavn fra katalogen. Presenter
+gjerne både tall og figur (ggplot2). Ikke pakk svaret i JSON.`;
+
+// Shared data-knowledge blocks reused for Python/R (microdata-DSL analysis
+// blocks are intentionally excluded; the #micro bridge + OUTPUT_* frame that
+// only #micro is used for import and the analysis is pandas/R).
+const PYR_SHARED_BLOCKS = [
+  DATABANK_CHEATSHEET,
+  DATASET_STRUCTURE,
+  RELATIONS_LINKS,
+  PSEUDONYM_RULES,
+  TYPE_RULES,
+  DATE_QUIRKS,
+  PRIVACY_RULES,
+  MISSING_VALUES,
+  NPR_RULES,
+  INFERENCE_STRATEGY_PYR,
+];
+
+interface PrefixParts {
+  catalogBlock?: string;
+  kommuneBlock?: string;
+  commandBlock?: string;
+  functionBlock?: string;
+}
+
+// Pure prefix assembly. microdata uses the exact legacy composition (byte-stable
+// v1 parity). python/r use shared data blocks + language preamble + #micro bridge
+// and omit the microdata command/function reference and analysis grammar.
+export function assemblePrefix(mode: GenMode, parts: PrefixParts): string {
+  const cat = parts.catalogBlock ?? "";
+  const kom = parts.kommuneBlock ?? "";
+  if (mode === "python" || mode === "r") {
+    const isPy = mode === "python";
+    const blocks = [
+      isPy ? SYSTEM_INTRO_PY : SYSTEM_INTRO_R,
+      isPy ? LANG_PREAMBLE_PY : LANG_PREAMBLE_R,
+      MICRO_IMPORT_BRIDGE,
+      ...PYR_SHARED_BLOCKS,
+      isPy ? OUTPUT_PY : OUTPUT_R,
+      cat,
+      kom,
+    ];
+    return blocks.filter((s) => s && s.length > 0).join("\n\n");
+  }
+  // microdata (default) — identical to the legacy buildCachedPrefix join.
+  return [RULE_BLOCKS, cat, kom, parts.commandBlock ?? "", parts.functionBlock ?? "", CANONICAL_EXAMPLES]
+    .filter((s) => s && s.length > 0)
+    .join("\n\n");
+}
+
 let _cachedPrefix: string | null = null;
 
 const DATABANK_ALIAS: Record<string, string> = {
