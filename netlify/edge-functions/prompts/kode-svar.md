@@ -31,6 +31,9 @@ ENDRINGER 2026-06-14 (kandidat for port til prompts.py):
 - `renderCatalog`-headeren ber modellen finne relevant register-klynge først.
 - `renderLabels` viser nå inntil 30 koder (før: skjult ved >12), så
   format-/kode-anker kommer med for nesten alle variabler.
+- Ny `VISUALIZATION_RULES`-blokk: oppfordrer til å vise resultater som figurer
+  (barchart/boxplot/histogram/coefplot/hexbin) i tillegg til tall, med
+  `over()` for fordeling på grupper. Full syntaks ligger alt i kommando-referansen.
 FELLES med v1 og v2 (delt prefiks via `buildCachedPrefix`).
 
 KUN v2 (`kode-svar-v2.ts`, IKKE i v1/prompts.py): picker-instruksjonen ber også

@@ -657,6 +657,29 @@ Når spørsmålet gjelder **effekt, årsak, virkning eller sammenheng**: still d
 
 Personvern (T9): regresjonskonstanten skjules hvis kategorikombinasjoner gir < 5 enheter — hold kategoriene grove.`;
 
+const VISUALIZATION_RULES = `\
+## Visualisering — vis resultater som figurer, ikke bare tall
+
+Tall og figurer utfyller hverandre. Når et resultat egner seg grafisk, lag GJERNE
+både tabellen/regresjonen OG en figur i samme script. Tilgjengelige plott (full
+syntaks står i kommando-referansen — her er bare når du bør gripe til dem):
+- \`barchart (stat) var [, over(grp) by(grp) stack horizontal]\` — grafisk versjon
+  av \`tabulate\`/\`summarize\`. \`count\`/\`percent\` for kategoriske (kun ÉN variabel);
+  \`mean\`/\`median\`/\`sum\`/\`min\`/\`max\`/\`sd\` for numeriske. \`over(grp)\` viser
+  statistikken FORDELT på grupper — det naturlige verktøyet for å vise heterogenitet
+  (f.eks. \`barchart (mean) lonn, over(kjonn)\`); \`over(a, b)\` krysser to grupper;
+  \`stack\` komprimerer mange kategorier til én søyle per gruppe.
+- \`boxplot var [, over(grp)]\` — fordeling/spredning per gruppe.
+- \`histogram var [, discrete]\` — fordeling for én variabel (bruk \`, discrete\` for
+  kategoriske). NB: \`scatter\` finnes IKKE (T4).
+- \`coefplot <regresjon …>\` — koeffisienter med konfidensintervall etter
+  regress/logit/probit/poisson.
+- \`hexbin xvar yvar [, gridsize() groups()]\` — tetthet for to variabler.
+
+Figurer følger de SAMME personvernreglene som tabeller (grove grupper, ingen små
+celler). Ikke lag figurer bare for syns skyld — velg den som faktisk gjør
+resultatet lettere å lese, og presenter helst tall og figur sammen.`;
+
 const MISSING_VALUES = `\
 ## Missing-verdier — KRITISK for inntekt, trygd og stønader
 
@@ -699,6 +722,7 @@ const RULE_BLOCKS = [
   DATE_QUIRKS,
   PRIVACY_RULES,
   INFERENCE_RULES,
+  VISUALIZATION_RULES,
   MISSING_VALUES,
   NPR_RULES,
   OUTPUT_INSTRUCTION,
