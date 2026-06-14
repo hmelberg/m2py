@@ -9784,6 +9784,97 @@ def _run_microdata_chunk(_code):
         return meta;
       }
 
+      // One streaming request to /api/kode-svar-v2. Renders markdown live into
+      // `bubble`. Returns { accumulated, tokens }. Mirrors runFastQuery's stream
+      // parsing; factored out so the repair round can call it again.
+      async function streamKodeSvarV2(payload, bubble, signal) {
+        const auth = window.mdAuth;
+        const token = auth && auth.token;
+        const headers = token
+          ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+          : { 'X-API-Key': state.apiKey, 'Content-Type': 'application/json' };
+        const resp = await fetch('/api/kode-svar-v2', {
+          method: 'POST', headers, body: JSON.stringify(payload), signal,
+        });
+        if (resp.status === 401) {
+          if (token && auth) { auth.logout(); auth.showLogin(); }
+          throw new Error('Innloggingen er utløpt. Logg inn på nytt.');
+        }
+        if (!resp.ok || !resp.body) {
+          throw new Error('HTTP ' + resp.status + ' ' + (await resp.text()));
+        }
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '', accumulated = '', _lastRender = 0;
+        let inputTokens = 0, outputTokens = 0, cacheRead = 0, cacheCreate = 0;
+        let firstByte = false;
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let nl;
+          while ((nl = buffer.indexOf('\n\n')) >= 0) {
+            const event = buffer.slice(0, nl);
+            buffer = buffer.slice(nl + 2);
+            const dataLine = event.split('\n').find(l => l.startsWith('data:'));
+            if (!dataLine) continue;
+            let obj;
+            try { obj = JSON.parse(dataLine.slice(5).trim()); } catch (_) { continue; }
+            if (obj.type === 'text') {
+              if (!firstByte) { firstByte = true; bubble.textContent = ''; }
+              accumulated += obj.text;
+              const _now = Date.now();
+              if (_now - _lastRender > 70) {
+                _lastRender = _now;
+                streamRenderMd(bubble, accumulated);
+                scrollToBottom();
+              }
+            } else if (obj.type === 'done') {
+              inputTokens = obj.inputTokens || 0;
+              outputTokens = obj.outputTokens || 0;
+              cacheRead = obj.cacheReadTokens || 0;
+              cacheCreate = obj.cacheCreationTokens || 0;
+            } else if (obj.type === 'error') {
+              throw new Error(obj.message || 'Ukjent feil fra server');
+            }
+          }
+        }
+        return { accumulated, tokens: { input: inputTokens, output: outputTokens, cacheRead, cacheCreate } };
+      }
+
+      async function runFastQueryV2(text, lang, scriptContext, thinkingNode, signal) {
+        const t0 = Date.now();
+        thinkingNode.innerHTML = '';
+        const bubble = document.createElement('div');
+        bubble.className = 'ai-bubble';
+        bubble.textContent = 'Finner relevante variabler…';
+        thinkingNode.appendChild(bubble);
+
+        const payload = { question: text, lang, script: scriptContext || '' };
+        const { accumulated, tokens } = await streamKodeSvarV2(payload, bubble, signal);
+
+        // Final render + actions (reuse v1 helpers).
+        if (md) { try { bubble.innerHTML = md.render(accumulated || ''); } catch (_) { bubble.textContent = accumulated; } }
+        else { bubble.textContent = accumulated; }
+        attachCodeBlockActions(bubble);
+        bubble._rawMd = accumulated;
+
+        const meta = { intent: 'raskt-v2', model: 'kode-svar-v2', latency_ms: Date.now() - t0, tokens };
+        appendMeta(thinkingNode, meta);
+        attachResponseInsertBar(thinkingNode, accumulated);
+
+        // Non-blocking local validation (repair is added in the next task).
+        const script = extractFirstMicrodataBlock(accumulated);
+        if (script) {
+          validateMicrodataLocal(script).then(vr => {
+            if (vr.skipped || vr.passed) return;
+            const warn = renderValidationWarnings(vr);
+            if (warn) bubble.appendChild(warn);
+          }).catch(() => {});
+        }
+        return meta;
+      }
+
       // Tolk resultater: strøm en tolkning av output (kommandoer + resultater)
       // inn i en assistent-boble. Speiler runFastQuery, men mot /api/tolk-resultat.
       async function runInterpretQuery(payload, thinkingNode, signal) {
