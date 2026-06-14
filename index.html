@@ -2885,6 +2885,7 @@
             }
             scriptInput.value = text;
             scriptName.value = title;
+            if (window.mdClearOutput) window.mdClearOutput();
             if (window.mdGithubClearCurrent) window.mdGithubClearCurrent();
             if (window.updateLineNumbers) window.updateLineNumbers();
             if (examplesDropdown) examplesDropdown.classList.remove('open');
@@ -2973,6 +2974,7 @@
           }).then(function(text) {
             scriptInput.value = text;
             scriptName.value = selectedScript.label;
+            if (window.mdClearOutput) window.mdClearOutput();
             if (window.updateLineNumbers) window.updateLineNumbers();
             closeOverlay();
             // Returner fokus til textarea så Tab-autosuggestion virker rett etter lasting.
@@ -3295,6 +3297,7 @@
         const rightStatus = document.getElementById('rightStatus');
         if (rightStatus) rightStatus.textContent = '';
       }
+      window.mdClearOutput = clearOutput;
       const _menuClearOutput = document.getElementById('menuClearOutput');
       if (_menuClearOutput) _menuClearOutput.addEventListener('click', function() {
         clearOutput();
@@ -10373,6 +10376,7 @@ def _run_microdata_chunk(_code):
       }
       // Sett editor-innhold + språk slik at modus-buffrene holdes konsistente.
       function setEditor(text, lang) {
+        if (window.mdClearOutput) window.mdClearOutput();
         lang = (lang === 'python' || lang === 'r') ? lang : 'microdata';
         if (typeof editorContent !== 'undefined') editorContent[lang] = text;
         if (typeof switchEditorMode === 'function' && typeof activeEditorMode !== 'undefined' && lang !== activeEditorMode) {
