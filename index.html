@@ -451,12 +451,12 @@
       body[data-theme="auto"] .output-area .output-markdown h2,
       body[data-theme="auto"] .output-area .output-markdown h3 { color: #d1d5db; }
     }
-    .output-table-wrap { position: relative; margin: 0.15em 0; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+    .output-table-wrap { position: relative; margin: 0.15em 0; max-width: 100%; max-height: 60vh; overflow-x: auto; overflow-y: auto; }
     .output-area table.output-table { width: auto; border-collapse: collapse; font-size: var(--base-font-size); background: var(--bg-code); color: var(--text); }
     .output-area table.output-table th, .output-area table.output-table td { border: 1px solid var(--table-grid); padding: 4px 8px; text-align: left; }
     .output-area table.output-table th { background: var(--table-header-bg); color: var(--text); font-weight: 600; }
     .output-area table.output-table td { background: var(--bg-code); text-align: right; min-width: 7ch; max-width: 300px; white-space: nowrap; }
-    .output-area table.output-table thead th { white-space: nowrap; }
+    .output-area table.output-table thead th { white-space: nowrap; position: sticky; top: 0; z-index: 1; }
     .output-area table.output-table th:first-child, .output-area table.output-table td:first-child { min-width: 10ch; max-width: 800px; white-space: normal; }
     /* Serietabeller: hele første kolonne uthevet (inkl. første celle i rad 1), ikke resten av rad 1 */
     .output-area table.output-table.output-table-series thead th { background: var(--bg-code); font-weight: normal; }
