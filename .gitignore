@@ -11,6 +11,9 @@ __pycache__/
 /test_*.py
 /run_test.py
 
+# Local working notes (not tracked)
+Notater og mulige issues.md
+
 # Editor / IDE
 .claude/
 .vscode/
