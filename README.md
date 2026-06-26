@@ -11,7 +11,8 @@ data-minimization/privacy review, and result interpretation).
 
 | Path | What |
 |------|------|
-| `index.html` | The whole front-end app (editor, runners, AI panels, settings). |
+| `index.html` | The front-end app shell (editor, runners, mode system, settings) + remaining inline modules. |
+| `app.css`, `js/` | Extracted front-end: `app.css` (styles); `js/login.js`, `js/ai-chat.js`, `js/github-storage.js` (classic `<script src>` modules loaded after the inline block, sharing the `window.*` surface). |
 | `m2py.py` | The interpreter: `MicroParser` + `MicroInterpreter` (engine, mock-data, stats, disclosure control). **Source of truth** — the `microdata-api` copy is generated. |
 | `functions.py` | microdata functions used in generate/replace/if expressions. |
 | `protect.py` | `scrub-*` data-protection verbs (noise, swap, k-anon, risk, …). |
