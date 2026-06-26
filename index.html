@@ -3098,6 +3098,9 @@
 
     })();
 
+    // Authoring-shell seam (reserved for a future jamovi-style ribbon, NOT built):
+    // a shell can drive any mode programmatically via switchEditorMode(id) +
+    // setEditor(text, lang) (js/github-storage.js) + document.getElementById('btnRun').click().
     // ── Mode registry ────────────────────────────────────────────────────────
     // One plugin per editor language mode. Fields are added across Stage 1 tasks.
     // Behavior-preserving: this only centralizes dispatch that was previously
