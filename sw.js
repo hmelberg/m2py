@@ -60,6 +60,12 @@ self.addEventListener('fetch', e => {
     e.respondWith(staleWhileRevalidate(e.request));
     return;
   }
+
+  // App-shell assets (index.html, app.css, js/*.js, command_help.js,
+  // widgets/forklar-widgets.js) intentionally fall through to plain
+  // network/HTTP-cache — they are NOT precached or runtime-cached here.
+  // If you ever add the shell to the SW for offline support, add index.html
+  // alongside its css/js and bump CACHE.
 });
 
 async function cacheFirst(req) {
