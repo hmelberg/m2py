@@ -1667,8 +1667,8 @@
           const mode = activeEditorMode;
           if (text.length > 60000) {
             html = escapeHtmlOutput(text);
-          } else if (mode === 'python' || mode === 'r') {
-            html = highlightScriptPyR(text, mode);
+          } else if (currentMode().hlConfig) {
+            html = highlightScriptPyR(text, currentMode().hlConfig);
           } else if (typeof MD_CMD_SET === 'undefined' ||
               typeof highlightCommandTokens !== 'function') {
             html = escapeHtmlOutput(text);
@@ -2687,8 +2687,7 @@
       return { html: out, openTriple: null };
     }
     // Hele Python/R-scriptet → farget HTML, med trippel-streng-tilstand over linjer.
-    function highlightScriptPyR(text, mode) {
-      var cfg = mode === 'r' ? R_HL_CFG : PY_HL_CFG;
+    function highlightScriptPyR(text, cfg) {
       var lines = text.split('\n'), buf = [], triple = null;
       for (var i = 0; i < lines.length; i++) {
         var line = lines[i];
@@ -3105,8 +3104,8 @@
     // scattered as `activeEditorMode === '…'` branches.
     const modeRegistry = {
       microdata: { id: 'microdata', label: 'Microdata' },
-      python:    { id: 'python',    label: 'Python' },
-      r:         { id: 'r',         label: 'R', onActivate: function () { if (!webRReady && !webRLoading) loadWebR(); } },
+      python:    { id: 'python',    label: 'Python', hlConfig: PY_HL_CFG },
+      r:         { id: 'r',         label: 'R', hlConfig: R_HL_CFG, onActivate: function () { if (!webRReady && !webRLoading) loadWebR(); } },
     };
     function currentMode() {
       return modeRegistry[activeEditorMode] || modeRegistry.microdata;
