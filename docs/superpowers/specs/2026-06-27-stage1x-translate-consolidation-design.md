@@ -1,111 +1,75 @@
-# Design: Stage 1.x — consolidate translate to one registry-routed path
+# Design: Stage 1.x — remove the dead `btnTranslate` cluster (keep Oversett)
 
-Status: **design**. Follow-up to Stage 1 (mode registry, merged). Closes the
-translate consistency gap the Stage 1 whole-branch review flagged, and removes
-the dead/duplicate translate code uncovered while investigating it.
+Status: **design** (corrected). Follow-up to Stage 1. An earlier draft of this
+spec had the direction BACKWARDS — it would have removed the live **Oversett**
+button and kept the hidden `btnTranslate`. Corrected after discovering the real
+layout.
 
-## Context (what's actually there)
+## The real situation (verified in-browser + CSS)
 
-`index.html` has **two** translate buttons, plus dead code:
-
-- **`btnTranslate`** ("Translate" / "→ Microdata", main toolbar) — the LIVE
-  button. Its click handler dispatches `if activeEditorMode === 'microdata' →
-  doTranslateMicrodataToPython() else if 'python' → doTranslatePythonToMicrodata()
-  else → doTranslateRToMicrodata()`. The `doTranslate*` functions render via the
-  shared `renderTranslationResult` and set `lastOutput`/`lastOutputMode`. This
-  handler was NOT registry-routed in Stage 1.
-- **`oversettBtn`** ("Oversett", `display:none` by default) — a near-duplicate.
-  Its handler (`initOversettBtn`) was routed in Stage 1 through
-  `plugin.translate.toPython/toMicrodata`, with its own inline-HTML render.
-- **`translateAndSwitchToMicrodata`** (defined ~line 3203) — **dead**: defined,
-  never called. Stage 1 routed it pointlessly.
-
-Both buttons are **hidden in microdata mode** and shown only in Python/R
-(`updateModeButtonsUi` toggles both). Therefore the microdata→Python paths
-(`doTranslateMicrodataToPython` and `oversettBtn`'s `toPython`) are **unreachable**
-today. The only reachable translate is Python/R → microdata, served redundantly
-by two buttons via two render paths.
+- The `<div class="toolbar">` holding `btnTranslate` is **permanently hidden** in
+  this layout: `app.css` has `.panel-left .toolbar { display: none }`, and the
+  toolbar always sits in `.panel-left`. So `btnTranslate` ("Translate") is never
+  visible/clickable.
+- The **live** translate control is **`oversettBtn`** ("Oversett") in the
+  bottombar. Stage 1 already registry-routed it via
+  `currentMode().translate.toPython/toMicrodata` (in the `initOversettBtn`
+  handler). This is the single source of truth for the reachable translate path.
+- `btnTranslate`'s click handler (calls `doTranslate*` → `renderTranslationResult`)
+  and `translateAndSwitchToMicrodata` are therefore **dead code** — the reviewer's
+  "unrouted gap" is dead, not a real inconsistency.
+- The same hidden toolbar also holds **`btnRun`** and **`btnForklar`**, which ARE
+  live (proxied by visible footer buttons like `btnRunFooter`). These must NOT be
+  touched — only `btnTranslate` is removed.
 
 ## Goal
 
-One translate button, one path, registry-routed. Remove the dead and duplicate
-code. Behavior for the reachable paths is preserved (Python/R → microdata via the
-surviving Translate button, rendered exactly as `btnTranslate` does today).
+Delete the dead `btnTranslate` cluster. Keep `oversettBtn` and its registry
+routing exactly as-is. Zero change to reachable behavior.
 
-## Design
+## Deletions (all verified dead)
 
-### Consolidated `plugin.translate`
+Reference counts were traced; every one of these traces only to the hidden
+`btnTranslate`:
 
-Replace Stage 1's `{ showsButton, btnLabel, toPython, toMicrodata }` descriptors
-with:
+1. The `btnTranslate` `<button>` element (in the hidden toolbar). **Leave
+   `btnRun` and `btnForklar` and `leftStatus` in that toolbar untouched.**
+2. The `btnTranslate.addEventListener('click', …)` handler.
+3. `const btnTranslate = document.getElementById('btnTranslate');` (only used by
+   that handler).
+4. `updateTranslateBtnLabel()` function **and** its single call in
+   `switchEditorMode` (it only set `btnTranslate`'s text).
+5. The `tBtn` (`btnTranslate`) visibility lines in `updateModeButtonsUi`. **Keep
+   the `oBtn`/`oversettBtn` visibility lines and the `_shows` line** — those drive
+   the live Oversett button.
+6. `doTranslateMicrodataToPython`, `doTranslatePythonToMicrodata`,
+   `doTranslateRToMicrodata` (only called by the deleted handler).
+7. `renderTranslationResult` (only called by those three). Its `lastOutput` /
+   `lastOutputMode` writes are in a never-executed path; `lastOutputMode` is
+   write-only anyway. No runtime impact.
+8. `translateAndSwitchToMicrodata` (already callerless).
+9. `btnLabel` field in the three `plugin.translate` descriptors becomes unused
+   once `updateTranslateBtnLabel` is gone — drop it. **Keep `showsButton`,
+   `toPython`, `toMicrodata`** (used by `updateModeButtonsUi` + `initOversettBtn`).
 
-```js
-translate: { showsButton, btnLabel, run? }
-```
-- `microdata` → `{ showsButton: false, btnLabel: 'Translate' }` (no `run`; button
-  hidden, exactly as today).
-- `python` → `{ showsButton: true, btnLabel: '→ Microdata', run: doTranslatePythonToMicrodata }`.
-- `r` → `{ showsButton: true, btnLabel: '→ Microdata', run: doTranslateRToMicrodata }`.
+## Keep (live — do not touch)
 
-### Call-site changes
-
-- **`btnTranslate` click handler** — replace the `if/else if` chain with:
-  ```js
-  const t = currentMode().translate;
-  if (!t || !t.run) return;
-  // keep existing: disabled guard, try { await t.run(); } catch {…} finally { btnTranslate.disabled = false; }
-  ```
-  Preserve the handler's existing disabled-guard, try/catch error rendering, and
-  finally-re-enable exactly.
-- **`updateModeButtonsUi`** — remove the `oversettBtn` (`oBtn`) visibility lines;
-  toggle only `btnTranslate` via `currentMode().translate.showsButton` (unchanged
-  logic, minus the second button).
-- **`updateTranslateBtnLabel`** — unchanged (already reads
-  `currentMode().translate.btnLabel`).
-
-### Deletions (all dead or redundant)
-
-- `translateAndSwitchToMicrodata` function (dead — no callers).
-- `doTranslateMicrodataToPython` function (unreachable — microdata button hidden).
-- `initOversettBtn` IIFE (the `oversettBtn` handler).
-- the `oversettBtn` `<button>` element in the HTML.
-- Stage 1's `toPython` / `toMicrodata` fields on the plugins (only consumed by the
-  two things being deleted).
-
-### Update
-
-- The variable-detail help text (~line 2416) currently says *"**Oversett**-knappen
-  konverterer Python/R til microdata-syntaks."* — change to reference the
-  **Translate** button (the surviving control). Keep meaning, update the name.
-
-### Keep
-
-`doTranslatePythonToMicrodata`, `doTranslateRToMicrodata`, `renderTranslationResult`.
-
-## Behavior outcome (preservation statement)
-
-- Python/R → microdata translation works via the **Translate** button, rendered
-  via `renderTranslationResult` exactly as `btnTranslate` does today.
-- Microdata mode still shows **no** translate button.
-- The duplicate **Oversett** button is gone (intended).
-- No reachable behavior is removed: the only deletions are dead functions and an
-  unreachable button path.
+`oversettBtn` + `initOversettBtn`; `plugin.translate.{ showsButton, toPython,
+toMicrodata }`; `updateModeButtonsUi`'s `oBtn`/`_shows` lines; `btnRun`,
+`btnForklar`, `btnRunFooter` and all run wiring.
 
 ## Out of scope
 
-- Any change to what `doTranslatePythonToMicrodata` / `doTranslateRToMicrodata`
-  actually produce (py2m/r2m output unchanged).
-- statx, jamovi, ES modules, the wider roadmap.
+statx, jamovi, ES modules, any change to py2m/r2m output or the Oversett
+rendering.
 
 ## Verification
 
-Behavior-preserving for reachable paths; no front-end unit harness (greps +
-manual browser; `pytest` unaffected).
-- Python mode: Translate button visible, labelled "→ Microdata", click →
-  microdata rendered in output via `renderTranslationResult`, as before.
-- R mode: same via r2m; "WebR ikke klar" guard preserved.
-- Microdata mode: no translate button (Translate hidden, Oversett gone).
-- No `oversettBtn` / `initOversettBtn` / `translateAndSwitchToMicrodata` /
-  `doTranslateMicrodataToPython` references remain.
-- `btnTranslate` handler has no `activeEditorMode === '…'` branches.
-- No console errors on load; help text reads "Translate".
+Dead-code removal — reachable behavior unchanged.
+- Oversett button still visible in Python/R, translates as before; hidden in
+  microdata.
+- Run / step-wise-run (forklar) still work (their hidden toolbar buttons + footer
+  proxies untouched).
+- No `btnTranslate` / `doTranslate*` / `translateAndSwitchToMicrodata` /
+  `renderTranslationResult` / `updateTranslateBtnLabel` references remain.
+- No console errors on load; `pytest` unaffected.
