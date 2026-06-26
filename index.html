@@ -3115,12 +3115,34 @@
         translate: { showsButton: true, btnLabel: '→ Microdata',
           toMicrodata: async function (src, py) { await loadPy2m(py);
             if (!py2mReady) throw new Error('py2m ikke tilgjengelig.');
-            return await translatePythonThroughPy2m(src, py); } } },
+            return await translatePythonThroughPy2m(src, py); } },
+        runDefault: 'pyodide',
+        preRun: async function (script, ctx) {
+          try {
+            setStatus(ctx.rightStatus, 'Sjekker pakker…');
+            await ctx.py.loadPackagesFromImports(script, {
+              messageCallback: function (msg) { setStatus(ctx.rightStatus, msg); } });
+          } catch (e) { console.warn('loadPackagesFromImports:', e); }
+          var _pyPkgs = extractPythonImports(script);
+          for (var _pkg of _pyPkgs) {
+            try {
+              var _needInstall = await ctx.py.runPythonAsync(
+                'import importlib.util as _iu\n_iu.find_spec(' + JSON.stringify(_pkg) + ') is None');
+              if (_needInstall) {
+                setStatus(ctx.rightStatus, 'Installerer ' + _pkg + '…');
+                await ctx.py.runPythonAsync('import micropip as _mp\nawait _mp.install(' + JSON.stringify(_pkg) + ')');
+              }
+            } catch (e) { console.warn('micropip install', _pkg, e); }
+          }
+        } },
       r:         { id: 'r',         label: 'R', hlConfig: R_HL_CFG, onActivate: function () { if (!webRReady && !webRLoading) loadWebR(); }, handleTab: handleRTab,
         translate: { showsButton: true, btnLabel: '→ Microdata',
           toMicrodata: async function (src) {
             if (!webRReady) throw new Error('WebR ikke klar.');
-            return await translateRThroughR2m(src); } } },
+            return await translateRThroughR2m(src); } },
+        runSelf: async function (script, ctx) {
+          await runHybridR(script, ctx.py, { showCommands: ctx.showCommands });
+        } },
     };
     function currentMode() {
       return modeRegistry[activeEditorMode] || modeRegistry.microdata;
@@ -7242,44 +7264,17 @@ options(width = 200)
         var _showCmds = (typeof _scriptOpts.show_commands === 'boolean')
           ? _scriptOpts.show_commands
           : getShowCommandsDefault();
-        // ── R mode: run natively in WebR ──────────────────────────────────
-        if (activeEditorMode === 'r') {
-          await runHybridR(effectiveScript, py, { showCommands: _showCmds });
-          return;
-        }
-        // ── End R mode ────────────────────────────────────────────────────
-        // ── Pyodide auto-install for Python mode ──────────────────────────
-        if (activeEditorMode === 'python') {
-          try {
-            setStatus(rightStatus, 'Sjekker pakker\u2026');
-            await py.loadPackagesFromImports(effectiveScript, {
-              messageCallback: function (msg) { setStatus(rightStatus, msg); }
-            });
-          } catch(e) { console.warn('loadPackagesFromImports:', e); }
-          var _pyPkgs = extractPythonImports(effectiveScript);
-          for (var _pkg of _pyPkgs) {
-            try {
-              var _needInstall = await py.runPythonAsync(
-                'import importlib.util as _iu\n' +
-                '_iu.find_spec(' + JSON.stringify(_pkg) + ') is None'
-              );
-              if (_needInstall) {
-                setStatus(rightStatus, 'Installerer ' + _pkg + '\u2026');
-                await py.runPythonAsync(
-                  'import micropip as _mp\nawait _mp.install(' + JSON.stringify(_pkg) + ')'
-                );
-              }
-            } catch(e) { console.warn('micropip install', _pkg, e); }
-          }
-        }
-        // ── End auto-install ──────────────────────────────────────────────
+        var _mr = currentMode();
+        var _ctx = { py: py, rightStatus: rightStatus, showCommands: _showCmds };
+        if (_mr.runSelf) { await _mr.runSelf(effectiveScript, _ctx); return; }
+        if (_mr.preRun)  await _mr.preRun(effectiveScript, _ctx);
         const catalogJson = microdataCatalog && microdataCatalog.variables
           ? JSON.stringify(microdataCatalog.variables)
           : null;
         const catalogArg = catalogJson !== null ? JSON.stringify(catalogJson) : 'None';
         const pageBase = window.location.href.replace(/[^/]+$/, '');
         // In Python mode, unmarked code is pyodide; otherwise use the stored runner default
-        const runDefault = activeEditorMode === 'python' ? 'pyodide' : getRunnerDefaultMode();
+        const runDefault = currentMode().runDefault || getRunnerDefaultMode();
         let segments = parseHybridScript(effectiveScript, runDefault);
         if (segments.length === 0 && effectiveScript.trim()) {
           segments = [{ kind: runDefault, text: effectiveScript }];
