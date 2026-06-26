@@ -3103,9 +3103,9 @@
     // Behavior-preserving: this only centralizes dispatch that was previously
     // scattered as `activeEditorMode === '…'` branches.
     const modeRegistry = {
-      microdata: { id: 'microdata', label: 'Microdata' },
-      python:    { id: 'python',    label: 'Python', hlConfig: PY_HL_CFG },
-      r:         { id: 'r',         label: 'R', hlConfig: R_HL_CFG, onActivate: function () { if (!webRReady && !webRLoading) loadWebR(); } },
+      microdata: { id: 'microdata', label: 'Microdata', handleTab: microdataHandleTab },
+      python:    { id: 'python',    label: 'Python', hlConfig: PY_HL_CFG, handleTab: handlePythonTab },
+      r:         { id: 'r',         label: 'R', hlConfig: R_HL_CFG, onActivate: function () { if (!webRReady && !webRLoading) loadWebR(); }, handleTab: handleRTab },
     };
     function currentMode() {
       return modeRegistry[activeEditorMode] || modeRegistry.microdata;
@@ -4626,6 +4626,142 @@ json.dumps(out)
       }
     }
 
+    function microdataHandleTab(e) {
+      e.preventDefault();
+      if (autocompleteState) {
+        acceptSelection();
+        return;
+      }
+      const { prefix, start, end } = getWordBeforeCursor();
+      const ctx = getLeftContext();
+      const ta = scriptInput;
+      const pos = ta.selectionStart;
+      const lineSoFar = ctx.beforeCursor;
+      const onlyWhitespaceLeft = /^\s*$/.test(lineSoFar);
+      const hasRightText = /\S/.test(ctx.afterCursor);
+      const endsWithSpace = /\s$/.test(lineSoFar);
+      const firstWord = ctx.firstWordOnLine;
+      const isCommand = MICRODATA_COMMANDS.some(c => c.toLowerCase() === firstWord.toLowerCase());
+
+      // Rule 0a: scrub-verb hvor som helst på linja (også som import-suffiks).
+      const scrubM = lineSoFar.match(/(scrub[a-z-]*)$/i);
+      if (scrubM) {
+        const sp = scrubM[1].toLowerCase(), sStart = pos - scrubM[1].length;
+        const sg = MICRODATA_COMMANDS
+          .filter(function(c) { return c.indexOf('scrub-') === 0 && c.indexOf(sp) === 0; }).sort()
+          .map(function(c) { return { label: c, kind: 'command' }; });
+        if (sg.length) { showAutocomplete(sg, sStart, pos); return; }
+      }
+
+      // Rule 0: import db/VARIABEL <mellomrom> → foreslå gyldige importdatoer
+      // (kun for Tverrsnitt/Akkumulert/Forløp-variabler; Fast trenger ingen dato).
+      const importDate = lineSoFar.match(
+        /^\s*(?:import|import-event)\s+(?:[A-Za-z0-9_.]+\/)?([A-Za-z0-9_]+)\s+([0-9-]*)$/);
+      if (importDate) {
+        const partial = importDate[2];
+        const dateSuggs = getDateSuggestionsForVar(importDate[1], partial);
+        if (dateSuggs.length) { showAutocomplete(dateSuggs, pos - partial.length, pos); return; }
+      }
+
+      // Rule 1: after / → microdata variables (all modes)
+      const slashMicro = lineSoFar.match(/\/([A-Za-z0-9_]*)$/);
+      if (slashMicro) {
+        const slashPfx = slashMicro[1].toLowerCase(), slashStart = pos - slashMicro[1].length;
+        const slashSuggs = microdataVariableNames
+          .filter(v => v.toLowerCase().startsWith(slashPfx)).sort()
+          .map(v => { const d = getVariableShortDescription(v); return { label: v, kind: 'variable', detail: d || 'variable', insertText: v }; });
+        if (slashSuggs.length) { showAutocomplete(slashSuggs, slashStart, pos); return; }
+      }
+
+      // Hjelp har prioritet: hvis cursor står på et komplett, kjent
+      // ord (variabel/alias/kommando/funksjon), vis hjelp i stedet for
+      // forslag. Dette gjelder uansett om cursor er midt i, ved enden,
+      // eller starten av ordet (getFullWordAtCursor gir hele ordet).
+      if (prefix.length > 0) {
+        const { fullWord } = getFullWordAtCursor();
+        const word = fullWord;
+        const lower = word.toLowerCase();
+        const varAliasMap = buildVarAliasMap(scriptInput.value);
+
+        if (window.activeDatasetName && window.lastDatasetInfo && window.lastDatasetInfo[window.activeDatasetName]) {
+          const cols = window.lastDatasetInfo[window.activeDatasetName].columns || [];
+          if (cols.some(c => c.toLowerCase() === lower)) {
+            const exact = cols.find(c => c.toLowerCase() === lower) || word;
+            showVariableDetail(window.activeDatasetName, exact);
+            return;
+          }
+        }
+
+        if (MICRODATA_COMMANDS.some(c => c.toLowerCase() === lower)) {
+          const help = getCommandHelp(word);
+          if (help) { showHelpWithOptionalLink(help); return; }
+        }
+        if (microdataFunctions.some(f => f.toLowerCase() === lower)) {
+          const helpObj = typeof window.MICRODATA_FUNCTION_HELP !== 'undefined' && window.MICRODATA_FUNCTION_HELP[word];
+          const help = helpObj ? formatFunctionHelp(helpObj, word) : getCommandHelp(word);
+          if (help) { showHelpWithOptionalLink(help); return; }
+        }
+
+        const catalogKey = varAliasMap[word] || variableCatalogKey(word);
+        const keyResolved = variableCatalogKey(catalogKey);
+        const isVariable = microdataVariableNames.some(v => v.toLowerCase() === variableCatalogKey(word).toLowerCase()) ||
+          (varAliasMap[word] && microdataCatalog && microdataCatalog.variables && microdataCatalog.variables[varAliasMap[word]]);
+        if (isVariable && microdataCatalog && microdataCatalog.variables && microdataCatalog.variables[keyResolved]) {
+          showCatalogVariableHelpModal(word, catalogKey);
+          return;
+        }
+      }
+
+      // Prioritet 2: Etter kommando + mellomrom (eller delvis variabel)
+      // og ordet ved cursor IKKE er en komplett kjent variabel -> variabelliste.
+      if (!hasRightText && isCommand && (endsWithSpace || prefix.length > 0)) {
+        const importLike = ['import', 'import-event', 'import-panel'].indexOf(firstWord.toLowerCase()) >= 0;
+        let varNames = [];
+        if (importLike) {
+          varNames = microdataVariableNames.slice();
+        } else {
+          const active = window.activeDatasetName;
+          const cols = (active && window.lastDatasetInfo && window.lastDatasetInfo[active]) ? (window.lastDatasetInfo[active].columns || []) : [];
+          // Aktivt datasett har kolonner: bruk dem; ellers fallback til katalogvariabler (f.eks. kjonn, inntekt)
+          varNames = cols.length > 0 ? cols.slice() : microdataVariableNames.slice();
+        }
+        varNames.sort();
+        if (prefix.length > 0) {
+          const p = prefix.toLowerCase();
+          varNames = varNames.filter(v => v.toLowerCase().startsWith(p));
+        }
+        const vars = varNames.map(v => {
+          const detail = getVariableShortDescription(v);
+          return { label: v, kind: 'variable', detail: detail || 'variable', insertText: v };
+        });
+        if (vars.length > 0) {
+          showAutocomplete(vars, prefix.length > 0 ? start : pos, prefix.length > 0 ? end : pos);
+          return;
+        }
+      }
+
+      // Case 1: kun whitespace til venstre -> alle kommandoer og funksjoner
+      if (onlyWhitespaceLeft) {
+        const suggestions = getSuggestionsForPrefix('', { onlyCommandsAndFunctions: true });
+        if (suggestions.length > 0) {
+          showAutocomplete(suggestions, pos, pos);
+          return;
+        }
+        return;
+      }
+
+      // Case 2: tomt til høyre, ikke kommando+variabel -> filtrer kommandoer/funksjoner på prefiks
+      if (!hasRightText && prefix.length > 0) {
+        const suggestions = getSuggestionsForPrefix(prefix, { onlyCommandsAndFunctions: true });
+        if (suggestions.length > 0) {
+          showAutocomplete(suggestions, start, end);
+          return;
+        }
+      }
+
+      return;
+    }
+
     scriptInput.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && e.ctrlKey) {
         e.preventDefault();
@@ -4633,140 +4769,7 @@ json.dumps(out)
         return;
       }
       if (e.key === 'Tab') {
-        if (activeEditorMode === 'python') { handlePythonTab(e); return; }
-        if (activeEditorMode === 'r')      { handleRTab(e);      return; }
-        e.preventDefault();
-        if (autocompleteState) {
-          acceptSelection();
-          return;
-        }
-        const { prefix, start, end } = getWordBeforeCursor();
-        const ctx = getLeftContext();
-        const ta = scriptInput;
-        const pos = ta.selectionStart;
-        const lineSoFar = ctx.beforeCursor;
-        const onlyWhitespaceLeft = /^\s*$/.test(lineSoFar);
-        const hasRightText = /\S/.test(ctx.afterCursor);
-        const endsWithSpace = /\s$/.test(lineSoFar);
-        const firstWord = ctx.firstWordOnLine;
-        const isCommand = MICRODATA_COMMANDS.some(c => c.toLowerCase() === firstWord.toLowerCase());
-
-        // Rule 0a: scrub-verb hvor som helst på linja (også som import-suffiks).
-        const scrubM = lineSoFar.match(/(scrub[a-z-]*)$/i);
-        if (scrubM) {
-          const sp = scrubM[1].toLowerCase(), sStart = pos - scrubM[1].length;
-          const sg = MICRODATA_COMMANDS
-            .filter(function(c) { return c.indexOf('scrub-') === 0 && c.indexOf(sp) === 0; }).sort()
-            .map(function(c) { return { label: c, kind: 'command' }; });
-          if (sg.length) { showAutocomplete(sg, sStart, pos); return; }
-        }
-
-        // Rule 0: import db/VARIABEL <mellomrom> → foreslå gyldige importdatoer
-        // (kun for Tverrsnitt/Akkumulert/Forløp-variabler; Fast trenger ingen dato).
-        const importDate = lineSoFar.match(
-          /^\s*(?:import|import-event)\s+(?:[A-Za-z0-9_.]+\/)?([A-Za-z0-9_]+)\s+([0-9-]*)$/);
-        if (importDate) {
-          const partial = importDate[2];
-          const dateSuggs = getDateSuggestionsForVar(importDate[1], partial);
-          if (dateSuggs.length) { showAutocomplete(dateSuggs, pos - partial.length, pos); return; }
-        }
-
-        // Rule 1: after / → microdata variables (all modes)
-        const slashMicro = lineSoFar.match(/\/([A-Za-z0-9_]*)$/);
-        if (slashMicro) {
-          const slashPfx = slashMicro[1].toLowerCase(), slashStart = pos - slashMicro[1].length;
-          const slashSuggs = microdataVariableNames
-            .filter(v => v.toLowerCase().startsWith(slashPfx)).sort()
-            .map(v => { const d = getVariableShortDescription(v); return { label: v, kind: 'variable', detail: d || 'variable', insertText: v }; });
-          if (slashSuggs.length) { showAutocomplete(slashSuggs, slashStart, pos); return; }
-        }
-
-        // Hjelp har prioritet: hvis cursor står på et komplett, kjent
-        // ord (variabel/alias/kommando/funksjon), vis hjelp i stedet for
-        // forslag. Dette gjelder uansett om cursor er midt i, ved enden,
-        // eller starten av ordet (getFullWordAtCursor gir hele ordet).
-        if (prefix.length > 0) {
-          const { fullWord } = getFullWordAtCursor();
-          const word = fullWord;
-          const lower = word.toLowerCase();
-          const varAliasMap = buildVarAliasMap(scriptInput.value);
-
-          if (window.activeDatasetName && window.lastDatasetInfo && window.lastDatasetInfo[window.activeDatasetName]) {
-            const cols = window.lastDatasetInfo[window.activeDatasetName].columns || [];
-            if (cols.some(c => c.toLowerCase() === lower)) {
-              const exact = cols.find(c => c.toLowerCase() === lower) || word;
-              showVariableDetail(window.activeDatasetName, exact);
-              return;
-            }
-          }
-
-          if (MICRODATA_COMMANDS.some(c => c.toLowerCase() === lower)) {
-            const help = getCommandHelp(word);
-            if (help) { showHelpWithOptionalLink(help); return; }
-          }
-          if (microdataFunctions.some(f => f.toLowerCase() === lower)) {
-            const helpObj = typeof window.MICRODATA_FUNCTION_HELP !== 'undefined' && window.MICRODATA_FUNCTION_HELP[word];
-            const help = helpObj ? formatFunctionHelp(helpObj, word) : getCommandHelp(word);
-            if (help) { showHelpWithOptionalLink(help); return; }
-          }
-
-          const catalogKey = varAliasMap[word] || variableCatalogKey(word);
-          const keyResolved = variableCatalogKey(catalogKey);
-          const isVariable = microdataVariableNames.some(v => v.toLowerCase() === variableCatalogKey(word).toLowerCase()) ||
-            (varAliasMap[word] && microdataCatalog && microdataCatalog.variables && microdataCatalog.variables[varAliasMap[word]]);
-          if (isVariable && microdataCatalog && microdataCatalog.variables && microdataCatalog.variables[keyResolved]) {
-            showCatalogVariableHelpModal(word, catalogKey);
-            return;
-          }
-        }
-
-        // Prioritet 2: Etter kommando + mellomrom (eller delvis variabel)
-        // og ordet ved cursor IKKE er en komplett kjent variabel -> variabelliste.
-        if (!hasRightText && isCommand && (endsWithSpace || prefix.length > 0)) {
-          const importLike = ['import', 'import-event', 'import-panel'].indexOf(firstWord.toLowerCase()) >= 0;
-          let varNames = [];
-          if (importLike) {
-            varNames = microdataVariableNames.slice();
-          } else {
-            const active = window.activeDatasetName;
-            const cols = (active && window.lastDatasetInfo && window.lastDatasetInfo[active]) ? (window.lastDatasetInfo[active].columns || []) : [];
-            // Aktivt datasett har kolonner: bruk dem; ellers fallback til katalogvariabler (f.eks. kjonn, inntekt)
-            varNames = cols.length > 0 ? cols.slice() : microdataVariableNames.slice();
-          }
-          varNames.sort();
-          if (prefix.length > 0) {
-            const p = prefix.toLowerCase();
-            varNames = varNames.filter(v => v.toLowerCase().startsWith(p));
-          }
-          const vars = varNames.map(v => {
-            const detail = getVariableShortDescription(v);
-            return { label: v, kind: 'variable', detail: detail || 'variable', insertText: v };
-          });
-          if (vars.length > 0) {
-            showAutocomplete(vars, prefix.length > 0 ? start : pos, prefix.length > 0 ? end : pos);
-            return;
-          }
-        }
-
-        // Case 1: kun whitespace til venstre -> alle kommandoer og funksjoner
-        if (onlyWhitespaceLeft) {
-          const suggestions = getSuggestionsForPrefix('', { onlyCommandsAndFunctions: true });
-          if (suggestions.length > 0) {
-            showAutocomplete(suggestions, pos, pos);
-            return;
-          }
-          return;
-        }
-
-        // Case 2: tomt til høyre, ikke kommando+variabel -> filtrer kommandoer/funksjoner på prefiks
-        if (!hasRightText && prefix.length > 0) {
-          const suggestions = getSuggestionsForPrefix(prefix, { onlyCommandsAndFunctions: true });
-          if (suggestions.length > 0) {
-            showAutocomplete(suggestions, start, end);
-            return;
-          }
-        }
-
+        currentMode().handleTab(e);
         return;
       }
       if (autocompleteState) {
