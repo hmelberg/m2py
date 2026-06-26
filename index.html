@@ -3103,9 +3103,24 @@
     // Behavior-preserving: this only centralizes dispatch that was previously
     // scattered as `activeEditorMode === '…'` branches.
     const modeRegistry = {
-      microdata: { id: 'microdata', label: 'Microdata', handleTab: microdataHandleTab },
-      python:    { id: 'python',    label: 'Python', hlConfig: PY_HL_CFG, handleTab: handlePythonTab },
-      r:         { id: 'r',         label: 'R', hlConfig: R_HL_CFG, onActivate: function () { if (!webRReady && !webRLoading) loadWebR(); }, handleTab: handleRTab },
+      microdata: { id: 'microdata', label: 'Microdata', handleTab: microdataHandleTab,
+        translate: { showsButton: false, btnLabel: 'Translate',
+          toPython: async function (src, py) {
+            var raw = await py.runPythonAsync(
+              'from m2py import MicroInterpreter as _MI\n_e_ov = _MI()\n' +
+              'str(_e_ov.translate_script_to_python(' + JSON.stringify(src) + '))');
+            return String(raw);
+          } } },
+      python:    { id: 'python',    label: 'Python', hlConfig: PY_HL_CFG, handleTab: handlePythonTab,
+        translate: { showsButton: true, btnLabel: '→ Microdata',
+          toMicrodata: async function (src, py) { await loadPy2m(py);
+            if (!py2mReady) throw new Error('py2m ikke tilgjengelig.');
+            return await translatePythonThroughPy2m(src, py); } } },
+      r:         { id: 'r',         label: 'R', hlConfig: R_HL_CFG, onActivate: function () { if (!webRReady && !webRLoading) loadWebR(); }, handleTab: handleRTab,
+        translate: { showsButton: true, btnLabel: '→ Microdata',
+          toMicrodata: async function (src) {
+            if (!webRReady) throw new Error('WebR ikke klar.');
+            return await translateRThroughR2m(src); } } },
     };
     function currentMode() {
       return modeRegistry[activeEditorMode] || modeRegistry.microdata;
@@ -3147,17 +3162,17 @@
         });
       }
       // Oversett-knapp: kun synlig i Python/R-modus
-      var isMicro = activeEditorMode === 'microdata';
+      var _shows = !!(currentMode().translate && currentMode().translate.showsButton);
       var oBtn = document.getElementById('oversettBtn');
-      if (oBtn) oBtn.style.display = isMicro ? 'none' : '';
+      if (oBtn) oBtn.style.display = _shows ? '' : 'none';
       var tBtn = document.getElementById('btnTranslate');
-      if (tBtn) tBtn.style.display = isMicro ? 'none' : '';
+      if (tBtn) tBtn.style.display = _shows ? '' : 'none';
     }
 
     function updateTranslateBtnLabel() {
       var btn = document.getElementById('btnTranslate');
       if (!btn) return;
-      btn.textContent = activeEditorMode !== 'microdata' ? '→ Microdata' : 'Translate';
+      btn.textContent = (currentMode().translate && currentMode().translate.btnLabel) || 'Translate';
     }
 
     async function translateAndSwitchToMicrodata() {
@@ -3180,19 +3195,10 @@
         let script = '';
         let warnings = [];
 
-        if (fromMode === 'python') {
-          await loadPy2m(py);
-          if (!py2mReady) throw new Error('py2m ikke tilgjengelig.');
-          const res = await translatePythonThroughPy2m(src, py);
-          script = res.script;
-          warnings = res.warnings;
-        } else {
-          // R mode
-          if (!webRReady) throw new Error('WebR ikke klar.');
-          const res = await translateRThroughR2m(src);
-          script = res.script;
-          warnings = res.warnings;
-        }
+        const fromPlugin = modeRegistry[fromMode];
+        const res = await fromPlugin.translate.toMicrodata(src, py);
+        script = res.script;
+        warnings = res.warnings;
 
         editorContent.microdata = script;
         si.value = script;
@@ -3251,35 +3257,18 @@
           outputArea.innerHTML = '<div style="padding:8px;opacity:.6">Oversetter\u2026</div>';
           var script = '', warnings = [];
 
+          var t = currentMode().translate;
           if (activeEditorMode === 'microdata') {
-            // Microdata → Python
             var py = await loadPyodideAndM2py();
-            var raw = await py.runPythonAsync(
-              'from m2py import MicroInterpreter as _MI\n' +
-              '_e_ov = _MI()\n' +
-              'str(_e_ov.translate_script_to_python(' + JSON.stringify(src) + '))'
-            );
-            script = String(raw);
+            script = await t.toPython(src, py);
             editorContent.python = script;
-            // If currently showing python buffer, update textarea too
-            if (activeEditorMode === 'python') {
-              scriptInput.value = script;
-              if (window.updateLineNumbers) window.updateLineNumbers();
-            }
-          } else if (activeEditorMode === 'python') {
-            // Python → Microdata
-            var py = await loadPyodideAndM2py();
-            await loadPy2m(py);
-            var res = await translatePythonThroughPy2m(src, py);
-            script = res.script; warnings = res.warnings;
-            editorContent.microdata = script;
-          } else if (activeEditorMode === 'r') {
-            // R → Microdata
-            if (!webRReady) {
+          } else if (t && t.toMicrodata) {
+            if (activeEditorMode === 'r' && !webRReady) {
               outputArea.innerHTML = '<div class="transl-warn">WebR er ikke klar enn\u00e5. Vent litt og pr\u00f8v igjen.</div>';
               return;
             }
-            var res = await translateRThroughR2m(src);
+            var py2 = activeEditorMode === 'python' ? await loadPyodideAndM2py() : null;
+            var res = await t.toMicrodata(src, py2);
             script = res.script; warnings = res.warnings;
             editorContent.microdata = script;
           }
