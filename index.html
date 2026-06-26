@@ -3099,6 +3099,19 @@
 
     })();
 
+    // ── Mode registry ────────────────────────────────────────────────────────
+    // One plugin per editor language mode. Fields are added across Stage 1 tasks.
+    // Behavior-preserving: this only centralizes dispatch that was previously
+    // scattered as `activeEditorMode === '…'` branches.
+    const modeRegistry = {
+      microdata: { id: 'microdata', label: 'Microdata' },
+      python:    { id: 'python',    label: 'Python' },
+      r:         { id: 'r',         label: 'R' },
+    };
+    function currentMode() {
+      return modeRegistry[activeEditorMode] || modeRegistry.microdata;
+    }
+
     // ── Editor mode switching ────────────────────────────────────────────────
     function switchEditorMode(newMode) {
       // Save departing mode's content and breakpoints
@@ -3126,9 +3139,8 @@
     }
 
     function updateModeButtonsUi() {
-      var labels = { microdata: 'Microdata', python: 'Python', r: 'R' };
       var lbl = document.getElementById('editorModeLabel');
-      if (lbl) lbl.textContent = labels[activeEditorMode] || activeEditorMode;
+      if (lbl) lbl.textContent = currentMode().label;
       var menu = document.getElementById('editorModeMenu');
       if (menu) {
         menu.querySelectorAll('button[data-mode]').forEach(function(b) {
