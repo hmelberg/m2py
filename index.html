@@ -3106,7 +3106,7 @@
     const modeRegistry = {
       microdata: { id: 'microdata', label: 'Microdata' },
       python:    { id: 'python',    label: 'Python' },
-      r:         { id: 'r',         label: 'R' },
+      r:         { id: 'r',         label: 'R', onActivate: function () { if (!webRReady && !webRLoading) loadWebR(); } },
     };
     function currentMode() {
       return modeRegistry[activeEditorMode] || modeRegistry.microdata;
@@ -3131,8 +3131,8 @@
       if (ac) ac.style.display = 'none';
       updateModeButtonsUi();
       updateTranslateBtnLabel();
-      // Trigger lazy WebR load when switching to R
-      if (newMode === 'r' && !webRReady && !webRLoading) loadWebR();
+      // Lazy-load this mode's runtime if it needs one (e.g. R → webR).
+      var _ma = currentMode(); if (_ma.onActivate) _ma.onActivate();
       // Refresh the GitHub save indicator: hide the floppy when the bound file's
       // extension no longer matches the active mode (cross-IIFE via window).
       if (window.mdGithubRefreshIndicator) window.mdGithubRefreshIndicator();
