@@ -101,7 +101,8 @@
         roles:[{key:'dv',label:'Dependent Variable',types:['numeric'],multiple:false},{key:'group',label:'Grouping Variable',types:['nominal'],multiple:false}],
         optionSections:[
           { title:'Tests', groups:[{ items:[{key:'test',type:'radio',choices:[{value:'student',label:"Student's"},{value:'welch',label:"Welch's"}],default:'welch'},{key:'mwu',type:'check',label:'Mann-Whitney U',default:false}] }] },
-          { title:'Additional Statistics', groups:[{ items:[{key:'effsize',type:'check',label:"Effect size (Cohen's d)",default:false}] }] }
+          { title:'Additional Statistics', groups:[{ items:[{key:'effsize',type:'check',label:"Effect size (Cohen's d)",default:false}] }] },
+          { title:'Assumption Checks', groups:[{ items:[{key:'normality',type:'check',label:'Normality (Shapiro-Wilk)',default:false},{key:'homogeneity',type:'check',label:"Homogeneity (Levene's)",default:false}] }] }
         ],
         note:function(a,opts){ return ((opts&&opts.test==='student') ? "Student's" : "Welch's") + ' independent-samples t-test' + (opts&&opts.mwu ? ', with Mann-Whitney U.' : '.'); },
         buildR:function(a,opts){ var dv=a.dv&&a.dv[0], g=a.group&&a.group[0]; if(!dv||!g) return null;
@@ -115,11 +116,11 @@
           } else {
             base += " out<-data.frame('Test'="+JSON.stringify(testLabel)+", 't'=unname(tt$statistic), 'df'=unname(tt$parameter), 'p'=tt$p.value, 'Mean diff'=unname(md), check.names=FALSE, stringsAsFactors=FALSE);";
           }
-          if (mwu) {
-            base += " w<-wilcox.test(y~f); mwdf<-data.frame('Test'='Mann-Whitney U', 'W'=unname(w$statistic), p=w$p.value, check.names=FALSE, stringsAsFactors=FALSE); list('T-Test'=out, 'Mann-Whitney U'=mwdf) })";
-          } else {
-            base += " out })";
-          }
+          base += " res<-list('T-Test'=out);";
+          if (mwu) base += " w<-wilcox.test(y~f); res[['Mann-Whitney U']]<-data.frame('Test'='Mann-Whitney U', 'W'=unname(w$statistic), p=w$p.value, check.names=FALSE, stringsAsFactors=FALSE);";
+          if (opts && opts.normality) base += " ry<-y-ave(y,f,FUN=function(z) mean(z,na.rm=TRUE)); ry<-ry[!is.na(ry)]; if(length(ry)>5000){set.seed(1); ry<-sample(ry,5000)}; sw<-shapiro.test(ry); res[['Normality (Shapiro-Wilk)']]<-data.frame('Test'='Shapiro-Wilk', 'W'=unname(sw$statistic), p=sw$p.value, check.names=FALSE);";
+          if (opts && opts.homogeneity) base += " med<-tapply(y,f,median,na.rm=TRUE); zz<-abs(y-med[f]); la<-anova(lm(zz~f)); res[['Homogeneity (Levene)']]<-data.frame('Test'=\"Levene's\", 'F'=la[1,'F value'], df1=la[1,'Df'], df2=la[2,'Df'], p=la[1,'Pr(>F)'], check.names=FALSE);";
+          base += " if(length(res)==1) res[[1]] else res })";
           return base; } },
 
       ttest_paired: { id:'ttest_paired', title:'Paired Samples T-Test',
@@ -183,7 +184,9 @@
         roles:[{key:'dv',label:'Dependent Variable',types:['numeric'],multiple:false},{key:'factor',label:'Grouping Variable',types:['nominal'],multiple:false}],
         optionSections:[
           { title:'Variances', groups:[{ items:[{key:'welch',type:'check',label:"Don't assume equal (Welch's)",default:false}] }] },
-          { title:'Effect Size', groups:[{ items:[{key:'eta',type:'check',label:'η² (eta-squared)',default:true},{key:'omega',type:'check',label:'ω² (omega-squared)',default:false}] }] }
+          { title:'Effect Size', groups:[{ items:[{key:'eta',type:'check',label:'η² (eta-squared)',default:true},{key:'omega',type:'check',label:'ω² (omega-squared)',default:false}] }] },
+          { title:'Assumption Checks', groups:[{ items:[{key:'homogeneity',type:'check',label:"Homogeneity (Levene's)",default:false},{key:'normality',type:'check',label:'Normality (Shapiro-Wilk)',default:false}] }] },
+          { title:'Post Hoc Tests', groups:[{ items:[{key:'tukey',type:'check',label:'Tukey (HSD)',default:false}] }] }
         ],
         buildR:function(a, opts){ var dv=a.dv&&a.dv[0], f=a.factor&&a.factor[0]; if(!dv||!f) return null;
           var welch = opts && opts.welch;
@@ -205,9 +208,14 @@
             if (omega) esCols.push("'ω²'=omega2");
             rES += "es<-data.frame("+esCols.join(",")+",check.names=FALSE);\n";
           }
-          // Build return value
-          var rReturn = needES ? "list('ANOVA'=anovaT,'Effect Size'=es)" : "anovaT";
-          return rBase + rWelch + rES + rReturn + " })"; } },
+          // Assemble the result list (ANOVA + optional effect size / assumptions / post-hoc)
+          var rAssemble = "res<-list('ANOVA'=anovaT);\n";
+          if (needES) rAssemble += "res[['Effect Size']]<-es;\n";
+          if (opts && opts.homogeneity) rAssemble += "med<-tapply(y,g,median,na.rm=TRUE); zz<-abs(y-med[g]); la<-anova(lm(zz~g)); res[['Homogeneity (Levene)']]<-data.frame('Test'=\"Levene's\",'F'=la[1,'F value'],df1=la[1,'Df'],df2=la[2,'Df'],p=la[1,'Pr(>F)'],check.names=FALSE);\n";
+          if (opts && opts.normality) rAssemble += "rr<-residuals(m); rr<-rr[!is.na(rr)]; if(length(rr)>5000){set.seed(1); rr<-sample(rr,5000)}; sw<-shapiro.test(rr); res[['Normality (Shapiro-Wilk)']]<-data.frame('Test'='Shapiro-Wilk','W'=unname(sw$statistic),p=sw$p.value,check.names=FALSE);\n";
+          if (opts && opts.tukey) rAssemble += "th<-TukeyHSD(m)$g; tk<-data.frame(Comparison=rownames(th),'Mean diff'=th[,'diff'],'Lower'=th[,'lwr'],'Upper'=th[,'upr'],'p'=th[,'p adj'],check.names=FALSE,stringsAsFactors=FALSE); res[['Post Hoc (Tukey)']]<-tk;\n";
+          rAssemble += "if(length(res)==1) res[[1]] else res";
+          return rBase + rWelch + rES + rAssemble + " })"; } },
 
       contingency: { id:'contingency', title:'Contingency Tables (χ²)',
         roles:[{key:'rows',label:'Rows',types:['nominal'],multiple:false},{key:'cols',label:'Columns',types:['nominal'],multiple:false}],
