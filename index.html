@@ -6925,13 +6925,15 @@ has and "int" in (m.get_microdata_functions() or {})
       try {
         const base = window.location.href.replace(/[^/]+$/, '');
         setStatus(leftStatus, 'Installing pdexplorer…');
-        // 1) stub the one desktop-only blocker BEFORE any pdexplorer import
+        // 1) stub the desktop-only modules pdexplorer imports at top level (xlwings pulls
+        //    pywintypes; pynput needs OS input) BEFORE importing — never available in Pyodide
         // 2) install pdexplorer without its pinned deps; use Pyodide's bundled pandas/statsmodels
         // 3) install its pure-python import deps
         await py.runPythonAsync(
           'import sys, micropip\n' +
           'from unittest.mock import MagicMock\n' +
-          'sys.modules.setdefault("pywintypes", MagicMock())\n' +
+          'for _m in ("pywintypes","xlwings","pynput"):\n' +
+          '    sys.modules.setdefault(_m, MagicMock())\n' +
           'await micropip.install("pdexplorer", deps=False)\n' +
           'await micropip.install(["rich","click","requests"])\n' +
           'import pdexplorer\n'
