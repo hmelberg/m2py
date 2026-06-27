@@ -3301,7 +3301,17 @@
           { title:'Central Tendency', items:[{key:'Mean',type:'check',label:'Mean',default:true},{key:'Median',type:'check',label:'Median',default:true},{key:'Mode',type:'check',label:'Mode',default:false},{key:'Sum',type:'check',label:'Sum',default:false}] },
           { title:'Dispersion', items:[{key:'SD',type:'check',label:'Std. deviation',default:true},{key:'Variance',type:'check',label:'Variance',default:false},{key:'Range',type:'check',label:'Range',default:false},{key:'Min',type:'check',label:'Minimum',default:true},{key:'Max',type:'check',label:'Maximum',default:true},{key:'SE',type:'check',label:'Std. error',default:false}] },
           { title:'Distribution', items:[{key:'Skewness',type:'check',label:'Skewness',default:false},{key:'Kurtosis',type:'check',label:'Kurtosis',default:false}] }
-        ]}],
+        ]},
+        { title:'Plots', groups:[{ items:[{key:'histogram',type:'check',label:'Histogram',default:false},{key:'boxplot',type:'check',label:'Box plot',default:false}] }] }],
+        buildPlots: function(a, opts){
+          var v = a.vars || []; var plots = [];
+          v.forEach(function(name){
+            var rv = JSON.stringify(name);
+            if (opts && opts.histogram) plots.push({ title:'Histogram — ' + name, rCode:'hist(data[['+rv+']], main="", xlab='+rv+', col="#cfe0f3", border="white")' });
+            if (opts && opts.boxplot) plots.push({ title:'Box Plot — ' + name, rCode:'boxplot(data[['+rv+']], main="", ylab='+rv+', col="#cfe0f3", horizontal=TRUE)' });
+          });
+          return plots;
+        },
         buildR: function(a, opts){
           var v = a.vars; if(!v||!v.length) return null;
           var splitV = a.split && a.split[0];
@@ -3450,6 +3460,25 @@
         buildR:function(a){ var dv=a.dv&&a.dv[0], f=a.factor&&a.factor[0]; if(!dv||!f) return null;
           return "local({ y<-data[["+JSON.stringify(dv)+"]]; g<-as.factor(data[["+JSON.stringify(f)+"]]); k<-kruskal.test(y~g); data.frame('Test'='Kruskal-Wallis', 'χ²'=unname(k$statistic), df=unname(k$parameter), p=k$p.value, check.names=FALSE, stringsAsFactors=FALSE) })"; } }
     };
+
+    // Append a captured webR plot (ImageBitmap) into the output, jamovi-style.
+    function jamoviAppendPlot(title, bitmap) {
+      var block = document.createElement('div');
+      block.className = 'jmv-plot-block';
+      if (title) {
+        var h = document.createElement('h3');
+        h.className = 'jmv-result-title';
+        h.textContent = title;
+        block.appendChild(h);
+      }
+      var canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      canvas.className = 'jmv-plot-canvas';
+      canvas.getContext('2d').drawImage(bitmap, 0, 0);
+      block.appendChild(canvas);
+      outputArea.appendChild(block);
+    }
 
     // Render a structured webR toJs() result as jamovi-style tables
     function renderJamoviResult(title, struct) {
@@ -3759,6 +3788,17 @@
           var robj = await webRShelter.evalR('tryCatch({' + rcode + '}, error=function(e) paste("ERROR:",conditionMessage(e)))');
           var res = await robj.toJs();
           renderJamoviResult(spec.title, res);
+          // jamovi-style plots: capture R graphics into the output (after the tables)
+          if (spec.buildPlots) {
+            var plots = spec.buildPlots(assignments, optsObj) || [];
+            for (var pi = 0; pi < plots.length; pi++) {
+              try {
+                var cap = await webRShelter.captureR(plots[pi].rCode, { captureGraphics: { width: 460, height: 320 } });
+                if (cap.images && cap.images[0]) jamoviAppendPlot(plots[pi].title, cap.images[0]);
+                if (cap.cleanup) await cap.cleanup();
+              } catch (pe) { /* skip a single failed plot */ }
+            }
+          }
           setStatus(rightStatus, '');
         } catch(err) {
           outputArea.innerHTML = '<pre class="error">Analysefeil: ' + (err.message || String(err)) + '</pre>';

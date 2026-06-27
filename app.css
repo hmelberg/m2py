@@ -1022,9 +1022,12 @@
     .jmv-menu button:disabled { opacity:.4; cursor:not-allowed; }
     /* ── jamovi result tables ───────────────────────────────────────────────── */
     .jmv-result-title { font:600 15px/1.3 inherit; color:var(--jmv-blue-d); margin:14px 0 6px; }
+    .jmv-plot-block { margin:8px 0 16px; }
+    .jmv-plot-canvas { max-width:100%; height:auto; border:1px solid var(--jmv-line); border-radius:4px; background:#fff; }
     .jmv-result-table { border-collapse:collapse; margin:0 0 14px; font:13px/1.4 inherit; }
     .jmv-result-table th { text-align:right; font-weight:700; padding:5px 12px; border-bottom:2px solid var(--jmv-blue-d); color:#1f2937; white-space:nowrap; }
     .jmv-result-table th:first-child, .jmv-result-table td:first-child { text-align:left; }
+    .jmv-result-table td { white-space:nowrap; }
     .jmv-result-table td { text-align:right; padding:5px 12px; border-bottom:1px solid #e3e6ec; }
     /* ── jamovi analysis dialog ─────────────────────────────────────────────── */
     .jmv-dialog-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:200; display:flex; align-items:center; justify-content:center; }
