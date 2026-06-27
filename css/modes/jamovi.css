@@ -61,23 +61,25 @@
 .jmv-dialog { background:#fff; border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,.25); width:min(640px,92vw); max-height:85vh; display:flex; flex-direction:column; overflow:hidden; }
 .jmv-dialog-head { padding:14px 18px; font:600 16px/1.2 inherit; border-bottom:1px solid #e3e6ec; background:var(--jmv-bg); color:var(--jmv-blue-d); }
 .jmv-dialog-body { display:flex; gap:14px; padding:16px 18px; overflow:auto; }
+/* jamovi dialog: neutral grey supplier/target boxes (#828282 borders on white),
+   subtle 4px #2e8ac7 left-border selection, grey transfer buttons. (analysisui.css) */
 .jmv-varlist, .jmv-roles { flex:1; min-width:0; }
-.jmv-varlist ul { list-style:none; margin:0; padding:0; border:1px solid var(--jmv-line); border-radius:6px; max-height:300px; overflow:auto; }
-.jmv-varlist li, .jmv-rolebox li { display:flex; align-items:center; gap:7px; padding:6px 10px; cursor:pointer; border-radius:4px; font-size:13px; }
-.jmv-varlist li:hover { background:#e8eefc; }
-.jmv-varlist li { cursor:pointer; }
-.jmv-varlist li.jmv-selected { background:var(--jmv-blue); color:#fff; }
-.jmv-varlist li.jmv-selected .jmv-var-name { color:#fff; }
+.jmv-varlist ul { list-style:none; margin:0; padding:0; border:1px solid #828282; max-height:300px; overflow:auto; background:#fff; }
+.jmv-varlist li, .jmv-rolebox li { display:flex; align-items:center; gap:7px; padding:5px 10px; cursor:pointer; font-size:13px; }
+.jmv-varlist li { border-inline-start:4px solid transparent; border-bottom:1px solid #eaeaea; }
+.jmv-varlist li:hover { background:#f2f2f2; }
+.jmv-varlist li.jmv-selected { background:#eaf0fa; border-inline-start-color:#2e8ac7; }
 .jmv-type-icon { flex:0 0 auto; }
 .jmv-var-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.jmv-remove { color:#9ca3af; font-size:12px; }
-.jmv-rolebox li:hover .jmv-remove { color:#dc2626; }
-.jmv-rolebox { border:1px solid var(--jmv-line); border-radius:6px; min-height:48px; margin:4px 0 12px; padding:4px; }
-.jmv-rolebox.active { border-color:var(--jmv-blue); box-shadow:0 0 0 2px rgba(62,109,169,.18); }
-.jmv-role-label { font:600 12px/1.2 inherit; color:var(--jmv-blue-d); text-transform:none; font-weight:600; margin:6px 0 2px; }
+.jmv-remove { color:#555; font-size:12px; }
+.jmv-rolebox li:hover .jmv-remove { color:#c15050; }
+.jmv-rolebox { border:1px solid #828282; min-height:48px; margin:4px 0 12px; padding:2px; background:#fff; }
+.jmv-rolebox.active { border-color:#2e8ac7; box-shadow:0 0 0 1px #2e8ac7; }
+.jmv-rolebox li { border-bottom:1px solid #eaeaea; }
+.jmv-role-label { font:600 12px/1.2 inherit; color:#555; margin:6px 0 2px; }
 .jmv-role-row { display:flex; align-items:flex-start; gap:8px; margin:0 0 12px; }
-.jmv-arrow { flex:0 0 auto; margin-top:2px; width:30px; height:30px; display:flex; align-items:center; justify-content:center; border:1px solid var(--jmv-line); border-radius:6px; background:#fff; color:var(--jmv-blue); cursor:pointer; }
-.jmv-arrow:hover { background:var(--jmv-blue); color:#fff; border-color:var(--jmv-blue); }
+.jmv-arrow { flex:0 0 auto; margin-top:2px; width:34px; height:28px; display:flex; align-items:center; justify-content:center; border:1px solid #aeaeae; border-radius:3px; background:#fafafa; color:#555; cursor:pointer; }
+.jmv-arrow:hover { background:#ececec; color:var(--jmv-blue); }
 .jmv-role-row .jmv-rolebox { flex:1; margin:0; }
 .jmv-dialog-foot { padding:12px 18px; border-top:1px solid #e3e6ec; display:flex; justify-content:flex-end; gap:8px; }
 .jmv-dialog-foot button { padding:7px 16px; border-radius:6px; border:1px solid var(--jmv-line); background:#fff; cursor:pointer; font:13px inherit; }
