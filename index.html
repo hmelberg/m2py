@@ -6963,6 +6963,7 @@ await _run_duck()
 `;
 
     async function runDuckdbScript(script, ctx) {
+      var rightStatus = (ctx && ctx.rightStatus) ? ctx.rightStatus : window.rightStatus;
       const py = (ctx && ctx.py) || await loadPyodideAndM2py();
       setStatus(rightStatus, 'Laster DuckDB-bro…');
       await __ensureDuckBridge(py);
@@ -6990,7 +6991,7 @@ await _run_duck()
         return;
       }
       lastOutput = String(out || '').trim();
-      await refreshDatasetSidebarFromPy(py);
+      try { await refreshDatasetSidebarFromPy(py); } catch (e) { console.warn('duckdb sidebar refresh:', e); }
       lastOutputMode = 'run';
       var asHtml = document.querySelector('input[name="outputMode"]:checked').value === 'html';
       renderOutput(lastOutput, asHtml, suppressEmbedded.checked);
