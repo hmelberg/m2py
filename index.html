@@ -3417,6 +3417,26 @@
       outputArea.appendChild(wrap);
     }
 
+    // Jamovi measure-type icons
+    function jamoviTypeIcon(type) {
+      if (type === 'numeric')
+        return '<svg class="jmv-type-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="1.5" y="5" width="13" height="6" rx="1" fill="none" stroke="#1f6feb" stroke-width="1.2"/><path d="M4.5 5v2.5M7 5v3.5M9.5 5v2.5M12 5v3.5" stroke="#1f6feb" stroke-width="1"/></svg>';
+      return '<svg class="jmv-type-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="5" cy="6" r="2.4" fill="#e8590c"/><circle cx="11" cy="6" r="2.4" fill="#1f6feb"/><circle cx="8" cy="11" r="2.4" fill="#2f9e44"/></svg>';
+    }
+
+    // Jamovi analysis ribbon icons (16×16 line SVGs)
+    var JAMOVI_ICONS = {
+      descriptives: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><rect x="2" y="9" width="3" height="5" rx=".5"/><rect x="6.5" y="6" width="3" height="8" rx=".5"/><rect x="11" y="3" width="3" height="11" rx=".5"/></svg>',
+      frequencies: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><rect x="2" y="2" width="5" height="5" rx=".5"/><rect x="9" y="2" width="5" height="5" rx=".5"/><rect x="2" y="9" width="5" height="5" rx=".5"/><rect x="9" y="9" width="5" height="5" rx=".5"/></svg>',
+      ttest_ind: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><path d="M2 3h6M5 3v10M10 5h4M12 5v6" stroke-linecap="round"/></svg>',
+      ttest_paired: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><path d="M2 3h6M5 3v10M10 5h4M12 5v6" stroke-linecap="round"/><path d="M9 13.5c.8 0 1.4-.3 1.4-.3" stroke-linecap="round"/></svg>',
+      correlation: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><circle cx="4" cy="11" r="1.2" fill="#2b3a55" stroke="none"/><circle cx="7" cy="7" r="1.2" fill="#2b3a55" stroke="none"/><circle cx="10" cy="5" r="1.2" fill="#2b3a55" stroke="none"/><circle cx="13" cy="3" r="1.2" fill="#2b3a55" stroke="none"/><path d="M3 12.5l10-10" stroke-linecap="round"/></svg>',
+      lin_reg: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><circle cx="4" cy="10" r="1.2" fill="#2b3a55" stroke="none"/><circle cx="7" cy="8" r="1.2" fill="#2b3a55" stroke="none"/><circle cx="10" cy="6" r="1.2" fill="#2b3a55" stroke="none"/><circle cx="13" cy="4" r="1.2" fill="#2b3a55" stroke="none"/><path d="M2.5 11.5l11-9" stroke-linecap="round"/></svg>',
+      log_reg: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><path d="M2 13c1-1 1.5-4 3-5.5S8.5 5 10 4s2.5-1.5 4-1" stroke-linecap="round"/></svg>',
+      anova_oneway: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><rect x="2" y="7" width="3" height="7" rx=".5"/><rect x="6.5" y="4" width="3" height="10" rx=".5"/><rect x="11" y="9" width="3" height="5" rx=".5"/></svg>',
+      contingency: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><rect x="2" y="2" width="12" height="12" rx=".5"/><path d="M8 2v12M2 8h12"/></svg>'
+    };
+
     // Open a jamovi analysis dialog from the spec registry
     function openJamoviAnalysis(id) {
       var spec = JAMOVI_ANALYSES[id];
@@ -3466,10 +3486,13 @@
         varlistLabel.textContent = 'Variabler';
         varlistDiv.appendChild(varlistLabel);
 
+        var typeOf = {};
+        vars.forEach(function(v) { typeOf[v.name] = v.type; });
+
         var ul = document.createElement('ul');
         vars.forEach(function(v) {
           var li = document.createElement('li');
-          li.textContent = v.name + ' (' + v.type + ')';
+          li.innerHTML = jamoviTypeIcon(v.type) + '<span class="jmv-var-name">' + escapeHtml(v.name) + '</span>';
           li.dataset.varname = v.name;
           li.dataset.vartype = v.type;
           li.title = 'Klikk for å legge til i aktiv rolle';
@@ -3523,7 +3546,7 @@
             box.innerHTML = '';
             (assignments[rs.key] || []).forEach(function(varname) {
               var li = document.createElement('li');
-              li.textContent = varname + ' ✕';
+              li.innerHTML = jamoviTypeIcon(typeOf[varname] || 'nominal') + '<span class="jmv-var-name">' + escapeHtml(varname) + '</span><span class="jmv-remove">✕</span>';
               li.title = 'Klikk for å fjerne';
               li.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -3583,7 +3606,9 @@
         });
       });
       rib.querySelectorAll('.jmv-menu button[data-an]').forEach(function(b){
-        b.addEventListener('click', function(){ rib.querySelectorAll('.jmv-group').forEach(function(x){x.classList.remove('open');}); openJamoviAnalysis(b.getAttribute('data-an')); });
+        var an = b.getAttribute('data-an');
+        b.innerHTML = (JAMOVI_ICONS[an] || '') + '<span>' + b.textContent + '</span>';
+        b.addEventListener('click', function(){ rib.querySelectorAll('.jmv-group').forEach(function(x){x.classList.remove('open');}); openJamoviAnalysis(an); });
       });
       document.addEventListener('click', function(){ rib.querySelectorAll('.jmv-group').forEach(function(x){x.classList.remove('open');}); });
     })();
