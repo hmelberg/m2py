@@ -169,6 +169,40 @@
       backdrop.appendChild(dlg); document.body.appendChild(backdrop);
     }
 
+    // Active-dataset picker (top menu, right). jamovi works on one dataset at a time;
+    // microdata/python/r can create many in e.datasets.
+    async function jamoviRefreshDatasetPicker() {
+      var sel = document.getElementById('jamoviDatasetSelect');
+      if (!sel) return;
+      try {
+        var py = await M.loadPyodideAndM2py();
+        var json = String(await py.runPythonAsync('import json as _j\n_j.dumps({"names": list(map(str, e.datasets.keys())), "active": (str(e.active_name) if e.active_name is not None else "")})'));
+        var d = JSON.parse(json);
+        sel.innerHTML = '';
+        if (!d.names.length) { var o = document.createElement('option'); o.textContent = '(ingen datasett)'; o.disabled = true; sel.appendChild(o); return; }
+        d.names.forEach(function(n){ var op = document.createElement('option'); op.value = n; op.textContent = n; if (n === d.active) op.selected = true; sel.appendChild(op); });
+        if (d.active) window.activeDatasetName = d.active;
+      } catch (e) { /* engine not ready yet */ }
+    }
+    async function jamoviSwitchDataset(name) {
+      if (!name) return;
+      var py = await M.loadPyodideAndM2py();
+      py.globals.set('_ds_name', name);
+      var infoJson = String(await py.runPythonAsync(
+        'e.active_name = _ds_name\n' +
+        'try:\n    e.sync_datasets_to_globals(globals())\nexcept Exception:\n    pass\n' +
+        'import json as _j\n_df = e.datasets[_ds_name]\n_j.dumps({"columns": list(map(str,_df.columns)), "dtypes": {str(c): str(_df[c].dtype) for c in _df.columns}, "nrows": int(len(_df))})'
+      ));
+      window.activeDatasetName = name;
+      window.lastDatasetInfo = window.lastDatasetInfo || {};
+      window.lastDatasetInfo[name] = JSON.parse(infoJson);
+      jamoviTypeOverrides = {}; jamoviFilter = '';   // these were per-dataset
+      // refresh the current data/variables view if shown
+      var at = (document.querySelector('#jamoviRibbon .jmv-tab.active') || {}).getAttribute && document.querySelector('#jamoviRibbon .jmv-tab.active').getAttribute('data-jtab');
+      if (at === 'data') renderDataView();
+      else if (at === 'variables') renderVariablesView();
+    }
+
     function jamoviVariables() {
       var name = window.activeDatasetName;
       if (!name || !window.lastDatasetInfo || !window.lastDatasetInfo[name]) return [];
@@ -729,6 +763,7 @@
         window.lastDatasetInfo[ex.name] = info;
         jamoviTypeOverrides = {}; jamoviFilter = '';
         M.setStatus(M.rightStatus, '');
+        jamoviRefreshDatasetPicker();
         renderDataView();
       } catch (e) {
         M.setStatus(M.rightStatus, '');
@@ -1167,6 +1202,7 @@
         + '<button type="button" class="jmv-tab" data-jtab="figures">Figurer</button>'
         + '<button type="button" class="jmv-tab" data-jtab="edit">Rediger</button>'
         + '<div class="jmv-app-menu" hidden><button type="button" data-jaction="examples">Åpne eksempeldatasett…</button><button type="button" data-jaction="clear">Tøm resultater</button><button type="button" data-jaction="about">Om jamovi-modus</button></div>'
+        + '<div class="jmv-dataset-picker"><label for="jamoviDatasetSelect">Aktivt datasett:</label><select id="jamoviDatasetSelect"></select></div>'
         + '</div>'
         + '<div class="jmv-ribbon-area">'
         + '<div class="jmv-panel" data-jpanel="analyses">' + catGroups + '</div>'
@@ -1249,10 +1285,17 @@
       rib.querySelectorAll('.jmv-ribbon-btn[data-an]').forEach(function(b){
         b.addEventListener('click', function(){ openJamoviAnalysis(b.getAttribute('data-an')); });
       });
+      // Active-dataset picker
+      var dsel = rib.querySelector('#jamoviDatasetSelect');
+      if (dsel) {
+        dsel.addEventListener('change', function(){ jamoviSwitchDataset(dsel.value); });
+        dsel.addEventListener('mousedown', function(){ jamoviRefreshDatasetPicker(); });
+      }
+      jamoviRefreshDatasetPicker();
       // Outside click closes dropdowns + app menu
       document.addEventListener('click', function(){ apanel.querySelectorAll('.jmv-group').forEach(function(x){x.classList.remove('open');}); if (appMenu) appMenu.hidden = true; });
     })();
 
-    M.registerMode({ id:'jamovi', label:'jamovi', hlConfig:M.R_HL_CFG, handleTab:M.handleRTab, topGui:'jamovi', onActivate:function(){ if(!M.isWebRReady()) M.loadWebR(); M.updateModeGuiBar(); }, translate:{showsButton:false}, runSelf:async function(script,ctx){ await M.runHybridR(script, ctx.py, {showCommands:true}); } });
+    M.registerMode({ id:'jamovi', label:'jamovi', hlConfig:M.R_HL_CFG, handleTab:M.handleRTab, topGui:'jamovi', onActivate:function(){ if(!M.isWebRReady()) M.loadWebR(); M.updateModeGuiBar(); jamoviRefreshDatasetPicker(); }, translate:{showsButton:false}, runSelf:async function(script,ctx){ await M.runHybridR(script, ctx.py, {showCommands:true}); } });
     M.updateModeGuiBar();
 })();
