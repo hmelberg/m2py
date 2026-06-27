@@ -2852,11 +2852,41 @@
       }
       return __duckdbPromise;
     }
+    // Convert an Arrow Decimal/HUGEINT value (4×uint32, little-endian two's
+    // complement) to a JS Number, applying the column scale. DuckDB returns
+    // Decimal128 for sum()/HUGEINT, which arrow-js .toArray() would otherwise
+    // flatten to a 4×-length raw buffer (breaking row alignment).
+    function __decimalToNumber(u32, scale) {
+      if (u32 == null) return null;
+      let v = 0n;
+      for (let k = 3; k >= 0; k--) v = (v << 32n) | BigInt(u32[k] >>> 0);
+      if (u32[3] & 0x80000000) v -= (1n << 128n);  // negative two's complement
+      let num = Number(v);
+      if (scale) num = num / Math.pow(10, scale);
+      return num;
+    }
     function __arrowToColumns(table) {
       const cols = {};
+      const n = table.numRows;
       for (const f of table.schema.fields) {
-        const arr = table.getChild(f.name).toArray();
-        cols[f.name] = Array.from(arr, v => (typeof v === 'bigint' ? Number(v) : v));
+        const vec = table.getChild(f.name);
+        if (f.type && typeof f.type.scale === 'number') {
+          // Decimal / HUGEINT: extract per row (toArray() returns a 4×-length buffer).
+          const scale = f.type.scale;
+          const out = new Array(n);
+          for (let i = 0; i < n; i++) out[i] = __decimalToNumber(vec.get(i), scale);
+          cols[f.name] = out;
+          continue;
+        }
+        const arr = vec.toArray();
+        if (arr.length === n) {
+          cols[f.name] = Array.from(arr, v => (typeof v === 'bigint' ? Number(v) : v));
+        } else {
+          // Safety net for any other type whose toArray() isn't one-value-per-row.
+          const out = new Array(n);
+          for (let i = 0; i < n; i++) { const v = vec.get(i); out[i] = (typeof v === 'bigint' ? Number(v) : v); }
+          cols[f.name] = out;
+        }
       }
       return cols;
     }
