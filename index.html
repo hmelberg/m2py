@@ -367,6 +367,7 @@
           <button type="button" data-mode="microdata" class="active">Microdata</button>
           <button type="button" data-mode="python">Python</button>
           <button type="button" data-mode="r">R</button>
+          <button type="button" data-mode="statx">Statx</button>
         </div>
       </div>
       <button type="button" class="btn btn-tolk" id="btnDmQuick" style="display:none;gap:6px" title="Vurder personvern: sjekk om scriptet henter mer detaljerte data enn n&#248;dvendig (dataminimering), og f&#229; forslag til &#229; aggregere/forenkle. Krever innlogging.">
@@ -3145,6 +3146,12 @@
         runSelf: async function (script, ctx) {
           await runHybridR(script, ctx.py, { showCommands: ctx.showCommands });
         } },
+      statx: { id: 'statx', label: 'Statx',
+        hlConfig: null,
+        handleTab: microdataHandleTab,
+        onActivate: function () { if (!pdexplorerReady && !pdexplorerLoading) loadPyodideAndM2py().then(loadPdexplorer); },
+        translate: { showsButton: false },
+        runSelf: async function (script, ctx) { await runStatxScript(script, ctx); } },
     };
     function currentMode() {
       return modeRegistry[activeEditorMode] || modeRegistry.microdata;
