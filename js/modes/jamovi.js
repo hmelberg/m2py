@@ -58,7 +58,8 @@
           { title:'Sample Size', items:[{key:'N',type:'check',label:'N',default:true},{key:'Missing',type:'check',label:'Missing',default:true}] },
           { title:'Central Tendency', items:[{key:'Mean',type:'check',label:'Mean',default:true},{key:'Median',type:'check',label:'Median',default:true},{key:'Mode',type:'check',label:'Mode',default:false},{key:'Sum',type:'check',label:'Sum',default:false}] },
           { title:'Dispersion', items:[{key:'SD',type:'check',label:'Std. deviation',default:true},{key:'Variance',type:'check',label:'Variance',default:false},{key:'Range',type:'check',label:'Range',default:false},{key:'Min',type:'check',label:'Minimum',default:true},{key:'Max',type:'check',label:'Maximum',default:true},{key:'SE',type:'check',label:'Std. error',default:false}] },
-          { title:'Distribution', items:[{key:'Skewness',type:'check',label:'Skewness',default:false},{key:'Kurtosis',type:'check',label:'Kurtosis',default:false}] }
+          { title:'Distribution', items:[{key:'Skewness',type:'check',label:'Skewness',default:false},{key:'Kurtosis',type:'check',label:'Kurtosis',default:false}] },
+          { title:'Percentile Values', items:[{key:'quartiles',type:'check',label:'Quartiles (25 / 50 / 75)',default:false}] }
         ]},
         { title:'Plots', groups:[{ items:[{key:'histogram',type:'check',label:'Histogram',default:false},{key:'boxplot',type:'check',label:'Box plot',default:false}] }] }],
         buildPlots: function(a, opts){
@@ -77,16 +78,17 @@
           var allKeys = ['N','Missing','Mean','Median','Mode','Sum','SD','Variance','Range','Min','Max','SE','Skewness','Kurtosis'];
           var want = allKeys.filter(function(k){ return opts && opts[k]; });
           if(!want.length) want = ['N','Mean','SD'];
+          if (opts && opts.quartiles) want = want.concat(['P25','P50','P75']);
           var rwant = 'c('+want.map(function(k){return JSON.stringify(k);}).join(',')+')';
           var rsplit = splitV ? JSON.stringify(splitV) : 'NULL';
           return "local({\n"
            +"vars<-"+rv+"; want<-"+rwant+"; splitv<-"+rsplit+";\n"
            +"Mode<-function(x){x<-x[!is.na(x)]; if(!length(x)) return(NA); ux<-unique(x); ux[which.max(tabulate(match(x,ux)))]}\n"
-           +"lbl<-c(N='N',Missing='Missing',Mean='Mean',Median='Median',Mode='Mode',Sum='Sum',SD='Std. deviation',Variance='Variance',Range='Range',Min='Minimum',Max='Maximum',SE='Std. error',Skewness='Skewness',Kurtosis='Kurtosis')\n"
+           +"lbl<-c(N='N',Missing='Missing',Mean='Mean',Median='Median',Mode='Mode',Sum='Sum',SD='Std. deviation',Variance='Variance',Range='Range',Min='Minimum',Max='Maximum',SE='Std. error',Skewness='Skewness',Kurtosis='Kurtosis',P25='25th percentile',P50='50th percentile',P75='75th percentile')\n"
            +"statRow<-function(v,x,lev){ xc<-x[!is.na(x)]; n<-length(xc); o<-list()\n"
            +" if(!is.null(lev)) o[['Group']]<-lev\n"
            +" o[['Variable']]<-v\n"
-           +" f<-list(N=function() n, Missing=function() sum(is.na(x)), Mean=function() mean(xc), Median=function() median(xc), Mode=function() Mode(xc), Sum=function() sum(xc), SD=function() sd(xc), Variance=function() var(xc), Range=function() max(xc)-min(xc), Min=function() min(xc), Max=function() max(xc), SE=function() sd(xc)/sqrt(n), Skewness=function(){m<-mean(xc); s<-sd(xc); (sum((xc-m)^3)/n)/s^3}, Kurtosis=function(){m<-mean(xc); s<-sd(xc); (sum((xc-m)^4)/n)/s^4-3})\n"
+           +" f<-list(N=function() n, Missing=function() sum(is.na(x)), Mean=function() mean(xc), Median=function() median(xc), Mode=function() Mode(xc), Sum=function() sum(xc), SD=function() sd(xc), Variance=function() var(xc), Range=function() max(xc)-min(xc), Min=function() min(xc), Max=function() max(xc), SE=function() sd(xc)/sqrt(n), Skewness=function(){m<-mean(xc); s<-sd(xc); (sum((xc-m)^3)/n)/s^3}, Kurtosis=function(){m<-mean(xc); s<-sd(xc); (sum((xc-m)^4)/n)/s^4-3}, P25=function() unname(quantile(xc,0.25)), P50=function() unname(quantile(xc,0.5)), P75=function() unname(quantile(xc,0.75)))\n"
            +" for(k in want) o[[lbl[[k]]]]<-tryCatch(f[[k]](), error=function(e) NA)\n"
            +" as.data.frame(o, check.names=FALSE, stringsAsFactors=FALSE) }\n"
            +"rows<-list()\n"
@@ -342,9 +344,21 @@
       try {
         var py = await M.loadPyodideAndM2py();
         var json = String(await py.runPythonAsync(
-          'import json as _j\n' +
+          'import json as _j, pandas as _pd\n' +
           '_df = e.datasets[e.active_name]\n' +
-          '_h = _df.head(50)\n' +
+          '_h = _df.head(50).copy()\n' +
+          'def _lk(_x, _m):\n' +
+          '    if _pd.isna(_x): return None\n' +
+          '    _k = str(int(_x)) if isinstance(_x, float) and _x.is_integer() else str(_x).strip()\n' +
+          '    return _m.get(_k, _x)\n' +
+          'for _c in list(_h.columns):\n' +
+          '    try:\n' +
+          '        _cl = e.label_manager.get_codelist_for_var(_c)\n' +
+          '        if _cl:\n' +
+          '            _m = {str(_key): _val for _key, _val in _cl.items()}\n' +
+          '            _h[_c] = _h[_c].map(lambda _x: _lk(_x, _m))\n' +
+          '    except Exception:\n' +
+          '        pass\n' +
           '_j.dumps({"cols": list(map(str,_df.columns)), "rows": _h.astype(object).where(_h.notna(), None).values.tolist(), "n": int(len(_df))})'
         ));
         var d = JSON.parse(json);
