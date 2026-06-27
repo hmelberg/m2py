@@ -4,6 +4,17 @@ import io, sys
 
 _USE_RE = re.compile(r"^\s*use\s+([^\s,]+)", re.IGNORECASE)
 
+def _strip_comments(text):
+    """Drop Stata comment lines (first non-blank char is '*', or starts with '//').
+    pdexplorer.do(inline=...) cannot parse comment lines."""
+    out = []
+    for line in text.split("\n"):
+        s = line.lstrip()
+        if s.startswith("*") or s.startswith("//"):
+            continue
+        out.append(line)
+    return "\n".join(out)
+
 def parse_statx_chunks(script, default_name):
     """Split a statx script into (dataset_name, commands) chunks at `use NAME` lines.
     `use NAME` lines are consumed. Leading commands before any `use` use default_name.
@@ -33,6 +44,7 @@ def run_statx(e, script):
     chunks = parse_statx_chunks(script, getattr(e, "active_name", None))
     buf = io.StringIO()
     for name, commands in chunks:
+        commands = _strip_comments(commands)
         if not commands.strip():
             continue
         if name is None or name not in e.datasets:

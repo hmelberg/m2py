@@ -3376,8 +3376,8 @@
     let scriptRunInProgress = false;
     // ── Editor mode (always-on, controlled by bottom-bar dropdown) ──────
     let activeEditorMode  = 'microdata'; // 'microdata' | 'python' | 'r'
-    const editorContent   = { microdata: '', python: '', r: '' };
-    const editorBP        = { microdata: new Set(), python: new Set(), r: new Set() };
+    const editorContent   = { microdata: '', python: '', r: '', statx: '' };
+    const editorBP        = { microdata: new Set(), python: new Set(), r: new Set(), statx: new Set() };
     let webR = null, webRReady = false, webRLoading = false, webRShelter = null;
     let py2mReady = false;
     let pdexplorerReady = false, pdexplorerLoading = false;

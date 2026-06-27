@@ -43,3 +43,29 @@ def test_use_with_options_ignored():
 
 def test_empty_leading_chunk_dropped():
     assert parse_statx_chunks("use folk\nsummarize x", None) == [("folk", "summarize x")]
+
+from statx_runner import _strip_comments
+
+def test_strip_star_and_slash_comments():
+    src = "* header\nsummarize x\n  * indented comment\n// other comment\nregress y x"
+    assert _strip_comments(src) == "summarize x\nregress y x"
+
+def test_strip_keeps_noncomment_lines_with_inline_star():
+    # a '*' NOT at line start is not a comment (e.g. multiplication) — keep the line
+    assert _strip_comments("generate z = x * 2") == "generate z = x * 2"
+
+def test_run_statx_strips_comments_before_do():
+    import sys, types
+    e_datasets = {"folk": object()}
+    class E:
+        datasets = e_datasets
+        active_name = "folk"
+    received = {}
+    mod = types.ModuleType("pdexplorer")
+    mod.use = lambda df: None
+    def _do(inline=None, filename=None): received["inline"] = inline
+    mod.do = _do
+    sys.modules["pdexplorer"] = mod
+    from statx_runner import run_statx
+    run_statx(E(), "* a comment\nsummarize x")
+    assert received["inline"] == "summarize x"
