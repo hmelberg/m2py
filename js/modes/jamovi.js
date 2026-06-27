@@ -100,8 +100,11 @@
 
       frequencies: { id:'frequencies', title:'Frequencies',
         roles:[{key:'var', label:'Variable', types:['nominal','numeric'], multiple:false}],
+        optionSections:[{ title:'Plots', groups:[{ items:[{key:'barplot',type:'check',label:'Bar plot',default:false}] }] }],
         buildR:function(a){ var v=a.var&&a.var[0]; if(!v) return null; var rv=JSON.stringify(v);
-          return "local({ t<-table(data[["+rv+"]]); n<-sum(t); data.frame(Level=names(t), Counts=as.integer(t), Percent=round(100*as.integer(t)/n,1), Cumulative=round(100*cumsum(as.integer(t))/n,1), check.names=FALSE, stringsAsFactors=FALSE) })"; } },
+          return "local({ t<-table(data[["+rv+"]]); n<-sum(t); data.frame(Level=names(t), Counts=as.integer(t), Percent=round(100*as.integer(t)/n,1), Cumulative=round(100*cumsum(as.integer(t))/n,1), check.names=FALSE, stringsAsFactors=FALSE) })"; },
+        buildPlots:function(a,opts){ var v=a.var&&a.var[0]; if(!(opts&&opts.barplot)||!v) return []; var rv=JSON.stringify(v);
+          return [{ title:'Bar Plot — '+v, rCode:'barplot(table(data[['+rv+']]), col="#cfe0f3", border="white", ylab="Counts")' }]; } },
 
       ttest_ind: { id:'ttest_ind', title:'Independent Samples T-Test',
         roles:[{key:'dv',label:'Dependent Variable',types:['numeric'],multiple:false},{key:'group',label:'Grouping Variable',types:['nominal'],multiple:false}],
@@ -238,8 +241,17 @@
 
       contingency: { id:'contingency', title:'Contingency Tables (χ²)',
         roles:[{key:'rows',label:'Rows',types:['nominal'],multiple:false},{key:'cols',label:'Columns',types:['nominal'],multiple:false}],
-        buildR:function(a){ var r=a.rows&&a.rows[0], c=a.cols&&a.cols[0]; if(!r||!c) return null;
-          return "local({ t<-table(data[["+JSON.stringify(r)+"]], data[["+JSON.stringify(c)+"]]); ch<-suppressWarnings(chisq.test(t)); cnt<-as.data.frame.matrix(t,check.names=FALSE); cnt<-cbind(' '=rownames(cnt),cnt); test<-data.frame('Chi-squared'=unname(ch$statistic),'df'=unname(ch$parameter),'p'=ch$p.value,check.names=FALSE); list('Counts'=cnt,'Chi-squared Test'=test) })"; } },
+        optionSections:[{ title:'Cells', groups:[{ items:[
+          {key:'expected',type:'check',label:'Expected counts',default:false},
+          {key:'rowpct',type:'check',label:'Row %',default:false},
+          {key:'colpct',type:'check',label:'Column %',default:false}
+        ]}]}],
+        buildR:function(a,opts){ var r=a.rows&&a.rows[0], c=a.cols&&a.cols[0]; if(!r||!c) return null;
+          var extra = "";
+          if (opts && opts.expected) extra += "ex<-as.data.frame.matrix(round(ch$expected,1),check.names=FALSE); ex<-cbind(' '=rownames(ex),ex); res[['Expected Counts']]<-ex;\n";
+          if (opts && opts.rowpct)   extra += "rp<-as.data.frame.matrix(round(100*prop.table(t,1),1),check.names=FALSE); rp<-cbind(' '=rownames(rp),rp); res[['Row %']]<-rp;\n";
+          if (opts && opts.colpct)   extra += "cp<-as.data.frame.matrix(round(100*prop.table(t,2),1),check.names=FALSE); cp<-cbind(' '=rownames(cp),cp); res[['Column %']]<-cp;\n";
+          return "local({ t<-table(data[["+JSON.stringify(r)+"]], data[["+JSON.stringify(c)+"]]); ch<-suppressWarnings(chisq.test(t)); cnt<-as.data.frame.matrix(t,check.names=FALSE); cnt<-cbind(' '=rownames(cnt),cnt); test<-data.frame('Chi-squared'=unname(ch$statistic),'df'=unname(ch$parameter),'p'=ch$p.value,check.names=FALSE); res<-list('Counts'=cnt);\n"+extra+"res[['Chi-squared Test']]<-test; res })"; } },
 
       ttest_one: { id:'ttest_one', title:'One Sample T-Test',
         roles:[{key:'vars',label:'Variables',types:['numeric'],multiple:true}],
