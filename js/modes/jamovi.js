@@ -102,8 +102,13 @@
         optionSections:[
           { title:'Tests', groups:[{ items:[{key:'test',type:'radio',choices:[{value:'student',label:"Student's"},{value:'welch',label:"Welch's"}],default:'welch'},{key:'mwu',type:'check',label:'Mann-Whitney U',default:false}] }] },
           { title:'Additional Statistics', groups:[{ items:[{key:'effsize',type:'check',label:"Effect size (Cohen's d)",default:false}] }] },
-          { title:'Assumption Checks', groups:[{ items:[{key:'normality',type:'check',label:'Normality (Shapiro-Wilk)',default:false},{key:'homogeneity',type:'check',label:"Homogeneity (Levene's)",default:false}] }] }
+          { title:'Assumption Checks', groups:[{ items:[{key:'normality',type:'check',label:'Normality (Shapiro-Wilk)',default:false},{key:'homogeneity',type:'check',label:"Homogeneity (Levene's)",default:false}] }] },
+          { title:'Plots', groups:[{ items:[{key:'boxplot',type:'check',label:'Box plot',default:false},{key:'qq',type:'check',label:'Q-Q plot (normality)',default:false}] }] }
         ],
+        buildPlots:function(a,opts){ var dv=a.dv&&a.dv[0], g=a.group&&a.group[0]; if(!dv||!g) return []; var plots=[]; var ry=JSON.stringify(dv), rg=JSON.stringify(g);
+          if (opts&&opts.boxplot) plots.push({ title:'Box Plot — '+dv+' by '+g, rCode:'boxplot(data[['+ry+']] ~ as.factor(data[['+rg+']]), xlab='+rg+', ylab='+ry+', col="#cfe0f3")' });
+          if (opts&&opts.qq) plots.push({ title:'Q-Q Plot — residuals', rCode:'{ y<-data[['+ry+']]; f<-as.factor(data[['+rg+']]); r<-y-ave(y,f,FUN=function(z) mean(z,na.rm=TRUE)); qqnorm(r, main=""); qqline(r, col="#c0392b", lwd=2) }' });
+          return plots; },
         note:function(a,opts){ return ((opts&&opts.test==='student') ? "Student's" : "Welch's") + ' independent-samples t-test' + (opts&&opts.mwu ? ', with Mann-Whitney U.' : '.'); },
         buildR:function(a,opts){ var dv=a.dv&&a.dv[0], g=a.group&&a.group[0]; if(!dv||!g) return null;
           var varEqual = (opts&&opts.test==='student') ? 'TRUE' : 'FALSE';
@@ -140,13 +145,16 @@
       correlation: { id:'correlation', title:'Correlation Matrix',
         roles:[{key:'vars',label:'Variables',types:['numeric'],multiple:true}],
         optionSections:[
-          { title:'Correlation Coefficients', groups:[{ items:[{key:'method',type:'radio',choices:[{value:'pearson',label:'Pearson'},{value:'spearman',label:'Spearman'},{value:'kendall',label:"Kendall's tau-b"}],default:'pearson'}] }] },
+          { title:'Correlation Coefficients', groups:[{ items:[{key:'method',type:'radio',choices:[{value:'pearson',label:'Pearson'},{value:'spearman',label:'Spearman'},{value:'kendall',label:"Kendall's tau-b"}],default:'pearson'},{key:'reportp',type:'check',label:'Report significance (p)',default:false}] }] },
           { title:'Plot', groups:[{ items:[{key:'plot',type:'check',label:'Scatterplot',default:false}] }] }
         ],
         note:function(a,opts){ var m=(opts&&opts.method)||'pearson'; var lbl={pearson:'Pearson product-moment',spearman:"Spearman's rank",kendall:"Kendall's tau-b"}[m]||m; return lbl+' correlation, pairwise-complete observations.'; },
         buildR:function(a,opts){ var v=a.vars||[]; if(v.length<2) return null; var rv='c('+v.map(function(x){return JSON.stringify(x);}).join(',')+')';
-          var method = (opts&&opts.method) ? opts.method : 'pearson';
-          return "local({ vars<-"+rv+"; m<-cor(data[,vars,drop=FALSE], use='pairwise.complete.obs', method="+JSON.stringify(method)+"); d<-as.data.frame(round(m,3), check.names=FALSE); cbind(Variable=rownames(m), d) })"; },
+          var method = (opts&&opts.method) ? opts.method : 'pearson'; var rm=JSON.stringify(method);
+          if (opts&&opts.reportp) {
+            return "local({ vars<-"+rv+"; m<-cor(data[,vars,drop=FALSE], use='pairwise.complete.obs', method="+rm+"); cd<-cbind(Variable=rownames(m), as.data.frame(round(m,3), check.names=FALSE)); n<-length(vars); pm<-matrix('\\u2014',n,n,dimnames=list(vars,vars)); for(i in 1:n) for(j in 1:n) if(i!=j){ pv<-suppressWarnings(cor.test(data[[vars[i]]], data[[vars[j]]], method="+rm+")$p.value); pm[i,j]<-if(is.na(pv)) '\\u2014' else if(pv<0.001) '< .001' else formatC(pv, format='f', digits=3) }; pd<-cbind(Variable=vars, as.data.frame(pm, check.names=FALSE, stringsAsFactors=FALSE)); list('Correlation Matrix'=cd, 'p-values'=pd) })";
+          }
+          return "local({ vars<-"+rv+"; m<-cor(data[,vars,drop=FALSE], use='pairwise.complete.obs', method="+rm+"); d<-as.data.frame(round(m,3), check.names=FALSE); cbind(Variable=rownames(m), d) })"; },
         buildPlots:function(a,opts){ var v=a.vars||[]; if(!(opts&&opts.plot)||v.length<2) return [];
           if (v.length===2){ var x=JSON.stringify(v[0]), y=JSON.stringify(v[1]);
             return [{ title:'Scatterplot — '+v[0]+' vs '+v[1], rCode:'plot(data[['+x+']], data[['+y+']], xlab='+x+', ylab='+y+', pch=19, col="#3e6da9aa")' }]; }
@@ -186,8 +194,13 @@
           { title:'Variances', groups:[{ items:[{key:'welch',type:'check',label:"Don't assume equal (Welch's)",default:false}] }] },
           { title:'Effect Size', groups:[{ items:[{key:'eta',type:'check',label:'η² (eta-squared)',default:true},{key:'omega',type:'check',label:'ω² (omega-squared)',default:false}] }] },
           { title:'Assumption Checks', groups:[{ items:[{key:'homogeneity',type:'check',label:"Homogeneity (Levene's)",default:false},{key:'normality',type:'check',label:'Normality (Shapiro-Wilk)',default:false}] }] },
-          { title:'Post Hoc Tests', groups:[{ items:[{key:'tukey',type:'check',label:'Tukey (HSD)',default:false}] }] }
+          { title:'Post Hoc Tests', groups:[{ items:[{key:'tukey',type:'check',label:'Tukey (HSD)',default:false}] }] },
+          { title:'Plots', groups:[{ items:[{key:'boxplot',type:'check',label:'Box plot',default:false},{key:'qq',type:'check',label:'Q-Q plot (normality)',default:false}] }] }
         ],
+        buildPlots:function(a,opts){ var dv=a.dv&&a.dv[0], f=a.factor&&a.factor[0]; if(!dv||!f) return []; var plots=[]; var ry=JSON.stringify(dv), rf=JSON.stringify(f);
+          if (opts&&opts.boxplot) plots.push({ title:'Box Plot — '+dv+' by '+f, rCode:'boxplot(data[['+ry+']] ~ as.factor(data[['+rf+']]), xlab='+rf+', ylab='+ry+', col="#cfe0f3")' });
+          if (opts&&opts.qq) plots.push({ title:'Q-Q Plot — residuals', rCode:'{ y<-data[['+ry+']]; g<-as.factor(data[['+rf+']]); m<-aov(y~g); r<-residuals(m); qqnorm(r, main=""); qqline(r, col="#c0392b", lwd=2) }' });
+          return plots; },
         buildR:function(a, opts){ var dv=a.dv&&a.dv[0], f=a.factor&&a.factor[0]; if(!dv||!f) return null;
           var welch = opts && opts.welch;
           var eta   = opts && opts.eta;
