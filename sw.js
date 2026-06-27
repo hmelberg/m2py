@@ -11,6 +11,7 @@ const CDN_HOSTS = new Set([
 ]);
 const LOCAL_SWR_SUFFIXES = [
   '/m2py.py',
+  '/statx_runner.py',
   '/functions.py',
   '/variable_metadata.json',
   '/mockdata_core.py',

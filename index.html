@@ -3364,6 +3364,7 @@
     const editorBP        = { microdata: new Set(), python: new Set(), r: new Set() };
     let webR = null, webRReady = false, webRLoading = false, webRShelter = null;
     let py2mReady = false;
+    let pdexplorerReady = false, pdexplorerLoading = false;
     let explainAbortRef = null;
     let explainRunActive = false;
     let forklarPaused = false;
@@ -6916,6 +6917,41 @@ has and "int" in (m.get_microdata_functions() or {})
       } catch (e) { /* ignore */ }
       setStatus(leftStatus, functionsLoaded ? 'Ready. (functions.py lastet.)' : 'Ready.');
       return pyodide;
+    }
+
+    async function loadPdexplorer(py) {
+      if (pdexplorerReady) return;
+      pdexplorerLoading = true;
+      try {
+        const base = window.location.href.replace(/[^/]+$/, '');
+        setStatus(leftStatus, 'Installing pdexplorer…');
+        // 1) stub the one desktop-only blocker BEFORE any pdexplorer import
+        // 2) install pdexplorer without its pinned deps; use Pyodide's bundled pandas/statsmodels
+        // 3) install its pure-python import deps
+        await py.runPythonAsync(
+          'import sys, micropip\n' +
+          'from unittest.mock import MagicMock\n' +
+          'sys.modules.setdefault("pywintypes", MagicMock())\n' +
+          'await micropip.install("pdexplorer", deps=False)\n' +
+          'await micropip.install(["rich","click","requests"])\n' +
+          'import pdexplorer\n'
+        );
+        // load our runner module into Pyodide (mirror exec/compile pattern used for functions.py)
+        setStatus(leftStatus, 'Laster statx_runner…');
+        const src = await fetch(base + 'statx_runner.py?v=' + (window.M2PY_VERSION || '1')).then(r => r.text());
+        await py.runPythonAsync(
+          'import sys, importlib.util\n' +
+          'src = ' + JSON.stringify(src) + '\n' +
+          'spec = importlib.util.spec_from_loader("statx_runner", loader=None)\n' +
+          'mod = importlib.util.module_from_spec(spec)\n' +
+          'sys.modules["statx_runner"] = mod\n' +
+          'exec(compile(src, "statx_runner.py", "exec"), mod.__dict__)\n'
+        );
+        pdexplorerReady = true;
+        setStatus(leftStatus, 'Klar.');
+      } finally {
+        pdexplorerLoading = false;
+      }
     }
 
     async function loadPy2m(py) {
