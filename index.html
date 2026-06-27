@@ -3237,6 +3237,11 @@
       bar.querySelectorAll('[data-mode-gui]').forEach(function(p){
         p.style.display = (p.getAttribute('data-mode-gui') === gui) ? '' : 'none';
       });
+      // The topbar is position:fixed (44px) and the bar is fixed right below it.
+      // Push the (margin-top:44) app body down by the bar's height when shown so
+      // nothing is hidden under the bar; restore the CSS default when hidden.
+      var appBody = document.querySelector('.app-body');
+      if (appBody) appBody.style.marginTop = gui ? (44 + bar.offsetHeight) + 'px' : '';
     }
     function openJamoviAnalysis(id) {
       // Task 1 stub — dialogs arrive in Task 2.
