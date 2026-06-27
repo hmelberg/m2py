@@ -1,5 +1,6 @@
 # statx_runner.py
 import re
+import io, sys
 
 _USE_RE = re.compile(r"^\s*use\s+([^\s,]+)", re.IGNORECASE)
 
@@ -26,3 +27,23 @@ def parse_statx_chunks(script, default_name):
             cur_lines.append(line)
     flush()
     return chunks
+
+def run_statx(e, script):
+    import pdexplorer  # lazy: only available in the browser Pyodide runtime
+    chunks = parse_statx_chunks(script, getattr(e, "active_name", None))
+    buf = io.StringIO()
+    for name, commands in chunks:
+        if not commands.strip():
+            continue
+        if name is None or name not in e.datasets:
+            avail = ", ".join(e.datasets.keys()) or "(ingen)"
+            buf.write("use: ukjent datasett '%s'. Tilgjengelige: %s\n" % (name, avail))
+            continue
+        pdexplorer.use(e.datasets[name])
+        _old = sys.stdout
+        sys.stdout = buf
+        try:
+            pdexplorer.do(inline=commands)
+        finally:
+            sys.stdout = _old
+    return buf.getvalue()
