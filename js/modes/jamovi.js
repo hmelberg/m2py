@@ -51,6 +51,22 @@
 
     // Analysis spec registry
     var JAMOVI_ANALYSES = {
+      // ── Figurer (plot-only analyses; no result table, just plots) ──
+      fig_histogram: { id:'fig_histogram', title:'Histogram',
+        roles:[{key:'vars',label:'Variables',types:['numeric'],multiple:true}],
+        buildPlots:function(a){ return (a.vars||[]).map(function(n){ var rv=JSON.stringify(n); return { title:'Histogram — '+n, rCode:'hist(data[['+rv+']], main="", xlab='+rv+', col="#cfe0f3", border="white")' }; }); } },
+      fig_boxplot: { id:'fig_boxplot', title:'Box Plot',
+        roles:[{key:'vars',label:'Variables',types:['numeric'],multiple:true},{key:'group',label:'Split by',types:['nominal'],multiple:false}],
+        buildPlots:function(a){ var g=a.group&&a.group[0]; return (a.vars||[]).map(function(n){ var rv=JSON.stringify(n);
+          var rc = g ? 'boxplot(data[['+rv+']] ~ as.factor(data[['+JSON.stringify(g)+']]), xlab='+JSON.stringify(g)+', ylab='+rv+', col="#cfe0f3")'
+                     : 'boxplot(data[['+rv+']], ylab='+rv+', col="#cfe0f3", horizontal=TRUE)';
+          return { title:'Box Plot — '+n, rCode:rc }; }); } },
+      fig_barplot: { id:'fig_barplot', title:'Bar Plot',
+        roles:[{key:'vars',label:'Variables',types:['nominal'],multiple:true}],
+        buildPlots:function(a){ return (a.vars||[]).map(function(n){ var rv=JSON.stringify(n); return { title:'Bar Plot — '+n, rCode:'barplot(table(data[['+rv+']]), col="#cfe0f3", border="white", ylab="Counts")' }; }); } },
+      fig_scatter: { id:'fig_scatter', title:'Scatter Plot',
+        roles:[{key:'x',label:'X-Axis',types:['numeric'],multiple:false},{key:'y',label:'Y-Axis',types:['numeric'],multiple:false}],
+        buildPlots:function(a){ var x=a.x&&a.x[0], y=a.y&&a.y[0]; if(!x||!y) return []; return [{ title:'Scatter — '+y+' vs '+x, rCode:'plot(data[['+JSON.stringify(x)+']], data[['+JSON.stringify(y)+']], xlab='+JSON.stringify(x)+', ylab='+JSON.stringify(y)+', pch=19, col="#3e6da9aa")' }]; } },
       descriptives: {
         id: 'descriptives', title: 'Descriptives',
         roles: [{ key: 'vars', label: 'Variables', types: ['numeric'], multiple: true }, { key: 'split', label: 'Split by', types: ['nominal'], multiple: false }],
@@ -320,6 +336,20 @@
       var c = M.outputArea.querySelector('#jamoviResults');
       if (!c) { M.outputArea.innerHTML = ''; c = document.createElement('div'); c.id = 'jamoviResults'; M.outputArea.appendChild(c); }
       return c;
+    }
+
+    // A result card with only a title (for plot-only analyses); plots append into it.
+    function jamoviTitleCard(title) {
+      var card = document.createElement('div'); card.className = 'jmv-result-card';
+      var rm = document.createElement('button'); rm.className = 'jmv-card-remove'; rm.title = 'Fjern'; rm.textContent = '✕';
+      rm.addEventListener('click', function() { card.remove(); });
+      card.appendChild(rm);
+      var wrap = document.createElement('div'); wrap.style.cssText = 'padding:12px 18px;';
+      var h = document.createElement('h3'); h.className = 'jmv-result-title'; h.textContent = title; wrap.appendChild(h);
+      card.appendChild(wrap);
+      jamoviResultsContainer().appendChild(card);
+      card.scrollIntoView({ block: 'nearest' });
+      return card;
     }
 
     // A pinned/refreshable card (Variables, Data) at the top of the results stack.
@@ -774,7 +804,7 @@
         if (spec.optionSections && spec.optionSections.length && vars.length) {
           spec.optionSections.forEach(function(sec, sIdx){
             // jamovi shows the first (primary) section open, the rest collapsed
-            var collapsed = (sec.collapsed !== undefined) ? sec.collapsed : (sIdx > 0);
+            var collapsed = (sec.collapsed !== undefined) ? sec.collapsed : true;
             var secEl = document.createElement('div'); secEl.className = 'jmv-section' + (collapsed ? ' collapsed' : '');
             var hdr = document.createElement('div'); hdr.className = 'jmv-section-hdr';
             hdr.innerHTML = '<span class="jmv-section-caret">▾</span><span class="jmv-section-title">' + sec.title + '</span>';
@@ -817,20 +847,26 @@
       runBtn.className = 'primary';
       runBtn.textContent = 'Kjør';
       runBtn.addEventListener('click', async function() {
-        var rcode = spec.buildR(assignments, optsObj);
-        if (!rcode) { alert('Velg variabler'); return; }
+        var rcode = spec.buildR ? spec.buildR(assignments, optsObj) : null;
+        var plots0 = spec.buildPlots ? (spec.buildPlots(assignments, optsObj) || []) : [];
+        if (!rcode && !plots0.length) { alert('Velg variabler'); return; }
         document.body.removeChild(backdrop);
         M.setStatus(M.rightStatus, 'Kjører analyse…');
         try {
           await ensureJamoviDataInWebR();
           var shelter = await M.ensureWebRShelter();
-          var robj = await shelter.evalR('tryCatch({' + rcode + '}, error=function(e) paste("ERROR:",conditionMessage(e)))');
-          var res = await robj.toJs();
-          var note = (typeof spec.note === 'function') ? spec.note(assignments, optsObj) : (spec.note || null);
-          var card = renderJamoviResult(spec.title, res, note);
+          var card;
+          if (rcode) {
+            var robj = await shelter.evalR('tryCatch({' + rcode + '}, error=function(e) paste("ERROR:",conditionMessage(e)))');
+            var res = await robj.toJs();
+            var note = (typeof spec.note === 'function') ? spec.note(assignments, optsObj) : (spec.note || null);
+            card = renderJamoviResult(spec.title, res, note);
+          } else {
+            card = jamoviTitleCard(spec.title); // plot-only (Figurer)
+          }
           // jamovi-style plots: capture R graphics into THIS result's card (after the tables)
           if (spec.buildPlots) {
-            var plots = spec.buildPlots(assignments, optsObj) || [];
+            var plots = plots0;
             for (var pi = 0; pi < plots.length; pi++) {
               try {
                 var cap = await shelter.captureR(plots[pi].rCode, { captureGraphics: { width: 460, height: 320 } });
@@ -867,6 +903,7 @@
         + '<button type="button" class="jmv-tab" data-jtab="variables">Variabler</button>'
         + '<button type="button" class="jmv-tab" data-jtab="data">Data</button>'
         + '<button type="button" class="jmv-tab active" data-jtab="analyses">Analyser</button>'
+        + '<button type="button" class="jmv-tab" data-jtab="figures">Figurer</button>'
         + '<button type="button" class="jmv-tab" data-jtab="edit">Rediger</button>'
         + '<div class="jmv-app-menu" hidden><button type="button" data-jaction="examples">Åpne eksempeldatasett…</button><button type="button" data-jaction="clear">Tøm resultater</button><button type="button" data-jaction="about">Om jamovi-modus</button></div>'
         + '</div>'
@@ -874,6 +911,12 @@
         + '<div class="jmv-panel" data-jpanel="analyses">' + catGroups + '</div>'
         + '<div class="jmv-panel" data-jpanel="variables" hidden><button type="button" class="jmv-ribbon-btn" data-jaction="show-variables">Vis variabler</button><span class="jmv-ribbon-hint">Måltype for hver variabel i det aktive datasettet.</span></div>'
         + '<div class="jmv-panel" data-jpanel="data" hidden><button type="button" class="jmv-ribbon-btn" data-jaction="show-data">Forhåndsvis data</button><span class="jmv-ribbon-hint">Skrivebeskyttet visning av de første radene.</span></div>'
+        + '<div class="jmv-panel" data-jpanel="figures" hidden>'
+        +   '<button type="button" class="jmv-ribbon-btn" data-an="fig_histogram">' + (JAMOVI_ICONS.descriptives||'') + '<span>Histogram</span></button>'
+        +   '<button type="button" class="jmv-ribbon-btn" data-an="fig_boxplot"><span>Box Plot</span></button>'
+        +   '<button type="button" class="jmv-ribbon-btn" data-an="fig_barplot">' + (JAMOVI_ICONS.frequencies||'') + '<span>Bar Plot</span></button>'
+        +   '<button type="button" class="jmv-ribbon-btn" data-an="fig_scatter">' + (JAMOVI_ICONS.correlation||'') + '<span>Scatter Plot</span></button>'
+        + '</div>'
         + '<div class="jmv-panel" data-jpanel="edit" hidden><span class="jmv-ribbon-hint">Data redigeres via skript (Microdata/Python/R/Stata), ikke direkte i jamovi-modus.</span></div>'
         + '</div>';
       bar.appendChild(rib);
@@ -925,6 +968,10 @@
       // Variables / Data ribbon-action buttons
       rib.querySelectorAll('.jmv-ribbon-btn[data-jaction]').forEach(function(b){
         b.addEventListener('click', function(){ var act = b.getAttribute('data-jaction'); if (act==='show-variables') renderVariablesView(); else if (act==='show-data') renderDataView(); });
+      });
+      // Figurer ribbon: plot buttons open a plot dialog
+      rib.querySelectorAll('.jmv-ribbon-btn[data-an]').forEach(function(b){
+        b.addEventListener('click', function(){ openJamoviAnalysis(b.getAttribute('data-an')); });
       });
       // Outside click closes dropdowns + app menu
       document.addEventListener('click', function(){ apanel.querySelectorAll('.jmv-group').forEach(function(x){x.classList.remove('open');}); if (appMenu) appMenu.hidden = true; });

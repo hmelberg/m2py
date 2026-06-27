@@ -62,8 +62,10 @@
 .jmv-result-table tbody tr:first-child td { padding-top:8px; }
 .jmv-result-table tbody tr:last-child td { padding-bottom:8px; border-bottom:2px solid #333; }
 /* ── jamovi analysis dialog ─────────────────────────────────────────────── */
-.jmv-dialog-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:200; display:flex; align-items:center; justify-content:center; }
-.jmv-dialog { background:#fff; border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,.25); width:min(640px,92vw); max-height:85vh; display:flex; flex-direction:column; overflow:hidden; }
+/* Anchor the dialog near the top so expanding an accordion grows it DOWNWARD
+   (no jump). The overlay scrolls if the dialog gets taller than the viewport. */
+.jmv-dialog-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:200; display:flex; align-items:flex-start; justify-content:center; overflow-y:auto; padding:5vh 0 8vh; }
+.jmv-dialog { background:#fff; border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,.25); width:min(760px,94vw); display:flex; flex-direction:column; overflow:hidden; }
 .jmv-dialog-head { padding:14px 18px; font:600 16px/1.2 inherit; border-bottom:1px solid #e3e6ec; background:var(--jmv-bg); color:var(--jmv-blue-d); }
 .jmv-dialog-body { display:flex; gap:14px; padding:16px 18px; overflow:auto; }
 /* jamovi dialog: neutral grey supplier/target boxes (#828282 borders on white),
