@@ -15,6 +15,11 @@
 .jmv-app-menu[hidden] { display:none; }
 .jmv-app-menu button { display:block; width:100%; text-align:left; border:none; background:transparent; padding:8px 12px; cursor:pointer; font:13px/1.2 inherit; border-radius:4px; color:#1f2937; }
 .jmv-app-menu button:hover { background:#e8eefc; color:var(--jmv-blue); }
+.jmv-example-list { list-style:none; margin:0; padding:0; width:100%; max-height:60vh; overflow:auto; }
+.jmv-example-list li { padding:9px 12px; border-bottom:1px solid #eaeaea; cursor:pointer; display:flex; flex-direction:column; gap:2px; }
+.jmv-example-list li:hover { background:#eaf0fa; }
+.jmv-example-list li b { color:var(--jmv-blue-d); font-size:14px; }
+.jmv-example-list li span { color:#555; font-size:12px; }
 /* Level 2: ribbon area (per-tab panels) */
 .jmv-ribbon-area { padding:5px 6px; min-height:38px; }
 .jmv-panel { display:flex; gap:2px; align-items:center; flex-wrap:nowrap; }

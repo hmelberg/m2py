@@ -391,6 +391,69 @@
       } catch (e) { loading.textContent = 'Kunne ikke laste data: ' + (e.message || e); }
     }
 
+    // Bundled example datasets from "Learning Statistics with jamovi" (examples/lsj/).
+    var JAMOVI_EXAMPLES = [
+      { file:'harpo.csv',         name:'harpo',         desc:'Grades by tutor — independent t-test' },
+      { file:'chico.csv',         name:'chico',         desc:'Test 1 vs Test 2 — paired t-test' },
+      { file:'zeppo.csv',         name:'zeppo',         desc:'Grades — one-sample t-test' },
+      { file:'clinicaltrial.csv', name:'clinicaltrial', desc:'Mood gain by drug — one-way ANOVA' },
+      { file:'parenthood.csv',    name:'parenthood',    desc:'Sleep & grumpiness — correlation / regression' },
+      { file:'cards.csv',         name:'cards',         desc:'Card choices — χ² goodness of fit' },
+      { file:'agpp.csv',          name:'agpp',          desc:'Game & gender — χ² test of independence' },
+      { file:'anscombe.csv',      name:'anscombe',      desc:"Anscombe's quartet" },
+      { file:'booksales.csv',     name:'booksales',     desc:'Book sales — regression' },
+      { file:'broca.csv',         name:'broca',         desc:'Aphasia groups' },
+      { file:'nightgarden.csv',   name:'nightgarden',   desc:'In the Night Garden' },
+      { file:'rtfm.csv',          name:'rtfm',          desc:'Reading the manual' }
+    ];
+
+    async function jamoviLoadExample(ex) {
+      M.setStatus(M.rightStatus, 'Laster ' + ex.name + '…');
+      try {
+        var py = await M.loadPyodideAndM2py();
+        var resp = await fetch('examples/lsj/' + ex.file);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        var csv = await resp.text();
+        var infoJson = String(await py.runPythonAsync(
+          'import pandas as _pd, io as _io, json as _j\n' +
+          '_df = _pd.read_csv(_io.StringIO(' + JSON.stringify(csv) + '))\n' +
+          'e.datasets[' + JSON.stringify(ex.name) + '] = _df\n' +
+          'e.active_name = ' + JSON.stringify(ex.name) + '\n' +
+          'try:\n    e.sync_datasets_to_globals(globals())\nexcept Exception:\n    pass\n' +
+          '_j.dumps({"columns": list(map(str,_df.columns)), "dtypes": {str(c): str(_df[c].dtype) for c in _df.columns}, "nrows": int(len(_df))})'
+        ));
+        var info = JSON.parse(infoJson);
+        window.activeDatasetName = ex.name;
+        window.lastDatasetInfo = window.lastDatasetInfo || {};
+        window.lastDatasetInfo[ex.name] = info;
+        jamoviTypeOverrides = {};
+        M.setStatus(M.rightStatus, '');
+        renderDataView();
+      } catch (e) {
+        M.setStatus(M.rightStatus, '');
+        alert('Kunne ikke laste datasett: ' + (e.message || e));
+      }
+    }
+
+    function openJamoviExamplePicker() {
+      var backdrop = document.createElement('div'); backdrop.className = 'jmv-dialog-backdrop';
+      var dlg = document.createElement('div'); dlg.className = 'jmv-dialog'; dlg.style.maxWidth = '540px';
+      var head = document.createElement('div'); head.className = 'jmv-dialog-head'; head.textContent = 'Eksempeldatasett — Learning Statistics with jamovi'; dlg.appendChild(head);
+      var body = document.createElement('div'); body.className = 'jmv-dialog-body'; body.style.display = 'block';
+      var ul = document.createElement('ul'); ul.className = 'jmv-example-list';
+      JAMOVI_EXAMPLES.forEach(function(ex) {
+        var li = document.createElement('li');
+        li.innerHTML = '<b>' + ex.name + '</b><span>' + ex.desc + '</span>';
+        li.addEventListener('click', function() { document.body.removeChild(backdrop); jamoviLoadExample(ex); });
+        ul.appendChild(li);
+      });
+      body.appendChild(ul); dlg.appendChild(body);
+      var foot = document.createElement('div'); foot.className = 'jmv-dialog-foot';
+      var close = document.createElement('button'); close.textContent = 'Lukk'; close.addEventListener('click', function() { document.body.removeChild(backdrop); });
+      foot.appendChild(close); dlg.appendChild(foot);
+      backdrop.appendChild(dlg); document.body.appendChild(backdrop);
+    }
+
     // Render a structured webR toJs() result as jamovi-style tables
     function renderJamoviResult(title, struct, note) {
       var wrap = document.createElement('div');
@@ -773,7 +836,7 @@
         + '<button type="button" class="jmv-tab" data-jtab="data">Data</button>'
         + '<button type="button" class="jmv-tab active" data-jtab="analyses">Analyser</button>'
         + '<button type="button" class="jmv-tab" data-jtab="edit">Rediger</button>'
-        + '<div class="jmv-app-menu" hidden><button type="button" data-jaction="clear">Tøm resultater</button><button type="button" data-jaction="about">Om jamovi-modus</button></div>'
+        + '<div class="jmv-app-menu" hidden><button type="button" data-jaction="examples">Åpne eksempeldatasett…</button><button type="button" data-jaction="clear">Tøm resultater</button><button type="button" data-jaction="about">Om jamovi-modus</button></div>'
         + '</div>'
         + '<div class="jmv-ribbon-area">'
         + '<div class="jmv-panel" data-jpanel="analyses">' + catGroups + '</div>'
@@ -823,6 +886,7 @@
           e.stopPropagation(); appMenu.hidden = true;
           var act = b.getAttribute('data-jaction');
           if (act === 'clear') { var c = M.outputArea.querySelector('#jamoviResults'); if (c) c.innerHTML = ''; }
+          else if (act === 'examples') { openJamoviExamplePicker(); }
           else if (act === 'about') { alert('jamovi-modus: pek-og-klikk-analyser som genererer R og kjører det via webR på det aktive datasettet.'); }
         });
       });
