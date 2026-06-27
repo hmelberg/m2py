@@ -380,6 +380,7 @@
           <button type="button" data-mode="r">R</button>
           <button type="button" data-mode="statx">Statx</button>
           <button type="button" data-mode="jamovi">jamovi</button>
+          <button type="button" data-mode="duckdb">DuckDB</button>
         </div>
       </div>
       <button type="button" class="btn btn-tolk" id="btnDmQuick" style="display:none;gap:6px" title="Vurder personvern: sjekk om scriptet henter mer detaljerte data enn n&#248;dvendig (dataminimering), og f&#229; forslag til &#229; aggregere/forenkle. Krever innlogging.">
@@ -2655,6 +2656,20 @@
     const STATA_HL_KW = new Set(['use','clear','summarize','sum','regress','reg','tabulate','tab','generate','gen','replace','egen','collapse','keep','drop','sort','by','bysort','merge','append','describe','list','browse','if','in','rename','label']);
     const STATA_HL_FN = new Set(['mean','sd','min','max','count','total','r','e']);
     const STATA_HL_CFG = { commentChar: '*', triple: false, identStart: /[A-Za-z_]/, identPart: /[A-Za-z0-9_]/, kw: STATA_HL_KW, fn: STATA_HL_FN };
+    const SQL_HL_KW = new Set(['SELECT','FROM','WHERE','GROUP','BY','ORDER','HAVING','LIMIT','OFFSET',
+      'JOIN','LEFT','RIGHT','INNER','OUTER','FULL','CROSS','NATURAL','ON','USING','AS','WITH',
+      'CREATE','OR','REPLACE','TABLE','TEMP','TEMPORARY','VIEW','IF','NOT','EXISTS','DROP','ALTER',
+      'INSERT','INTO','VALUES','UPDATE','SET','DELETE','DISTINCT','UNION','ALL','EXCEPT','INTERSECT',
+      'CASE','WHEN','THEN','ELSE','END','AND','IN','IS','NULL','LIKE','ILIKE','BETWEEN','ASC','DESC',
+      'OVER','PARTITION','WINDOW','QUALIFY','FILTER','PIVOT','UNPIVOT','SUMMARIZE','DESCRIBE','EXPLAIN',
+      'CAST','TRY_CAST']);
+    const SQL_HL_FN = new Set(['count','sum','avg','min','max','round','abs','coalesce','nullif','length',
+      'lower','upper','trim','substr','substring','concat','replace','strftime','date_trunc','date_part',
+      'row_number','rank','dense_rank','ntile','lag','lead','first_value','last_value',
+      'median','quantile','mode','stddev','stddev_pop','var_pop','variance','corr','regr_slope',
+      'greatest','least','floor','ceil','exp','ln','log','sqrt','pow','regexp_matches','regexp_replace']);
+    const SQL_HL_CFG = { commentChar: '#', commentPrefix: '--', triple: false, caseInsensitive: true,
+      identStart: /[A-Za-z_]/, identPart: /[A-Za-z0-9_]/, kw: SQL_HL_KW, fn: SQL_HL_FN };
 
     // Modul-namespace → funksjoner (for `px.`, `pd.`, `np.`, `sm.` i autocomplete).
     const PY_NS_FUNCS = {
@@ -2684,7 +2699,9 @@
       var out = '', i = 0, n = line.length;
       while (i < n) {
         var c = line[i];
-        if (c === cfg.commentChar) { out += '<span class="md-out-comment">' + escHl(line.slice(i)) + '</span>'; return { html: out, openTriple: null }; }
+        if (cfg.commentPrefix ? line.startsWith(cfg.commentPrefix, i) : c === cfg.commentChar) {
+          out += '<span class="md-out-comment">' + escHl(line.slice(i)) + '</span>'; return { html: out, openTriple: null };
+        }
         if (cfg.triple && (c === '"' || c === "'") && line[i+1] === c && line[i+2] === c) {
           var delim = c + c + c, tclose = line.indexOf(delim, i + 3);
           if (tclose === -1) { out += '<span class="md-out-str">' + escHl(line.slice(i)) + '</span>'; return { html: out, openTriple: delim }; }
@@ -2706,7 +2723,9 @@
           var word = line.slice(s, i);
           var m = i; while (m < n && /\s/.test(line[m])) m++;
           var isCall = line[m] === '(';
-          var cls = cfg.kw.has(word) ? 'md-out-cmd' : (cfg.fn.has(word) || isCall) ? 'md-out-func' : null;
+          var _kwKey = cfg.caseInsensitive ? word.toUpperCase() : word;
+          var _fnKey = cfg.caseInsensitive ? word.toLowerCase() : word;
+          var cls = cfg.kw.has(_kwKey) ? 'md-out-cmd' : (cfg.fn.has(_fnKey) || isCall) ? 'md-out-func' : null;
           out += cls ? '<span class="' + cls + '">' + escHl(word) + '</span>' : escHl(word);
           continue;
         }
@@ -3208,6 +3227,9 @@
         onActivate: function () { if (!pdexplorerReady && !pdexplorerLoading) loadPyodideAndM2py().then(loadPdexplorer); },
         translate: { showsButton: false },
         runSelf: async function (script, ctx) { await runStatxScript(script, ctx); } },
+      duckdb: { id: 'duckdb', label: 'DuckDB', hlConfig: SQL_HL_CFG, handleTab: microdataHandleTab,
+        translate: { showsButton: false },
+        runSelf: async function (script, ctx) { await runDuckdbScript(script, ctx); } },
     };
     function currentMode() {
       return modeRegistry[activeEditorMode] || modeRegistry.microdata;
@@ -3486,8 +3508,8 @@
     let scriptRunInProgress = false;
     // ── Editor mode (always-on, controlled by bottom-bar dropdown) ──────
     let activeEditorMode  = 'microdata'; // 'microdata' | 'python' | 'r'
-    const editorContent   = { microdata: '', python: '', r: '', statx: '', jamovi: '' };
-    const editorBP        = { microdata: new Set(), python: new Set(), r: new Set(), statx: new Set(), jamovi: new Set() };
+    const editorContent   = { microdata: '', python: '', r: '', statx: '', jamovi: '', duckdb: '' };
+    const editorBP        = { microdata: new Set(), python: new Set(), r: new Set(), statx: new Set(), jamovi: new Set(), duckdb: new Set() };
     let webR = null, webRReady = false, webRLoading = false, webRShelter = null;
     let py2mReady = false;
     let pdexplorerReady = false, pdexplorerLoading = false;
@@ -6863,6 +6885,13 @@ json.dumps(out)
       if (webRShelter) { try { await webRShelter.purge(); } catch (e) {} }
       setRunButtonsUi('idle');
       scriptRunInProgress = false;
+    }
+
+    // ── DuckDB mode orchestration (real implementation lands in Task 4) ──
+    async function runDuckdbScript(script, ctx) {
+      const py = (ctx && ctx.py) || await loadPyodideAndM2py();
+      renderOutput('DuckDB-modus lastet (stub).', false, false);
+      setStatus(rightStatus, '');
     }
 
     async function runStatxScript(script, ctx) {
