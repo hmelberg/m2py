@@ -1001,8 +1001,12 @@
     .ai-modal-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
     body[data-theme="dark"] .ai-modal-btn.primary { color: #1a1b26; }
     .ai-modal-help { font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
+    /* ── mode GUI bar (full-width, sits under topbar) ───────────────────────── */
+    .mode-gui-bar { width:100%; background:#f3f4f6; border-bottom:1px solid #d8dbe0; }
+    .bottombar-center { flex:1; display:flex; justify-content:center; align-items:center; min-width:0; padding:0 8px; }
+    .bottombar-ask { width:min(420px,100%); padding:5px 10px; border:1px solid var(--border); border-radius:6px; font:13px/1.2 inherit; background:var(--bg-input,#fff); color:inherit; }
     /* ── jamovi ribbon ──────────────────────────────────────────────────────── */
-    .jamovi-ribbon { display:flex; gap:2px; align-items:stretch; padding:4px 6px; background:#f3f4f6; border-bottom:1px solid #d8dbe0; flex-wrap:wrap; }
+    .jamovi-ribbon { display:flex; gap:2px; align-items:stretch; padding:4px 6px; background:#f3f4f6; flex-wrap:nowrap; }
     .jmv-group { position:relative; }
     .jmv-cat { font:13px/1.2 inherit; padding:6px 12px; background:transparent; border:1px solid transparent; border-radius:4px; cursor:pointer; color:#2b3a55; }
     .jmv-cat:hover, .jmv-group.open .jmv-cat { background:#fff; border-color:#d8dbe0; }

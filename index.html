@@ -114,7 +114,6 @@
       </div>
     </div>
     <input type="text" class="script-name" id="scriptName" placeholder="Script navn" value="Script navn">
-    <input type="text" class="topbar-ask" id="topbarAsk" placeholder="Hva vil du unders&#248;ke?" aria-label="Spør AI" autocomplete="off" title="Skriv et spørsmål og trykk Enter — AI-panelet åpnes og svarer" style="display:none">
     <button type="button" class="help-icon" id="helpBtn" aria-label="Hjelp" title="Hjelp" style="margin-left:auto">&#63;</button>
     <button type="button" class="help-icon" id="clearOutputTopBtn" aria-label="Tøm output" title="Tøm output"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg></button>
     <div class="topbar-export-wrap">
@@ -141,6 +140,20 @@
       </svg>
     </button>
   </header>
+  <div id="modeGuiBar" class="mode-gui-bar" style="display:none">
+    <div id="jamoviRibbon" class="jamovi-ribbon" data-mode-gui="jamovi" aria-label="jamovi analyser">
+          <div class="jmv-group"><button type="button" class="jmv-cat" data-cat="exploration">Exploration</button>
+            <div class="jmv-menu"><button type="button" data-an="descriptives">Descriptives</button><button type="button" data-an="frequencies">Frequencies</button></div></div>
+          <div class="jmv-group"><button type="button" class="jmv-cat" data-cat="ttests">T-Tests</button>
+            <div class="jmv-menu"><button type="button" data-an="ttest_ind">Independent Samples T-Test</button><button type="button" data-an="ttest_paired">Paired Samples T-Test</button></div></div>
+          <div class="jmv-group"><button type="button" class="jmv-cat" data-cat="anova">ANOVA</button>
+            <div class="jmv-menu"><button type="button" data-an="anova_oneway">One-Way ANOVA</button></div></div>
+          <div class="jmv-group"><button type="button" class="jmv-cat" data-cat="regression">Regression</button>
+            <div class="jmv-menu"><button type="button" data-an="correlation">Correlation Matrix</button><button type="button" data-an="lin_reg">Linear Regression</button><button type="button" data-an="log_reg">Logistic Regression</button></div></div>
+          <div class="jmv-group"><button type="button" class="jmv-cat" data-cat="frequencies">Frequencies</button>
+            <div class="jmv-menu"><button type="button" data-an="contingency">Contingency Tables (χ²)</button></div></div>
+    </div>
+  </div>
   <div class="app-body">
   <div class="container layout-columns">
     <div class="panel panel-left">
@@ -160,18 +173,6 @@
         <span class="status" id="leftStatus"></span>
       </div>
       <div class="panel-content autocomplete-wrap">
-        <div id="jamoviRibbon" class="jamovi-ribbon" style="display:none" aria-label="jamovi analyser">
-          <div class="jmv-group"><button type="button" class="jmv-cat" data-cat="exploration">Exploration</button>
-            <div class="jmv-menu"><button type="button" data-an="descriptives">Descriptives</button><button type="button" data-an="frequencies">Frequencies</button></div></div>
-          <div class="jmv-group"><button type="button" class="jmv-cat" data-cat="ttests">T-Tests</button>
-            <div class="jmv-menu"><button type="button" data-an="ttest_ind">Independent Samples T-Test</button><button type="button" data-an="ttest_paired">Paired Samples T-Test</button></div></div>
-          <div class="jmv-group"><button type="button" class="jmv-cat" data-cat="anova">ANOVA</button>
-            <div class="jmv-menu"><button type="button" data-an="anova_oneway">One-Way ANOVA</button></div></div>
-          <div class="jmv-group"><button type="button" class="jmv-cat" data-cat="regression">Regression</button>
-            <div class="jmv-menu"><button type="button" data-an="correlation">Correlation Matrix</button><button type="button" data-an="lin_reg">Linear Regression</button><button type="button" data-an="log_reg">Logistic Regression</button></div></div>
-          <div class="jmv-group"><button type="button" class="jmv-cat" data-cat="frequencies">Frequencies</button>
-            <div class="jmv-menu"><button type="button" data-an="contingency">Contingency Tables (χ²)</button></div></div>
-        </div>
         <div class="code-wrap">
           <div class="line-numbers" id="lineNumbers"></div>
           <div class="code-input-wrap">
@@ -394,6 +395,9 @@
         Vurder personvern
       </button>
       <button type="button" class="oversett-btn" id="oversettBtn" style="display:none">Oversett</button>
+    </div>
+    <div class="bottombar-center">
+      <input type="text" class="bottombar-ask" id="topbarAsk" placeholder="Hva vil du undersøke?" aria-label="Spør AI" autocomplete="off" title="Skriv et spørsmål og trykk Enter — AI-panelet åpnes og svarer" style="display:none">
     </div>
     <div class="bottombar-right">
       <span class="status" id="rightStatus"></span>
@@ -3175,7 +3179,8 @@
         translate: { showsButton: false },
         runSelf: async function (script, ctx) { await runStatxScript(script, ctx); } },
       jamovi: { id: 'jamovi', label: 'jamovi', hlConfig: R_HL_CFG, handleTab: handleRTab,
-        onActivate: function () { if (!webRReady && !webRLoading) loadWebR(); if (typeof updateJamoviRibbon==='function') updateJamoviRibbon(); },
+        topGui: 'jamovi',
+        onActivate: function () { if (!webRReady && !webRLoading) loadWebR(); if (typeof updateModeGuiBar==='function') updateModeGuiBar(); },
         translate: { showsButton: false },
         runSelf: async function (script, ctx) { await runHybridR(script, ctx.py, { showCommands: true }); } },
     };
@@ -3221,12 +3226,17 @@
       var _shows = !!(currentMode().translate && currentMode().translate.showsButton);
       var oBtn = document.getElementById('oversettBtn');
       if (oBtn) oBtn.style.display = _shows ? '' : 'none';
-      if (typeof updateJamoviRibbon==='function') updateJamoviRibbon();
+      if (typeof updateModeGuiBar==='function') updateModeGuiBar();
     }
 
-    function updateJamoviRibbon() {
-      var rib = document.getElementById('jamoviRibbon');
-      if (rib) rib.style.display = (activeEditorMode === 'jamovi') ? 'flex' : 'none';
+    function updateModeGuiBar() {
+      var bar = document.getElementById('modeGuiBar');
+      if (!bar) return;
+      var gui = (currentMode() && currentMode().topGui) || null;
+      bar.style.display = gui ? '' : 'none';
+      bar.querySelectorAll('[data-mode-gui]').forEach(function(p){
+        p.style.display = (p.getAttribute('data-mode-gui') === gui) ? '' : 'none';
+      });
     }
     function openJamoviAnalysis(id) {
       // Task 1 stub — dialogs arrive in Task 2.
