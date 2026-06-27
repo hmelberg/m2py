@@ -69,8 +69,13 @@
         buildPlots:function(a){ var x=a.x&&a.x[0], y=a.y&&a.y[0]; if(!x||!y) return []; return [{ title:'Scatter — '+y+' vs '+x, rCode:'plot(data[['+JSON.stringify(x)+']], data[['+JSON.stringify(y)+']], xlab='+JSON.stringify(x)+', ylab='+JSON.stringify(y)+', pch=19, col="#3e6da9aa")' }]; } },
       descriptives: {
         id: 'descriptives', title: 'Descriptives',
-        roles: [{ key: 'vars', label: 'Variables', types: ['numeric'], multiple: true }, { key: 'split', label: 'Split by', types: ['nominal'], multiple: false }],
-        optionSections:[{ title:'Statistics', groups:[
+        roles: [{ key: 'vars', label: 'Variables', types: ['numeric','nominal'], multiple: true }, { key: 'split', label: 'Split by', types: ['nominal'], multiple: false }],
+        optionSections:[
+        { title:'Output', collapsed:false, groups:[{ items:[
+          {key:'orient',type:'select',label:'Variables across',choices:[{value:'columns',label:'Columns'},{value:'rows',label:'Rows'}],default:'columns'},
+          {key:'freq',type:'check',label:'Frequency tables (nominal)',default:false}
+        ]}]},
+        { title:'Statistics', groups:[
           { title:'Sample Size', items:[{key:'N',type:'check',label:'N',default:true},{key:'Missing',type:'check',label:'Missing',default:true}] },
           { title:'Central Tendency', items:[{key:'Mean',type:'check',label:'Mean',default:true},{key:'Median',type:'check',label:'Median',default:true},{key:'Mode',type:'check',label:'Mode',default:false},{key:'Sum',type:'check',label:'Sum',default:false}] },
           { title:'Dispersion', items:[{key:'SD',type:'check',label:'Std. deviation',default:true},{key:'Variance',type:'check',label:'Variance',default:false},{key:'Range',type:'check',label:'Range',default:false},{key:'Min',type:'check',label:'Minimum',default:true},{key:'Max',type:'check',label:'Maximum',default:true},{key:'SE',type:'check',label:'Std. error',default:false},{key:'IQR',type:'check',label:'IQR',default:false}] },
@@ -98,8 +103,10 @@
           if (opts && opts.sw) want = want.concat(['SWW','SWp']);
           var rwant = 'c('+want.map(function(k){return JSON.stringify(k);}).join(',')+')';
           var rsplit = splitV ? JSON.stringify(splitV) : 'NULL';
+          var orient = (opts && opts.orient) ? opts.orient : 'columns';
+          var freqT = !!(opts && opts.freq);
           return "local({\n"
-           +"vars<-"+rv+"; want<-"+rwant+"; splitv<-"+rsplit+";\n"
+           +"vars<-"+rv+"; want<-"+rwant+"; splitv<-"+rsplit+"; orient<-"+JSON.stringify(orient)+"; freqT<-"+(freqT?'TRUE':'FALSE')+";\n"
            +"Mode<-function(x){x<-x[!is.na(x)]; if(!length(x)) return(NA); ux<-unique(x); ux[which.max(tabulate(match(x,ux)))]}\n"
            +"lbl<-c(N='N',Missing='Missing',Mean='Mean',Median='Median',Mode='Mode',Sum='Sum',SD='Std. deviation',Variance='Variance',Range='Range',Min='Minimum',Max='Maximum',SE='Std. error',Skewness='Skewness',Kurtosis='Kurtosis',IQR='IQR',P25='25th percentile',P50='50th percentile',P75='75th percentile',SWW='Shapiro-Wilk W',SWp='Shapiro-Wilk p')\n"
            +"statRow<-function(v,x,lev){ xc<-x[!is.na(x)]; n<-length(xc); o<-list()\n"
@@ -111,7 +118,11 @@
            +"rows<-list()\n"
            +"if(is.null(splitv)){ for(v in vars) rows[[length(rows)+1]]<-statRow(v, data[[v]], NULL) }\n"
            +"else { g<-as.character(data[[splitv]]); levs<-sort(unique(g[!is.na(g)])); for(lv in levs) for(v in vars) rows[[length(rows)+1]]<-statRow(v, data[[v]][!is.na(g) & g==lv], lv) }\n"
-           +"do.call(rbind, rows) })";
+           +"result<-do.call(rbind, rows)\n"
+           +"if(orient=='columns' && is.null(splitv)){ sc<-setdiff(names(result),'Variable'); tr<-as.data.frame(t(result[,sc,drop=FALSE]), check.names=FALSE, stringsAsFactors=FALSE); names(tr)<-as.character(result[['Variable']]); tr<-cbind(' '=sc, tr); result<-tr }\n"
+           +"res<-list('Descriptives'=result)\n"
+           +"if(freqT){ for(v in vars){ xx<-data[[v]]; if(!is.numeric(xx)){ tb<-table(xx); res[[paste0('Frequencies \\u2014 ',v)]]<-data.frame(Level=names(tb), Counts=as.integer(tb), Percent=round(100*as.integer(tb)/sum(tb),1), check.names=FALSE, stringsAsFactors=FALSE) } } }\n"
+           +"if(length(res)==1) res[[1]] else res })";
         }
       },
 
@@ -827,6 +838,13 @@
                     rb.addEventListener('change', function(){ if (rb.checked) optsObj[it.key] = c.value; });
                     lab.appendChild(rb); lab.appendChild(document.createTextNode(' ' + c.label)); gEl.appendChild(lab);
                   });
+                } else if (it.type === 'select') {
+                  var wrap = document.createElement('label'); wrap.className = 'jmv-opt-item';
+                  if (it.label) wrap.appendChild(document.createTextNode(it.label + ' '));
+                  var sel = document.createElement('select'); sel.className = 'jmv-opt-select';
+                  it.choices.forEach(function(c){ var o = document.createElement('option'); o.value = c.value; o.textContent = c.label; if (c.value === it.default) o.selected = true; sel.appendChild(o); });
+                  sel.addEventListener('change', function(){ optsObj[it.key] = sel.value; });
+                  wrap.appendChild(sel); gEl.appendChild(wrap);
                 }
               });
               bodyEl.appendChild(gEl);

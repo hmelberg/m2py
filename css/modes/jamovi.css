@@ -92,6 +92,7 @@
 .jmv-dialog-foot button { padding:7px 16px; border-radius:6px; border:1px solid var(--jmv-line); background:#fff; cursor:pointer; font:13px inherit; }
 .jmv-dialog-foot .primary { background:var(--jmv-blue); color:#fff; border-color:var(--jmv-blue); }
 .jmv-opt-item { display:inline-flex; align-items:center; gap:5px; margin:0 14px 4px 0; font:13px/1.3 inherit; cursor:pointer; }
+.jmv-opt-select { padding:3px 6px; border:1px solid #828282; border-radius:3px; font:13px inherit; background:#fff; }
 /* jamovi grey collapse bars (.silky-options-collapse-button) */
 .jmv-section { margin:7px 0 0; }
 .jmv-section-hdr { display:flex; align-items:center; padding:5px 8px; cursor:pointer; font:13px inherit; color:#555; border:1px solid #B0B0B0; background:#d8d8d8; user-select:none; }
