@@ -3290,7 +3290,47 @@
             + ' Max=sapply(vars,function(v) max(data[[v]],na.rm=TRUE)),'
             + ' stringsAsFactors=FALSE, check.names=FALSE) })';
         }
-      }
+      },
+
+      frequencies: { id:'frequencies', title:'Frequencies',
+        roles:[{key:'var', label:'Variable', types:['nominal','numeric'], multiple:false}],
+        buildR:function(a){ var v=a.var&&a.var[0]; if(!v) return null; var rv=JSON.stringify(v);
+          return "local({ t<-table(data[["+rv+"]]); n<-sum(t); data.frame(Level=names(t), Counts=as.integer(t), Percent=round(100*as.integer(t)/n,1), Cumulative=round(100*cumsum(as.integer(t))/n,1), check.names=FALSE, stringsAsFactors=FALSE) })"; } },
+
+      ttest_ind: { id:'ttest_ind', title:'Independent Samples T-Test',
+        roles:[{key:'dv',label:'Dependent Variable',types:['numeric'],multiple:false},{key:'group',label:'Grouping Variable',types:['nominal'],multiple:false}],
+        buildR:function(a){ var dv=a.dv&&a.dv[0], g=a.group&&a.group[0]; if(!dv||!g) return null;
+          return "local({ f<-as.factor(data[["+JSON.stringify(g)+"]]); y<-data[["+JSON.stringify(dv)+"]]; tt<-t.test(y~f); md<-diff(rev(tapply(y,f,mean,na.rm=TRUE))); data.frame('Test'='Welch t', 't'=unname(tt$statistic), 'df'=unname(tt$parameter), 'p'=tt$p.value, 'Mean diff'=unname(md), check.names=FALSE, stringsAsFactors=FALSE) })"; } },
+
+      ttest_paired: { id:'ttest_paired', title:'Paired Samples T-Test',
+        roles:[{key:'pair',label:'Paired Variables (2)',types:['numeric'],multiple:true}],
+        buildR:function(a){ var v=a.pair||[]; if(v.length<2) return null;
+          return "local({ tt<-t.test(data[["+JSON.stringify(v[0])+"]], data[["+JSON.stringify(v[1])+"]], paired=TRUE); data.frame('Test'='Paired t', 't'=unname(tt$statistic), 'df'=unname(tt$parameter), 'p'=tt$p.value, 'Mean diff'=unname(tt$estimate), check.names=FALSE, stringsAsFactors=FALSE) })"; } },
+
+      correlation: { id:'correlation', title:'Correlation Matrix',
+        roles:[{key:'vars',label:'Variables',types:['numeric'],multiple:true}],
+        buildR:function(a){ var v=a.vars||[]; if(v.length<2) return null; var rv='c('+v.map(function(x){return JSON.stringify(x);}).join(',')+')';
+          return "local({ vars<-"+rv+"; m<-cor(data[,vars,drop=FALSE], use='pairwise.complete.obs'); d<-as.data.frame(round(m,3), check.names=FALSE); cbind(Variable=rownames(m), d) })"; } },
+
+      lin_reg: { id:'lin_reg', title:'Linear Regression',
+        roles:[{key:'dv',label:'Dependent Variable',types:['numeric'],multiple:false},{key:'covs',label:'Covariates',types:['numeric'],multiple:true}],
+        buildR:function(a){ var dv=a.dv&&a.dv[0], c=a.covs||[]; if(!dv||!c.length) return null; var rc='c('+c.map(function(x){return JSON.stringify(x);}).join(',')+')';
+          return "local({ dv<-"+JSON.stringify(dv)+"; covs<-"+rc+"; d2<-data[,c(dv,covs),drop=FALSE]; names(d2)<-make.names(names(d2)); ndv<-make.names(dv); nco<-make.names(covs); m<-lm(as.formula(paste(ndv,'~',paste(nco,collapse='+'))), data=d2); s<-summary(m); fit<-data.frame('R-squared'=s$r.squared,'Adj. R-squared'=s$adj.r.squared,'F'=unname(s$fstatistic[1]),'df1'=unname(s$fstatistic[2]),'df2'=unname(s$fstatistic[3]),'p'=unname(pf(s$fstatistic[1],s$fstatistic[2],s$fstatistic[3],lower.tail=FALSE)),check.names=FALSE); co<-as.data.frame(s$coefficients,check.names=FALSE); co<-cbind(Term=rownames(co),co); list('Model Fit'=fit,'Coefficients'=co) })"; } },
+
+      log_reg: { id:'log_reg', title:'Logistic Regression',
+        roles:[{key:'dv',label:'Dependent Variable (binary)',types:['nominal'],multiple:false},{key:'covs',label:'Covariates',types:['numeric','nominal'],multiple:true}],
+        buildR:function(a){ var dv=a.dv&&a.dv[0], c=a.covs||[]; if(!dv||!c.length) return null; var rc='c('+c.map(function(x){return JSON.stringify(x);}).join(',')+')';
+          return "local({ dv<-"+JSON.stringify(dv)+"; covs<-"+rc+"; d2<-data[,c(dv,covs),drop=FALSE]; d2[[dv]]<-as.factor(d2[[dv]]); names(d2)<-make.names(names(d2)); ndv<-make.names(dv); nco<-make.names(covs); m<-glm(as.formula(paste(ndv,'~',paste(nco,collapse='+'))), data=d2, family=binomial); s<-summary(m); co<-as.data.frame(s$coefficients,check.names=FALSE); co<-cbind(Term=rownames(co),co); fit<-data.frame('Deviance'=s$deviance,'AIC'=s$aic,'N'=nrow(d2),check.names=FALSE); list('Coefficients'=co,'Model Fit'=fit) })"; } },
+
+      anova_oneway: { id:'anova_oneway', title:'One-Way ANOVA',
+        roles:[{key:'dv',label:'Dependent Variable',types:['numeric'],multiple:false},{key:'factor',label:'Grouping Variable',types:['nominal'],multiple:false}],
+        buildR:function(a){ var dv=a.dv&&a.dv[0], f=a.factor&&a.factor[0]; if(!dv||!f) return null;
+          return "local({ y<-data[["+JSON.stringify(dv)+"]]; g<-as.factor(data[["+JSON.stringify(f)+"]]); m<-aov(y~g); s<-summary(m)[[1]]; d<-as.data.frame(s,check.names=FALSE); cbind(Term=c('Group','Residuals')[seq_len(nrow(d))], d) })"; } },
+
+      contingency: { id:'contingency', title:'Contingency Tables (χ²)',
+        roles:[{key:'rows',label:'Rows',types:['nominal'],multiple:false},{key:'cols',label:'Columns',types:['nominal'],multiple:false}],
+        buildR:function(a){ var r=a.rows&&a.rows[0], c=a.cols&&a.cols[0]; if(!r||!c) return null;
+          return "local({ t<-table(data[["+JSON.stringify(r)+"]], data[["+JSON.stringify(c)+"]]); ch<-suppressWarnings(chisq.test(t)); cnt<-as.data.frame.matrix(t,check.names=FALSE); cnt<-cbind(' '=rownames(cnt),cnt); test<-data.frame('Chi-squared'=unname(ch$statistic),'df'=unname(ch$parameter),'p'=ch$p.value,check.names=FALSE); list('Counts'=cnt,'Chi-squared Test'=test) })"; } }
     };
 
     // Render a structured webR toJs() result as jamovi-style tables
