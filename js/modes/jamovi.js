@@ -254,7 +254,7 @@
     };
 
     // Append a captured webR plot (ImageBitmap) into the output, jamovi-style.
-    function jamoviAppendPlot(title, bitmap) {
+    function jamoviAppendPlot(title, bitmap, target) {
       var block = document.createElement('div');
       block.className = 'jmv-plot-block';
       if (title) {
@@ -269,7 +269,15 @@
       canvas.className = 'jmv-plot-canvas';
       canvas.getContext('2d').drawImage(bitmap, 0, 0);
       block.appendChild(canvas);
-      M.outputArea.appendChild(block);
+      (target || M.outputArea).appendChild(block);
+    }
+
+    // The stacked-results container (jamovi keeps every analysis until removed).
+    // Created lazily; the first jamovi result clears any prior (non-jamovi) output.
+    function jamoviResultsContainer() {
+      var c = M.outputArea.querySelector('#jamoviResults');
+      if (!c) { M.outputArea.innerHTML = ''; c = document.createElement('div'); c.id = 'jamoviResults'; M.outputArea.appendChild(c); }
+      return c;
     }
 
     // Render a structured webR toJs() result as jamovi-style tables
@@ -372,8 +380,19 @@
         wrap.appendChild(noteEl);
       }
 
-      M.outputArea.innerHTML = '';
-      M.outputArea.appendChild(wrap);
+      // Stack: append a removable result card (don't replace prior analyses).
+      var card = document.createElement('div');
+      card.className = 'jmv-result-card';
+      var rm = document.createElement('button');
+      rm.className = 'jmv-card-remove';
+      rm.title = 'Fjern analyse';
+      rm.textContent = '✕';
+      rm.addEventListener('click', function() { card.remove(); });
+      card.appendChild(rm);
+      card.appendChild(wrap);
+      jamoviResultsContainer().appendChild(card);
+      card.scrollIntoView({ block: 'nearest' });
+      return card;
     }
 
     // Jamovi measure-type icons
@@ -601,14 +620,14 @@
           var robj = await shelter.evalR('tryCatch({' + rcode + '}, error=function(e) paste("ERROR:",conditionMessage(e)))');
           var res = await robj.toJs();
           var note = (typeof spec.note === 'function') ? spec.note(assignments, optsObj) : (spec.note || null);
-          renderJamoviResult(spec.title, res, note);
-          // jamovi-style plots: capture R graphics into the output (after the tables)
+          var card = renderJamoviResult(spec.title, res, note);
+          // jamovi-style plots: capture R graphics into THIS result's card (after the tables)
           if (spec.buildPlots) {
             var plots = spec.buildPlots(assignments, optsObj) || [];
             for (var pi = 0; pi < plots.length; pi++) {
               try {
                 var cap = await shelter.captureR(plots[pi].rCode, { captureGraphics: { width: 460, height: 320 } });
-                if (cap.images && cap.images[0]) jamoviAppendPlot(plots[pi].title, cap.images[0]);
+                if (cap.images && cap.images[0]) jamoviAppendPlot(plots[pi].title, cap.images[0], card.querySelector('div') || card);
                 if (cap.cleanup) await cap.cleanup();
               } catch (pe) { /* skip a single failed plot */ }
             }
