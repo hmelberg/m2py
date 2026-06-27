@@ -3243,9 +3243,291 @@
       var appBody = document.querySelector('.app-body');
       if (appBody) appBody.style.marginTop = gui ? (44 + bar.offsetHeight) + 'px' : '';
     }
+    // ── jamovi analysis pipeline ─────────────────────────────────────────────
+    // Variables from the active dataset
+    function jamoviVariables() {
+      var name = window.activeDatasetName;
+      if (!name || !window.lastDatasetInfo || !window.lastDatasetInfo[name]) return [];
+      var info = window.lastDatasetInfo[name];
+      var cols = info.columns || [];
+      var dtypes = info.dtypes || {};
+      return cols.map(function(c) {
+        var d = dtypes[c] || '';
+        var type = (d === 'int64' || d === 'float64') ? 'numeric' : 'nominal';
+        return { name: c, type: type };
+      });
+    }
+
+    // Ensure active dataset is loaded into webR as `data`
+    async function ensureJamoviDataInWebR() {
+      if (!webRReady) await loadWebR();
+      if (!webRShelter) webRShelter = await new webR.Shelter();
+      var py = await loadPyodideAndM2py();
+      var b64 = String(await py.runPythonAsync(
+        'import base64 as _b\n_b.b64encode(e.datasets[e.active_name].to_csv(index=False).encode("utf-8")).decode("ascii")'
+      ));
+      await webR.evalRVoid(
+        'data <- read.csv(textConnection(rawToChar(base64enc::base64decode("' + b64 + '"))), stringsAsFactors=FALSE, check.names=FALSE)'
+      );
+    }
+
+    // Analysis spec registry
+    var JAMOVI_ANALYSES = {
+      descriptives: {
+        id: 'descriptives', title: 'Descriptives',
+        roles: [{ key: 'vars', label: 'Variables', types: ['numeric'], multiple: true }],
+        buildR: function(assign) {
+          var v = assign.vars; if (!v || !v.length) return null;
+          var rv = 'c(' + v.map(function(x) { return JSON.stringify(x); }).join(',') + ')';
+          return 'local({ vars <- ' + rv + '\n'
+            + 'data.frame(Variable=vars,'
+            + ' N=sapply(vars,function(v) sum(!is.na(data[[v]]))),'
+            + ' Missing=sapply(vars,function(v) sum(is.na(data[[v]]))),'
+            + ' Mean=sapply(vars,function(v) mean(data[[v]],na.rm=TRUE)),'
+            + ' Median=sapply(vars,function(v) median(data[[v]],na.rm=TRUE)),'
+            + ' SD=sapply(vars,function(v) sd(data[[v]],na.rm=TRUE)),'
+            + ' Min=sapply(vars,function(v) min(data[[v]],na.rm=TRUE)),'
+            + ' Max=sapply(vars,function(v) max(data[[v]],na.rm=TRUE)),'
+            + ' stringsAsFactors=FALSE, check.names=FALSE) })';
+        }
+      }
+    };
+
+    // Render a structured webR toJs() result as jamovi-style tables
+    function renderJamoviResult(title, struct) {
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'padding:12px 18px;';
+
+      function isDataFrame(s) {
+        return s && s.type === 'list' && Array.isArray(s.names) && s.values && s.values[0] && s.values[0].type !== 'list';
+      }
+
+      function fmtNum(v) {
+        if (v === null || v === undefined || (typeof v === 'number' && isNaN(v))) return 'NA';
+        if (typeof v === 'number') {
+          if (Number.isInteger(v)) return String(v);
+          return v.toPrecision(3).replace(/\.?0+$/, '');
+        }
+        return String(v);
+      }
+
+      function buildTable(t, heading) {
+        var h = document.createElement('h3');
+        h.className = 'jmv-result-title';
+        h.textContent = heading || title;
+        wrap.appendChild(h);
+
+        if (!isDataFrame(t)) {
+          var pre = document.createElement('pre');
+          pre.style.cssText = 'color:#b91c1c; white-space:pre-wrap;';
+          pre.textContent = JSON.stringify(t, null, 2);
+          wrap.appendChild(pre);
+          return;
+        }
+
+        var table = document.createElement('table');
+        table.className = 'jmv-result-table';
+        var thead = document.createElement('thead');
+        var trh = document.createElement('tr');
+        t.names.forEach(function(n) {
+          var th = document.createElement('th');
+          th.textContent = n;
+          trh.appendChild(th);
+        });
+        thead.appendChild(trh);
+        table.appendChild(thead);
+
+        var tbody = document.createElement('tbody');
+        var nrows = t.values[0].values.length;
+        for (var r = 0; r < nrows; r++) {
+          var tr = document.createElement('tr');
+          for (var c = 0; c < t.names.length; c++) {
+            var td = document.createElement('td');
+            var col = t.values[c];
+            var val = col.values[r];
+            td.textContent = (col.type === 'double' || col.type === 'integer') ? fmtNum(val) : (val === null ? 'NA' : String(val));
+            tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+      }
+
+      if (struct && struct.type === 'character') {
+        var errPre = document.createElement('pre');
+        errPre.style.cssText = 'color:#b91c1c; white-space:pre-wrap; padding:8px;';
+        errPre.textContent = Array.isArray(struct.values) ? struct.values.join('\n') : String(struct.values);
+        wrap.appendChild(errPre);
+      } else if (isDataFrame(struct)) {
+        buildTable(struct, title);
+      } else if (struct && struct.type === 'list' && Array.isArray(struct.names)) {
+        struct.values.forEach(function(sub, i) {
+          buildTable(sub, struct.names[i] || title);
+        });
+      } else {
+        var fb = document.createElement('pre');
+        fb.textContent = JSON.stringify(struct, null, 2);
+        wrap.appendChild(fb);
+      }
+
+      outputArea.innerHTML = '';
+      outputArea.appendChild(wrap);
+    }
+
+    // Open a jamovi analysis dialog from the spec registry
     function openJamoviAnalysis(id) {
-      // Task 1 stub — dialogs arrive in Task 2.
-      alert('jamovi: ' + id + ' (dialog kommer i Task 2)');
+      var spec = JAMOVI_ANALYSES[id];
+      if (!spec) { alert('Analyse ikke funnet: ' + id); return; }
+
+      var vars = jamoviVariables();
+      var assignments = {};
+      spec.roles.forEach(function(r) { assignments[r.key] = []; });
+      var activeRoleKey = spec.roles[0] ? spec.roles[0].key : null;
+
+      // Build dialog DOM
+      var backdrop = document.createElement('div');
+      backdrop.className = 'jmv-dialog-backdrop';
+
+      var dialog = document.createElement('div');
+      dialog.className = 'jmv-dialog';
+      dialog.setAttribute('role', 'dialog');
+      dialog.setAttribute('aria-modal', 'true');
+
+      var head = document.createElement('div');
+      head.className = 'jmv-dialog-head';
+      head.textContent = spec.title;
+      dialog.appendChild(head);
+
+      var body = document.createElement('div');
+      body.className = 'jmv-dialog-body';
+      dialog.appendChild(body);
+
+      var foot = document.createElement('div');
+      foot.className = 'jmv-dialog-foot';
+      dialog.appendChild(foot);
+
+      backdrop.appendChild(dialog);
+
+      if (!vars.length) {
+        // No dataset
+        var msg = document.createElement('p');
+        msg.style.cssText = 'color:#b91c1c; padding:8px 0;';
+        msg.textContent = 'Lag/importer data først (kjør et datasett)';
+        body.appendChild(msg);
+      } else {
+        // Variable list (left pane)
+        var varlistDiv = document.createElement('div');
+        varlistDiv.className = 'jmv-varlist';
+        var varlistLabel = document.createElement('div');
+        varlistLabel.className = 'jmv-role-label';
+        varlistLabel.textContent = 'Variabler';
+        varlistDiv.appendChild(varlistLabel);
+
+        var ul = document.createElement('ul');
+        vars.forEach(function(v) {
+          var li = document.createElement('li');
+          li.textContent = v.name + ' (' + v.type + ')';
+          li.dataset.varname = v.name;
+          li.dataset.vartype = v.type;
+          li.title = 'Klikk for å legge til i aktiv rolle';
+          li.addEventListener('click', function() {
+            if (!activeRoleKey) return;
+            var roleSpec = spec.roles.filter(function(r) { return r.key === activeRoleKey; })[0];
+            if (!roleSpec) return;
+            // type filter
+            if (roleSpec.types && roleSpec.types.length && roleSpec.types.indexOf(v.type) === -1) {
+              alert('Denne rollen krever: ' + roleSpec.types.join(', ') + '. Variabel er: ' + v.type);
+              return;
+            }
+            if (!roleSpec.multiple) assignments[activeRoleKey] = [];
+            if (assignments[activeRoleKey].indexOf(v.name) === -1) {
+              assignments[activeRoleKey].push(v.name);
+            }
+            refreshRoles();
+          });
+          ul.appendChild(li);
+        });
+        varlistDiv.appendChild(ul);
+        body.appendChild(varlistDiv);
+
+        // Role boxes (right pane)
+        var rolesDiv = document.createElement('div');
+        rolesDiv.className = 'jmv-roles';
+        body.appendChild(rolesDiv);
+
+        var roleBoxEls = {};
+        spec.roles.forEach(function(roleSpec) {
+          var lbl = document.createElement('div');
+          lbl.className = 'jmv-role-label';
+          lbl.textContent = roleSpec.label;
+          rolesDiv.appendChild(lbl);
+
+          var box = document.createElement('ul');
+          box.className = 'jmv-rolebox' + (roleSpec.key === activeRoleKey ? ' active' : '');
+          box.dataset.rolekey = roleSpec.key;
+          box.addEventListener('click', function() {
+            activeRoleKey = roleSpec.key;
+            refreshRoles();
+          });
+          roleBoxEls[roleSpec.key] = box;
+          rolesDiv.appendChild(box);
+        });
+
+        function refreshRoles() {
+          spec.roles.forEach(function(rs) {
+            var box = roleBoxEls[rs.key];
+            box.className = 'jmv-rolebox' + (rs.key === activeRoleKey ? ' active' : '');
+            box.innerHTML = '';
+            (assignments[rs.key] || []).forEach(function(varname) {
+              var li = document.createElement('li');
+              li.textContent = varname + ' ✕';
+              li.title = 'Klikk for å fjerne';
+              li.addEventListener('click', function(e) {
+                e.stopPropagation();
+                assignments[rs.key] = assignments[rs.key].filter(function(x) { return x !== varname; });
+                refreshRoles();
+              });
+              box.appendChild(li);
+            });
+          });
+        }
+        refreshRoles();
+      }
+
+      // Buttons
+      var closeBtn = document.createElement('button');
+      closeBtn.textContent = 'Lukk';
+      closeBtn.addEventListener('click', function() { document.body.removeChild(backdrop); });
+      foot.appendChild(closeBtn);
+
+      var runBtn = document.createElement('button');
+      runBtn.className = 'primary';
+      runBtn.textContent = 'Kjør';
+      runBtn.addEventListener('click', async function() {
+        var rcode = spec.buildR(assignments);
+        if (!rcode) { alert('Velg variabler'); return; }
+        document.body.removeChild(backdrop);
+        setStatus(rightStatus, 'Kjører analyse…');
+        try {
+          await ensureJamoviDataInWebR();
+          var robj = await webRShelter.evalR('tryCatch({' + rcode + '}, error=function(e) paste("ERROR:",conditionMessage(e)))');
+          var res = await robj.toJs();
+          renderJamoviResult(spec.title, res);
+          setStatus(rightStatus, '');
+        } catch(err) {
+          outputArea.innerHTML = '<pre class="error">Analysefeil: ' + (err.message || String(err)) + '</pre>';
+          setStatus(rightStatus, '');
+        }
+      });
+      foot.appendChild(runBtn);
+
+      // Close on backdrop click
+      backdrop.addEventListener('click', function(e) {
+        if (e.target === backdrop) document.body.removeChild(backdrop);
+      });
+
+      document.body.appendChild(backdrop);
     }
     (function initJamoviRibbon() {
       var rib = document.getElementById('jamoviRibbon');

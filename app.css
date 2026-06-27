@@ -1015,3 +1015,24 @@
     .jmv-menu button { display:block; width:100%; text-align:left; padding:7px 10px; background:transparent; border:0; border-radius:4px; cursor:pointer; font:13px/1.2 inherit; color:#1f2937; }
     .jmv-menu button:hover { background:#e8eefc; color:#2563eb; }
     .jmv-menu button:disabled { opacity:.4; cursor:not-allowed; }
+    /* ── jamovi result tables ───────────────────────────────────────────────── */
+    .jmv-result-title { font:600 15px/1.3 inherit; color:#2b3a55; margin:14px 0 6px; }
+    .jmv-result-table { border-collapse:collapse; margin:0 0 14px; font:13px/1.4 inherit; }
+    .jmv-result-table th { text-align:right; font-weight:700; padding:5px 12px; border-bottom:2px solid #3b4a66; color:#1f2937; }
+    .jmv-result-table th:first-child, .jmv-result-table td:first-child { text-align:left; }
+    .jmv-result-table td { text-align:right; padding:5px 12px; border-bottom:1px solid #e3e6ec; }
+    /* ── jamovi analysis dialog ─────────────────────────────────────────────── */
+    .jmv-dialog-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:200; display:flex; align-items:center; justify-content:center; }
+    .jmv-dialog { background:#fff; border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,.25); width:min(640px,92vw); max-height:85vh; display:flex; flex-direction:column; overflow:hidden; }
+    .jmv-dialog-head { padding:14px 18px; font:600 16px/1.2 inherit; border-bottom:1px solid #e3e6ec; color:#2b3a55; }
+    .jmv-dialog-body { display:flex; gap:14px; padding:16px 18px; overflow:auto; }
+    .jmv-varlist, .jmv-roles { flex:1; min-width:0; }
+    .jmv-varlist ul { list-style:none; margin:0; padding:0; border:1px solid #d8dbe0; border-radius:6px; max-height:300px; overflow:auto; }
+    .jmv-varlist li, .jmv-rolebox li { padding:6px 10px; cursor:pointer; border-radius:4px; font-size:13px; }
+    .jmv-varlist li:hover { background:#e8eefc; }
+    .jmv-rolebox { border:1px solid #d8dbe0; border-radius:6px; min-height:48px; margin:4px 0 12px; padding:4px; }
+    .jmv-rolebox.active { border-color:#2563eb; box-shadow:0 0 0 2px rgba(37,99,235,.15); }
+    .jmv-role-label { font:600 12px/1.2 inherit; color:#374151; margin:6px 0 2px; }
+    .jmv-dialog-foot { padding:12px 18px; border-top:1px solid #e3e6ec; display:flex; justify-content:flex-end; gap:8px; }
+    .jmv-dialog-foot button { padding:7px 16px; border-radius:6px; border:1px solid #d8dbe0; background:#fff; cursor:pointer; font:13px inherit; }
+    .jmv-dialog-foot .primary { background:#2563eb; color:#fff; border-color:#2563eb; }
