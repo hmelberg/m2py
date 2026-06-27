@@ -242,17 +242,23 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
           'await micropip.install(["rich","click","requests"])\n' +
           'import pdexplorer\n'
         );
-        // load our runner module into Pyodide
-        const src = await fetch(base + 'statx_runner.py?cb=' + Date.now()).then(r => r.text());
-        py.FS.writeFile('statx_runner.py', src);
-        await py.runPythonAsync('import importlib, statx_runner; importlib.reload(statx_runner)');
+        // load our runner module into Pyodide via the exec/compile pattern used for
+        // functions.py (index.html ~6829) — NOT FS.writeFile.
+        const src = await fetch(base + 'statx_runner.py?v=' + (window.M2PY_VERSION || '1')).then(r => r.text());
+        await py.runPythonAsync(
+          'import sys, importlib.util\n' +
+          'src = ' + JSON.stringify(src) + '\n' +
+          'spec = importlib.util.spec_from_loader("statx_runner", loader=None)\n' +
+          'mod = importlib.util.module_from_spec(spec)\n' +
+          'sys.modules["statx_runner"] = mod\n' +
+          'exec(compile(src, "statx_runner.py", "exec"), mod.__dict__)\n'
+        );
         pdexplorerReady = true;
       } finally {
         pdexplorerLoading = false;
       }
     }
 ```
-(If `py.FS.writeFile`/module path differs from how `m2py.py` is loaded, match the existing mechanism in `_loadPyodideAndM2pyImpl` — read it first and mirror exactly.)
 
 - [ ] **Step 3: Add `statx_runner.py` to the SW local set.** In `sw.js`, add `'/statx_runner.py',` to the `LOCAL_SWR_SUFFIXES` array (alongside `/m2py.py`).
 
@@ -378,14 +384,14 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 6: Stata highlight, help text, example, polish
+### Task 6: Stata highlight + statx examples in the menu (mode-aware) + polish
 
 **Files:**
-- Modify: `index.html` — add a `STATA_HL_CFG` highlight config and set `modeRegistry.statx.hlConfig` to it; add statx to any help/var-detail text that lists modes.
-- Create: `examples/st01_stata_microdata.txt` — the hybrid example from Task 5.
+- Create: `examples/st01_stata_basics.txt`, `examples/st02_stata_regresjon.txt`, `examples/st03_stata_generate.txt`, `examples/st04_stata_use.txt`.
+- Modify: `index.html` — `STATA_HL_CFG` + set `modeRegistry.statx.hlConfig`; add a `data-section-mode="statx"` section to `examplesDropdown`; add `'statx'` to the example-click mode guard.
 
 **Interfaces:**
-- Consumes: the `hlConfig` shape used by `PY_HL_CFG`/`R_HL_CFG` (commentChar, triple, identStart, identPart, kw, fn).
+- Consumes: the `hlConfig` shape used by `PY_HL_CFG`/`R_HL_CFG`; the examples-menu pattern (`updateExamplesVisibility` is generic — shows the `.examples-section` whose `data-section-mode === activeEditorMode`).
 
 - [ ] **Step 1: Add a minimal Stata highlight config.** Next to `PY_HL_CFG`/`R_HL_CFG`:
 
@@ -396,16 +402,34 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 Then set `modeRegistry.statx.hlConfig = STATA_HL_CFG;` (change the `hlConfig: null` from Task 4).
 
-- [ ] **Step 2: Create the example file** `examples/st01_stata_microdata.txt` with the Task-5 hybrid script, plus a leading comment explaining statx.
+- [ ] **Step 2: Create 4 statx example files** in `examples/` (each a `#micro` data block + a `#stata` block, with a leading comment):
+  - `st01_stata_basics.txt` — `#micro` creates `folk` (kjonn, inntekt); `#stata`: `describe` / `summarize inntekt` / `tabulate kjonn`.
+  - `st02_stata_regresjon.txt` — same `#micro`; `#stata`: `regress inntekt kjonn` (+ a comment on reading OLS output).
+  - `st03_stata_generate.txt` — `#micro` with inntekt; `#stata`: `generate loginnt = log(inntekt)` / `egen meaninnt = mean(inntekt)` / `summarize loginnt meaninnt`.
+  - `st04_stata_use.txt` — `#micro` creates TWO datasets (`folk` and e.g. `hus`); `#stata`: `use folk` … `summarize inntekt` … `use hus` … `tabulate <var>` (demonstrates `use NAME` switching).
 
-- [ ] **Step 3: Browser check** — in statx mode, Stata keywords (`summarize`, `regress`, `use`…) are highlighted; the example loads from the Examples menu if examples are wired by filename (confirm whether new examples need a manifest entry — if so, add it).
+- [ ] **Step 3: Add the statx examples-section to the menu.** In `examplesDropdown` (after the `data-section-mode="r"` section), add:
 
-- [ ] **Step 4: Engine sanity + commit**
+```html
+            <div class="examples-section" data-section-mode="statx">
+              <button type="button" data-example="st01_stata_basics.txt" data-mode="statx">Stata &mdash; beskrivende</button>
+              <button type="button" data-example="st02_stata_regresjon.txt" data-mode="statx">Stata &mdash; regresjon</button>
+              <button type="button" data-example="st03_stata_generate.txt" data-mode="statx">Stata &mdash; generate/egen</button>
+              <button type="button" data-example="st04_stata_use.txt" data-mode="statx">Stata &mdash; use (flere datasett)</button>
+            </div>
+```
+(`updateExamplesVisibility` already shows this section when `activeEditorMode === 'statx'` — no JS change needed for visibility.)
+
+- [ ] **Step 4: Add `'statx'` to the example-click mode guard.** In the `button[data-example]` click handler (~line 1875), the condition `mode === 'microdata' || mode === 'python' || mode === 'r'` must also allow `'statx'` so clicking a statx example switches the editor into statx mode. Change it to include `|| mode === 'statx'`.
+
+- [ ] **Step 5: Browser check** — in statx mode, Stata keywords are highlighted; open the hamburger → Examples menu while in statx mode → the 4 Stata examples are listed (and python/r ones are hidden); clicking one switches to statx mode and loads it; running it produces Stata output. Switching to python/r still shows their examples. No console errors.
+
+- [ ] **Step 6: Engine sanity + commit**
 
 ```bash
 .venv/bin/python -m pytest tests/test_statx_runner.py -v   # still green
-git add index.html examples/st01_stata_microdata.txt
-git commit -m "feat(statx): Stata syntax highlight + example + help
+git add index.html examples/st0*.txt
+git commit -m "feat(statx): Stata highlight + 4 mode-aware statx examples in the menu
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
