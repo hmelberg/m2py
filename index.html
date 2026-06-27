@@ -3365,18 +3365,53 @@
 
       lin_reg: { id:'lin_reg', title:'Linear Regression',
         roles:[{key:'dv',label:'Dependent Variable',types:['numeric'],multiple:false},{key:'covs',label:'Covariates',types:['numeric'],multiple:true}],
-        buildR:function(a){ var dv=a.dv&&a.dv[0], c=a.covs||[]; if(!dv||!c.length) return null; var rc='c('+c.map(function(x){return JSON.stringify(x);}).join(',')+')';
-          return "local({ dv<-"+JSON.stringify(dv)+"; covs<-"+rc+"; d2<-data[,c(dv,covs),drop=FALSE]; names(d2)<-make.names(names(d2)); ndv<-make.names(dv); nco<-make.names(covs); m<-lm(as.formula(paste(ndv,'~',paste(nco,collapse='+'))), data=d2); s<-summary(m); fit<-data.frame('R-squared'=s$r.squared,'Adj. R-squared'=s$adj.r.squared,'F'=unname(s$fstatistic[1]),'df1'=unname(s$fstatistic[2]),'df2'=unname(s$fstatistic[3]),'p'=unname(pf(s$fstatistic[1],s$fstatistic[2],s$fstatistic[3],lower.tail=FALSE)),check.names=FALSE); co<-as.data.frame(s$coefficients,check.names=FALSE); co<-cbind(Term=rownames(co),co); list('Model Fit'=fit,'Coefficients'=co) })"; } },
+        optionSections:[{ title:'Model Coefficients', groups:[{ items:[
+          {key:'ci',type:'check',label:'Confidence interval (95%)',default:false}
+        ]}]}],
+        buildR:function(a, opts){ var dv=a.dv&&a.dv[0], c=a.covs||[]; if(!dv||!c.length) return null; var rc='c('+c.map(function(x){return JSON.stringify(x);}).join(',')+')';
+          var ciR = (opts && opts.ci) ? "ci<-suppressMessages(confint(m)); co[['95% CI Lower']]<-ci[,1]; co[['95% CI Upper']]<-ci[,2];\n" : "";
+          return "local({ dv<-"+JSON.stringify(dv)+"; covs<-"+rc+"; d2<-data[,c(dv,covs),drop=FALSE]; names(d2)<-make.names(names(d2)); ndv<-make.names(dv); nco<-make.names(covs); m<-lm(as.formula(paste(ndv,'~',paste(nco,collapse='+'))), data=d2); s<-summary(m); fit<-data.frame('R-squared'=s$r.squared,'Adj. R-squared'=s$adj.r.squared,'F'=unname(s$fstatistic[1]),'df1'=unname(s$fstatistic[2]),'df2'=unname(s$fstatistic[3]),'p'=unname(pf(s$fstatistic[1],s$fstatistic[2],s$fstatistic[3],lower.tail=FALSE)),check.names=FALSE); co<-as.data.frame(s$coefficients,check.names=FALSE); co<-cbind(Term=rownames(co),co);\n"+ciR+"list('Model Fit'=fit,'Coefficients'=co) })"; } },
 
       log_reg: { id:'log_reg', title:'Logistic Regression',
         roles:[{key:'dv',label:'Dependent Variable (binary)',types:['nominal'],multiple:false},{key:'covs',label:'Covariates',types:['numeric','nominal'],multiple:true}],
-        buildR:function(a){ var dv=a.dv&&a.dv[0], c=a.covs||[]; if(!dv||!c.length) return null; var rc='c('+c.map(function(x){return JSON.stringify(x);}).join(',')+')';
-          return "local({ dv<-"+JSON.stringify(dv)+"; covs<-"+rc+"; d2<-data[,c(dv,covs),drop=FALSE]; d2[[dv]]<-as.factor(d2[[dv]]); names(d2)<-make.names(names(d2)); ndv<-make.names(dv); nco<-make.names(covs); m<-glm(as.formula(paste(ndv,'~',paste(nco,collapse='+'))), data=d2, family=binomial); s<-summary(m); co<-as.data.frame(s$coefficients,check.names=FALSE); co<-cbind(Term=rownames(co),co); fit<-data.frame('Deviance'=s$deviance,'AIC'=s$aic,'N'=nrow(d2),check.names=FALSE); list('Coefficients'=co,'Model Fit'=fit) })"; } },
+        optionSections:[{ title:'Model Coefficients', groups:[{ items:[
+          {key:'or',type:'check',label:'Odds ratio',default:true},
+          {key:'ci',type:'check',label:'Confidence interval (95%)',default:false}
+        ]}]}],
+        buildR:function(a, opts){ var dv=a.dv&&a.dv[0], c=a.covs||[]; if(!dv||!c.length) return null; var rc='c('+c.map(function(x){return JSON.stringify(x);}).join(',')+')';
+          var orR  = (opts && opts.or)  ? "co[['Odds ratio']]<-exp(co[['Estimate']]);\n" : "";
+          var ciR  = (opts && opts.ci)  ? "cl<-suppressMessages(confint.default(m)); co[['OR CI Lower']]<-exp(cl[,1]); co[['OR CI Upper']]<-exp(cl[,2]);\n" : "";
+          return "local({ dv<-"+JSON.stringify(dv)+"; covs<-"+rc+"; d2<-data[,c(dv,covs),drop=FALSE]; d2[[dv]]<-as.factor(d2[[dv]]); names(d2)<-make.names(names(d2)); ndv<-make.names(dv); nco<-make.names(covs); m<-glm(as.formula(paste(ndv,'~',paste(nco,collapse='+'))), data=d2, family=binomial); s<-summary(m); co<-as.data.frame(s$coefficients,check.names=FALSE); co<-cbind(Term=rownames(co),co);\n"+orR+ciR+"fit<-data.frame('Deviance'=s$deviance,'AIC'=s$aic,'N'=nrow(d2),check.names=FALSE); list('Coefficients'=co,'Model Fit'=fit) })"; } },
 
       anova_oneway: { id:'anova_oneway', title:'One-Way ANOVA',
         roles:[{key:'dv',label:'Dependent Variable',types:['numeric'],multiple:false},{key:'factor',label:'Grouping Variable',types:['nominal'],multiple:false}],
-        buildR:function(a){ var dv=a.dv&&a.dv[0], f=a.factor&&a.factor[0]; if(!dv||!f) return null;
-          return "local({ y<-data[["+JSON.stringify(dv)+"]]; g<-as.factor(data[["+JSON.stringify(f)+"]]); m<-aov(y~g); s<-summary(m)[[1]]; d<-as.data.frame(s,check.names=FALSE); cbind(Term=c('Group','Residuals')[seq_len(nrow(d))], d) })"; } },
+        optionSections:[
+          { title:'Variances', groups:[{ items:[{key:'welch',type:'check',label:"Don't assume equal (Welch's)",default:false}] }] },
+          { title:'Effect Size', groups:[{ items:[{key:'eta',type:'check',label:'η² (eta-squared)',default:true},{key:'omega',type:'check',label:'ω² (omega-squared)',default:false}] }] }
+        ],
+        buildR:function(a, opts){ var dv=a.dv&&a.dv[0], f=a.factor&&a.factor[0]; if(!dv||!f) return null;
+          var welch = opts && opts.welch;
+          var eta   = opts && opts.eta;
+          var omega = opts && opts.omega;
+          var needES = eta || omega;
+          // Always build the aov for SS (needed for effect sizes and as default ANOVA table)
+          var rBase = "local({ y<-data[["+JSON.stringify(dv)+"]]; g<-as.factor(data[["+JSON.stringify(f)+"]]); m<-aov(y~g); s<-summary(m)[[1]]; d<-as.data.frame(s,check.names=FALSE); d<-cbind(Term=c('Group','Residuals')[seq_len(nrow(d))], d);\n";
+          // Welch override
+          var rWelch = welch ? "wt<-oneway.test(y~g, var.equal=FALSE); anovaT<-data.frame('Test'=\"Welch's F\",'F'=unname(wt$statistic),df1=unname(wt$parameter[1]),df2=unname(wt$parameter[2]),p=wt$p.value,check.names=FALSE);\n"
+                             : "anovaT<-d;\n";
+          // Effect size
+          var rES = "";
+          if (needES) {
+            rES += "ss<-d[['Sum Sq']]; dfg<-d[['Df']][1]; sst<-sum(ss); msr<-d[['Mean Sq']][nrow(d)];\n";
+            rES += "eta2<-ss[1]/sst; omega2<-(ss[1]-dfg*msr)/(sst+msr);\n";
+            var esCols = [];
+            if (eta)   esCols.push("'η²'=eta2");
+            if (omega) esCols.push("'ω²'=omega2");
+            rES += "es<-data.frame("+esCols.join(",")+",check.names=FALSE);\n";
+          }
+          // Build return value
+          var rReturn = needES ? "list('ANOVA'=anovaT,'Effect Size'=es)" : "anovaT";
+          return rBase + rWelch + rES + rReturn + " })"; } },
 
       contingency: { id:'contingency', title:'Contingency Tables (χ²)',
         roles:[{key:'rows',label:'Rows',types:['nominal'],multiple:false},{key:'cols',label:'Columns',types:['nominal'],multiple:false}],
