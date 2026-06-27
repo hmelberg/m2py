@@ -3276,29 +3276,28 @@
       descriptives: {
         id: 'descriptives', title: 'Descriptives',
         roles: [{ key: 'vars', label: 'Variables', types: ['numeric'], multiple: true }],
-        options:[{ key:'statistics', type:'checkgroup', label:'Statistics',
-          choices:[{value:'N',label:'N'},{value:'Missing',label:'Missing'},{value:'Mean',label:'Mean'},{value:'Median',label:'Median'},{value:'SD',label:'Std. deviation'},{value:'Variance',label:'Variance'},{value:'Min',label:'Minimum'},{value:'Max',label:'Maximum'},{value:'SE',label:'Std. error'}],
-          default:['N','Missing','Mean','Median','SD','Min','Max'] }],
-        buildR: function(assign, opts) {
-          var v = assign.vars; if (!v || !v.length) return null;
-          var rv = 'c(' + v.map(function(x) { return JSON.stringify(x); }).join(',') + ')';
-          var stats = (opts && opts.statistics && opts.statistics.length) ? opts.statistics : ['N','Mean','SD'];
-          var statExprs = {
-            N: 'N=sapply(vars,function(v) sum(!is.na(data[[v]])))',
-            Missing: 'Missing=sapply(vars,function(v) sum(is.na(data[[v]])))',
-            Mean: 'Mean=sapply(vars,function(v) mean(data[[v]],na.rm=TRUE))',
-            Median: 'Median=sapply(vars,function(v) median(data[[v]],na.rm=TRUE))',
-            SD: 'SD=sapply(vars,function(v) sd(data[[v]],na.rm=TRUE))',
-            Variance: 'Variance=sapply(vars,function(v) var(data[[v]],na.rm=TRUE))',
-            Min: 'Min=sapply(vars,function(v) min(data[[v]],na.rm=TRUE))',
-            Max: 'Max=sapply(vars,function(v) max(data[[v]],na.rm=TRUE))',
-            SE: 'SE=sapply(vars,function(v){ x<-data[[v]][!is.na(data[[v]])]; sd(x)/sqrt(length(x)) })'
-          };
-          var cols = stats.filter(function(s){ return statExprs[s]; }).map(function(s){ return statExprs[s]; });
-          return 'local({ vars <- ' + rv + '\n'
-            + 'data.frame(Variable=vars,'
-            + cols.join(',')
-            + ', stringsAsFactors=FALSE, check.names=FALSE) })';
+        optionSections:[{ title:'Statistics', groups:[
+          { title:'Sample Size', items:[{key:'N',type:'check',label:'N',default:true},{key:'Missing',type:'check',label:'Missing',default:true}] },
+          { title:'Central Tendency', items:[{key:'Mean',type:'check',label:'Mean',default:true},{key:'Median',type:'check',label:'Median',default:true},{key:'Mode',type:'check',label:'Mode',default:false},{key:'Sum',type:'check',label:'Sum',default:false}] },
+          { title:'Dispersion', items:[{key:'SD',type:'check',label:'Std. deviation',default:true},{key:'Variance',type:'check',label:'Variance',default:false},{key:'Range',type:'check',label:'Range',default:false},{key:'Min',type:'check',label:'Minimum',default:true},{key:'Max',type:'check',label:'Maximum',default:true},{key:'SE',type:'check',label:'Std. error',default:false}] },
+          { title:'Distribution', items:[{key:'Skewness',type:'check',label:'Skewness',default:false},{key:'Kurtosis',type:'check',label:'Kurtosis',default:false}] }
+        ]}],
+        buildR: function(a, opts){
+          var v = a.vars; if(!v||!v.length) return null;
+          var rv = 'c('+v.map(function(x){return JSON.stringify(x);}).join(',')+')';
+          var allKeys = ['N','Missing','Mean','Median','Mode','Sum','SD','Variance','Range','Min','Max','SE','Skewness','Kurtosis'];
+          var want = allKeys.filter(function(k){ return opts && opts[k]; });
+          if(!want.length) want = ['N','Mean','SD'];
+          var rwant = 'c('+want.map(function(k){return JSON.stringify(k);}).join(',')+')';
+          return "local({\n"
+           +"vars<-"+rv+"; want<-"+rwant+";\n"
+           +"Mode<-function(x){x<-x[!is.na(x)]; if(!length(x)) return(NA); ux<-unique(x); ux[which.max(tabulate(match(x,ux)))]}\n"
+           +"lbl<-c(N='N',Missing='Missing',Mean='Mean',Median='Median',Mode='Mode',Sum='Sum',SD='Std. deviation',Variance='Variance',Range='Range',Min='Minimum',Max='Maximum',SE='Std. error',Skewness='Skewness',Kurtosis='Kurtosis')\n"
+           +"statRow<-function(v){ x<-data[[v]]; xc<-x[!is.na(x)]; n<-length(xc); o<-list(Variable=v)\n"
+           +" f<-list(N=function() n, Missing=function() sum(is.na(x)), Mean=function() mean(xc), Median=function() median(xc), Mode=function() Mode(xc), Sum=function() sum(xc), SD=function() sd(xc), Variance=function() var(xc), Range=function() max(xc)-min(xc), Min=function() min(xc), Max=function() max(xc), SE=function() sd(xc)/sqrt(n), Skewness=function(){m<-mean(xc); s<-sd(xc); (sum((xc-m)^3)/n)/s^3}, Kurtosis=function(){m<-mean(xc); s<-sd(xc); (sum((xc-m)^4)/n)/s^4-3})\n"
+           +" for(k in want) o[[lbl[[k]]]]<-tryCatch(f[[k]](), error=function(e) NA)\n"
+           +" as.data.frame(o, check.names=FALSE, stringsAsFactors=FALSE) }\n"
+           +"do.call(rbind, lapply(vars, statRow)) })";
         }
       },
 
@@ -3309,7 +3308,10 @@
 
       ttest_ind: { id:'ttest_ind', title:'Independent Samples T-Test',
         roles:[{key:'dv',label:'Dependent Variable',types:['numeric'],multiple:false},{key:'group',label:'Grouping Variable',types:['nominal'],multiple:false}],
-        options:[{key:'test',type:'radio',label:'Test',choices:[{value:'welch',label:"Welch's"},{value:'student',label:"Student's"}],default:'welch'},{key:'effsize',type:'check',label:"Effect size (Cohen's d)",default:false}],
+        optionSections:[
+          { title:'Tests', groups:[{ items:[{key:'test',type:'radio',choices:[{value:'student',label:"Student's"},{value:'welch',label:"Welch's"}],default:'welch'}] }] },
+          { title:'Additional Statistics', groups:[{ items:[{key:'effsize',type:'check',label:"Effect size (Cohen's d)",default:false}] }] }
+        ],
         buildR:function(a,opts){ var dv=a.dv&&a.dv[0], g=a.group&&a.group[0]; if(!dv||!g) return null;
           var varEqual = (opts&&opts.test==='student') ? 'TRUE' : 'FALSE';
           var testLabel = (opts&&opts.test==='student') ? 'Student t' : 'Welch t';
@@ -3329,7 +3331,7 @@
 
       correlation: { id:'correlation', title:'Correlation Matrix',
         roles:[{key:'vars',label:'Variables',types:['numeric'],multiple:true}],
-        options:[{key:'method',type:'radio',label:'Correlation Coefficient',choices:[{value:'pearson',label:'Pearson'},{value:'spearman',label:'Spearman'},{value:'kendall',label:"Kendall's tau-b"}],default:'pearson'}],
+        optionSections:[{ title:'Correlation Coefficients', groups:[{ items:[{key:'method',type:'radio',choices:[{value:'pearson',label:'Pearson'},{value:'spearman',label:'Spearman'},{value:'kendall',label:"Kendall's tau-b"}],default:'pearson'}] }] }],
         buildR:function(a,opts){ var v=a.vars||[]; if(v.length<2) return null; var rv='c('+v.map(function(x){return JSON.stringify(x);}).join(',')+')';
           var method = (opts&&opts.method) ? opts.method : 'pearson';
           return "local({ vars<-"+rv+"; m<-cor(data[,vars,drop=FALSE], use='pairwise.complete.obs', method="+JSON.stringify(method)+"); d<-as.data.frame(round(m,3), check.names=FALSE); cbind(Variable=rownames(m), d) })"; } },
@@ -3478,7 +3480,6 @@
       spec.roles.forEach(function(r) { assignments[r.key] = []; });
       var activeRoleKey = spec.roles[0] ? spec.roles[0].key : null;
       var optsObj = {};
-      (spec.options||[]).forEach(function(o){ optsObj[o.key] = Array.isArray(o.default) ? o.default.slice() : o.default; });
 
       // Build dialog DOM
       var backdrop = document.createElement('div');
@@ -3608,34 +3609,37 @@
         function refreshAll(){ refreshVarList(); refreshRoles(); }
         refreshAll();
 
-        if (spec.options && spec.options.length) {
-          var optWrap = document.createElement('div'); optWrap.className = 'jmv-options';
-          spec.options.forEach(function(o){
-            var sec = document.createElement('div'); sec.className = 'jmv-opt-sec';
-            var ol = document.createElement('div'); ol.className = 'jmv-opt-label'; ol.textContent = o.label; sec.appendChild(ol);
-            if (o.type === 'check') {
-              var lab=document.createElement('label'); lab.className='jmv-opt-item';
-              var cb=document.createElement('input'); cb.type='checkbox'; cb.checked=!!o.default;
-              cb.addEventListener('change', function(){ optsObj[o.key]=cb.checked; });
-              lab.appendChild(cb); lab.appendChild(document.createTextNode(' '+(o.itemLabel||o.label))); sec.appendChild(lab);
-            } else if (o.type === 'radio') {
-              o.choices.forEach(function(c){
-                var lab=document.createElement('label'); lab.className='jmv-opt-item';
-                var rb=document.createElement('input'); rb.type='radio'; rb.name='jmvopt_'+o.key; rb.value=c.value; rb.checked=(c.value===o.default);
-                rb.addEventListener('change', function(){ if(rb.checked) optsObj[o.key]=c.value; });
-                lab.appendChild(rb); lab.appendChild(document.createTextNode(' '+c.label)); sec.appendChild(lab);
+        if (spec.optionSections && spec.optionSections.length && vars.length) {
+          spec.optionSections.forEach(function(sec){
+            var secEl = document.createElement('div'); secEl.className = 'jmv-section' + (sec.collapsed ? ' collapsed' : '');
+            var hdr = document.createElement('div'); hdr.className = 'jmv-section-hdr';
+            hdr.innerHTML = '<span class="jmv-section-caret">▾</span><span>' + sec.title + '</span>';
+            hdr.addEventListener('click', function(){ secEl.classList.toggle('collapsed'); });
+            var bodyEl = document.createElement('div'); bodyEl.className = 'jmv-section-body';
+            sec.groups.forEach(function(g){
+              var gEl = document.createElement('div'); gEl.className = 'jmv-opt-group';
+              if (g.title) { var gh = document.createElement('div'); gh.className = 'jmv-opt-grouphdr'; gh.textContent = g.title; gEl.appendChild(gh); }
+              g.items.forEach(function(it){
+                optsObj[it.key] = Array.isArray(it.default) ? it.default.slice() : it.default;
+                if (it.type === 'check') {
+                  var lab = document.createElement('label'); lab.className = 'jmv-opt-item';
+                  var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!it.default;
+                  cb.addEventListener('change', function(){ optsObj[it.key] = cb.checked; });
+                  lab.appendChild(cb); lab.appendChild(document.createTextNode(' ' + it.label)); gEl.appendChild(lab);
+                } else if (it.type === 'radio') {
+                  it.choices.forEach(function(c){
+                    var lab = document.createElement('label'); lab.className = 'jmv-opt-item';
+                    var rb = document.createElement('input'); rb.type = 'radio'; rb.name = 'jmvopt_' + it.key; rb.value = c.value; rb.checked = (c.value === it.default);
+                    rb.addEventListener('change', function(){ if (rb.checked) optsObj[it.key] = c.value; });
+                    lab.appendChild(rb); lab.appendChild(document.createTextNode(' ' + c.label)); gEl.appendChild(lab);
+                  });
+                }
               });
-            } else if (o.type === 'checkgroup') {
-              o.choices.forEach(function(c){
-                var lab=document.createElement('label'); lab.className='jmv-opt-item';
-                var cb=document.createElement('input'); cb.type='checkbox'; cb.value=c.value; cb.checked=(o.default||[]).indexOf(c.value)!==-1;
-                cb.addEventListener('change', function(){ optsObj[o.key]=Array.prototype.slice.call(sec.querySelectorAll('input:checked')).map(function(x){return x.value;}); });
-                lab.appendChild(cb); lab.appendChild(document.createTextNode(' '+c.label)); sec.appendChild(lab);
-              });
-            }
-            optWrap.appendChild(sec);
+              bodyEl.appendChild(gEl);
+            });
+            secEl.appendChild(hdr); secEl.appendChild(bodyEl);
+            dialog.insertBefore(secEl, foot);
           });
-          dialog.insertBefore(optWrap, foot);
         }
       }
 
