@@ -1044,3 +1044,7 @@
     .jmv-dialog-foot { padding:12px 18px; border-top:1px solid #e3e6ec; display:flex; justify-content:flex-end; gap:8px; }
     .jmv-dialog-foot button { padding:7px 16px; border-radius:6px; border:1px solid var(--jmv-line); background:#fff; cursor:pointer; font:13px inherit; }
     .jmv-dialog-foot .primary { background:var(--jmv-blue); color:#fff; border-color:var(--jmv-blue); }
+    .jmv-options { padding:8px 18px 4px; border-top:1px solid var(--jmv-line); }
+    .jmv-opt-sec { margin:0 0 10px; }
+    .jmv-opt-label { font:600 12px/1.2 inherit; color:var(--jmv-blue-d); margin:0 0 4px; }
+    .jmv-opt-item { display:inline-flex; align-items:center; gap:5px; margin:0 14px 4px 0; font:13px/1.3 inherit; cursor:pointer; }

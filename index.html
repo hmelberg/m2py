@@ -3276,19 +3276,29 @@
       descriptives: {
         id: 'descriptives', title: 'Descriptives',
         roles: [{ key: 'vars', label: 'Variables', types: ['numeric'], multiple: true }],
-        buildR: function(assign) {
+        options:[{ key:'statistics', type:'checkgroup', label:'Statistics',
+          choices:[{value:'N',label:'N'},{value:'Missing',label:'Missing'},{value:'Mean',label:'Mean'},{value:'Median',label:'Median'},{value:'SD',label:'Std. deviation'},{value:'Variance',label:'Variance'},{value:'Min',label:'Minimum'},{value:'Max',label:'Maximum'},{value:'SE',label:'Std. error'}],
+          default:['N','Missing','Mean','Median','SD','Min','Max'] }],
+        buildR: function(assign, opts) {
           var v = assign.vars; if (!v || !v.length) return null;
           var rv = 'c(' + v.map(function(x) { return JSON.stringify(x); }).join(',') + ')';
+          var stats = (opts && opts.statistics && opts.statistics.length) ? opts.statistics : ['N','Mean','SD'];
+          var statExprs = {
+            N: 'N=sapply(vars,function(v) sum(!is.na(data[[v]])))',
+            Missing: 'Missing=sapply(vars,function(v) sum(is.na(data[[v]])))',
+            Mean: 'Mean=sapply(vars,function(v) mean(data[[v]],na.rm=TRUE))',
+            Median: 'Median=sapply(vars,function(v) median(data[[v]],na.rm=TRUE))',
+            SD: 'SD=sapply(vars,function(v) sd(data[[v]],na.rm=TRUE))',
+            Variance: 'Variance=sapply(vars,function(v) var(data[[v]],na.rm=TRUE))',
+            Min: 'Min=sapply(vars,function(v) min(data[[v]],na.rm=TRUE))',
+            Max: 'Max=sapply(vars,function(v) max(data[[v]],na.rm=TRUE))',
+            SE: 'SE=sapply(vars,function(v){ x<-data[[v]][!is.na(data[[v]])]; sd(x)/sqrt(length(x)) })'
+          };
+          var cols = stats.filter(function(s){ return statExprs[s]; }).map(function(s){ return statExprs[s]; });
           return 'local({ vars <- ' + rv + '\n'
             + 'data.frame(Variable=vars,'
-            + ' N=sapply(vars,function(v) sum(!is.na(data[[v]]))),'
-            + ' Missing=sapply(vars,function(v) sum(is.na(data[[v]]))),'
-            + ' Mean=sapply(vars,function(v) mean(data[[v]],na.rm=TRUE)),'
-            + ' Median=sapply(vars,function(v) median(data[[v]],na.rm=TRUE)),'
-            + ' SD=sapply(vars,function(v) sd(data[[v]],na.rm=TRUE)),'
-            + ' Min=sapply(vars,function(v) min(data[[v]],na.rm=TRUE)),'
-            + ' Max=sapply(vars,function(v) max(data[[v]],na.rm=TRUE)),'
-            + ' stringsAsFactors=FALSE, check.names=FALSE) })';
+            + cols.join(',')
+            + ', stringsAsFactors=FALSE, check.names=FALSE) })';
         }
       },
 
@@ -3299,8 +3309,18 @@
 
       ttest_ind: { id:'ttest_ind', title:'Independent Samples T-Test',
         roles:[{key:'dv',label:'Dependent Variable',types:['numeric'],multiple:false},{key:'group',label:'Grouping Variable',types:['nominal'],multiple:false}],
-        buildR:function(a){ var dv=a.dv&&a.dv[0], g=a.group&&a.group[0]; if(!dv||!g) return null;
-          return "local({ f<-as.factor(data[["+JSON.stringify(g)+"]]); y<-data[["+JSON.stringify(dv)+"]]; tt<-t.test(y~f); md<-diff(rev(tapply(y,f,mean,na.rm=TRUE))); data.frame('Test'='Welch t', 't'=unname(tt$statistic), 'df'=unname(tt$parameter), 'p'=tt$p.value, 'Mean diff'=unname(md), check.names=FALSE, stringsAsFactors=FALSE) })"; } },
+        options:[{key:'test',type:'radio',label:'Test',choices:[{value:'welch',label:"Welch's"},{value:'student',label:"Student's"}],default:'welch'},{key:'effsize',type:'check',label:"Effect size (Cohen's d)",default:false}],
+        buildR:function(a,opts){ var dv=a.dv&&a.dv[0], g=a.group&&a.group[0]; if(!dv||!g) return null;
+          var varEqual = (opts&&opts.test==='student') ? 'TRUE' : 'FALSE';
+          var testLabel = (opts&&opts.test==='student') ? 'Student t' : 'Welch t';
+          var effsize = (opts&&opts.effsize) ? true : false;
+          var base = "local({ f<-as.factor(data[["+JSON.stringify(g)+"]]); y<-data[["+JSON.stringify(dv)+"]]; tt<-t.test(y~f, var.equal="+varEqual+"); md<-diff(rev(tapply(y,f,mean,na.rm=TRUE)));";
+          if (effsize) {
+            base += " lvs<-levels(f); m1<-mean(y[f==lvs[1]],na.rm=TRUE); m2<-mean(y[f==lvs[2]],na.rm=TRUE); s1<-sd(y[f==lvs[1]],na.rm=TRUE); s2<-sd(y[f==lvs[2]],na.rm=TRUE); n1<-sum(!is.na(y[f==lvs[1]])); n2<-sum(!is.na(y[f==lvs[2]])); d<-(m1-m2)/sqrt(((n1-1)*s1^2+(n2-1)*s2^2)/(n1+n2-2)); data.frame('Test'="+JSON.stringify(testLabel)+", 't'=unname(tt$statistic), 'df'=unname(tt$parameter), 'p'=tt$p.value, 'Mean diff'=unname(md), \"Cohen's d\"=d, check.names=FALSE, stringsAsFactors=FALSE) })";
+          } else {
+            base += " data.frame('Test'="+JSON.stringify(testLabel)+", 't'=unname(tt$statistic), 'df'=unname(tt$parameter), 'p'=tt$p.value, 'Mean diff'=unname(md), check.names=FALSE, stringsAsFactors=FALSE) })";
+          }
+          return base; } },
 
       ttest_paired: { id:'ttest_paired', title:'Paired Samples T-Test',
         roles:[{key:'pair',label:'Paired Variables (2)',types:['numeric'],multiple:true}],
@@ -3309,8 +3329,10 @@
 
       correlation: { id:'correlation', title:'Correlation Matrix',
         roles:[{key:'vars',label:'Variables',types:['numeric'],multiple:true}],
-        buildR:function(a){ var v=a.vars||[]; if(v.length<2) return null; var rv='c('+v.map(function(x){return JSON.stringify(x);}).join(',')+')';
-          return "local({ vars<-"+rv+"; m<-cor(data[,vars,drop=FALSE], use='pairwise.complete.obs'); d<-as.data.frame(round(m,3), check.names=FALSE); cbind(Variable=rownames(m), d) })"; } },
+        options:[{key:'method',type:'radio',label:'Correlation Coefficient',choices:[{value:'pearson',label:'Pearson'},{value:'spearman',label:'Spearman'},{value:'kendall',label:"Kendall's tau-b"}],default:'pearson'}],
+        buildR:function(a,opts){ var v=a.vars||[]; if(v.length<2) return null; var rv='c('+v.map(function(x){return JSON.stringify(x);}).join(',')+')';
+          var method = (opts&&opts.method) ? opts.method : 'pearson';
+          return "local({ vars<-"+rv+"; m<-cor(data[,vars,drop=FALSE], use='pairwise.complete.obs', method="+JSON.stringify(method)+"); d<-as.data.frame(round(m,3), check.names=FALSE); cbind(Variable=rownames(m), d) })"; } },
 
       lin_reg: { id:'lin_reg', title:'Linear Regression',
         roles:[{key:'dv',label:'Dependent Variable',types:['numeric'],multiple:false},{key:'covs',label:'Covariates',types:['numeric'],multiple:true}],
@@ -3446,6 +3468,8 @@
       var assignments = {};
       spec.roles.forEach(function(r) { assignments[r.key] = []; });
       var activeRoleKey = spec.roles[0] ? spec.roles[0].key : null;
+      var optsObj = {};
+      (spec.options||[]).forEach(function(o){ optsObj[o.key] = Array.isArray(o.default) ? o.default.slice() : o.default; });
 
       // Build dialog DOM
       var backdrop = document.createElement('div');
@@ -3558,6 +3582,36 @@
           });
         }
         refreshRoles();
+
+        if (spec.options && spec.options.length) {
+          var optWrap = document.createElement('div'); optWrap.className = 'jmv-options';
+          spec.options.forEach(function(o){
+            var sec = document.createElement('div'); sec.className = 'jmv-opt-sec';
+            var ol = document.createElement('div'); ol.className = 'jmv-opt-label'; ol.textContent = o.label; sec.appendChild(ol);
+            if (o.type === 'check') {
+              var lab=document.createElement('label'); lab.className='jmv-opt-item';
+              var cb=document.createElement('input'); cb.type='checkbox'; cb.checked=!!o.default;
+              cb.addEventListener('change', function(){ optsObj[o.key]=cb.checked; });
+              lab.appendChild(cb); lab.appendChild(document.createTextNode(' '+(o.itemLabel||o.label))); sec.appendChild(lab);
+            } else if (o.type === 'radio') {
+              o.choices.forEach(function(c){
+                var lab=document.createElement('label'); lab.className='jmv-opt-item';
+                var rb=document.createElement('input'); rb.type='radio'; rb.name='jmvopt_'+o.key; rb.value=c.value; rb.checked=(c.value===o.default);
+                rb.addEventListener('change', function(){ if(rb.checked) optsObj[o.key]=c.value; });
+                lab.appendChild(rb); lab.appendChild(document.createTextNode(' '+c.label)); sec.appendChild(lab);
+              });
+            } else if (o.type === 'checkgroup') {
+              o.choices.forEach(function(c){
+                var lab=document.createElement('label'); lab.className='jmv-opt-item';
+                var cb=document.createElement('input'); cb.type='checkbox'; cb.value=c.value; cb.checked=(o.default||[]).indexOf(c.value)!==-1;
+                cb.addEventListener('change', function(){ optsObj[o.key]=Array.prototype.slice.call(sec.querySelectorAll('input:checked')).map(function(x){return x.value;}); });
+                lab.appendChild(cb); lab.appendChild(document.createTextNode(' '+c.label)); sec.appendChild(lab);
+              });
+            }
+            optWrap.appendChild(sec);
+          });
+          dialog.insertBefore(optWrap, foot);
+        }
       }
 
       // Buttons
@@ -3570,7 +3624,7 @@
       runBtn.className = 'primary';
       runBtn.textContent = 'Kjør';
       runBtn.addEventListener('click', async function() {
-        var rcode = spec.buildR(assignments);
+        var rcode = spec.buildR(assignments, optsObj);
         if (!rcode) { alert('Velg variabler'); return; }
         document.body.removeChild(backdrop);
         setStatus(rightStatus, 'Kjører analyse…');
