@@ -654,6 +654,11 @@
         varlistLabel.className = 'jmv-role-label';
         varlistLabel.textContent = 'Variabler';
         varlistDiv.appendChild(varlistLabel);
+        var varFilter = '';
+        var search = document.createElement('input');
+        search.type = 'text'; search.className = 'jmv-var-search'; search.placeholder = 'Søk variabel…';
+        search.addEventListener('input', function(){ varFilter = search.value.toLowerCase(); refreshVarList(); });
+        varlistDiv.appendChild(search);
         var ul = document.createElement('ul');
         varlistDiv.appendChild(ul);
         body.appendChild(varlistDiv);
@@ -707,6 +712,7 @@
           var assigned = assignedSet();
           vars.forEach(function(v){
             if (assigned[v.name]) return; // moved into a role
+            if (varFilter && v.name.toLowerCase().indexOf(varFilter) === -1) return;
             var li = document.createElement('li');
             li.innerHTML = jamoviTypeIcon(v.type) + '<span class="jmv-var-name">' + M.escapeHtml(v.name) + '</span>';
             li.dataset.varname = v.name; li.dataset.vartype = v.type;
@@ -742,10 +748,12 @@
         refreshAll();
 
         if (spec.optionSections && spec.optionSections.length && vars.length) {
-          spec.optionSections.forEach(function(sec){
-            var secEl = document.createElement('div'); secEl.className = 'jmv-section' + (sec.collapsed ? ' collapsed' : '');
+          spec.optionSections.forEach(function(sec, sIdx){
+            // jamovi shows the first (primary) section open, the rest collapsed
+            var collapsed = (sec.collapsed !== undefined) ? sec.collapsed : (sIdx > 0);
+            var secEl = document.createElement('div'); secEl.className = 'jmv-section' + (collapsed ? ' collapsed' : '');
             var hdr = document.createElement('div'); hdr.className = 'jmv-section-hdr';
-            hdr.innerHTML = '<span class="jmv-section-caret">▾</span><span>' + sec.title + '</span>';
+            hdr.innerHTML = '<span class="jmv-section-caret">▾</span><span class="jmv-section-title">' + sec.title + '</span>';
             hdr.addEventListener('click', function(){ secEl.classList.toggle('collapsed'); });
             var bodyEl = document.createElement('div'); bodyEl.className = 'jmv-section-body';
             sec.groups.forEach(function(g){
