@@ -7005,7 +7005,7 @@ has and "int" in (m.get_microdata_functions() or {})
         );
         // load our runner module into Pyodide (mirror exec/compile pattern used for functions.py)
         setStatus(leftStatus, 'Laster statx_runner…');
-        const src = await fetch(base + 'statx_runner.py?v=' + (window.M2PY_VERSION || '1')).then(r => r.text());
+        const src = await fetch(base + 'statx_runner.py?v=' + (window.M2PY_VERSION || '1'), { cache: 'no-store' }).then(r => r.text());
         await py.runPythonAsync(
           'import sys, importlib.util\n' +
           'src = ' + JSON.stringify(src) + '\n' +

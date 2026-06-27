@@ -2,7 +2,7 @@
 // otherwise clients keep serving the stale cache. The Pyodide version string is
 // duplicated across this file (PRECACHE_URLS below), index.html, and
 // py2m/py2m_runner.html — update all of them together when upgrading Pyodide.
-const CACHE = 'm2py-v4';
+const CACHE = 'm2py-v5';
 const CDN_HOSTS = new Set([
   'cdn.jsdelivr.net',
   'cdn.plot.ly',
@@ -11,7 +11,6 @@ const CDN_HOSTS = new Set([
 ]);
 const LOCAL_SWR_SUFFIXES = [
   '/m2py.py',
-  '/statx_runner.py',
   '/functions.py',
   '/variable_metadata.json',
   '/mockdata_core.py',
