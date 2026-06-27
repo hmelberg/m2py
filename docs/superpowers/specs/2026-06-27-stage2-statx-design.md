@@ -17,8 +17,10 @@ with this recipe (verified live in the app's Pyodide, Python 3.13):
    statsmodels **0.14.4**, scipy 1.14.1, matplotlib 3.8.4 (already present).
 3. `micropip.install(['rich','click','requests'])` — pdexplorer's pure-Python
    import-time deps.
-4. Inject a `MagicMock` stub for `pywintypes` into `sys.modules` BEFORE importing
-   (xlwings pulls it in at import; it's Windows-only and unused here).
+4. Inject `MagicMock` stubs for `pywintypes`, `xlwings`, and `pynput` into
+   `sys.modules` BEFORE importing (pdexplorer imports xlwings/pynput at top level;
+   xlwings pulls pywintypes; all desktop-only and unused here). NOTE: verified from
+   a *clean* Pyodide — a recipe derived from a dirty session missed xlwings.
 5. `import pdexplorer` → OK. Run scripts via **`pdexplorer.do(inline=<raw Stata>)`**,
    which executes multi-line Stata syntax and prints Stata-style output (verified:
    `summarize`, `generate`, `regress`, `tabulate` all ran on pandas 2.3.3 with

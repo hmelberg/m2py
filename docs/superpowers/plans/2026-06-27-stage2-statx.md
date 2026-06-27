@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **Validated loading recipe (do not deviate):** `micropip.install('pdexplorer', deps=False)`; rely on Pyodide's bundled pandas/statsmodels (do NOT install pdexplorer's pinned versions); `micropip.install(['rich','click','requests'])`; inject `sys.modules['pywintypes'] = MagicMock()` BEFORE `import pdexplorer`; run via `pdexplorer.do(inline=<str>)`.
+- **Validated loading recipe (do not deviate):** `micropip.install('pdexplorer', deps=False)`; rely on Pyodide's bundled pandas/statsmodels (do NOT install pdexplorer's pinned versions); `micropip.install(['rich','click','requests'])`; stub `pywintypes`, `xlwings`, `pynput` via `MagicMock` in `sys.modules` BEFORE `import pdexplorer`; run via `pdexplorer.do(inline=<str>)`.
 - **Engine bridge:** the microdata engine instance is `e`; datasets are `e.datasets` (dict `name -> pandas.DataFrame`); active dataset name is `e.active_name`.
 - **No-build, inline JS** in `index.html`; Python logic in `statx_runner.py` (loaded into Pyodide like `m2py.py`). No `type="module"`.
 - **Mode id `statx`, label `Statx`.** No translate button in statx v1 (`translate: { showsButton: false }`).
@@ -236,7 +236,8 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
         await py.runPythonAsync(
           'import sys, micropip\n' +
           'from unittest.mock import MagicMock\n' +
-          'sys.modules.setdefault("pywintypes", MagicMock())\n' +
+          'for _m in ("pywintypes","xlwings","pynput"):\n' +
+          '    sys.modules.setdefault(_m, MagicMock())\n' +
           'await micropip.install("pdexplorer", deps=False)\n' +
           'await micropip.install(["rich","click","requests"])\n' +
           'import pdexplorer\n'
