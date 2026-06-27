@@ -43,6 +43,8 @@
     .container.sidebar-open { margin-right: 260px; }
     .container.layout-columns { flex-direction: row; }
     .container.layout-stacked { flex-direction: column; }
+    /* Output-only: hide the input panel; the output (panel-right, flex:1) fills the space. */
+    .container.input-hidden .panel-left, .container.input-hidden #resizer { display: none; }
     .panel { display: flex; flex-direction: column; min-width: 120px; min-height: 0; flex: 1; overflow: hidden; }
     .container.layout-columns .panel-left {
       border-right: 1px dotted var(--border);

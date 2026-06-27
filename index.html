@@ -357,6 +357,11 @@
           <rect class="icon-outline" x="13" y="4" width="8" height="16" rx="1"/>
         </svg>
       </button>
+      <button type="button" class="bottombar-icon-btn" id="layoutOutputBtn" title="Skjul/vis inndatapanel (bare output)" aria-label="Skjul inndatapanel" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect class="icon-solid" x="4" y="4" width="16" height="16" rx="1"/>
+        </svg>
+      </button>
       <button type="button" class="bottombar-icon-btn" id="csvToolBtn" title="CSV omkodingsverktøy" aria-label="CSV omkodingsverktøy">
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
           <path d="M4 8h12M13 5.5L16 8l-3 2.5"/>
@@ -1370,6 +1375,17 @@
         window.refreshPlotlyAfterLayout();
       }
 
+      // Output-only: hide/show the input panel (works in both layouts).
+      var layoutOutputBtn = document.getElementById('layoutOutputBtn');
+      function isInputHidden() { return container.classList.contains('input-hidden'); }
+      function setInputHidden(hidden) {
+        container.classList.toggle('input-hidden', !!hidden);
+        if (layoutOutputBtn) layoutOutputBtn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
+        if (window.refreshPlotlyAfterLayout) window.refreshPlotlyAfterLayout();
+      }
+      window.mdSetInputHidden = setInputHidden;
+      window.mdIsInputHidden = isInputHidden;
+
       function onMouseDown(e) {
         startX = e.clientX;
         startY = e.clientY;
@@ -1442,6 +1458,7 @@
 
       if (layoutColumnsBtn) layoutColumnsBtn.addEventListener('click', function() { setLayoutMode('columns'); });
       if (layoutStackedBtn) layoutStackedBtn.addEventListener('click', function() { setLayoutMode('stacked'); });
+      if (layoutOutputBtn) layoutOutputBtn.addEventListener('click', function() { var h = !isInputHidden(); setInputHidden(h); if (window.mdOnInputToggle) window.mdOnInputToggle(h); });
     })();
 
     (function initCsvRecodeTool() {
@@ -3170,6 +3187,11 @@
       return modeRegistry[activeEditorMode] || modeRegistry.microdata;
     }
 
+    // Input-panel visibility: jamovi hides it by default; other modes use the user pref.
+    var _inputHiddenPref = false;
+    window.mdOnInputToggle = function(h){ if (activeEditorMode !== 'jamovi') _inputHiddenPref = !!h; };
+    function applyInputForMode(mode){ if (window.mdSetInputHidden) window.mdSetInputHidden(mode === 'jamovi' ? true : _inputHiddenPref); }
+
     // ── Editor mode switching ────────────────────────────────────────────────
     function switchEditorMode(newMode) {
       // Save departing mode's content and breakpoints
@@ -3188,6 +3210,8 @@
       const ac = document.getElementById('autocompleteList');
       if (ac) ac.style.display = 'none';
       updateModeButtonsUi();
+      // jamovi defaults to output-only (input hidden); other modes restore the user pref.
+      applyInputForMode(newMode);
       // Lazy-load this mode's runtime if it needs one (e.g. R → webR).
       var _ma = currentMode(); if (_ma.onActivate) _ma.onActivate();
       // Refresh the GitHub save indicator: hide the floppy when the bound file's
@@ -3232,6 +3256,8 @@
       currentMode: function(){ return currentMode(); },
       updateModeGuiBar: function(){ return updateModeGuiBar(); },
       getModeGuiBar: function(){ return document.getElementById('modeGuiBar'); },
+      // Append generated syntax to the (hidden) input panel, so it acts as a command log.
+      appendToEditor: function(text){ var si = document.getElementById('scriptInput'); if (!si) return; si.value = (si.value ? si.value.replace(/\s*$/, '') + '\n\n' : '') + text; if (window.updateLineNumbers) window.updateLineNumbers(); if (typeof editorContent !== 'undefined') editorContent[activeEditorMode] = si.value; },
       get outputArea(){ return outputArea; },
       get rightStatus(){ return rightStatus; },
       setStatus: function(el, msg){ return setStatus(el, msg); },
@@ -5508,7 +5534,7 @@ json.dumps(out)
     function extractScriptOptions(src) {
       var opts = {};
       if (!src) return opts;
-      var re = /^\s*(?:#|\/\/)\s*options\.([a-zA-Z_][\w]*)\s*=\s*(\S+)\s*$/gm;
+      var re = /^\s*(?:#|\/\/)\s*options\.([a-zA-Z_][\w]*)\s*=\s*("[^"]*"|'[^']*'|\S+)\s*$/gm;
       var m;
       while ((m = re.exec(src)) !== null) {
         var key = m[1];
@@ -7273,6 +7299,16 @@ options(width = 200)
         //    kode-echo skal vises i output for R og Python.
         // Presedens: script-direktiv > Innstillinger > true.
         var _scriptOpts = extractScriptOptions(effectiveScript);
+        // #options.view = output-only | split  → toggle the input-panel visibility from a script
+        if (_scriptOpts.view !== undefined && window.mdSetInputHidden) {
+          var _vw = String(_scriptOpts.view).toLowerCase().replace(/[\s_]+/g, '-');
+          var _hide = (_vw === 'output-only' || _vw === 'output' || _vw === 'results-only');
+          window.mdSetInputHidden(_hide);
+          if (window.mdOnInputToggle) window.mdOnInputToggle(_hide);
+        }
+        // Directive lines are metadata — strip them so the engine never runs them
+        // (#options.* is not a comment in microdata, so it would otherwise error).
+        effectiveScript = effectiveScript.replace(/^[ \t]*(?:#|\/\/)[ \t]*options\.[A-Za-z_]\w*[ \t]*=.*$\n?/gm, '');
         var _showCmds = (typeof _scriptOpts.show_commands === 'boolean')
           ? _scriptOpts.show_commands
           : getShowCommandsDefault();

@@ -1065,6 +1065,12 @@
         var plots0 = spec.buildPlots ? (spec.buildPlots(assignments, optsObj) || []) : [];
         if (!rcode && !plots0.length) { alert('Velg variabler'); return; }
         document.body.removeChild(backdrop);
+        // Log the generated syntax to the (hidden) input panel so it can be reviewed.
+        if (M.appendToEditor) {
+          var _syntax = '# ' + spec.title + (rcode ? '\n' + rcode : '');
+          plots0.forEach(function(p){ _syntax += '\n' + p.rCode; });
+          M.appendToEditor(_syntax);
+        }
         M.setStatus(M.rightStatus, 'Kjører analyse…');
         try {
           await ensureJamoviDataInWebR();
