@@ -3459,6 +3459,15 @@
       contingency: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><rect x="2" y="2" width="12" height="12" rx=".5"/><path d="M8 2v12M2 8h12"/></svg>'
     };
 
+    // Jamovi ribbon CATEGORY icons (16×16 line SVGs, stroke currentColor ~1.5)
+    var JAMOVI_CAT_ICONS = {
+      exploration: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="9" width="3" height="5" rx=".5"/><rect x="5.5" y="6" width="3" height="8" rx=".5"/><rect x="10" y="3" width="3" height="11" rx=".5"/><circle cx="12.5" cy="2" r="2" stroke-width="1.4"/><path d="M14.5 4l1.5 1.5" stroke-linecap="round"/></svg>',
+      ttests: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h6M6 2v12" stroke-linecap="round"/><path d="M10 4h4M12 4v8" stroke-linecap="round"/></svg>',
+      anova: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="6" width="3" height="8" rx=".5"/><rect x="6.5" y="2" width="3" height="12" rx=".5"/><rect x="11.5" y="8" width="3" height="6" rx=".5"/></svg>',
+      regression: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="3.5" cy="11.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="6.5" cy="8.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="9.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="12.5" cy="4.5" r="1.2" fill="currentColor" stroke="none"/><path d="M2 13l12-10" stroke-linecap="round"/></svg>',
+      frequencies: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx=".5"/><rect x="9" y="1.5" width="5.5" height="5.5" rx=".5"/><rect x="1.5" y="9" width="5.5" height="5.5" rx=".5"/><rect x="9" y="9" width="5.5" height="5.5" rx=".5"/></svg>'
+    };
+
     // Open a jamovi analysis dialog from the spec registry
     function openJamoviAnalysis(id) {
       var spec = JAMOVI_ANALYSES[id];
@@ -3502,86 +3511,102 @@
         msg.textContent = 'Lag/importer data først (kjør et datasett)';
         body.appendChild(msg);
       } else {
-        // Variable list (left pane)
+        var typeOf = {}; vars.forEach(function(v){ typeOf[v.name] = v.type; });
+        var selectedVar = null; // currently highlighted source variable
+
+        // LEFT: source variable list (shows only UNASSIGNED variables)
         var varlistDiv = document.createElement('div');
         varlistDiv.className = 'jmv-varlist';
         var varlistLabel = document.createElement('div');
         varlistLabel.className = 'jmv-role-label';
         varlistLabel.textContent = 'Variabler';
         varlistDiv.appendChild(varlistLabel);
-
-        var typeOf = {};
-        vars.forEach(function(v) { typeOf[v.name] = v.type; });
-
         var ul = document.createElement('ul');
-        vars.forEach(function(v) {
-          var li = document.createElement('li');
-          li.innerHTML = jamoviTypeIcon(v.type) + '<span class="jmv-var-name">' + escapeHtml(v.name) + '</span>';
-          li.dataset.varname = v.name;
-          li.dataset.vartype = v.type;
-          li.title = 'Klikk for å legge til i aktiv rolle';
-          li.addEventListener('click', function() {
-            if (!activeRoleKey) return;
-            var roleSpec = spec.roles.filter(function(r) { return r.key === activeRoleKey; })[0];
-            if (!roleSpec) return;
-            // type filter
-            if (roleSpec.types && roleSpec.types.length && roleSpec.types.indexOf(v.type) === -1) {
-              alert('Denne rollen krever: ' + roleSpec.types.join(', ') + '. Variabel er: ' + v.type);
-              return;
-            }
-            if (!roleSpec.multiple) assignments[activeRoleKey] = [];
-            if (assignments[activeRoleKey].indexOf(v.name) === -1) {
-              assignments[activeRoleKey].push(v.name);
-            }
-            refreshRoles();
-          });
-          ul.appendChild(li);
-        });
         varlistDiv.appendChild(ul);
         body.appendChild(varlistDiv);
 
-        // Role boxes (right pane)
+        // RIGHT: roles, each with a ► arrow + assignment box
         var rolesDiv = document.createElement('div');
         rolesDiv.className = 'jmv-roles';
         body.appendChild(rolesDiv);
-
         var roleBoxEls = {};
-        spec.roles.forEach(function(roleSpec) {
+        spec.roles.forEach(function(roleSpec){
           var lbl = document.createElement('div');
           lbl.className = 'jmv-role-label';
           lbl.textContent = roleSpec.label;
           rolesDiv.appendChild(lbl);
-
+          var row = document.createElement('div');
+          row.className = 'jmv-role-row';
+          var arrow = document.createElement('button');
+          arrow.type = 'button';
+          arrow.className = 'jmv-arrow';
+          arrow.innerHTML = '<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M5 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+          arrow.title = 'Legg til valgt variabel';
+          arrow.addEventListener('click', function(){
+            if (!selectedVar) return;
+            var t = typeOf[selectedVar];
+            if (roleSpec.types && roleSpec.types.length && roleSpec.types.indexOf(t) === -1) {
+              alert('Denne rollen krever: ' + roleSpec.types.join(', ') + '. Variabel «' + selectedVar + '» er ' + t + '.');
+              return;
+            }
+            if (!roleSpec.multiple) {
+              // single-value role: return any existing occupant to the pool
+              assignments[roleSpec.key] = [];
+            }
+            if (assignments[roleSpec.key].indexOf(selectedVar) === -1) assignments[roleSpec.key].push(selectedVar);
+            selectedVar = null;
+            refreshAll();
+          });
           var box = document.createElement('ul');
           box.className = 'jmv-rolebox' + (roleSpec.key === activeRoleKey ? ' active' : '');
           box.dataset.rolekey = roleSpec.key;
-          box.addEventListener('click', function() {
-            activeRoleKey = roleSpec.key;
-            refreshRoles();
-          });
+          box.addEventListener('click', function(){ activeRoleKey = roleSpec.key; refreshAll(); });
           roleBoxEls[roleSpec.key] = box;
-          rolesDiv.appendChild(box);
+          row.appendChild(arrow);
+          row.appendChild(box);
+          rolesDiv.appendChild(row);
         });
 
-        function refreshRoles() {
-          spec.roles.forEach(function(rs) {
+        function assignedSet(){ var s = {}; spec.roles.forEach(function(r){ (assignments[r.key]||[]).forEach(function(v){ s[v]=true; }); }); return s; }
+
+        function refreshVarList(){
+          ul.innerHTML = '';
+          var assigned = assignedSet();
+          vars.forEach(function(v){
+            if (assigned[v.name]) return; // moved into a role
+            var li = document.createElement('li');
+            li.innerHTML = jamoviTypeIcon(v.type) + '<span class="jmv-var-name">' + escapeHtml(v.name) + '</span>';
+            li.dataset.varname = v.name; li.dataset.vartype = v.type;
+            if (selectedVar === v.name) li.className = 'jmv-selected';
+            li.addEventListener('click', function(){ selectedVar = (selectedVar === v.name) ? null : v.name; refreshVarList(); });
+            // double-click → assign to first compatible role
+            li.addEventListener('dblclick', function(){
+              var rs = spec.roles.filter(function(r){ return !r.types || !r.types.length || r.types.indexOf(v.type) !== -1; })[0];
+              if (!rs) return;
+              selectedVar = v.name;
+              if (!rs.multiple) assignments[rs.key] = [];
+              if (assignments[rs.key].indexOf(v.name) === -1) assignments[rs.key].push(v.name);
+              selectedVar = null; refreshAll();
+            });
+            ul.appendChild(li);
+          });
+        }
+        function refreshRoles(){
+          spec.roles.forEach(function(rs){
             var box = roleBoxEls[rs.key];
             box.className = 'jmv-rolebox' + (rs.key === activeRoleKey ? ' active' : '');
             box.innerHTML = '';
-            (assignments[rs.key] || []).forEach(function(varname) {
+            (assignments[rs.key] || []).forEach(function(varname){
               var li = document.createElement('li');
-              li.innerHTML = jamoviTypeIcon(typeOf[varname] || 'nominal') + '<span class="jmv-var-name">' + escapeHtml(varname) + '</span><span class="jmv-remove">✕</span>';
+              li.innerHTML = jamoviTypeIcon(typeOf[varname]) + '<span class="jmv-var-name">' + escapeHtml(varname) + '</span><span class="jmv-remove">✕</span>';
               li.title = 'Klikk for å fjerne';
-              li.addEventListener('click', function(e) {
-                e.stopPropagation();
-                assignments[rs.key] = assignments[rs.key].filter(function(x) { return x !== varname; });
-                refreshRoles();
-              });
+              li.addEventListener('click', function(e){ e.stopPropagation(); assignments[rs.key] = assignments[rs.key].filter(function(x){ return x !== varname; }); refreshAll(); });
               box.appendChild(li);
             });
           });
         }
-        refreshRoles();
+        function refreshAll(){ refreshVarList(); refreshRoles(); }
+        refreshAll();
 
         if (spec.options && spec.options.length) {
           var optWrap = document.createElement('div'); optWrap.className = 'jmv-options';
@@ -3651,6 +3676,7 @@
     (function initJamoviRibbon() {
       var rib = document.getElementById('jamoviRibbon');
       if (!rib) return;
+      rib.querySelectorAll('.jmv-cat').forEach(function(btn){ var c = btn.getAttribute('data-cat'); btn.innerHTML = (JAMOVI_CAT_ICONS[c]||'') + '<span>' + btn.textContent + '</span>'; });
       rib.querySelectorAll('.jmv-cat').forEach(function(btn){
         btn.addEventListener('click', function(e){
           e.stopPropagation();

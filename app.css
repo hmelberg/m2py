@@ -1011,12 +1011,13 @@
     .mode-gui-bar { background:var(--jmv-bg); }
     .jamovi-ribbon { display:flex; gap:2px; align-items:stretch; padding:4px 6px; background:var(--jmv-bg); flex-wrap:nowrap; }
     .jmv-group { position:relative; }
-    .jmv-cat { font:13px/1.2 inherit; padding:6px 12px; background:transparent; border:1px solid transparent; border-radius:4px; cursor:pointer; color:var(--jmv-blue-d); }
+    .jmv-cat { display:flex; align-items:center; gap:8px; font:13px/1.2 inherit; padding:6px 12px; background:transparent; border:1px solid transparent; border-radius:4px; cursor:pointer; color:var(--jmv-blue-d); }
+    .jmv-cat svg { flex:0 0 auto; }
     .jmv-cat:hover, .jmv-group.open .jmv-cat { background:#fff; border-color:var(--jmv-line); }
     .jmv-menu { display:none; position:absolute; top:100%; left:0; z-index:50; min-width:230px; background:#fff; border:1px solid var(--jmv-line); border-radius:6px; box-shadow:0 6px 20px rgba(0,0,0,.12); padding:4px; }
     .jmv-group.open .jmv-menu { display:block; }
-    .jmv-menu button { display:flex; align-items:center; gap:8px; width:100%; text-align:left; padding:7px 10px; background:transparent; border:0; border-radius:4px; cursor:pointer; font:13px/1.2 inherit; color:#1f2937; }
-    .jmv-menu button svg { flex:0 0 auto; }
+    .jmv-menu button { display:flex; align-items:center; gap:11px; width:100%; text-align:left; padding:7px 10px; background:transparent; border:0; border-radius:4px; cursor:pointer; font:13px/1.2 inherit; color:#1f2937; }
+    .jmv-menu button svg { flex:0 0 auto; margin-right:1px; }
     .jmv-menu button:hover { background:#e8eefc; color:var(--jmv-blue); }
     .jmv-menu button:disabled { opacity:.4; cursor:not-allowed; }
     /* ── jamovi result tables ───────────────────────────────────────────────── */
@@ -1034,6 +1035,9 @@
     .jmv-varlist ul { list-style:none; margin:0; padding:0; border:1px solid var(--jmv-line); border-radius:6px; max-height:300px; overflow:auto; }
     .jmv-varlist li, .jmv-rolebox li { display:flex; align-items:center; gap:7px; padding:6px 10px; cursor:pointer; border-radius:4px; font-size:13px; }
     .jmv-varlist li:hover { background:#e8eefc; }
+    .jmv-varlist li { cursor:pointer; }
+    .jmv-varlist li.jmv-selected { background:var(--jmv-blue); color:#fff; }
+    .jmv-varlist li.jmv-selected .jmv-var-name { color:#fff; }
     .jmv-type-icon { flex:0 0 auto; }
     .jmv-var-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .jmv-remove { color:#9ca3af; font-size:12px; }
@@ -1041,6 +1045,10 @@
     .jmv-rolebox { border:1px solid var(--jmv-line); border-radius:6px; min-height:48px; margin:4px 0 12px; padding:4px; }
     .jmv-rolebox.active { border-color:var(--jmv-blue); box-shadow:0 0 0 2px rgba(62,109,169,.18); }
     .jmv-role-label { font:600 12px/1.2 inherit; color:var(--jmv-blue-d); text-transform:none; font-weight:600; margin:6px 0 2px; }
+    .jmv-role-row { display:flex; align-items:flex-start; gap:8px; margin:0 0 12px; }
+    .jmv-arrow { flex:0 0 auto; margin-top:2px; width:30px; height:30px; display:flex; align-items:center; justify-content:center; border:1px solid var(--jmv-line); border-radius:6px; background:#fff; color:var(--jmv-blue); cursor:pointer; }
+    .jmv-arrow:hover { background:var(--jmv-blue); color:#fff; border-color:var(--jmv-blue); }
+    .jmv-role-row .jmv-rolebox { flex:1; margin:0; }
     .jmv-dialog-foot { padding:12px 18px; border-top:1px solid #e3e6ec; display:flex; justify-content:flex-end; gap:8px; }
     .jmv-dialog-foot button { padding:7px 16px; border-radius:6px; border:1px solid var(--jmv-line); background:#fff; cursor:pointer; font:13px inherit; }
     .jmv-dialog-foot .primary { background:var(--jmv-blue); color:#fff; border-color:var(--jmv-blue); }
