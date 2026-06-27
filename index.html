@@ -2853,6 +2853,29 @@
       } finally { await conn.close(); }
       return out;
     };
+    // ── DuckDB editor mode: per-run connection over the same worker ──────────
+    // Datasets are registered as views from Parquet buffers; results come back
+    // through the existing __arrowToColumns helper. A fresh connection per run
+    // keeps pandas (micro_interpreter.datasets) the single source of truth.
+    window.__duck = {
+      conn: null,
+      async begin() {
+        const db = await __ensureDuckDB();
+        this.conn = await db.connect();
+      },
+      async registerTable(name, parquetBytes) {
+        const db = await __ensureDuckDB();
+        await db.registerFileBuffer(name + '.parquet', new Uint8Array(parquetBytes));
+        await this.conn.query('CREATE OR REPLACE VIEW "' + name +
+          '" AS SELECT * FROM read_parquet(\'' + name + '.parquet\')');
+      },
+      async exec(sql) { await this.conn.query(sql); },
+      async query(sql) { return __arrowToColumns(await this.conn.query(sql)); },
+      async end() {
+        try { if (this.conn) await this.conn.close(); }
+        finally { this.conn = null; }
+      }
+    };
     function getTtsRate() {
       try { var v = parseFloat(localStorage.getItem(TTS_RATE_KEY)); if (!isNaN(v)) return v; } catch(e) {}
       return 1.0;
