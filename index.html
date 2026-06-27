@@ -60,6 +60,16 @@
               <button type="button" data-example="st03_stata_generate.txt" data-mode="statx">Stata &mdash; generate/egen</button>
               <button type="button" data-example="st04_stata_use.txt" data-mode="statx">Stata &mdash; use (flere datasett)</button>
             </div>
+            <div class="examples-section" data-section-mode="duckdb">
+              <button type="button" data-example="sql01_select_basics.txt" data-mode="duckdb">SQL &mdash; grunnleggende SELECT</button>
+              <button type="button" data-example="sql02_aggregate_groupby.txt" data-mode="duckdb">SQL &mdash; GROUP BY og aggregering</button>
+              <button type="button" data-example="sql03_join.txt" data-mode="duckdb">SQL &mdash; JOIN</button>
+              <button type="button" data-example="sql04_create_table.txt" data-mode="duckdb">SQL &mdash; CREATE TABLE (bygg datasett)</button>
+              <button type="button" data-example="sql05_cte_window.txt" data-mode="duckdb">SQL &mdash; CTE + vindusfunksjon</button>
+              <button type="button" data-example="sql06_case_recode.txt" data-mode="duckdb">SQL &mdash; CASE WHEN (omkoding)</button>
+              <button type="button" data-example="sql07_multi_statement.txt" data-mode="duckdb">SQL &mdash; flere setninger</button>
+              <button type="button" data-example="sql08_describe_summary.txt" data-mode="duckdb">SQL &mdash; profilering/oppsummering</button>
+            </div>
             <button type="button" id="menuWebExamples">Flere eksempler p&#229; web</button>
           </div>
         </div>
@@ -1901,7 +1911,7 @@
             if (!r.ok) throw new Error(r.status);
             return r.text();
           }).then(function(text) {
-            if (mode && (mode === 'microdata' || mode === 'python' || mode === 'r' || mode === 'statx')
+            if (mode && (mode === 'microdata' || mode === 'python' || mode === 'r' || mode === 'statx' || mode === 'duckdb')
                 && typeof switchEditorMode === 'function'
                 && typeof activeEditorMode !== 'undefined') {
               if (typeof editorContent !== 'undefined') editorContent[mode] = text;

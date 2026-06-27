@@ -1,0 +1,23 @@
+-- Flere setninger i ett skript: lag rådata, lag et oppsummeringsdatasett,
+-- og vis til slutt en tabell. Setningene kjøres i rekkefølge.
+
+CREATE OR REPLACE TABLE personer AS
+SELECT * FROM (VALUES
+  (1, 'Mann',   25, 450000, 'Oslo'),
+  (2, 'Kvinne', 34, 620000, 'Bergen'),
+  (3, 'Mann',   52, 810000, 'Oslo'),
+  (4, 'Kvinne', 41, 530000, 'Trondheim'),
+  (5, 'Mann',   19, 210000, 'Bergen'),
+  (6, 'Kvinne', 67, 390000, 'Oslo')
+) AS t(fnr, kjonn, alder, inntekt, kommune);
+
+-- Oppsummeringsdatasett per kommune (dukker opp i dataoversikten).
+CREATE OR REPLACE TABLE per_kommune AS
+SELECT kommune,
+       count(*)            AS antall,
+       round(avg(inntekt)) AS snitt_inntekt
+FROM personer
+GROUP BY kommune;
+
+-- Avsluttende SELECT vises som tabell i utdataområdet.
+SELECT * FROM per_kommune ORDER BY snitt_inntekt DESC;
