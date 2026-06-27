@@ -71,7 +71,7 @@
         id: 'descriptives', title: 'Descriptives',
         roles: [{ key: 'vars', label: 'Variables', types: ['numeric','nominal'], multiple: true }, { key: 'split', label: 'Split by', types: ['nominal'], multiple: false }],
         optionSections:[
-        { title:'Output', collapsed:false, groups:[{ items:[
+        { title:'Output', groups:[{ items:[
           {key:'orient',type:'select',label:'Variables across',choices:[{value:'columns',label:'Columns'},{value:'rows',label:'Rows'}],default:'columns'},
           {key:'freq',type:'check',label:'Frequency tables (nominal)',default:false}
         ]}]},
