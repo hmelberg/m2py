@@ -54,6 +54,13 @@
 ### Task 8: Polish
 - jamovi styling pass (ribbon icons, dialog two-column look, result-table fidelity); empty-state; help text; an `examples/`/help note. Test + commit.
 
+## De-risking spikes (DONE — verified in-browser, use these)
+- **webR structured results CONFIRMED.** `(await webRShelter.evalR(rCode)).toJs()` on an R `data.frame` returns:
+  `{ type:'list', names:[<colnames>], values:[ {type:'character'|'integer'|'double', values:[...]}, ... ] }`
+  (column-oriented). `renderJamoviResult` builds a table by transposing: row r = `values[c].values[r]` across columns `names`. For a multi-table result, return a NAMED `list(fit=df1, coef=df2)` in R → toJs gives `{type:'list', names:['fit','coef'], values:[<df1-list>, <df2-list>]}`; detect "value is itself a list-of-vectors" → render each as a table under its name.
+- **Data→webR bridge CONFIRMED** at `index.html` ~6623–6681 (runHybridR Phase 1): Python `e.datasets` → base64-CSV (`to_csv` + b64) → webR `read.csv(textConnection(rawToChar(base64enc::base64decode(<b64>))))`, catalog labels applied as `factor()`. Factor this into a reusable `ensureDatasetInWebR(name)` for jamovi (transfer the active dataset as R `data`), shared with runHybridR.
+- T1 (ribbon) DONE + visually verified (ribbon shows in jamovi mode, categories+dropdowns work).
+
 ## Self-Review
 Covers spec's confirmed decisions: ribbon+dialogs only (T1), broad analyses (T2–T7), active-dataset data source + webR bridge (T2), jamovi tables (T2 `renderJamoviResult`). Risk/uncertainty flagged for execution: (a) exact `lastDatasetInfo` shape for the variable list; (b) webR `toJs()` structure for data.frames (handle in `renderJamoviResult`); (c) factoring the runHybridR transfer into a reusable helper without breaking R mode. These are traced/verified in-browser during T2 (the vertical slice) before adding analyses.
 
