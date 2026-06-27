@@ -522,6 +522,46 @@
     }
 
     // A result card with only a title (for plot-only analyses); plots append into it.
+    // Clean, idiomatic R for the syntax log (like jamovi's syntax mode) — readable and
+    // re-runnable, in contrast to the verbose table-building R that actually executes.
+    function jamoviCleanSyntax(spec, a, opts) {
+      function f(n){ return /^[A-Za-z.][A-Za-z0-9._]*$/.test(n) ? n : '`' + n + '`'; }      // formula ref
+      function d(n){ return /^[A-Za-z.][A-Za-z0-9._]*$/.test(n) ? 'data$' + n : 'data[["' + n + '"]]'; } // $ ref
+      function cvec(arr){ return 'c(' + arr.map(function(n){ return '"' + n + '"'; }).join(', ') + ')'; }
+      var id = spec.id, s;
+      switch (id) {
+        case 'descriptives': { var v = a.vars || []; if (!v.length) return null;
+          return (a.split && a.split[0]) ? 'by(data[, ' + cvec(v) + '], ' + d(a.split[0]) + ', summary)' : 'summary(data[, ' + cvec(v) + '])'; }
+        case 'frequencies': { var fv = a.var && a.var[0]; return fv ? 'table(' + d(fv) + ')' : null; }
+        case 'gof': { var gv = a.var && a.var[0]; return gv ? 'chisq.test(table(' + d(gv) + '))' : null; }
+        case 'ttest_ind': { var dv = a.dv && a.dv[0], g = a.group && a.group[0]; if (!dv || !g) return null;
+          s = 't.test(' + f(dv) + ' ~ ' + f(g) + ', data = data, var.equal = ' + ((opts && opts.test === 'student') ? 'TRUE' : 'FALSE') + ')';
+          if (opts && opts.mwu) s += '\nwilcox.test(' + f(dv) + ' ~ ' + f(g) + ', data = data)'; return s; }
+        case 'ttest_paired': { var p = a.pair || []; if (p.length < 2) return null;
+          s = 't.test(' + d(p[0]) + ', ' + d(p[1]) + ', paired = TRUE)';
+          if (opts && opts.wilcoxon) s += '\nwilcox.test(' + d(p[0]) + ', ' + d(p[1]) + ', paired = TRUE)'; return s; }
+        case 'ttest_one': { var ov = a.vars || []; if (!ov.length) return null;
+          return ov.map(function(x){ return 't.test(' + d(x) + ', mu = 0)'; }).join('\n'); }
+        case 'correlation': { var cv = a.vars || []; if (cv.length < 2) return null;
+          return 'cor(data[, ' + cvec(cv) + '], use = "pairwise.complete.obs", method = "' + ((opts && opts.method) || 'pearson') + '")'; }
+        case 'lin_reg': { var ld = a.dv && a.dv[0], lc = a.covs || []; if (!ld || !lc.length) return null;
+          return 'summary(lm(' + f(ld) + ' ~ ' + lc.map(f).join(' + ') + ', data = data))'; }
+        case 'log_reg': { var gd = a.dv && a.dv[0], gc = a.covs || []; if (!gd || !gc.length) return null;
+          return 'summary(glm(' + f(gd) + ' ~ ' + gc.map(f).join(' + ') + ', data = data, family = binomial))'; }
+        case 'anova_oneway': { var ad = a.dv && a.dv[0], af = a.factor && a.factor[0]; if (!ad || !af) return null;
+          return 'summary(aov(' + f(ad) + ' ~ ' + f(af) + ', data = data))'; }
+        case 'kruskal': { var kd = a.dv && a.dv[0], kf = a.factor && a.factor[0]; if (!kd || !kf) return null;
+          return 'kruskal.test(' + f(kd) + ' ~ ' + f(kf) + ', data = data)'; }
+        case 'contingency': { var r = a.rows && a.rows[0], c = a.cols && a.cols[0]; if (!r || !c) return null;
+          return 'chisq.test(table(' + d(r) + ', ' + d(c) + '))'; }
+        case 'fig_histogram': return (a.vars || []).map(function(x){ return 'hist(' + d(x) + ')'; }).join('\n') || null;
+        case 'fig_boxplot': { var bg = a.group && a.group[0]; return (a.vars || []).map(function(x){ return bg ? 'boxplot(' + f(x) + ' ~ ' + f(bg) + ', data = data)' : 'boxplot(' + d(x) + ')'; }).join('\n') || null; }
+        case 'fig_barplot': return (a.vars || []).map(function(x){ return 'barplot(table(' + d(x) + '))'; }).join('\n') || null;
+        case 'fig_scatter': { var sx = a.x && a.x[0], sy = a.y && a.y[0]; return (sx && sy) ? 'plot(' + d(sx) + ', ' + d(sy) + ')' : null; }
+      }
+      return null;
+    }
+
     function jamoviTitleCard(title) {
       var card = document.createElement('div'); card.className = 'jmv-result-card';
       var rm = document.createElement('button'); rm.className = 'jmv-card-remove'; rm.title = 'Fjern'; rm.textContent = '✕';
@@ -1065,11 +1105,10 @@
         var plots0 = spec.buildPlots ? (spec.buildPlots(assignments, optsObj) || []) : [];
         if (!rcode && !plots0.length) { alert('Velg variabler'); return; }
         document.body.removeChild(backdrop);
-        // Log the generated syntax to the (hidden) input panel so it can be reviewed.
+        // Log clean, idiomatic R (jamovi-style syntax) to the (hidden) input panel.
         if (M.appendToEditor) {
-          var _syntax = '# ' + spec.title + (rcode ? '\n' + rcode : '');
-          plots0.forEach(function(p){ _syntax += '\n' + p.rCode; });
-          M.appendToEditor(_syntax);
+          var _clean = jamoviCleanSyntax(spec, assignments, optsObj);
+          if (_clean) M.appendToEditor('# ' + spec.title + '\n' + _clean);
         }
         M.setStatus(M.rightStatus, 'Kjører analyse…');
         try {
