@@ -57,8 +57,8 @@
         optionSections:[{ title:'Statistics', groups:[
           { title:'Sample Size', items:[{key:'N',type:'check',label:'N',default:true},{key:'Missing',type:'check',label:'Missing',default:true}] },
           { title:'Central Tendency', items:[{key:'Mean',type:'check',label:'Mean',default:true},{key:'Median',type:'check',label:'Median',default:true},{key:'Mode',type:'check',label:'Mode',default:false},{key:'Sum',type:'check',label:'Sum',default:false}] },
-          { title:'Dispersion', items:[{key:'SD',type:'check',label:'Std. deviation',default:true},{key:'Variance',type:'check',label:'Variance',default:false},{key:'Range',type:'check',label:'Range',default:false},{key:'Min',type:'check',label:'Minimum',default:true},{key:'Max',type:'check',label:'Maximum',default:true},{key:'SE',type:'check',label:'Std. error',default:false}] },
-          { title:'Distribution', items:[{key:'Skewness',type:'check',label:'Skewness',default:false},{key:'Kurtosis',type:'check',label:'Kurtosis',default:false}] },
+          { title:'Dispersion', items:[{key:'SD',type:'check',label:'Std. deviation',default:true},{key:'Variance',type:'check',label:'Variance',default:false},{key:'Range',type:'check',label:'Range',default:false},{key:'Min',type:'check',label:'Minimum',default:true},{key:'Max',type:'check',label:'Maximum',default:true},{key:'SE',type:'check',label:'Std. error',default:false},{key:'IQR',type:'check',label:'IQR',default:false}] },
+          { title:'Distribution', items:[{key:'Skewness',type:'check',label:'Skewness',default:false},{key:'Kurtosis',type:'check',label:'Kurtosis',default:false},{key:'sw',type:'check',label:'Shapiro-Wilk',default:false}] },
           { title:'Percentile Values', items:[{key:'quartiles',type:'check',label:'Quartiles (25 / 50 / 75)',default:false}] }
         ]},
         { title:'Plots', groups:[{ items:[{key:'histogram',type:'check',label:'Histogram',default:false},{key:'boxplot',type:'check',label:'Box plot',default:false}] }] }],
@@ -75,20 +75,21 @@
           var v = a.vars; if(!v||!v.length) return null;
           var splitV = a.split && a.split[0];
           var rv = 'c('+v.map(function(x){return JSON.stringify(x);}).join(',')+')';
-          var allKeys = ['N','Missing','Mean','Median','Mode','Sum','SD','Variance','Range','Min','Max','SE','Skewness','Kurtosis'];
+          var allKeys = ['N','Missing','Mean','Median','Mode','Sum','SD','Variance','Range','Min','Max','SE','Skewness','Kurtosis','IQR'];
           var want = allKeys.filter(function(k){ return opts && opts[k]; });
           if(!want.length) want = ['N','Mean','SD'];
           if (opts && opts.quartiles) want = want.concat(['P25','P50','P75']);
+          if (opts && opts.sw) want = want.concat(['SWW','SWp']);
           var rwant = 'c('+want.map(function(k){return JSON.stringify(k);}).join(',')+')';
           var rsplit = splitV ? JSON.stringify(splitV) : 'NULL';
           return "local({\n"
            +"vars<-"+rv+"; want<-"+rwant+"; splitv<-"+rsplit+";\n"
            +"Mode<-function(x){x<-x[!is.na(x)]; if(!length(x)) return(NA); ux<-unique(x); ux[which.max(tabulate(match(x,ux)))]}\n"
-           +"lbl<-c(N='N',Missing='Missing',Mean='Mean',Median='Median',Mode='Mode',Sum='Sum',SD='Std. deviation',Variance='Variance',Range='Range',Min='Minimum',Max='Maximum',SE='Std. error',Skewness='Skewness',Kurtosis='Kurtosis',P25='25th percentile',P50='50th percentile',P75='75th percentile')\n"
+           +"lbl<-c(N='N',Missing='Missing',Mean='Mean',Median='Median',Mode='Mode',Sum='Sum',SD='Std. deviation',Variance='Variance',Range='Range',Min='Minimum',Max='Maximum',SE='Std. error',Skewness='Skewness',Kurtosis='Kurtosis',IQR='IQR',P25='25th percentile',P50='50th percentile',P75='75th percentile',SWW='Shapiro-Wilk W',SWp='Shapiro-Wilk p')\n"
            +"statRow<-function(v,x,lev){ xc<-x[!is.na(x)]; n<-length(xc); o<-list()\n"
            +" if(!is.null(lev)) o[['Group']]<-lev\n"
            +" o[['Variable']]<-v\n"
-           +" f<-list(N=function() n, Missing=function() sum(is.na(x)), Mean=function() mean(xc), Median=function() median(xc), Mode=function() Mode(xc), Sum=function() sum(xc), SD=function() sd(xc), Variance=function() var(xc), Range=function() max(xc)-min(xc), Min=function() min(xc), Max=function() max(xc), SE=function() sd(xc)/sqrt(n), Skewness=function(){m<-mean(xc); s<-sd(xc); (sum((xc-m)^3)/n)/s^3}, Kurtosis=function(){m<-mean(xc); s<-sd(xc); (sum((xc-m)^4)/n)/s^4-3}, P25=function() unname(quantile(xc,0.25)), P50=function() unname(quantile(xc,0.5)), P75=function() unname(quantile(xc,0.75)))\n"
+           +" f<-list(N=function() n, Missing=function() sum(is.na(x)), Mean=function() mean(xc), Median=function() median(xc), Mode=function() Mode(xc), Sum=function() sum(xc), SD=function() sd(xc), Variance=function() var(xc), Range=function() max(xc)-min(xc), Min=function() min(xc), Max=function() max(xc), SE=function() sd(xc)/sqrt(n), Skewness=function(){m<-mean(xc); s<-sd(xc); (sum((xc-m)^3)/n)/s^3}, Kurtosis=function(){m<-mean(xc); s<-sd(xc); (sum((xc-m)^4)/n)/s^4-3}, IQR=function() IQR(xc,na.rm=TRUE), P25=function() unname(quantile(xc,0.25)), P50=function() unname(quantile(xc,0.5)), P75=function() unname(quantile(xc,0.75)), SWW=function(){ x2<-xc; if(length(x2)>5000){set.seed(1); x2<-sample(x2,5000)}; if(length(x2)<3) NA else unname(shapiro.test(x2)$statistic) }, SWp=function(){ x2<-xc; if(length(x2)>5000){set.seed(1); x2<-sample(x2,5000)}; if(length(x2)<3) NA else shapiro.test(x2)$p.value })\n"
            +" for(k in want) o[[lbl[[k]]]]<-tryCatch(f[[k]](), error=function(e) NA)\n"
            +" as.data.frame(o, check.names=FALSE, stringsAsFactors=FALSE) }\n"
            +"rows<-list()\n"
@@ -110,7 +111,7 @@
         roles:[{key:'dv',label:'Dependent Variable',types:['numeric'],multiple:false},{key:'group',label:'Grouping Variable',types:['nominal'],multiple:false}],
         optionSections:[
           { title:'Tests', groups:[{ items:[{key:'test',type:'radio',choices:[{value:'student',label:"Student's"},{value:'welch',label:"Welch's"}],default:'welch'},{key:'mwu',type:'check',label:'Mann-Whitney U',default:false}] }] },
-          { title:'Additional Statistics', groups:[{ items:[{key:'effsize',type:'check',label:"Effect size (Cohen's d)",default:false}] }] },
+          { title:'Additional Statistics', groups:[{ items:[{key:'effsize',type:'check',label:"Effect size (Cohen's d)",default:false},{key:'meandiffci',type:'check',label:'Confidence interval (mean diff.)',default:false},{key:'descr',type:'check',label:'Descriptives table',default:false}] }] },
           { title:'Assumption Checks', groups:[{ items:[{key:'normality',type:'check',label:'Normality (Shapiro-Wilk)',default:false},{key:'homogeneity',type:'check',label:"Homogeneity (Levene's)",default:false}] }] },
           { title:'Plots', groups:[{ items:[{key:'boxplot',type:'check',label:'Box plot',default:false},{key:'qq',type:'check',label:'Q-Q plot (normality)',default:false}] }] }
         ],
@@ -130,7 +131,9 @@
           } else {
             base += " out<-data.frame('Test'="+JSON.stringify(testLabel)+", 't'=unname(tt$statistic), 'df'=unname(tt$parameter), 'p'=tt$p.value, 'Mean diff'=unname(md), check.names=FALSE, stringsAsFactors=FALSE);";
           }
+          if (opts && opts.meandiffci) base += " out[['95% CI Lower']]<-tt$conf.int[1]; out[['95% CI Upper']]<-tt$conf.int[2];";
           base += " res<-list('T-Test'=out);";
+          if (opts && opts.descr) base += " lv<-levels(f); dn<-sapply(lv,function(L) sum(!is.na(y[f==L]))); dm<-sapply(lv,function(L) mean(y[f==L],na.rm=TRUE)); ds<-sapply(lv,function(L) sd(y[f==L],na.rm=TRUE)); res[['Group Descriptives']]<-data.frame(Group=lv, N=dn, Mean=dm, SD=ds, SE=ds/sqrt(dn), check.names=FALSE, stringsAsFactors=FALSE);";
           if (mwu) base += " w<-wilcox.test(y~f); res[['Mann-Whitney U']]<-data.frame('Test'='Mann-Whitney U', 'W'=unname(w$statistic), p=w$p.value, check.names=FALSE, stringsAsFactors=FALSE);";
           if (opts && opts.normality) base += " ry<-y-ave(y,f,FUN=function(z) mean(z,na.rm=TRUE)); ry<-ry[!is.na(ry)]; if(length(ry)>5000){set.seed(1); ry<-sample(ry,5000)}; sw<-shapiro.test(ry); res[['Normality (Shapiro-Wilk)']]<-data.frame('Test'='Shapiro-Wilk', 'W'=unname(sw$statistic), p=sw$p.value, check.names=FALSE);";
           if (opts && opts.homogeneity) base += " med<-tapply(y,f,median,na.rm=TRUE); zz<-abs(y-med[f]); la<-anova(lm(zz~f)); res[['Homogeneity (Levene)']]<-data.frame('Test'=\"Levene's\", 'F'=la[1,'F value'], df1=la[1,'Df'], df2=la[2,'Df'], p=la[1,'Pr(>F)'], check.names=FALSE);";
@@ -174,14 +177,24 @@
         roles:[{key:'dv',label:'Dependent Variable',types:['numeric'],multiple:false},{key:'covs',label:'Covariates',types:['numeric'],multiple:true}],
         optionSections:[
           { title:'Model Coefficients', groups:[{ items:[
-            {key:'ci',type:'check',label:'Confidence interval (95%)',default:false}
+            {key:'ci',type:'check',label:'Confidence interval (95%)',default:false},
+            {key:'stdest',type:'check',label:'Standardized estimate',default:false}
+          ]}]},
+          { title:'Model Fit', groups:[{ items:[
+            {key:'aic',type:'check',label:'AIC',default:false},
+            {key:'bic',type:'check',label:'BIC',default:false},
+            {key:'rmse',type:'check',label:'RMSE',default:false}
           ]}]},
           { title:'Plot', groups:[{ items:[{key:'plot',type:'check',label:'Scatterplot with fit line',default:false}] }] }
         ],
         note:function(a){ var dv=a.dv&&a.dv[0], c=a.covs||[]; return 'Linear model: ' + dv + ' ~ ' + c.join(' + ') + '.'; },
         buildR:function(a, opts){ var dv=a.dv&&a.dv[0], c=a.covs||[]; if(!dv||!c.length) return null; var rc='c('+c.map(function(x){return JSON.stringify(x);}).join(',')+')';
           var ciR = (opts && opts.ci) ? "ci<-suppressMessages(confint(m)); co[['95% CI Lower']]<-ci[,1]; co[['95% CI Upper']]<-ci[,2];\n" : "";
-          return "local({ dv<-"+JSON.stringify(dv)+"; covs<-"+rc+"; d2<-data[,c(dv,covs),drop=FALSE]; names(d2)<-make.names(names(d2)); ndv<-make.names(dv); nco<-make.names(covs); m<-lm(as.formula(paste(ndv,'~',paste(nco,collapse='+'))), data=d2); s<-summary(m); fit<-data.frame('R-squared'=s$r.squared,'Adj. R-squared'=s$adj.r.squared,'F'=unname(s$fstatistic[1]),'df1'=unname(s$fstatistic[2]),'df2'=unname(s$fstatistic[3]),'p'=unname(pf(s$fstatistic[1],s$fstatistic[2],s$fstatistic[3],lower.tail=FALSE)),check.names=FALSE); co<-as.data.frame(s$coefficients,check.names=FALSE); co<-cbind(Term=rownames(co),co);\n"+ciR+"list('Model Fit'=fit,'Coefficients'=co) })"; },
+          var stdestR = (opts && opts.stdest) ? "bcoef<-coef(m); sdy<-sd(d2[[ndv]],na.rm=TRUE); sdx<-sapply(names(bcoef), function(t) if(t=='(Intercept)') NA else sd(d2[[t]],na.rm=TRUE)); co[['Std. Estimate']]<-as.numeric(bcoef)*sdx/sdy;\n" : "";
+          var aicR  = (opts && opts.aic)  ? "fit[['AIC']]<-AIC(m);\n"  : "";
+          var bicR  = (opts && opts.bic)  ? "fit[['BIC']]<-BIC(m);\n"  : "";
+          var rmseR = (opts && opts.rmse) ? "fit[['RMSE']]<-sqrt(mean(residuals(m)^2));\n" : "";
+          return "local({ dv<-"+JSON.stringify(dv)+"; covs<-"+rc+"; d2<-data[,c(dv,covs),drop=FALSE]; names(d2)<-make.names(names(d2)); ndv<-make.names(dv); nco<-make.names(covs); m<-lm(as.formula(paste(ndv,'~',paste(nco,collapse='+'))), data=d2); s<-summary(m); fit<-data.frame('R-squared'=s$r.squared,'Adj. R-squared'=s$adj.r.squared,'F'=unname(s$fstatistic[1]),'df1'=unname(s$fstatistic[2]),'df2'=unname(s$fstatistic[3]),'p'=unname(pf(s$fstatistic[1],s$fstatistic[2],s$fstatistic[3],lower.tail=FALSE)),check.names=FALSE);\n"+aicR+bicR+rmseR+"co<-as.data.frame(s$coefficients,check.names=FALSE); co<-cbind(Term=rownames(co),co);\n"+ciR+stdestR+"list('Model Fit'=fit,'Coefficients'=co) })"; },
         buildPlots:function(a,opts){ var dv=a.dv&&a.dv[0], c=a.covs||[]; if(!(opts&&opts.plot)||!dv||!c.length) return [];
           var x=JSON.stringify(c[0]), y=JSON.stringify(dv);
           return [{ title:'Scatterplot — '+dv+' vs '+c[0], rCode:'plot(data[['+x+']], data[['+y+']], xlab='+x+', ylab='+y+', pch=19, col="#3e6da9aa"); abline(lm(data[['+y+']] ~ data[['+x+']]), col="#c0392b", lwd=2)' }]; } },
@@ -245,13 +258,23 @@
           {key:'expected',type:'check',label:'Expected counts',default:false},
           {key:'rowpct',type:'check',label:'Row %',default:false},
           {key:'colpct',type:'check',label:'Column %',default:false}
+        ]}]},{ title:'Statistics', groups:[{ items:[
+          {key:'contcorr',type:'check',label:'χ² continuity correction',default:false},
+          {key:'likerat',type:'check',label:'Likelihood ratio',default:false},
+          {key:'fisher',type:'check',label:"Fisher's exact test",default:false},
+          {key:'cramers',type:'check',label:"Phi and Cramér's V",default:false}
         ]}]}],
         buildR:function(a,opts){ var r=a.rows&&a.rows[0], c=a.cols&&a.cols[0]; if(!r||!c) return null;
           var extra = "";
           if (opts && opts.expected) extra += "ex<-as.data.frame.matrix(round(ch$expected,1),check.names=FALSE); ex<-cbind(' '=rownames(ex),ex); res[['Expected Counts']]<-ex;\n";
           if (opts && opts.rowpct)   extra += "rp<-as.data.frame.matrix(round(100*prop.table(t,1),1),check.names=FALSE); rp<-cbind(' '=rownames(rp),rp); res[['Row %']]<-rp;\n";
           if (opts && opts.colpct)   extra += "cp<-as.data.frame.matrix(round(100*prop.table(t,2),1),check.names=FALSE); cp<-cbind(' '=rownames(cp),cp); res[['Column %']]<-cp;\n";
-          return "local({ t<-table(data[["+JSON.stringify(r)+"]], data[["+JSON.stringify(c)+"]]); ch<-suppressWarnings(chisq.test(t)); cnt<-as.data.frame.matrix(t,check.names=FALSE); cnt<-cbind(' '=rownames(cnt),cnt); test<-data.frame('Chi-squared'=unname(ch$statistic),'df'=unname(ch$parameter),'p'=ch$p.value,check.names=FALSE); res<-list('Counts'=cnt);\n"+extra+"res[['Chi-squared Test']]<-test; res })"; } },
+          var testRows = "rows<-list(data.frame(Test='χ²', Value=unname(ch$statistic), df=unname(ch$parameter), p=ch$p.value, check.names=FALSE, stringsAsFactors=FALSE));\n";
+          if (opts && opts.contcorr) testRows += "cc<-suppressWarnings(chisq.test(t, correct=TRUE)); rows[[length(rows)+1]]<-data.frame(Test='χ² continuity correction', Value=unname(cc$statistic), df=unname(cc$parameter), p=cc$p.value, check.names=FALSE, stringsAsFactors=FALSE);\n";
+          if (opts && opts.likerat)  testRows += "g2<-2*sum(t*log(t/ch$expected), na.rm=TRUE); dfg<-unname(ch$parameter); rows[[length(rows)+1]]<-data.frame(Test='Likelihood ratio', Value=g2, df=dfg, p=pchisq(g2, dfg, lower.tail=FALSE), check.names=FALSE, stringsAsFactors=FALSE);\n";
+          if (opts && opts.fisher)   testRows += "ft<-fisher.test(t); rows[[length(rows)+1]]<-data.frame(Test=\"Fisher's exact\", Value=NA, df=NA, p=ft$p.value, check.names=FALSE, stringsAsFactors=FALSE);\n";
+          var cramersR = (opts && opts.cramers) ? "n<-sum(t); phi<-sqrt(unname(ch$statistic)/n); k<-min(nrow(t),ncol(t)); if(k>=2){ cv<-sqrt(unname(ch$statistic)/(n*(k-1))); res[['Nominal Effect Size']]<-data.frame(Statistic=c('Phi',\"Cramér's V\"), Value=c(phi,cv), check.names=FALSE, stringsAsFactors=FALSE) };\n" : "";
+          return "local({ t<-table(data[["+JSON.stringify(r)+"]], data[["+JSON.stringify(c)+"]]); ch<-suppressWarnings(chisq.test(t)); cnt<-as.data.frame.matrix(t,check.names=FALSE); cnt<-cbind(' '=rownames(cnt),cnt); res<-list('Counts'=cnt);\n"+extra+testRows+"res[['Tests']]<-do.call(rbind, rows);\n"+cramersR+"res })"; } },
 
       ttest_one: { id:'ttest_one', title:'One Sample T-Test',
         roles:[{key:'vars',label:'Variables',types:['numeric'],multiple:true}],
