@@ -41,16 +41,20 @@
 .jmv-result-card { position:relative; border:1px solid var(--jmv-line); border-radius:8px; margin:0 0 16px; background:#fff; }
 .jmv-card-remove { position:absolute; top:6px; right:8px; border:none; background:transparent; color:#c0c4cc; cursor:pointer; font-size:13px; line-height:1; padding:4px 6px; border-radius:4px; z-index:2; }
 .jmv-card-remove:hover { color:#dc2626; background:#fef2f2; }
-.jmv-result-title { font:600 15px/1.3 inherit; color:var(--jmv-blue-d); margin:14px 0 6px; }
-.jmv-result-note { font:12px/1.4 inherit; color:#6b7280; margin:2px 0 14px; max-width:640px; }
+/* Table heading = jamovi's table caption: regular weight, left, dark grey. */
+.jmv-result-title { font:400 14px/1.3 inherit; color:#333; margin:14px 0 5px; }
+.jmv-result-note { font:12px/1.4 inherit; color:#565656; margin:3px 0 14px; max-width:640px; }
 .jmv-result-note i { font-style:italic; }
 .jmv-plot-block { margin:8px 0 16px; }
 .jmv-plot-canvas { max-width:100%; height:auto; border:1px solid var(--jmv-line); border-radius:4px; background:#fff; }
-.jmv-result-table { border-collapse:collapse; margin:0 0 14px; font:13px/1.4 inherit; }
-.jmv-result-table th { text-align:right; font-weight:700; padding:5px 12px; border-bottom:2px solid var(--jmv-blue-d); color:#1f2937; white-space:nowrap; }
+/* "booktabs" results table, matching jamovi: thin top rule, thick bottom rule,
+   no inter-row lines, regular-weight headers (real jamovi resultsview CSS). */
+.jmv-result-table { border-collapse:collapse; margin:0 0 14px; font:13px/1.4 inherit; color:#222; }
+.jmv-result-table th { text-align:right; font-weight:400; padding:4px 8px; border-bottom:1px solid #333; color:#222; white-space:nowrap; }
 .jmv-result-table th:first-child, .jmv-result-table td:first-child { text-align:left; }
-.jmv-result-table td { white-space:nowrap; }
-.jmv-result-table td { text-align:right; padding:5px 12px; border-bottom:1px solid #e3e6ec; }
+.jmv-result-table td { text-align:right; padding:4px 8px; white-space:nowrap; border:none; }
+.jmv-result-table tbody tr:first-child td { padding-top:8px; }
+.jmv-result-table tbody tr:last-child td { padding-bottom:8px; border-bottom:2px solid #333; }
 /* ── jamovi analysis dialog ─────────────────────────────────────────────── */
 .jmv-dialog-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:200; display:flex; align-items:center; justify-content:center; }
 .jmv-dialog { background:#fff; border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,.25); width:min(640px,92vw); max-height:85vh; display:flex; flex-direction:column; overflow:hidden; }
@@ -86,4 +90,4 @@
 .jmv-section.collapsed .jmv-section-body { display:none; }
 .jmv-section-body { padding:2px 18px 10px; }
 .jmv-opt-group { margin:0 0 8px; }
-.jmv-opt-grouphdr { font:700 10px inherit; text-transform:uppercase; letter-spacing:.04em; color:#6b7280; margin:6px 0 3px; }
+.jmv-opt-grouphdr { font:700 12px inherit; color:#555; margin:8px 0 3px; }

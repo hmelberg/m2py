@@ -508,9 +508,10 @@
 
     // Jamovi measure-type icons
     function jamoviTypeIcon(type) {
-      if (type === 'numeric')
-        return '<svg class="jmv-type-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="1.5" y="5" width="13" height="6" rx="1" fill="none" stroke="#1f6feb" stroke-width="1.2"/><path d="M4.5 5v2.5M7 5v3.5M9.5 5v2.5M12 5v3.5" stroke="#1f6feb" stroke-width="1"/></svg>';
-      return '<svg class="jmv-type-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="5" cy="6" r="2.4" fill="#e8590c"/><circle cx="11" cy="6" r="2.4" fill="#1f6feb"/><circle cx="8" cy="11" r="2.4" fill="#2f9e44"/></svg>';
+      if (type === 'numeric') // continuous: jamovi's gold ruler
+        return '<svg class="jmv-type-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="1.5" y="5.5" width="13" height="5" rx="0.5" fill="#f1bf63" stroke="#cd8500" stroke-width="1"/><path d="M4 5.5v2M6.5 5.5v3M9 5.5v2M11.5 5.5v3" stroke="#cd8500" stroke-width="0.9"/></svg>';
+      // nominal: jamovi's three balls (two blue + one gold)
+      return '<svg class="jmv-type-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="5.5" cy="6.7" r="3.1" fill="#a9c6f2" stroke="#226ddd" stroke-width="1"/><circle cx="10.5" cy="6.7" r="3.1" fill="#6b9de8" stroke="#226ddd" stroke-width="1"/><circle cx="8" cy="10.6" r="3.1" fill="#f1bf63" stroke="#bf7c00" stroke-width="1"/></svg>';
     }
 
     // Jamovi analysis ribbon icons (16×16 line SVGs)
