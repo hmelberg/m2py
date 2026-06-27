@@ -2864,13 +2864,16 @@
         this.conn = await db.connect();
       },
       async registerTable(name, parquetBytes) {
+        if (!this.conn) throw new Error('__duck: call begin() before registerTable()');
         const db = await __ensureDuckDB();
-        await db.registerFileBuffer(name + '.parquet', new Uint8Array(parquetBytes));
-        await this.conn.query('CREATE OR REPLACE VIEW "' + name +
-          '" AS SELECT * FROM read_parquet(\'' + name + '.parquet\')');
+        const ident = String(name).replace(/"/g, '""');   // SQL identifier escape
+        const fname = String(name).replace(/'/g, "''") + '.parquet';  // SQL string-literal escape
+        await db.registerFileBuffer(String(name) + '.parquet', new Uint8Array(parquetBytes));
+        await this.conn.query('CREATE OR REPLACE VIEW "' + ident +
+          '" AS SELECT * FROM read_parquet(\'' + fname + '\')');
       },
-      async exec(sql) { await this.conn.query(sql); },
-      async query(sql) { return __arrowToColumns(await this.conn.query(sql)); },
+      async exec(sql) { if (!this.conn) throw new Error('__duck: call begin() first'); await this.conn.query(sql); },
+      async query(sql) { if (!this.conn) throw new Error('__duck: call begin() first'); return __arrowToColumns(await this.conn.query(sql)); },
       async end() {
         try { if (this.conn) await this.conn.close(); }
         finally { this.conn = null; }
