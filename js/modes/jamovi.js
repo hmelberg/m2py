@@ -1021,9 +1021,11 @@
             li.addEventListener('click', function(){ selectedVar = (selectedVar === v.name) ? null : v.name; refreshVarList(); });
             // double-click → assign to first compatible role
             li.addEventListener('dblclick', function(){
-              var rs = spec.roles.filter(function(r){ return !r.types || !r.types.length || r.types.indexOf(v.type) !== -1; })[0];
+              // assign to the ACTIVE role box if it accepts this type, else the first compatible role
+              var typeOk = function(r){ return !r.types || !r.types.length || r.types.indexOf(v.type) !== -1; };
+              var active = spec.roles.filter(function(r){ return r.key === activeRoleKey; })[0];
+              var rs = (active && typeOk(active)) ? active : spec.roles.filter(typeOk)[0];
               if (!rs) return;
-              selectedVar = v.name;
               if (!rs.multiple) assignments[rs.key] = [];
               if (assignments[rs.key].indexOf(v.name) === -1) assignments[rs.key].push(v.name);
               selectedVar = null; refreshAll();
