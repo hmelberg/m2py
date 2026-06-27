@@ -1018,7 +1018,7 @@
     /* ── jamovi result tables ───────────────────────────────────────────────── */
     .jmv-result-title { font:600 15px/1.3 inherit; color:#2b3a55; margin:14px 0 6px; }
     .jmv-result-table { border-collapse:collapse; margin:0 0 14px; font:13px/1.4 inherit; }
-    .jmv-result-table th { text-align:right; font-weight:700; padding:5px 12px; border-bottom:2px solid #3b4a66; color:#1f2937; }
+    .jmv-result-table th { text-align:right; font-weight:700; padding:5px 12px; border-bottom:2px solid #3b4a66; color:#1f2937; white-space:nowrap; }
     .jmv-result-table th:first-child, .jmv-result-table td:first-child { text-align:left; }
     .jmv-result-table td { text-align:right; padding:5px 12px; border-bottom:1px solid #e3e6ec; }
     /* ── jamovi analysis dialog ─────────────────────────────────────────────── */
