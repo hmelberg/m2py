@@ -2891,6 +2891,20 @@
       async begin() {
         const db = await __ensureDuckDB();
         this.conn = await db.connect();
+        // The DuckDB-WASM database is a persistent singleton, so tables/views
+        // created in earlier runs linger in the catalog. Drop them so each run
+        // starts clean and the pandas datasets (re-registered below) remain the
+        // single source of truth — otherwise a prior CREATE TABLE collides with
+        // this run's CREATE VIEW of the same dataset name.
+        const objs = __arrowToColumns(await this.conn.query(
+          "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = 'main'"));
+        const names = objs.table_name || [];
+        const types = objs.table_type || [];
+        for (let i = 0; i < names.length; i++) {
+          const kind = /VIEW/i.test(types[i]) ? 'VIEW' : 'TABLE';
+          await this.conn.query('DROP ' + kind + ' IF EXISTS "' +
+            String(names[i]).replace(/"/g, '""') + '"');
+        }
       },
       async registerTable(name, parquetBytes) {
         if (!this.conn) throw new Error('__duck: call begin() before registerTable()');
@@ -6929,6 +6943,26 @@ import __main__ as _m
 import duckdb_bridge as _db
 from pyodide.ffi import to_js as _to_js
 
+# Pyodide shim: pandas' to_parquet lazily runs patch_pyarrow(), which calls
+# pyarrow.unregister_extension_type('arrow.py_extension_type') and raises
+# ArrowKeyError in the Pyodide pyarrow build (the type isn't registered).
+# Make unregister lenient, then pre-import the module so the patch runs once
+# without aborting df.to_parquet(engine='pyarrow').
+import pyarrow as _pa
+if not getattr(_pa, "_m2py_unreg_patched", False):
+    _oru = _pa.unregister_extension_type
+    def _safe_unreg(name, _o=_oru):
+        try:
+            return _o(name)
+        except Exception:
+            return None
+    _pa.unregister_extension_type = _safe_unreg
+    _pa._m2py_unreg_patched = True
+try:
+    import pandas.core.arrays.arrow.extension_types as _pet
+except Exception:
+    pass
+
 _mi = _m.micro_interpreter
 _datasets = _mi.datasets
 _sql = _duck_sql
@@ -6938,6 +6972,11 @@ _known = list(_datasets.keys())
 _refs = _db.extract_referenced_tables(_stmts, _known)
 _created = _db.extract_created_tables(_stmts)
 _preview = _db.build_preview_select(_stmts)
+# If the script CREATEs a table whose name also matches an existing dataset,
+# the created table wins — do not also register the old dataset as a view, or
+# the CREATE TABLE collides with that view ("X is not a table"/"replace View").
+_created_lower = {c.lower() for c in _created}
+_refs = [r for r in _refs if r.lower() not in _created_lower]
 _out = []
 
 async def _run_duck():
