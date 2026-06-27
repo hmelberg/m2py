@@ -5404,11 +5404,12 @@ json.dumps(out)
       if (/^(\/\/|##?)\s*(microdata|micro)\s*$/i.test(trimmed)) return 'microdata';
       if (/^(\/\/|##?)\s*(pyodide|python|py)\s*$/i.test(trimmed)) return 'pyodide';
       if (/^(\/\/|##?)\s*r\s*$/i.test(trimmed)) return 'r';
+      if (/^(\/\/|##?)\s*(stata|statx)\s*$/i.test(trimmed)) return 'stata';
       return null;
     }
     function parseHybridScript(text, defaultMode) {
       var lines = text.split(/\r?\n/);
-      var mode = defaultMode === 'pyodide' ? 'pyodide' : defaultMode === 'r' ? 'r' : 'microdata';
+      var mode = defaultMode === 'pyodide' ? 'pyodide' : defaultMode === 'r' ? 'r' : defaultMode === 'stata' ? 'stata' : 'microdata';
       var buf = [];
       var segments = [];
       function flush() {
@@ -6743,6 +6744,54 @@ json.dumps(out)
       if (webRShelter) { try { await webRShelter.purge(); } catch (e) {} }
       setRunButtonsUi('idle');
       scriptRunInProgress = false;
+    }
+
+    async function runStatxScript(script, ctx) {
+      var rightStatus = ctx && ctx.rightStatus ? ctx.rightStatus : window.rightStatus;
+      try {
+        const py = await loadPyodideAndM2py();
+        await loadPdexplorer(py);
+        setStatus(rightStatus, 'Kjører statx…');
+        const segments = parseHybridScript(script, 'stata');
+        const microCode = segments.filter(function(s) { return s.kind === 'microdata'; }).map(function(s) { return s.text; }).join('\n');
+        const statxCode = segments.filter(function(s) { return s.kind === 'stata' || s.kind === 'statx'; }).map(function(s) { return s.text; }).join('\n');
+        // Establish the engine (e) and _run_microdata_chunk helper
+        const catalogJson = microdataCatalog && microdataCatalog.variables
+          ? JSON.stringify(microdataCatalog.variables)
+          : null;
+        const catalogArg = catalogJson !== null ? JSON.stringify(catalogJson) : 'None';
+        const pageBase = window.location.href.replace(/[^/]+$/, '');
+        await py.runPythonAsync(getInterpreterCorePython(catalogArg, pageBase, '[]') + `
+_forklar_last_chunk_out = ""
+def _run_microdata_chunk(_code):
+    global result, _forklar_last_chunk_out
+    e.output_log.clear()
+    _code = (_code or "").strip()
+    if not _code:
+        _forklar_last_chunk_out = ""
+        return
+    result = e.run_script(_code)
+    _forklar_last_chunk_out = str(result)
+    print(result)
+    e.sync_datasets_to_globals(_g)
+    _apply_labels_to_globals(_g, catalog)
+    _g["show"] = show
+    _g["to_microdata"] = to_microdata
+`);
+        // Run microdata segments to populate e.datasets
+        if (microCode.trim()) {
+          await py.runPythonAsync('import json\n_run_microdata_chunk(json.loads(' + JSON.stringify(JSON.stringify(microCode)) + '))');
+        }
+        // Run statx commands via statx_runner
+        py.globals.set('_statx_src', statxCode);
+        const out = await py.runPythonAsync('import statx_runner\nstatx_runner.run_statx(e, _statx_src)');
+        renderOutput(String(out || ''), false, false);
+        setStatus(rightStatus, '');
+      } catch (err) {
+        const errMsg = (err && err.message) ? err.message : String(err);
+        renderOutput('Statx-feil:\n' + errMsg, false, false);
+        setStatus(rightStatus, 'statx-feil', true);
+      }
     }
 
     let __pyodidePromise = null;
