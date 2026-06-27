@@ -6887,10 +6887,113 @@ json.dumps(out)
       scriptRunInProgress = false;
     }
 
-    // ── DuckDB mode orchestration (real implementation lands in Task 4) ──
+    // ── DuckDB mode: lazy-register the pure Python bridge module once ──
+    var __duckBridgeP = null;
+    function __ensureDuckBridge(py) {
+      if (__duckBridgeP) return __duckBridgeP;
+      var base = window.location.href.replace(/[^/]+$/, '');
+      __duckBridgeP = fetch(base + 'duckdb_bridge.py?v=' + (window.M2PY_VERSION || '1'))
+        .then(function (r) { if (!r.ok) throw new Error('duckdb_bridge.py'); return r.text(); })
+        .then(function (code) {
+          return py.runPythonAsync(
+            'import sys, importlib.util\n' +
+            'def _reg_duckdb_bridge(src):\n' +
+            '    spec = importlib.util.spec_from_loader("duckdb_bridge", loader=None)\n' +
+            '    mod = importlib.util.module_from_spec(spec)\n' +
+            '    sys.modules["duckdb_bridge"] = mod\n' +
+            '    exec(compile(src, "duckdb_bridge.py", "exec"), mod.__dict__)\n' +
+            '_reg_duckdb_bridge(' + JSON.stringify(code) + ')');
+        })
+        .catch(function (e) { __duckBridgeP = null; throw e; });
+      return __duckBridgeP;
+    }
+
+    // Python program: parse SQL, register referenced datasets, run, preview the
+    // trailing SELECT (cap 400), materialize CREATE TABLE results back into
+    // micro_interpreter.datasets. Reads the global `_duck_sql`; returns the
+    // output text. js.__duck.end() runs in finally so the connection never leaks.
+    const __DUCK_RUN_PY = `
+import pandas as _pd
+import js as _js
+import __main__ as _m
+import duckdb_bridge as _db
+from pyodide.ffi import to_js as _to_js
+
+_mi = _m.micro_interpreter
+_datasets = _mi.datasets
+_sql = _duck_sql
+
+_stmts = _db.split_sql_statements(_sql)
+_known = list(_datasets.keys())
+_refs = _db.extract_referenced_tables(_stmts, _known)
+_created = _db.extract_created_tables(_stmts)
+_preview = _db.build_preview_select(_stmts)
+_out = []
+
+async def _run_duck():
+    await _js.__duck.begin()
+    try:
+        for _name in _refs:
+            _buf = _db.df_to_parquet_bytes(_datasets[_name])
+            await _js.__duck.registerTable(_name, _to_js(_buf))
+        if _sql.strip():
+            await _js.__duck.exec(_sql)
+        if _preview:
+            _cnt = (await _js.__duck.query("SELECT count(*) AS n FROM (" + _preview + ") _q")).to_py()
+            _nlist = _cnt.get("n") or [0]
+            _total = int(_nlist[0]) if _nlist else 0
+            _cols = (await _js.__duck.query("SELECT * FROM (" + _preview + ") _q LIMIT 400")).to_py()
+            _pv = _pd.DataFrame(_cols)
+            _out.append(_pv.to_string(index=False) if len(_pv) else "(0 rader)")
+            if _total > 400:
+                _out.append(str(_total) + " rader \\u2014 viser de f\\u00f8rste 400. "
+                            "Bruk CREATE TABLE navn AS \\u2026 for \\u00e5 lagre som datasett.")
+        for _name in _created:
+            _cc = (await _js.__duck.query('SELECT * FROM "' + _name + '"')).to_py()
+            _df = _pd.DataFrame(_cc)
+            _datasets[_name] = _df
+            if not _preview:
+                _out.append("Opprettet datasett " + _name + " (" + str(len(_df)) +
+                            " rader \\u00d7 " + str(_df.shape[1]) + " kolonner)")
+    finally:
+        await _js.__duck.end()
+
+await _run_duck()
+"\\n\\n".join(_out)
+`;
+
     async function runDuckdbScript(script, ctx) {
       const py = (ctx && ctx.py) || await loadPyodideAndM2py();
-      renderOutput('DuckDB-modus lastet (stub).', false, false);
+      setStatus(rightStatus, 'Laster DuckDB-bro…');
+      await __ensureDuckBridge(py);
+      try {
+        var _needPa = await py.runPythonAsync('import importlib.util as _iu\n_iu.find_spec("pyarrow") is None');
+        if (_needPa) {
+          setStatus(rightStatus, 'Installerer pyarrow…');
+          await py.runPythonAsync('import micropip as _mp\nawait _mp.install("pyarrow")');
+        }
+      } catch (e) { console.warn('pyarrow ensure:', e); }
+      setStatus(rightStatus, 'Kjører SQL…');
+      py.globals.set('_duck_sql', script || '');
+      var out;
+      try {
+        out = await py.runPythonAsync(__DUCK_RUN_PY);
+      } catch (e) {
+        var msg = (e && e.message) ? e.message : String(e);
+        purgePlots(outputArea);
+        outputArea.innerHTML = '';
+        var pre = document.createElement('pre');
+        pre.className = 'error';
+        pre.textContent = 'DuckDB-feil:\n' + msg;
+        outputArea.appendChild(pre);
+        setStatus(rightStatus, 'Kjøring feilet.', true);
+        return;
+      }
+      lastOutput = String(out || '').trim();
+      await refreshDatasetSidebarFromPy(py);
+      lastOutputMode = 'run';
+      var asHtml = document.querySelector('input[name="outputMode"]:checked').value === 'html';
+      renderOutput(lastOutput, asHtml, suppressEmbedded.checked);
       setStatus(rightStatus, '');
     }
 
