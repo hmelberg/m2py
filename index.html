@@ -380,7 +380,7 @@
       </button>
       <div style="width:1px;height:20px;background:var(--border);margin:0 6px;flex-shrink:0"></div>
       <div class="mode-dropdown-wrap">
-        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" title="Velg modus (Microdata, Python, R, Statx, jamovi)">
+        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" title="Velg modus (Microdata, Python, R, Statx, jamovi, DuckDB)">
           <span id="editorModeLabel">Microdata</span>
           <span class="chevron">▲</span>
         </button>
@@ -7030,11 +7030,23 @@ await _run_duck()
         out = await py.runPythonAsync(__DUCK_RUN_PY);
       } catch (e) {
         var msg = (e && e.message) ? e.message : String(e);
+        // The exception is a full Pyodide traceback; show the concise DuckDB/SQL
+        // message to the user and keep the full trace in console. DuckDB errors
+        // append a "LINE n: … ^" pointer, so pick the line that names the error
+        // (first line containing "Error:") rather than the last line.
+        console.warn('[duckdb]', msg);
+        var _lines = msg.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+        var _errLine = '';
+        for (var _i = 0; _i < _lines.length; _i++) {
+          if (/Error:/.test(_lines[_i])) { _errLine = _lines[_i]; break; }
+        }
+        var concise = (_errLine || _lines[_lines.length - 1] || msg)
+          .replace(/^pyodide\.ffi\.JsException:\s*/, '').replace(/^Error:\s*/, '');
         purgePlots(outputArea);
         outputArea.innerHTML = '';
         var pre = document.createElement('pre');
         pre.className = 'error';
-        pre.textContent = 'DuckDB-feil:\n' + msg;
+        pre.textContent = 'DuckDB-feil:\n' + concise;
         outputArea.appendChild(pre);
         setStatus(rightStatus, 'Kjøring feilet.', true);
         return;

@@ -187,6 +187,25 @@ the mock datasets (e.g. `person`, `person_year`, `jobb`). Planned set:
 
 (Final count 6–9; labels in Norwegian to match the existing menu style.)
 
+## Known limitations (v1)
+
+- **Table names are assumed bare/unqualified.** `extract_created_tables` captures
+  the first identifier after `TABLE`, so a schema-qualified `CREATE TABLE
+  main.foo …` would be read as `main`. v1 has no schema/ATTACH concept (the
+  catalog is cleaned to `main` each run), so this does not arise in practice;
+  qualified names are unsupported.
+- **The trailing `SELECT` runs up to three times per run** (once in the full
+  script exec, once for the `count(*)`, once for the capped preview). Harmless
+  for ordinary queries; a non-deterministic trailing `SELECT` (e.g. `random()`)
+  could show a count and preview that disagree. A future optimization can fetch
+  `LIMIT 401` once and derive the "more than 400" flag from the row count.
+- **Preview is rendered as `to_string()` text**, not the app's HTML output-table
+  styling (see data-flow step 4).
+- **Browser-environment shim:** pandas' `to_parquet` triggers `patch_pyarrow()`
+  which raises `ArrowKeyError` in the Pyodide pyarrow build; the run wrapper makes
+  `unregister_extension_type` lenient and pre-imports the module. (Verified
+  necessary via in-browser testing.)
+
 ## Out of scope (future specs)
 
 - **microdata ↔ SQL translation.** Feasible later — the microdata DSL already maps
