@@ -103,6 +103,7 @@
           { title:'Tests', groups:[{ items:[{key:'test',type:'radio',choices:[{value:'student',label:"Student's"},{value:'welch',label:"Welch's"}],default:'welch'},{key:'mwu',type:'check',label:'Mann-Whitney U',default:false}] }] },
           { title:'Additional Statistics', groups:[{ items:[{key:'effsize',type:'check',label:"Effect size (Cohen's d)",default:false}] }] }
         ],
+        note:function(a,opts){ return ((opts&&opts.test==='student') ? "Student's" : "Welch's") + ' independent-samples t-test' + (opts&&opts.mwu ? ', with Mann-Whitney U.' : '.'); },
         buildR:function(a,opts){ var dv=a.dv&&a.dv[0], g=a.group&&a.group[0]; if(!dv||!g) return null;
           var varEqual = (opts&&opts.test==='student') ? 'TRUE' : 'FALSE';
           var testLabel = (opts&&opts.test==='student') ? 'Student t' : 'Welch t';
@@ -137,19 +138,35 @@
 
       correlation: { id:'correlation', title:'Correlation Matrix',
         roles:[{key:'vars',label:'Variables',types:['numeric'],multiple:true}],
-        optionSections:[{ title:'Correlation Coefficients', groups:[{ items:[{key:'method',type:'radio',choices:[{value:'pearson',label:'Pearson'},{value:'spearman',label:'Spearman'},{value:'kendall',label:"Kendall's tau-b"}],default:'pearson'}] }] }],
+        optionSections:[
+          { title:'Correlation Coefficients', groups:[{ items:[{key:'method',type:'radio',choices:[{value:'pearson',label:'Pearson'},{value:'spearman',label:'Spearman'},{value:'kendall',label:"Kendall's tau-b"}],default:'pearson'}] }] },
+          { title:'Plot', groups:[{ items:[{key:'plot',type:'check',label:'Scatterplot',default:false}] }] }
+        ],
+        note:function(a,opts){ var m=(opts&&opts.method)||'pearson'; var lbl={pearson:'Pearson product-moment',spearman:"Spearman's rank",kendall:"Kendall's tau-b"}[m]||m; return lbl+' correlation, pairwise-complete observations.'; },
         buildR:function(a,opts){ var v=a.vars||[]; if(v.length<2) return null; var rv='c('+v.map(function(x){return JSON.stringify(x);}).join(',')+')';
           var method = (opts&&opts.method) ? opts.method : 'pearson';
-          return "local({ vars<-"+rv+"; m<-cor(data[,vars,drop=FALSE], use='pairwise.complete.obs', method="+JSON.stringify(method)+"); d<-as.data.frame(round(m,3), check.names=FALSE); cbind(Variable=rownames(m), d) })"; } },
+          return "local({ vars<-"+rv+"; m<-cor(data[,vars,drop=FALSE], use='pairwise.complete.obs', method="+JSON.stringify(method)+"); d<-as.data.frame(round(m,3), check.names=FALSE); cbind(Variable=rownames(m), d) })"; },
+        buildPlots:function(a,opts){ var v=a.vars||[]; if(!(opts&&opts.plot)||v.length<2) return [];
+          if (v.length===2){ var x=JSON.stringify(v[0]), y=JSON.stringify(v[1]);
+            return [{ title:'Scatterplot — '+v[0]+' vs '+v[1], rCode:'plot(data[['+x+']], data[['+y+']], xlab='+x+', ylab='+y+', pch=19, col="#3e6da9aa")' }]; }
+          var rv='c('+v.map(function(x){return JSON.stringify(x);}).join(',')+')';
+          return [{ title:'Scatterplot Matrix', rCode:'pairs(data[,'+rv+',drop=FALSE], pch=19, col="#3e6da9aa")' }]; } },
 
       lin_reg: { id:'lin_reg', title:'Linear Regression',
         roles:[{key:'dv',label:'Dependent Variable',types:['numeric'],multiple:false},{key:'covs',label:'Covariates',types:['numeric'],multiple:true}],
-        optionSections:[{ title:'Model Coefficients', groups:[{ items:[
-          {key:'ci',type:'check',label:'Confidence interval (95%)',default:false}
-        ]}]}],
+        optionSections:[
+          { title:'Model Coefficients', groups:[{ items:[
+            {key:'ci',type:'check',label:'Confidence interval (95%)',default:false}
+          ]}]},
+          { title:'Plot', groups:[{ items:[{key:'plot',type:'check',label:'Scatterplot with fit line',default:false}] }] }
+        ],
+        note:function(a){ var dv=a.dv&&a.dv[0], c=a.covs||[]; return 'Linear model: ' + dv + ' ~ ' + c.join(' + ') + '.'; },
         buildR:function(a, opts){ var dv=a.dv&&a.dv[0], c=a.covs||[]; if(!dv||!c.length) return null; var rc='c('+c.map(function(x){return JSON.stringify(x);}).join(',')+')';
           var ciR = (opts && opts.ci) ? "ci<-suppressMessages(confint(m)); co[['95% CI Lower']]<-ci[,1]; co[['95% CI Upper']]<-ci[,2];\n" : "";
-          return "local({ dv<-"+JSON.stringify(dv)+"; covs<-"+rc+"; d2<-data[,c(dv,covs),drop=FALSE]; names(d2)<-make.names(names(d2)); ndv<-make.names(dv); nco<-make.names(covs); m<-lm(as.formula(paste(ndv,'~',paste(nco,collapse='+'))), data=d2); s<-summary(m); fit<-data.frame('R-squared'=s$r.squared,'Adj. R-squared'=s$adj.r.squared,'F'=unname(s$fstatistic[1]),'df1'=unname(s$fstatistic[2]),'df2'=unname(s$fstatistic[3]),'p'=unname(pf(s$fstatistic[1],s$fstatistic[2],s$fstatistic[3],lower.tail=FALSE)),check.names=FALSE); co<-as.data.frame(s$coefficients,check.names=FALSE); co<-cbind(Term=rownames(co),co);\n"+ciR+"list('Model Fit'=fit,'Coefficients'=co) })"; } },
+          return "local({ dv<-"+JSON.stringify(dv)+"; covs<-"+rc+"; d2<-data[,c(dv,covs),drop=FALSE]; names(d2)<-make.names(names(d2)); ndv<-make.names(dv); nco<-make.names(covs); m<-lm(as.formula(paste(ndv,'~',paste(nco,collapse='+'))), data=d2); s<-summary(m); fit<-data.frame('R-squared'=s$r.squared,'Adj. R-squared'=s$adj.r.squared,'F'=unname(s$fstatistic[1]),'df1'=unname(s$fstatistic[2]),'df2'=unname(s$fstatistic[3]),'p'=unname(pf(s$fstatistic[1],s$fstatistic[2],s$fstatistic[3],lower.tail=FALSE)),check.names=FALSE); co<-as.data.frame(s$coefficients,check.names=FALSE); co<-cbind(Term=rownames(co),co);\n"+ciR+"list('Model Fit'=fit,'Coefficients'=co) })"; },
+        buildPlots:function(a,opts){ var dv=a.dv&&a.dv[0], c=a.covs||[]; if(!(opts&&opts.plot)||!dv||!c.length) return [];
+          var x=JSON.stringify(c[0]), y=JSON.stringify(dv);
+          return [{ title:'Scatterplot — '+dv+' vs '+c[0], rCode:'plot(data[['+x+']], data[['+y+']], xlab='+x+', ylab='+y+', pch=19, col="#3e6da9aa"); abline(lm(data[['+y+']] ~ data[['+x+']]), col="#c0392b", lwd=2)' }]; } },
 
       log_reg: { id:'log_reg', title:'Logistic Regression',
         roles:[{key:'dv',label:'Dependent Variable (binary)',types:['nominal'],multiple:false},{key:'covs',label:'Covariates',types:['numeric','nominal'],multiple:true}],
@@ -235,7 +252,7 @@
     }
 
     // Render a structured webR toJs() result as jamovi-style tables
-    function renderJamoviResult(title, struct) {
+    function renderJamoviResult(title, struct, note) {
       var wrap = document.createElement('div');
       wrap.style.cssText = 'padding:12px 18px;';
 
@@ -252,6 +269,17 @@
         if (a >= 1000) return v.toFixed(0);   // large → no decimals (jamovi-like)
         if (a >= 1) return v.toFixed(2);      // medium → 2 decimals
         return v.toPrecision(3).replace(/0+$/, '').replace(/\.$/, '');
+      }
+
+      // jamovi-style p-value: "< .001" for tiny, 3 decimals with no leading zero otherwise
+      function isPCol(name) {
+        return name === 'p' || /^Pr\(/.test(name) || /p[-\s]?value/i.test(name);
+      }
+      function fmtP(v) {
+        if (v === null || v === undefined || (typeof v === 'number' && isNaN(v))) return 'NA';
+        if (typeof v !== 'number') return String(v);
+        if (v < 0.001) return '< .001';
+        return v.toFixed(3).replace(/^(-?)0\./, '$1.');
       }
 
       function buildTable(t, heading) {
@@ -288,7 +316,9 @@
             var td = document.createElement('td');
             var col = t.values[c];
             var val = col.values[r];
-            td.textContent = (col.type === 'double' || col.type === 'integer') ? fmtNum(val) : (val === null ? 'NA' : String(val));
+            var isNumCol = (col.type === 'double' || col.type === 'integer');
+            if (isNumCol && isPCol(t.names[c])) td.textContent = fmtP(val);
+            else td.textContent = isNumCol ? fmtNum(val) : (val === null ? 'NA' : String(val));
             tr.appendChild(td);
           }
           tbody.appendChild(tr);
@@ -312,6 +342,13 @@
         var fb = document.createElement('pre');
         fb.textContent = JSON.stringify(struct, null, 2);
         wrap.appendChild(fb);
+      }
+
+      if (note) {
+        var noteEl = document.createElement('div');
+        noteEl.className = 'jmv-result-note';
+        noteEl.innerHTML = '<i>Note.</i> ' + M.escapeHtml(note);
+        wrap.appendChild(noteEl);
       }
 
       M.outputArea.innerHTML = '';
@@ -542,7 +579,8 @@
           var shelter = await M.ensureWebRShelter();
           var robj = await shelter.evalR('tryCatch({' + rcode + '}, error=function(e) paste("ERROR:",conditionMessage(e)))');
           var res = await robj.toJs();
-          renderJamoviResult(spec.title, res);
+          var note = (typeof spec.note === 'function') ? spec.note(assignments, optsObj) : (spec.note || null);
+          renderJamoviResult(spec.title, res, note);
           // jamovi-style plots: capture R graphics into the output (after the tables)
           if (spec.buildPlots) {
             var plots = spec.buildPlots(assignments, optsObj) || [];
