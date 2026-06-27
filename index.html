@@ -54,6 +54,12 @@
               <button type="button" data-example="r08_across_sample.txt" data-mode="r">dplyr &mdash; across + slice_sample</button>
               <hr style="margin:4px 0;border-color:#334155;">
             </div>
+            <div class="examples-section" data-section-mode="statx">
+              <button type="button" data-example="st01_stata_basics.txt" data-mode="statx">Stata &mdash; beskrivende</button>
+              <button type="button" data-example="st02_stata_regresjon.txt" data-mode="statx">Stata &mdash; regresjon</button>
+              <button type="button" data-example="st03_stata_generate.txt" data-mode="statx">Stata &mdash; generate/egen</button>
+              <button type="button" data-example="st04_stata_use.txt" data-mode="statx">Stata &mdash; use (flere datasett)</button>
+            </div>
             <button type="button" id="menuWebExamples">Flere eksempler p&#229; web</button>
           </div>
         </div>
@@ -359,7 +365,7 @@
       </button>
       <div style="width:1px;height:20px;background:var(--border);margin:0 6px;flex-shrink:0"></div>
       <div class="mode-dropdown-wrap">
-        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" title="Velg modus (Microdata, Python, R)">
+        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" title="Velg modus (Microdata, Python, R, Statx)">
           <span id="editorModeLabel">Microdata</span>
           <span class="chevron">▲</span>
         </button>
@@ -1873,7 +1879,7 @@
             if (!r.ok) throw new Error(r.status);
             return r.text();
           }).then(function(text) {
-            if (mode && (mode === 'microdata' || mode === 'python' || mode === 'r')
+            if (mode && (mode === 'microdata' || mode === 'python' || mode === 'r' || mode === 'statx')
                 && typeof switchEditorMode === 'function'
                 && typeof activeEditorMode !== 'undefined') {
               if (typeof editorContent !== 'undefined') editorContent[mode] = text;
@@ -2625,6 +2631,9 @@
     const R_HL_FN  = new Set(R_FUNCTIONS);
     const PY_HL_CFG = { commentChar: '#', triple: true,  identStart: /[A-Za-z_]/,  identPart: /[A-Za-z0-9_]/,  kw: PY_HL_KW, fn: PY_HL_FN };
     const R_HL_CFG  = { commentChar: '#', triple: false, identStart: /[A-Za-z_.]/, identPart: /[A-Za-z0-9_.]/, kw: R_HL_KW,  fn: R_HL_FN  };
+    const STATA_HL_KW = new Set(['use','clear','summarize','sum','regress','reg','tabulate','tab','generate','gen','replace','egen','collapse','keep','drop','sort','by','bysort','merge','append','describe','list','browse','if','in','rename','label']);
+    const STATA_HL_FN = new Set(['mean','sd','min','max','count','total','r','e']);
+    const STATA_HL_CFG = { commentChar: '*', triple: false, identStart: /[A-Za-z_]/, identPart: /[A-Za-z0-9_]/, kw: STATA_HL_KW, fn: STATA_HL_FN };
 
     // Modul-namespace → funksjoner (for `px.`, `pd.`, `np.`, `sm.` i autocomplete).
     const PY_NS_FUNCS = {
@@ -3147,7 +3156,7 @@
           await runHybridR(script, ctx.py, { showCommands: ctx.showCommands });
         } },
       statx: { id: 'statx', label: 'Statx',
-        hlConfig: null,
+        hlConfig: STATA_HL_CFG,
         handleTab: microdataHandleTab,
         onActivate: function () { if (!pdexplorerReady && !pdexplorerLoading) loadPyodideAndM2py().then(loadPdexplorer); },
         translate: { showsButton: false },

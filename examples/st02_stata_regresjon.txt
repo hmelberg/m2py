@@ -1,0 +1,14 @@
+* Eksempel: Stata – lineær regresjon (OLS)
+* Første blokk importerer variabler via microdata.
+* Andre blokk kjører en enkel OLS-regresjon av inntekt på kjønn.
+* Les av koeffisienten for kjonn: positiv betyr høyere inntekt for gruppen.
+
+#micro
+require no.ssb.fdb:54 as fd
+create-dataset folk
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+
+#stata
+summarize inntekt
+regress inntekt kjonn

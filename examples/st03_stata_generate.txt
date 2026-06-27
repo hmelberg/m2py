@@ -1,0 +1,14 @@
+* Eksempel: Stata – generate og egen
+* Første blokk importerer variabler via microdata.
+* Andre blokk lager nye variabler: log-inntekt og gjennomsnittsinntekt.
+
+#micro
+require no.ssb.fdb:54 as fd
+create-dataset folk
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+
+#stata
+generate loginnt = log(inntekt)
+egen meaninnt = mean(inntekt)
+summarize loginnt meaninnt
