@@ -3275,7 +3275,7 @@
     var JAMOVI_ANALYSES = {
       descriptives: {
         id: 'descriptives', title: 'Descriptives',
-        roles: [{ key: 'vars', label: 'Variables', types: ['numeric'], multiple: true }],
+        roles: [{ key: 'vars', label: 'Variables', types: ['numeric'], multiple: true }, { key: 'split', label: 'Split by', types: ['nominal'], multiple: false }],
         optionSections:[{ title:'Statistics', groups:[
           { title:'Sample Size', items:[{key:'N',type:'check',label:'N',default:true},{key:'Missing',type:'check',label:'Missing',default:true}] },
           { title:'Central Tendency', items:[{key:'Mean',type:'check',label:'Mean',default:true},{key:'Median',type:'check',label:'Median',default:true},{key:'Mode',type:'check',label:'Mode',default:false},{key:'Sum',type:'check',label:'Sum',default:false}] },
@@ -3284,20 +3284,27 @@
         ]}],
         buildR: function(a, opts){
           var v = a.vars; if(!v||!v.length) return null;
+          var splitV = a.split && a.split[0];
           var rv = 'c('+v.map(function(x){return JSON.stringify(x);}).join(',')+')';
           var allKeys = ['N','Missing','Mean','Median','Mode','Sum','SD','Variance','Range','Min','Max','SE','Skewness','Kurtosis'];
           var want = allKeys.filter(function(k){ return opts && opts[k]; });
           if(!want.length) want = ['N','Mean','SD'];
           var rwant = 'c('+want.map(function(k){return JSON.stringify(k);}).join(',')+')';
+          var rsplit = splitV ? JSON.stringify(splitV) : 'NULL';
           return "local({\n"
-           +"vars<-"+rv+"; want<-"+rwant+";\n"
+           +"vars<-"+rv+"; want<-"+rwant+"; splitv<-"+rsplit+";\n"
            +"Mode<-function(x){x<-x[!is.na(x)]; if(!length(x)) return(NA); ux<-unique(x); ux[which.max(tabulate(match(x,ux)))]}\n"
            +"lbl<-c(N='N',Missing='Missing',Mean='Mean',Median='Median',Mode='Mode',Sum='Sum',SD='Std. deviation',Variance='Variance',Range='Range',Min='Minimum',Max='Maximum',SE='Std. error',Skewness='Skewness',Kurtosis='Kurtosis')\n"
-           +"statRow<-function(v){ x<-data[[v]]; xc<-x[!is.na(x)]; n<-length(xc); o<-list(Variable=v)\n"
+           +"statRow<-function(v,x,lev){ xc<-x[!is.na(x)]; n<-length(xc); o<-list()\n"
+           +" if(!is.null(lev)) o[['Group']]<-lev\n"
+           +" o[['Variable']]<-v\n"
            +" f<-list(N=function() n, Missing=function() sum(is.na(x)), Mean=function() mean(xc), Median=function() median(xc), Mode=function() Mode(xc), Sum=function() sum(xc), SD=function() sd(xc), Variance=function() var(xc), Range=function() max(xc)-min(xc), Min=function() min(xc), Max=function() max(xc), SE=function() sd(xc)/sqrt(n), Skewness=function(){m<-mean(xc); s<-sd(xc); (sum((xc-m)^3)/n)/s^3}, Kurtosis=function(){m<-mean(xc); s<-sd(xc); (sum((xc-m)^4)/n)/s^4-3})\n"
            +" for(k in want) o[[lbl[[k]]]]<-tryCatch(f[[k]](), error=function(e) NA)\n"
            +" as.data.frame(o, check.names=FALSE, stringsAsFactors=FALSE) }\n"
-           +"do.call(rbind, lapply(vars, statRow)) })";
+           +"rows<-list()\n"
+           +"if(is.null(splitv)){ for(v in vars) rows[[length(rows)+1]]<-statRow(v, data[[v]], NULL) }\n"
+           +"else { g<-as.character(data[[splitv]]); levs<-sort(unique(g[!is.na(g)])); for(lv in levs) for(v in vars) rows[[length(rows)+1]]<-statRow(v, data[[v]][!is.na(g) & g==lv], lv) }\n"
+           +"do.call(rbind, rows) })";
         }
       },
 
