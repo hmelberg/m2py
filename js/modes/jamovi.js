@@ -3,6 +3,7 @@
     // User-set measure-type overrides (Variables tab), keyed "dataset::column".
     var jamoviTypeOverrides = {};
     var jamoviDataTable = null; // Tabulator instance for the Data tab
+    var jamoviFilter = '';      // pandas query applied (non-destructively) to data sent to analyses
 
     // Write a single edited cell back to the engine's pandas DataFrame.
     async function jamoviWriteBack(cell) {
@@ -78,6 +79,96 @@
       backdrop.appendChild(dlg); document.body.appendChild(backdrop);
     }
 
+    // Phase 2: row filter that affects analyses (non-destructive pandas query).
+    function jamoviFilterDialog() {
+      if (!window.activeDatasetName) { alert('Ingen aktivt datasett.'); return; }
+      var cols = ((window.lastDatasetInfo || {})[window.activeDatasetName] || {}).columns || [];
+      var backdrop = document.createElement('div'); backdrop.className = 'jmv-dialog-backdrop';
+      var dlg = document.createElement('div'); dlg.className = 'jmv-dialog'; dlg.style.maxWidth = '560px';
+      dlg.innerHTML = '<div class="jmv-dialog-head">Filter — påvirker analysene</div>';
+      var body = document.createElement('div'); body.className = 'jmv-dialog-body'; body.style.display = 'block';
+      body.innerHTML = '<div class="jmv-cv-label">Filteruttrykk (pandas query)</div>'
+        + '<input class="jmv-cv-input" id="jmvFiltExpr" placeholder="f.eks. grade > 70">'
+        + '<div class="jmv-ribbon-hint" style="margin-top:8px">Analysene kjøres på radene som oppfyller uttrykket (dataene endres ikke). Tomt = ingen filter. Kolonner: ' + cols.map(function(c){ return M.escapeHtml(c); }).join(', ') + '. Backticks for navn med punktum.</div>'
+        + '<div id="jmvFiltErr" style="margin-top:6px;font-size:12px"></div>';
+      dlg.appendChild(body);
+      var foot = document.createElement('div'); foot.className = 'jmv-dialog-foot';
+      var close = document.createElement('button'); close.textContent = 'Lukk'; close.addEventListener('click', function(){ document.body.removeChild(backdrop); });
+      var clear = document.createElement('button'); clear.textContent = 'Fjern filter'; clear.addEventListener('click', function(){ jamoviFilter = ''; document.body.removeChild(backdrop); renderDataView(); });
+      var ok = document.createElement('button'); ok.className = 'primary'; ok.textContent = 'Bruk';
+      ok.addEventListener('click', async function(){
+        var expr = document.getElementById('jmvFiltExpr').value.trim();
+        var errEl = document.getElementById('jmvFiltErr');
+        if (!expr) { jamoviFilter = ''; document.body.removeChild(backdrop); renderDataView(); return; }
+        ok.disabled = true;
+        try {
+          var py = await M.loadPyodideAndM2py();
+          py.globals.set('_jf_expr', expr);
+          var n = String(await py.runPythonAsync('int(len(e.datasets[e.active_name].query(_jf_expr)))'));
+          jamoviFilter = expr;
+          errEl.style.color = '#2f7d32'; errEl.textContent = n + ' rader oppfyller filteret.';
+          setTimeout(function(){ if (backdrop.parentNode) document.body.removeChild(backdrop); renderDataView(); }, 700);
+        } catch(err) { errEl.style.color = '#b91c1c'; errEl.textContent = 'Ugyldig uttrykk: ' + (err.message || err); ok.disabled = false; }
+      });
+      // prefill
+      foot.appendChild(close); foot.appendChild(clear); foot.appendChild(ok); dlg.appendChild(foot);
+      backdrop.appendChild(dlg); document.body.appendChild(backdrop);
+      var inp = document.getElementById('jmvFiltExpr'); if (inp) inp.value = jamoviFilter;
+    }
+
+    // Phase 2: recode (bin) a numeric variable into a new categorical variable.
+    async function jamoviRecodeVar(src, name, cuts, labels) {
+      var py = await M.loadPyodideAndM2py();
+      py.globals.set('_rc_src', src); py.globals.set('_rc_name', name);
+      py.globals.set('_rc_cuts', cuts); py.globals.set('_rc_labels', labels);
+      await py.runPythonAsync(
+        'import pandas as _pd\n' +
+        '_df = e.datasets[e.active_name]\n' +
+        '_bins = [float(_x) for _x in list(_rc_cuts)]\n' +
+        '_labs = [str(_x) for _x in list(_rc_labels)]\n' +
+        '_df[_rc_name] = _pd.cut(_df[_rc_src], bins=_bins, labels=_labs, include_lowest=True).astype(object)'
+      );
+      var infoJson = String(await py.runPythonAsync('import json as _j\n_df = e.datasets[e.active_name]\n_j.dumps({"columns": list(map(str,_df.columns)), "dtypes": {str(c): str(_df[c].dtype) for c in _df.columns}, "nrows": int(len(_df))})'));
+      window.lastDatasetInfo = window.lastDatasetInfo || {};
+      window.lastDatasetInfo[window.activeDatasetName] = JSON.parse(infoJson);
+      renderDataView();
+    }
+    function jamoviRecodeDialog() {
+      if (!window.activeDatasetName) { alert('Ingen aktivt datasett.'); return; }
+      var vars = jamoviVariables().filter(function(v){ return v.type === 'numeric'; });
+      if (!vars.length) { alert('Ingen numeriske variabler å omkode.'); return; }
+      var backdrop = document.createElement('div'); backdrop.className = 'jmv-dialog-backdrop';
+      var dlg = document.createElement('div'); dlg.className = 'jmv-dialog'; dlg.style.maxWidth = '560px';
+      dlg.innerHTML = '<div class="jmv-dialog-head">Omkod variabel (inndeling i grupper)</div>';
+      var body = document.createElement('div'); body.className = 'jmv-dialog-body'; body.style.display = 'block';
+      body.innerHTML = '<div class="jmv-cv-label">Kildevariabel</div>'
+        + '<select class="jmv-cv-input" id="jmvRcSrc">' + vars.map(function(v){ return '<option>' + M.escapeHtml(v.name) + '</option>'; }).join('') + '</select>'
+        + '<div class="jmv-cv-label">Nytt variabelnavn</div>'
+        + '<input class="jmv-cv-input" id="jmvRcName" placeholder="f.eks. gradeGruppe">'
+        + '<div class="jmv-cv-label">Grenser (kommaseparert)</div>'
+        + '<input class="jmv-cv-input" id="jmvRcCuts" placeholder="f.eks. 0, 60, 75, 100">'
+        + '<div class="jmv-cv-label">Etiketter (én færre enn grenser)</div>'
+        + '<input class="jmv-cv-input" id="jmvRcLabels" placeholder="f.eks. Lav, Middels, Høy">'
+        + '<div id="jmvRcErr" style="color:#b91c1c;margin-top:6px;font-size:12px"></div>';
+      dlg.appendChild(body);
+      var foot = document.createElement('div'); foot.className = 'jmv-dialog-foot';
+      var close = document.createElement('button'); close.textContent = 'Lukk'; close.addEventListener('click', function(){ document.body.removeChild(backdrop); });
+      var ok = document.createElement('button'); ok.className = 'primary'; ok.textContent = 'Omkod';
+      ok.addEventListener('click', async function(){
+        var src = document.getElementById('jmvRcSrc').value;
+        var name = document.getElementById('jmvRcName').value.trim();
+        var cuts = document.getElementById('jmvRcCuts').value.split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+        var labels = document.getElementById('jmvRcLabels').value.split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+        var errEl = document.getElementById('jmvRcErr');
+        if (!name || cuts.length < 2 || labels.length !== cuts.length - 1) { errEl.textContent = 'Sjekk navn, grenser (minst 2) og etiketter (én færre enn grenser).'; return; }
+        ok.disabled = true;
+        try { await jamoviRecodeVar(src, name, cuts, labels); document.body.removeChild(backdrop); }
+        catch(err){ errEl.textContent = 'Feil: ' + (err.message || err); ok.disabled = false; }
+      });
+      foot.appendChild(close); foot.appendChild(ok); dlg.appendChild(foot);
+      backdrop.appendChild(dlg); document.body.appendChild(backdrop);
+    }
+
     function jamoviVariables() {
       var name = window.activeDatasetName;
       if (!name || !window.lastDatasetInfo || !window.lastDatasetInfo[name]) return [];
@@ -102,9 +193,14 @@
       // codelist by its alias; we map with string-coerced keys because the series values may be
       // strings ("1") while the codelist keys are ints (1). Columns without a codelist (numeric
       // measures like inntekt) have no codelist and pass through unchanged.
+      py.globals.set('_jmv_filter', jamoviFilter || '');
       var b64 = String(await py.runPythonAsync(
         'import base64 as _b, pandas as _pd\n' +
         '_df = e.datasets[e.active_name].copy()\n' +
+        'try:\n' +
+        '    if _jmv_filter: _df = _df.query(_jmv_filter)\n' +
+        'except Exception:\n' +
+        '    pass\n' +
         'def _lk(_x, _m):\n' +
         '    if _pd.isna(_x): return _x\n' +
         '    _k = str(_x).strip()\n' +
@@ -530,7 +626,8 @@
         var d = JSON.parse(json);
         loading.remove();
         var info = document.createElement('div'); info.className = 'jmv-result-note';
-        info.innerHTML = '<i>Note.</i> ' + d.n.toLocaleString('no') + ' rader' + (d.shown < d.n ? ' (viser de første ' + d.shown + ')' : '') + '. Klikk en celle for å redigere — endringer lagres i økten, men nullstilles hvis du kjører et skript på nytt.';
+        info.innerHTML = '<i>Note.</i> ' + d.n.toLocaleString('no') + ' rader' + (d.shown < d.n ? ' (viser de første ' + d.shown + ')' : '') + '. Klikk en celle for å redigere — endringer lagres i økten, men nullstilles hvis du kjører et skript på nytt.'
+          + (jamoviFilter ? ' <b style="color:var(--jmv-blue-d)">· Filter aktivt: ' + M.escapeHtml(jamoviFilter) + ' (analysene bruker bare rader som oppfyller dette)</b>' : '');
         wrap.appendChild(info);
         var gridDiv = document.createElement('div'); gridDiv.className = 'jmv-data-grid'; wrap.appendChild(gridDiv);
         var columns = [{ title: '#', field: '__rowid__', width: 56, headerSort: false, editor: false, cssClass: 'jmv-rowid-col' }];
@@ -590,7 +687,7 @@
         window.activeDatasetName = ex.name;
         window.lastDatasetInfo = window.lastDatasetInfo || {};
         window.lastDatasetInfo[ex.name] = info;
-        jamoviTypeOverrides = {};
+        jamoviTypeOverrides = {}; jamoviFilter = '';
         M.setStatus(M.rightStatus, '');
         renderDataView();
       } catch (e) {
@@ -1030,6 +1127,8 @@
         + '<div class="jmv-panel" data-jpanel="data" hidden>'
         +   '<button type="button" class="jmv-ribbon-btn" data-jaction="show-data">Vis data</button>'
         +   '<button type="button" class="jmv-ribbon-btn" data-jaction="compute-var">Beregn variabel</button>'
+        +   '<button type="button" class="jmv-ribbon-btn" data-jaction="recode-var">Omkod variabel</button>'
+        +   '<button type="button" class="jmv-ribbon-btn" data-jaction="filter">Filter</button>'
         +   '<button type="button" class="jmv-ribbon-btn" data-jaction="add-row">Legg til rad</button>'
         +   '<button type="button" class="jmv-ribbon-btn" data-jaction="delete-row">Slett valgt rad</button>'
         + '</div>'
@@ -1093,6 +1192,8 @@
           if (act==='show-variables') renderVariablesView();
           else if (act==='show-data') renderDataView();
           else if (act==='compute-var') jamoviComputeVarDialog();
+          else if (act==='recode-var') jamoviRecodeDialog();
+          else if (act==='filter') jamoviFilterDialog();
           else if (act==='add-row') jamoviAddRow();
           else if (act==='delete-row') jamoviDeleteRow();
         });
