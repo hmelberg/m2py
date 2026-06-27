@@ -101,3 +101,13 @@ def test_parquet_roundtrip_preserves_dtypes_and_nulls():
     assert list(back.columns) == ["i", "f", "s"]
     assert back["s"].tolist() == ["a", None, "c"]
     assert back["f"].tolist() == [1.5, 2.5, 3.0]
+
+
+def test_split_handles_escaped_single_quote():
+    sql = "SELECT 'it''s; here' AS x; SELECT 2"
+    assert split_sql_statements(sql) == ["SELECT 'it''s; here' AS x", "SELECT 2"]
+
+
+def test_referenced_tables_ignores_table_name_inside_escaped_quote_string():
+    sql = "SELECT 'O''Brien jobb' AS lbl FROM person"
+    assert extract_referenced_tables([sql], ["person", "jobb"]) == ["person"]

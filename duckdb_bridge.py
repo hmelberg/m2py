@@ -44,10 +44,15 @@ def split_sql_statements(sql):
             else:
                 i += 1
         elif in_single:
-            buf.append(c)
-            if c == "'":
-                in_single = False
-            i += 1
+            if c == "'" and nxt == "'":
+                buf.append(c)
+                buf.append(nxt)
+                i += 2
+            else:
+                buf.append(c)
+                if c == "'":
+                    in_single = False
+                i += 1
         elif in_double:
             buf.append(c)
             if c == '"':
@@ -107,10 +112,14 @@ def _scrub(sql):
             else:
                 i += 1
         elif in_single:
-            if c == "'":
+            if c == "'" and nxt == "'":
+                i += 2
+            elif c == "'":
                 in_single = False
                 out.append(" ")
-            i += 1
+                i += 1
+            else:
+                i += 1
         elif c == "-" and nxt == "-":
             in_line = True
             i += 2
