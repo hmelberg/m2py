@@ -2,6 +2,82 @@
     // Variables from the active dataset
     // User-set measure-type overrides (Variables tab), keyed "dataset::column".
     var jamoviTypeOverrides = {};
+    var jamoviDataTable = null; // Tabulator instance for the Data tab
+
+    // Write a single edited cell back to the engine's pandas DataFrame.
+    async function jamoviWriteBack(cell) {
+      try {
+        var py = await M.loadPyodideAndM2py();
+        var v = cell.getValue();
+        py.globals.set('_wb_id', cell.getRow().getData().__rowid__);
+        py.globals.set('_wb_col', cell.getField());
+        py.globals.set('_wb_val', (v === '' ? null : v));
+        await py.runPythonAsync(
+          'import pandas as _pd\n' +
+          '_df = e.datasets[e.active_name]\n' +
+          '_df.at[_wb_id, _wb_col] = (_pd.NA if _wb_val is None else _wb_val)'
+        );
+      } catch (e) {
+        M.setStatus(M.rightStatus, 'Lagring feilet: ' + (e.message || e));
+        setTimeout(function(){ M.setStatus(M.rightStatus, ''); }, 2500);
+      }
+    }
+
+    // Data tab actions: add row, delete selected row(s), compute a new variable.
+    async function jamoviAddRow() {
+      if (!window.activeDatasetName) return;
+      var py = await M.loadPyodideAndM2py();
+      await py.runPythonAsync('import pandas as _pd\n_df = e.datasets[e.active_name]\n_ni = (int(_df.index.max())+1) if len(_df) else 0\n_df.loc[_ni] = _pd.NA');
+      renderDataView();
+    }
+    async function jamoviDeleteRow() {
+      if (!jamoviDataTable) { alert('Åpne Data-fanen først.'); return; }
+      var sel = jamoviDataTable.getSelectedData();
+      if (!sel.length) { alert('Klikk på en rad for å velge den, og prøv igjen.'); return; }
+      var ids = sel.map(function(r){ return r.__rowid__; });
+      var py = await M.loadPyodideAndM2py();
+      py.globals.set('_del_ids', ids);
+      await py.runPythonAsync('_df = e.datasets[e.active_name]\ne.datasets[e.active_name] = _df.drop(index=[i for i in list(_del_ids)])');
+      renderDataView();
+    }
+    async function jamoviComputeVar(name, expr) {
+      var py = await M.loadPyodideAndM2py();
+      py.globals.set('_cv_name', name); py.globals.set('_cv_expr', expr);
+      await py.runPythonAsync('_df = e.datasets[e.active_name]\n_df[_cv_name] = _df.eval(_cv_expr)');
+      var infoJson = String(await py.runPythonAsync('import json as _j\n_df = e.datasets[e.active_name]\n_j.dumps({"columns": list(map(str,_df.columns)), "dtypes": {str(c): str(_df[c].dtype) for c in _df.columns}, "nrows": int(len(_df))})'));
+      window.lastDatasetInfo = window.lastDatasetInfo || {};
+      window.lastDatasetInfo[window.activeDatasetName] = JSON.parse(infoJson);
+      renderDataView();
+    }
+    function jamoviComputeVarDialog() {
+      if (!window.activeDatasetName) { alert('Ingen aktivt datasett.'); return; }
+      var cols = ((window.lastDatasetInfo || {})[window.activeDatasetName] || {}).columns || [];
+      var backdrop = document.createElement('div'); backdrop.className = 'jmv-dialog-backdrop';
+      var dlg = document.createElement('div'); dlg.className = 'jmv-dialog'; dlg.style.maxWidth = '560px';
+      dlg.innerHTML = '<div class="jmv-dialog-head">Beregn variabel</div>';
+      var body = document.createElement('div'); body.className = 'jmv-dialog-body'; body.style.display = 'block';
+      body.innerHTML = '<div class="jmv-cv-label">Nytt variabelnavn</div>'
+        + '<input class="jmv-cv-input" id="jmvCvName" placeholder="f.eks. logInntekt">'
+        + '<div class="jmv-cv-label">Uttrykk (pandas)</div>'
+        + '<input class="jmv-cv-input" id="jmvCvExpr" placeholder="f.eks. inntekt / 1000">'
+        + '<div class="jmv-ribbon-hint" style="margin-top:8px">Tilgjengelige kolonner: ' + cols.map(function(c){ return M.escapeHtml(c); }).join(', ') + '. Bruk backticks for navn med punktum/mellomrom (f.eks. `dan.sleep` * 2).</div>'
+        + '<div id="jmvCvErr" style="color:#b91c1c;margin-top:6px;font-size:12px"></div>';
+      dlg.appendChild(body);
+      var foot = document.createElement('div'); foot.className = 'jmv-dialog-foot';
+      var close = document.createElement('button'); close.textContent = 'Lukk'; close.addEventListener('click', function(){ document.body.removeChild(backdrop); });
+      var ok = document.createElement('button'); ok.className = 'primary'; ok.textContent = 'Beregn';
+      ok.addEventListener('click', async function(){
+        var name = document.getElementById('jmvCvName').value.trim();
+        var expr = document.getElementById('jmvCvExpr').value.trim();
+        if (!name || !expr) { document.getElementById('jmvCvErr').textContent = 'Fyll inn navn og uttrykk.'; return; }
+        ok.disabled = true;
+        try { await jamoviComputeVar(name, expr); document.body.removeChild(backdrop); }
+        catch(err){ document.getElementById('jmvCvErr').textContent = 'Feil: ' + (err.message || err); ok.disabled = false; }
+      });
+      foot.appendChild(close); foot.appendChild(ok); dlg.appendChild(foot);
+      backdrop.appendChild(dlg); document.body.appendChild(backdrop);
+    }
+
     function jamoviVariables() {
       var name = window.activeDatasetName;
       if (!name || !window.lastDatasetInfo || !window.lastDatasetInfo[name]) return [];
@@ -414,16 +490,23 @@
     // Data tab: read-only preview of the active dataset (first rows, from the engine).
     async function renderDataView() {
       var wrap = jamoviSingletonCard('jamoviDataCard', 'Data');
+      jamoviDataTable = null;
       if (!window.activeDatasetName) {
         var p = document.createElement('p'); p.style.cssText = 'color:#6b7280;'; p.textContent = 'Ingen aktivt datasett.'; wrap.appendChild(p); return;
+      }
+      if (typeof Tabulator === 'undefined') {
+        var pe = document.createElement('p'); pe.style.cssText = 'color:#b91c1c;'; pe.textContent = 'Tabulator-biblioteket er ikke lastet.'; wrap.appendChild(pe); return;
       }
       var loading = document.createElement('p'); loading.style.cssText = 'color:#6b7280;'; loading.textContent = 'Laster data…'; wrap.appendChild(loading);
       try {
         var py = await M.loadPyodideAndM2py();
+        // Fetch up to 2000 rows with a stable __rowid__ (the DataFrame index) for write-back.
+        // Coded columns (with a codelist) are shown as labels and left read-only.
         var json = String(await py.runPythonAsync(
           'import json as _j, pandas as _pd\n' +
           '_df = e.datasets[e.active_name]\n' +
-          '_h = _df.head(50).copy()\n' +
+          '_h = _df.head(2000).copy()\n' +
+          '_labeled = []\n' +
           'def _lk(_x, _m):\n' +
           '    if _pd.isna(_x): return None\n' +
           '    _k = str(int(_x)) if isinstance(_x, float) and _x.is_integer() else str(_x).strip()\n' +
@@ -433,27 +516,43 @@
           '        _cl = e.label_manager.get_codelist_for_var(_c)\n' +
           '        if _cl:\n' +
           '            _m = {str(_key): _val for _key, _val in _cl.items()}\n' +
-          '            _h[_c] = _h[_c].map(lambda _x: _lk(_x, _m))\n' +
+          '            _h[_c] = _h[_c].map(lambda _x: _lk(_x, _m)); _labeled.append(str(_c))\n' +
           '    except Exception:\n' +
           '        pass\n' +
-          '_j.dumps({"cols": list(map(str,_df.columns)), "rows": _h.astype(object).where(_h.notna(), None).values.tolist(), "n": int(len(_df))})'
+          '_h2 = _h.astype(object).where(_h.notna(), None)\n' +
+          '_recs = _h2.to_dict(orient="records")\n' +
+          '_ids = list(_h.index)\n' +
+          'for _k in range(len(_recs)):\n' +
+          '    _recs[_k] = {str(_kk): _vv for _kk, _vv in _recs[_k].items()}\n' +
+          '    _recs[_k]["__rowid__"] = (int(_ids[_k]) if isinstance(_ids[_k], (int,)) else _ids[_k])\n' +
+          '_j.dumps({"cols": list(map(str,_df.columns)), "dtypes": {str(c): str(_df[c].dtype) for c in _df.columns}, "labeled": _labeled, "n": int(len(_df)), "shown": int(len(_h)), "recs": _recs})'
         ));
         var d = JSON.parse(json);
         loading.remove();
         var info = document.createElement('div'); info.className = 'jmv-result-note';
-        info.textContent = d.n.toLocaleString('no') + ' rader · viser de første ' + d.rows.length + '.';
+        info.innerHTML = '<i>Note.</i> ' + d.n.toLocaleString('no') + ' rader' + (d.shown < d.n ? ' (viser de første ' + d.shown + ')' : '') + '. Klikk en celle for å redigere — endringer lagres i økten, men nullstilles hvis du kjører et skript på nytt.';
         wrap.appendChild(info);
-        var scroll = document.createElement('div'); scroll.className = 'jmv-data-scroll';
-        var table = document.createElement('table'); table.className = 'jmv-result-table jmv-data-table';
-        table.innerHTML = '<thead><tr>' + d.cols.map(function(c) { return '<th>' + M.escapeHtml(c) + '</th>'; }).join('') + '</tr></thead>';
-        var tb = document.createElement('tbody');
-        d.rows.forEach(function(row) {
-          var tr = document.createElement('tr');
-          row.forEach(function(cell) { var td = document.createElement('td'); td.textContent = (cell === null ? '' : String(cell)); tr.appendChild(td); });
-          tb.appendChild(tr);
+        var gridDiv = document.createElement('div'); gridDiv.className = 'jmv-data-grid'; wrap.appendChild(gridDiv);
+        var columns = [{ title: '#', field: '__rowid__', width: 56, headerSort: false, editor: false, cssClass: 'jmv-rowid-col' }];
+        d.cols.forEach(function(c) {
+          var dt = d.dtypes[c] || '';
+          var isNum = /^(int|float|uint)/i.test(dt);
+          var isLabeled = d.labeled.indexOf(c) !== -1;
+          columns.push({
+            title: c, field: c, headerSort: true, headerFilter: 'input',
+            hozAlign: isNum ? 'right' : 'left',
+            editor: isLabeled ? false : (isNum ? 'number' : 'input'),
+            formatter: function(cell) { var v = cell.getValue(); return (v === null || v === undefined || v === '') ? '<span style="opacity:.35">·</span>' : M.escapeHtml(String(v)); }
+          });
         });
-        table.appendChild(tb); scroll.appendChild(table); wrap.appendChild(scroll);
-      } catch (e) { loading.textContent = 'Kunne ikke laste data: ' + (e.message || e); }
+        jamoviDataTable = new Tabulator(gridDiv, {
+          data: d.recs, columns: columns, index: '__rowid__',
+          layout: 'fitDataStretch', height: '440px',
+          pagination: 'local', paginationSize: 100, paginationSizeSelector: [50, 100, 250, 500],
+          movableColumns: true, selectableRows: 1, placeholder: '(ingen data)'
+        });
+        jamoviDataTable.on('cellEdited', function(cell) { jamoviWriteBack(cell); });
+      } catch (e) { if (loading.parentNode) loading.textContent = 'Kunne ikke laste data: ' + (e.message || e); }
     }
 
     // Bundled example datasets from "Learning Statistics with jamovi" (examples/lsj/).
@@ -928,7 +1027,12 @@
         + '<div class="jmv-ribbon-area">'
         + '<div class="jmv-panel" data-jpanel="analyses">' + catGroups + '</div>'
         + '<div class="jmv-panel" data-jpanel="variables" hidden><button type="button" class="jmv-ribbon-btn" data-jaction="show-variables">Vis variabler</button><span class="jmv-ribbon-hint">Måltype for hver variabel i det aktive datasettet.</span></div>'
-        + '<div class="jmv-panel" data-jpanel="data" hidden><button type="button" class="jmv-ribbon-btn" data-jaction="show-data">Forhåndsvis data</button><span class="jmv-ribbon-hint">Skrivebeskyttet visning av de første radene.</span></div>'
+        + '<div class="jmv-panel" data-jpanel="data" hidden>'
+        +   '<button type="button" class="jmv-ribbon-btn" data-jaction="show-data">Vis data</button>'
+        +   '<button type="button" class="jmv-ribbon-btn" data-jaction="compute-var">Beregn variabel</button>'
+        +   '<button type="button" class="jmv-ribbon-btn" data-jaction="add-row">Legg til rad</button>'
+        +   '<button type="button" class="jmv-ribbon-btn" data-jaction="delete-row">Slett valgt rad</button>'
+        + '</div>'
         + '<div class="jmv-panel" data-jpanel="figures" hidden>'
         +   '<button type="button" class="jmv-ribbon-btn" data-an="fig_histogram">' + (JAMOVI_ICONS.descriptives||'') + '<span>Histogram</span></button>'
         +   '<button type="button" class="jmv-ribbon-btn" data-an="fig_boxplot"><span>Box Plot</span></button>'
@@ -985,7 +1089,13 @@
       });
       // Variables / Data ribbon-action buttons
       rib.querySelectorAll('.jmv-ribbon-btn[data-jaction]').forEach(function(b){
-        b.addEventListener('click', function(){ var act = b.getAttribute('data-jaction'); if (act==='show-variables') renderVariablesView(); else if (act==='show-data') renderDataView(); });
+        b.addEventListener('click', function(){ var act = b.getAttribute('data-jaction');
+          if (act==='show-variables') renderVariablesView();
+          else if (act==='show-data') renderDataView();
+          else if (act==='compute-var') jamoviComputeVarDialog();
+          else if (act==='add-row') jamoviAddRow();
+          else if (act==='delete-row') jamoviDeleteRow();
+        });
       });
       // Figurer ribbon: plot buttons open a plot dialog
       rib.querySelectorAll('.jmv-ribbon-btn[data-an]').forEach(function(b){

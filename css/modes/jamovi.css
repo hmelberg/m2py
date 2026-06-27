@@ -32,6 +32,12 @@
 .jmv-data-scroll { max-height:430px; overflow:auto; border:1px solid var(--jmv-line); border-radius:6px; }
 .jmv-data-table { margin:0; }
 .jmv-data-table th { position:sticky; top:0; background:#eef1f5; z-index:1; }
+.jmv-cv-label { font:600 12px/1.2 inherit; color:#555; margin:10px 0 3px; }
+.jmv-cv-input { width:100%; box-sizing:border-box; padding:6px 8px; border:1px solid #828282; border-radius:3px; font:13px inherit; outline:none; }
+.jmv-cv-input:focus { border-color:#2e8ac7; box-shadow:0 0 0 1px #2e8ac7; }
+.jmv-data-grid { margin:6px 0 4px; font-size:13px; }
+.jmv-data-grid .tabulator { border:1px solid var(--jmv-line); }
+.jmv-data-grid .jmv-rowid-col { color:#9aa3af; background:#fafbfc; }
 .jmv-group { position:relative; }
 .jmv-cat { display:flex; align-items:center; gap:8px; font:13px/1.2 inherit; padding:6px 12px; background:transparent; border:1px solid transparent; border-radius:4px; cursor:pointer; color:var(--jmv-blue-d); }
 .jmv-cat svg { flex:0 0 auto; }
