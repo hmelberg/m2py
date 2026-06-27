@@ -3263,8 +3263,28 @@
       if (!webRReady) await loadWebR();
       if (!webRShelter) webRShelter = await new webR.Shelter();
       var py = await loadPyodideAndM2py();
+      // Export the active dataset, replacing codes with value-labels (e.g. 1->Mann) so nominal
+      // variables show labels in jamovi output. The engine's label_manager resolves a column's
+      // codelist by its alias; we map with string-coerced keys because the series values may be
+      // strings ("1") while the codelist keys are ints (1). Columns without a codelist (numeric
+      // measures like inntekt) have no codelist and pass through unchanged.
       var b64 = String(await py.runPythonAsync(
-        'import base64 as _b\n_b.b64encode(e.datasets[e.active_name].to_csv(index=False).encode("utf-8")).decode("ascii")'
+        'import base64 as _b, pandas as _pd\n' +
+        '_df = e.datasets[e.active_name].copy()\n' +
+        'def _lk(_x, _m):\n' +
+        '    if _pd.isna(_x): return _x\n' +
+        '    _k = str(_x).strip()\n' +
+        '    if isinstance(_x, float) and _x.is_integer(): _k = str(int(_x))\n' +
+        '    return _m.get(_k, _x)\n' +
+        'for _c in list(_df.columns):\n' +
+        '    try:\n' +
+        '        _cl = e.label_manager.get_codelist_for_var(_c)\n' +
+        '        if _cl:\n' +
+        '            _m = {str(_key): _val for _key, _val in _cl.items()}\n' +
+        '            _df[_c] = _df[_c].map(lambda _x: _lk(_x, _m))\n' +
+        '    except Exception:\n' +
+        '        pass\n' +
+        '_b.b64encode(_df.to_csv(index=False).encode("utf-8")).decode("ascii")'
       ));
       await webR.evalRVoid(
         'data <- read.csv(textConnection(rawToChar(base64enc::base64decode("' + b64 + '"))), stringsAsFactors=FALSE, check.names=FALSE)'
