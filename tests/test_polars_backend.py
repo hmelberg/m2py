@@ -1123,6 +1123,27 @@ def test_panel_tables_match_emulator():
     assert mc == ec
 
 
+def test_transitions_panel_matches_emulator():
+    from m2py_runtime import pandas_ops as po
+    rng = np.random.default_rng(0)
+    rows = []
+    for i in range(80):
+        s = int(rng.integers(1, 4))
+        for t in (2018, 2019, 2020):
+            s = int(np.clip(s + rng.integers(-1, 2), 1, 3))
+            rows.append({"unit_id": i, "tid": t, "status": s})
+    df = pd.DataFrame(rows)
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+    emu = m2py.MicroInterpreter(metadata_path=None).stats_engine.execute(
+        "transitions-panel", df, ["status"], {})           # crosstab(from, to, norm=index)
+    mine = po.transitions_panel(df, ["status"])
+    minep, _ = _run_analysis("transitions-panel status", df, "polars")
+    for _, r in mine.iterrows():
+        assert np.isclose(r["prob"], emu.loc[r["from"], r["to"]])
+    assert np.allclose(mine.sort_values(["from", "to"])["prob"].to_numpy(),
+                       minep.sort_values(["from", "to"])["prob"].to_numpy())
+
+
 def test_hausman_matches_emulator():
     pytest.importorskip("linearmodels")
     import re

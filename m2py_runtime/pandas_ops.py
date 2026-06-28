@@ -394,6 +394,33 @@ def summarize_panel(df, vars=None, gini=False, iqr=False):
     return pd.DataFrame(recs)
 
 
+def transitions_panel(df, vars=None):
+    """Transition matrix per variable: within each entity (sorted by ``tid``), the
+    row-normalised probability of moving from each value to the next period's
+    value. Returns a long frame ``[variable, from, to, prob]``. Mirrors the
+    emulator's crosstab(current, next, normalize='index')."""
+    from m2py import _get_df_key_col
+    key = _get_df_key_col(df) or "unit_id"
+    if "tid" not in df.columns:
+        raise ValueError("transitions-panel requires a 'tid' column")
+    if not vars:
+        vars = [c for c in df.columns if c not in ("unit_id", "PERSONID_1", "tid", key)]
+    vars = [v for v in vars if v in df.columns]
+    frames = []
+    for var in vars:
+        s = df[[key, "tid", var]].sort_values([key, "tid"]).dropna(subset=[var])
+        s = s.assign(_next=s.groupby(key)[var].shift(-1)).dropna(subset=["_next"])
+        if s.empty:
+            continue
+        ct = pd.crosstab(s[var], s["_next"], normalize="index")
+        long = ct.reset_index().melt(id_vars=var, var_name="to", value_name="prob")
+        long = long.rename(columns={var: "from"})
+        long.insert(0, "variable", var)
+        frames.append(long)
+    return (pd.concat(frames, ignore_index=True) if frames
+            else pd.DataFrame(columns=["variable", "from", "to", "prob"]))
+
+
 def tabulate_panel(df, var1, missing=False, rowpct=False, colpct=False):
     """Frequency of ``var1`` across time periods (``var1`` rows × ``tid``).
     Counts of each ``(var1, tid)``; rowpct is within ``var1``, colpct within

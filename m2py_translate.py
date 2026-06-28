@@ -50,7 +50,7 @@ SURVIVAL = {"cox": "cox", "kaplan-meier": "kaplan_meier", "weibull": "weibull"}
 PANEL_IV = {"regress-panel", "regress-panel-diff", "ivregress"}
 ANALYSIS = ({"summarize", "tabulate", "correlate", "mlogit", "rdd",
              "normaltest", "ci", "anova", "hausman",
-             "summarize-panel", "tabulate-panel"}
+             "summarize-panel", "tabulate-panel", "transitions-panel"}
             | set(REGRESSION) | set(SURVIVAL) | PANEL_IV)
 # PLOT verbs build a plotly Figure (terminal, like analysis). Offline they are
 # written to an HTML file; in-memory (tests) the figure object is left in scope.
@@ -90,6 +90,7 @@ HANDLED_OPTIONS = {
     "summarize-panel": {"gini", "iqr"},
     # tabulate-panel: tid is the columns; summarize()-volume variant deferred
     "tabulate-panel": {"missing", "rowpct", "colpct", "row", "col"},
+    "transitions-panel": set(),
     "anova": set(),
     "hausman": set(),
     # regression family: noconstant only; or/irr/robust/exposure/level deferred
@@ -364,6 +365,8 @@ def _emit_analysis(instr, backend, idx, frame=None):
     elif cmd == "summarize-panel":
         call = (f"ops.summarize_panel({var}, vars={vars_!r}, "
                 f"gini={bool(opts.get('gini'))!r}, iqr={bool(opts.get('iqr'))!r})")
+    elif cmd == "transitions-panel":
+        call = f"ops.transitions_panel({var}, vars={vars_!r})"
     elif cmd == "tabulate-panel":
         if not vars_:
             return None

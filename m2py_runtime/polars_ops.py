@@ -213,6 +213,10 @@ def tabulate_panel(lf, var1, missing=False, rowpct=False, colpct=False):
     return _analysis(lf, "tabulate_panel", var1, missing=missing, rowpct=rowpct, colpct=colpct)
 
 
+def transitions_panel(lf, vars=None):
+    return _analysis(lf, "transitions_panel", vars)
+
+
 def normaltest(lf, vars=None):
     return _analysis(lf, "normaltest", vars)
 
