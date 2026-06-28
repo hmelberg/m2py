@@ -251,14 +251,24 @@ def test_tabulate_chi2_matches_scipy():
     assert res["chi2_dof"].iloc[0] == dof
 
 
-def test_tabulate_top_bottom_by_frequency():
+def test_tabulate_top_bottom_positional():
+    # positional = first/last n categories in value-sorted order (NOT by count).
+    # k sorted ascending is 1,2,3,4 regardless of frequency.
     df = pd.DataFrame({"k": [1] * 10 + [2] * 5 + [3] * 3 + [4] * 1})
     top, _ = _run_analysis("tabulate k, top(2)", df, "pandas")
-    assert top["k"].tolist() == [1, 2] and top["n"].tolist() == [10, 5]
+    assert top["k"].tolist() == [1, 2]              # first two values
     bot, _ = _run_analysis("tabulate k, bottom(2)", df, "pandas")
-    assert bot["k"].tolist() == [4, 3] and bot["n"].tolist() == [1, 3]
+    assert bot["k"].tolist() == [3, 4]              # last two values
     bare, _ = _run_analysis("tabulate k, top", df, "pandas")  # bare -> default 10
     assert len(bare) == 4
+
+
+def test_tabulate_top_two_way_keeps_first_var_categories():
+    # two-way top(1): keep all rows of the first var's first category
+    df = pd.DataFrame({"x": [1, 1, 2, 3], "y": [1, 2, 1, 2]})
+    res, _ = _run_analysis("tabulate x y, top(1)", df, "pandas")
+    assert set(res["x"]) == {1}                     # only x's first category
+    assert sorted(res["y"]) == [1, 2]
 
 
 def test_summarize_gini_matches_emulator_definition():

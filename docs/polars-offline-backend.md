@@ -87,7 +87,8 @@ everywhere. Any *other* option on a line — e.g. tabulate `nolabels`/`rowsort`/
 `# UNTRANSLATED` rather than being silently ignored. Two-way `tabulate x y` is
 supported (via args); percentages are `0-100` columns within any `by` group;
 `chi2` adds `chi2`/`chi2_p`/`chi2_dof` (scipy chi-square, two-way); `top(n)`/
-`bottom(n)` keep the n highest/lowest-frequency rows (bare `top` -> 10). List all gaps (unknown verb, expression, or option) for a script with
+`bottom(n)` keep the first/last n categories of the first variable (positional,
+value-sorted — same as microdata/the emulator; bare `top` -> 10). List all gaps (unknown verb, expression, or option) for a script with
 `m2py_translate.unsupported(script)`.
 
 ## Architecture

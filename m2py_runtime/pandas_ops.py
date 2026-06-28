@@ -217,8 +217,10 @@ def tabulate(df, vars, by=None, missing=False,
     ``chi2`` (two-way only) adds constant ``chi2``/``chi2_p``/``chi2_dof`` columns
     (per ``by`` group), using scipy's chi-square test of independence — computed
     on the full table, before any top/bottom row limit.
-    ``top``/``bottom`` keep the n highest/lowest-frequency rows (``top(n)``; bare
-    ``top`` -> 10). Columns: the grouping variables, ``n``, then any extras."""
+    ``top``/``bottom`` keep the first/last n categories of the first variable
+    (positional, in value-sorted order — same as microdata/the emulator, which
+    head/tail the table rows; ``top(n)``; bare ``top`` -> 10). Columns: the
+    grouping variables, ``n``, then any extras."""
     keys = ([by] if by and by in df.columns else []) + list(vars)
     out = df.groupby(keys, dropna=not missing).size().reset_index(name="n")
     grp = [by] if by and by in df.columns else []
@@ -242,13 +244,12 @@ def tabulate(df, vars, by=None, missing=False,
                 df, first, second, not missing)
     if top is not None or bottom is not None:
         from m2py import _parse_count_option
-        if top is not None:
-            out = out.sort_values("n", ascending=False, kind="stable").head(
-                _parse_count_option(top))
-        else:
-            out = out.sort_values("n", ascending=True, kind="stable").head(
-                _parse_count_option(bottom))
-        out = out.reset_index(drop=True)
+        # positional (emulator/microdata): first/last n categories of the first
+        # variable, in value-sorted order (groupby already sorts keys ascending).
+        cats = out[first].drop_duplicates()
+        n = _parse_count_option(top if top is not None else bottom)
+        keep = cats.head(n) if top is not None else cats.tail(n)
+        out = out[out[first].isin(keep)].reset_index(drop=True)
     return out
 
 
