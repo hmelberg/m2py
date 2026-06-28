@@ -113,6 +113,22 @@ def merge(lf, other, on, how="left"):
     return lf.join(other, on=on, how=how)
 
 
+# reshape needs the whole frame (not streamable) -> materialise, reshape via the
+# tested pandas op, and re-lazy; the pipeline continues lazily afterwards.
+def _reshape(lf, fn, *a):
+    pl = _pl()
+    from . import pandas_ops as pdo
+    return pl.from_pandas(getattr(pdo, fn)(lf.collect().to_pandas(), *a))
+
+
+def reshape_to_panel(lf, prefixes):
+    return _reshape(lf, "reshape_to_panel", prefixes).lazy()
+
+
+def reshape_from_panel(lf):
+    return _reshape(lf, "reshape_from_panel").lazy()
+
+
 def rename(lf, old, new):
     return lf.rename({old: new})
 

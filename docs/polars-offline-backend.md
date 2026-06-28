@@ -63,7 +63,7 @@ crosses the network, not the data.
 
 | Category | Verbs |
 |---|---|
-| Shaping | `generate`, `replace`, `recode`, `keep`, `drop`, `rename`, `destring` |
+| Shaping | `generate`, `replace`, `recode`, `keep`, `drop`, `rename`, `destring`, `reshape-to-panel`, `reshape-from-panel` |
 | Aggregation | `collapse`, `aggregate` |
 | Merge | `merge` |
 | Analysis (side output) | `summarize`, `tabulate`, `correlate` |

@@ -136,6 +136,61 @@ def merge(df, other, on, how="left"):
     return pd.merge(df, other, on=on, how=how)
 
 
+def reshape_to_panel(df, prefixes):
+    """Wide -> long panel. For each prefix, collect columns ``<prefix><suffix>``
+    where the suffix is non-alphabetic (years/dates) and stack them into one
+    column ``<prefix>`` with a ``tid`` (and ``panel@date``) time column; rows are
+    entity×time (entity-major). Mirrors the emulator exactly."""
+    from m2py import _get_df_key_col
+    if not prefixes:
+        raise ValueError("reshape-to-panel requires at least one variable prefix")
+    id_col = _get_df_key_col(df) or df.index.name or "id"
+    id_col = id_col if id_col in df.columns else df.columns[0]
+    stub_cols, time_vals = {}, set()
+    for col in df.columns:
+        for pre in prefixes:
+            if col.startswith(pre) and col != pre:
+                suf = col[len(pre):]
+                if suf and all(not c.isalpha() for c in suf):
+                    stub_cols.setdefault(pre, []).append((col, suf))
+                    time_vals.add(suf)
+    if not stub_cols:
+        raise ValueError(
+            f"reshape-to-panel found no <prefix><suffix> columns for {prefixes}")
+    time_vals = sorted(time_vals)
+    n, n_t = len(df), len(time_vals)
+    stub_set = {full for cols in stub_cols.values() for full, _ in cols}
+    rep_idx = np.repeat(np.arange(n), n_t)
+    out = pd.DataFrame(index=pd.RangeIndex(n * n_t))
+    out[id_col] = (df[id_col].to_numpy()[rep_idx] if id_col in df.columns
+                   else np.repeat(df.index.to_numpy(), n_t))
+    tid_block = np.tile(np.asarray(time_vals, dtype=object), n)
+    out["tid"] = tid_block
+    out["panel@date"] = tid_block
+    for pre, cols in stub_cols.items():
+        suf_to_col = {suf: full for full, suf in cols}
+        per_t = [df[suf_to_col[t]].reset_index(drop=True)
+                 if t in suf_to_col else pd.Series(np.nan, index=range(n))
+                 for t in time_vals]
+        out[pre] = pd.concat(per_t, axis=1).to_numpy().ravel(order="C")
+    for c in df.columns:
+        if c not in stub_set and c != id_col:
+            out[c] = df[c].to_numpy()[rep_idx]
+    return out
+
+
+def reshape_from_panel(df):
+    """Long -> wide. Pivot each non-id column over ``tid`` into ``<var><tid>``
+    columns (one row per entity). Mirrors the emulator."""
+    from m2py import _get_df_key_col
+    if "tid" not in df.columns:
+        raise ValueError("reshape-from-panel requires a 'tid' column")
+    id_col = _get_df_key_col(df) or df.columns[0]
+    wide = df.pivot_table(index=id_col, columns="tid", aggfunc="first")
+    wide.columns = [f"{a}{b}" if b != "" else str(a) for a, b in wide.columns]
+    return wide.reset_index()
+
+
 def rename(df, old, new):
     """Rename column ``old`` to ``new``."""
     return df.rename(columns={old: new})

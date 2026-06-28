@@ -31,7 +31,8 @@ PREDICT_BINARY = {"logit-predict", "probit-predict", "mlogit-predict"}
 # TRANSFORM verbs reassign the working frame (df / lf -> new frame).
 TRANSFORM = {
     "generate", "replace", "recode", "keep", "drop", "rename", "destring",
-    "collapse", "aggregate", "merge", "ivregress-predict", "regress-panel-predict",
+    "collapse", "aggregate", "merge", "reshape-to-panel", "reshape-from-panel",
+    "ivregress-predict", "regress-panel-predict",
 } | set(PREDICT)
 # ANALYSIS verbs compute a side result and PRINT it; the working frame is
 # unchanged (matching the emulator, where summarize/tabulate/regress don't alter
@@ -62,6 +63,8 @@ HANDLED_OPTIONS = {
     "generate": set(), "replace": set(), "recode": set(), "rename": set(),
     "keep": set(), "drop": set(),
     "destring": {"force"},                 # always coerces == force semantics
+    "reshape-to-panel": set(),
+    "reshape-from-panel": set(),
     "collapse": {"by"}, "aggregate": {"by"},
     "merge": {"on", "outer_join"},
     "summarize": {"by", "gini", "iqr"},
@@ -171,6 +174,13 @@ def _emit(instr, backend):
     if cmd in ("collapse", "aggregate"):
         return (f"{var} = ops.{cmd}({var}, targets={args['targets']!r}, "
                 f"by={opts.get('by')!r})")
+    if cmd == "reshape-to-panel":
+        prefixes = args.get("prefixes") if isinstance(args, dict) else None
+        if not prefixes:
+            return None
+        return f"{var} = ops.reshape_to_panel({var}, prefixes={prefixes!r})"
+    if cmd == "reshape-from-panel":
+        return f"{var} = ops.reshape_from_panel({var})"
     if cmd == "regress-panel-predict":
         if not isinstance(args, (list, tuple)) or len(args) < 2:
             return None

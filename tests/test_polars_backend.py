@@ -408,6 +408,46 @@ def test_predict_variants_match_emulator(script):
         assert np.allclose(out_pd[c].dropna(), out_pl[c].dropna(), atol=1e-6), c
 
 
+def _reshape_norm(df):
+    df = df.copy()
+    df.columns = [str(c) for c in df.columns]
+    df = df[sorted(df.columns)]
+    return df.sort_values(sorted(df.columns)).reset_index(drop=True)
+
+
+def test_reshape_to_and_from_panel_match_emulator():
+    from m2py_runtime import pandas_ops as po
+    wide = pd.DataFrame({"unit_id": [1, 2, 3], "lonn2018": [10.0, 20, 30],
+                         "lonn2019": [11.0, 21, 31], "lonn2020": [12.0, 22, 32],
+                         "kjonn": [1, 2, 1]})
+
+    def emu(df, script):
+        m2py.M2PY_DISCLOSURE_CONTROL = "0"
+        it = m2py.MicroInterpreter(metadata_path=None)
+        it.datasets["df"] = df.copy()
+        it.active_name = "df"
+        for ln in script.splitlines():
+            if ln.strip():
+                it._execute_instruction(it.parser.parse_line(ln))
+        return it.datasets["df"]
+
+    # wide -> long
+    emu_long = emu(wide, "reshape-to-panel lonn")
+    mine_long = po.reshape_to_panel(wide, ["lonn"])
+    pl_long = T.run("reshape-to-panel lonn", {"df": wide}, "polars").to_pandas()
+    assert list(mine_long.columns) == ["unit_id", "tid", "panel@date", "lonn", "kjonn"]
+    assert len(mine_long) == 9                                  # 3 entities × 3 times
+    assert _reshape_norm(emu_long).equals(_reshape_norm(mine_long))
+    assert _reshape_norm(mine_long).equals(_reshape_norm(pl_long))   # parity
+
+    # long -> wide
+    emu_wide = emu(emu_long, "reshape-from-panel")
+    mine_wide = po.reshape_from_panel(mine_long)
+    pl_wide = T.run("reshape-from-panel", {"df": mine_long}, "polars").to_pandas()
+    assert _reshape_norm(emu_wide).equals(_reshape_norm(mine_wide))
+    assert _reshape_norm(mine_wide).equals(_reshape_norm(pl_wide))
+
+
 def test_poisson_predict_is_flagged():
     # not a real microdata command (the emulator rejects it)
     assert T.unsupported("poisson-predict cnt x1") == ["poisson-predict cnt x1"]
