@@ -366,6 +366,28 @@ def test_coefplot_requires_reg_command():
                                          source_path=None)
 
 
+@pytest.mark.parametrize("stat", ["mean", "median", "sum", "sd", "min", "max"])
+@pytest.mark.parametrize("over", [None, "kommune"])
+def test_barchart_all_stats_match_emulator(stat, over):
+    import m2py as _m
+    _m.M2PY_DISCLOSURE_CONTROL = "0"
+    df = pd.DataFrame({"inntekt": [10.0, 20, 30, 40, 50, 60],
+                       "kommune": [1, 1, 2, 2, 3, 3]})
+    opts = {"over": over} if over else {}
+    script = f"barchart ({stat}) inntekt" + (f", over({over})" if over else "")
+    emu = _m.PlotHandler().execute("barchart", df, {"stat": stat, "vars": ["inntekt"]}, opts)
+    fpd = _run_fig(script, df, "pandas")
+    fpl = _run_fig(script, df, "polars")
+    assert _fig_equal(fpd, emu), f"{script}: differs from emulator"
+    assert _fig_equal(fpd, fpl), f"{script}: pandas vs polars differ"
+
+
+def test_bare_stat_flag_is_flagged_not_applied():
+    # `barchart x, mean` (bare flag) -> emulator ignores it; translator flags it
+    assert T.unsupported("barchart inntekt, mean") == ["barchart inntekt, mean"]
+    assert T.unsupported("barchart (mean) inntekt") == []   # parenthesised works
+
+
 def test_plot_is_terminal_and_writes_html_in_file_mode():
     # plots don't change the working frame; file mode emits a write_html call
     code = T.translate("histogram inntekt\nkeep if inntekt > 500",
