@@ -219,6 +219,76 @@ def test_regress_matches_statsmodels():
         assert np.isclose(got["x"], truth.params["x"], rtol=1e-9)
 
 
+# ── plots (terminal; build a plotly figure, frame unchanged) ─────────────────
+
+_PLOT_DF = pd.DataFrame({
+    "inntekt": (list(range(100, 1100, 10)) + [None]),    # 100 numeric + 1 missing
+    "kommune": ([1, 2, 3, 1, 2] * 20 + [3]),
+    "alder": (list(range(20, 120)) + [50]),
+})
+
+
+def _run_fig(script, df, backend):
+    code = T.translate(script, backend=backend, source_path=None)
+    assert "UNTRANSLATED" not in code, code
+    if backend == "polars":
+        ns = {"data": pl.LazyFrame(df), "pl": pl, "datasets": None}
+    else:
+        ns = {"df": df.copy(), "pd": pd, "datasets": None}
+    exec(code, ns)
+    return ns["fig_1"]
+
+
+def _axis_eq(a, b):
+    if a is None or b is None:
+        return a is b
+    if len(a) != len(b):
+        return False
+    try:                                  # numeric: NaN-aware
+        return np.array_equal(np.asarray(a, float), np.asarray(b, float), equal_nan=True)
+    except (TypeError, ValueError):
+        return list(a) == list(b)         # categorical / strings
+
+
+def _trace0_equal(f1, f2):
+    d1, d2 = f1.data[0], f2.data[0]
+    return (type(d1).__name__ == type(d2).__name__
+            and getattr(d1, "nbinsx", None) == getattr(d2, "nbinsx", None)
+            and _axis_eq(d1.x, d2.x) and _axis_eq(d1.y, d2.y))
+
+
+@pytest.mark.parametrize("script,cmd,args,opts", [
+    ("histogram inntekt", "histogram", {"vars": ["inntekt"]}, {}),
+    ("histogram inntekt, bin(15)", "histogram", {"vars": ["inntekt"]}, {"bin": "15"}),
+    ("barchart kommune", "barchart", {"stat": "count", "vars": ["kommune"]}, {}),
+    ("scatter alder inntekt", "scatter", {"vars": ["alder", "inntekt"]}, {}),
+    ("boxplot inntekt", "boxplot", {"vars": ["inntekt"]}, {}),
+])
+def test_plot_trace_matches_emulator_and_backends_agree(script, cmd, args, opts):
+    pytest.importorskip("plotly")
+    import m2py as _m
+    _m.M2PY_DISCLOSURE_CONTROL = "0"
+    emu = _m.PlotHandler().execute(cmd, _PLOT_DF, args, opts)
+    fpd = _run_fig(script, _PLOT_DF, "pandas")
+    fpl = _run_fig(script, _PLOT_DF, "polars")
+    assert _trace0_equal(fpd, emu), f"{script}: differs from emulator"
+    assert _trace0_equal(fpd, fpl), f"{script}: pandas vs polars differ"
+
+
+def test_plot_is_terminal_and_writes_html_in_file_mode():
+    # plots don't change the working frame; file mode emits a write_html call
+    code = T.translate("histogram inntekt\nkeep if inntekt > 500",
+                       backend="polars", source_path="extract")
+    assert 'fig_1.write_html("plot_1.html")' in code
+    assert "ops.keep(lf" in code  # pipeline continues after the plot
+
+
+def test_nonstandard_bins_option_is_flagged():
+    # microdata's option is bin(); 'bins(...)' is not honoured by the emulator,
+    # so it must be surfaced, not silently defaulted.
+    assert T.unsupported("histogram inntekt, bins(20)") == ["histogram inntekt, bins(20)"]
+
+
 def test_unsupported_expression_is_marked_not_silently_wrong():
     # a microdata function the polars compiler doesn't implement -> UNTRANSLATED,
     # never emitted as incorrect polars.

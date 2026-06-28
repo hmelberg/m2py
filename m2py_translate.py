@@ -28,8 +28,11 @@ TRANSFORM = {
 # unchanged (matching the emulator, where summarize/tabulate/regress don't alter
 # the active dataset).
 ANALYSIS = {"summarize", "tabulate", "correlate", "regress"}
+# PLOT verbs build a plotly Figure (terminal, like analysis). Offline they are
+# written to an HTML file; in-memory (tests) the figure object is left in scope.
+PLOT = {"histogram", "barchart", "scatter", "boxplot"}
 
-SUPPORTED = TRANSFORM | ANALYSIS
+SUPPORTED = TRANSFORM | ANALYSIS | PLOT
 
 # Options each verb actually honours. Any option on a line that is NOT listed
 # here makes the line UNTRANSLATED — so an unrecognised flag (e.g. a tabulate
@@ -47,6 +50,11 @@ HANDLED_OPTIONS = {
                  "cellpct", "rowpct", "colpct", "cell", "row", "col"},
     "correlate": set(),
     "regress": set(),
+    # plots: v1 supports the core forms; grouped/stat/styling options deferred
+    "histogram": {"bin", "nbins"},      # microdata's option is bin(); 'bins' is flagged
+    "barchart": set(),
+    "scatter": set(),
+    "boxplot": set(),
 }
 
 
@@ -162,6 +170,38 @@ def _emit_analysis(instr, backend, idx):
     return f"{res} = {call}\nprint({res})"
 
 
+def _emit_plot(instr, backend, idx, write):
+    """Emit a plot step: build a plotly Figure from the (unchanged) working frame
+    into ``fig_<idx>``; write it to an HTML file in file mode."""
+    cmd, args, opts = instr["command"], instr["args"], instr["options"]
+    var = "lf" if backend == "polars" else "df"
+    vars_ = args.get("vars") if isinstance(args, dict) else None
+    if not vars_:
+        return None
+    fig = f"fig_{idx}"
+    if cmd == "histogram":
+        raw = opts.get("bin") or opts.get("nbins")  # microdata option is bin()
+        try:
+            bins = int(raw) if raw else 30
+        except (ValueError, TypeError):
+            bins = 30
+        call = f"ops.histogram({var}, vars={vars_!r}, bins={bins})"
+    elif cmd == "barchart":
+        call = f"ops.barchart({var}, vars={vars_!r})"
+    elif cmd == "scatter":
+        if len(vars_) < 2:
+            return None
+        call = f"ops.scatter({var}, vars={vars_!r})"
+    elif cmd == "boxplot":
+        call = f"ops.boxplot({var}, vars={vars_!r})"
+    else:
+        return None
+    line = f"{fig} = {call}"
+    if write:
+        line += f'\n{fig}.write_html("plot_{idx}.html")'
+    return line
+
+
 def translate(script, backend="pandas", source_path="df"):
     """Return a runnable Python program (string) for ``script``.
 
@@ -216,6 +256,9 @@ def translate(script, backend="pandas", source_path="df"):
         if cmd in ANALYSIS:
             idx += 1
             emitted = _emit_analysis(instr, backend, idx)
+        elif cmd in PLOT:
+            idx += 1
+            emitted = _emit_plot(instr, backend, idx, write=source_path is not None)
         else:
             emitted = _emit(instr, backend)
         body.append(emitted if emitted else f"# UNTRANSLATED: {line.strip()}")

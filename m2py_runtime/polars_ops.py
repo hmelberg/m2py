@@ -157,3 +157,28 @@ def correlate(lf, vars):
 
 def regress(lf, dep, indep):
     return _analysis(lf, "regress", dep, indep)
+
+
+# ── plots ─────────────────────────────────────────────────────────────────────
+# Terminal sinks: collect and delegate to the tested pandas plot builders,
+# returning the plotly Figure directly (not a frame).
+
+def _plot(lf, fn, *a, **kw):
+    from . import pandas_ops as pdo
+    return getattr(pdo, fn)(lf.collect().to_pandas(), *a, **kw)
+
+
+def histogram(lf, vars, bins=30):
+    return _plot(lf, "histogram", vars, bins=bins)
+
+
+def barchart(lf, vars, stat="count"):
+    return _plot(lf, "barchart", vars, stat=stat)
+
+
+def scatter(lf, vars):
+    return _plot(lf, "scatter", vars)
+
+
+def boxplot(lf, vars):
+    return _plot(lf, "boxplot", vars)

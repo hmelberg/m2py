@@ -261,6 +261,44 @@ def correlate(df, vars):
     return c.reset_index(names="variable")
 
 
+# ── plots (terminal; return a plotly Figure) ─────────────────────────────────
+# plotly is imported lazily so this module stays importable without it (and
+# under Pyodide). Figures are built with plotly express where it matches the
+# emulator's trace data, mirroring m2py.PlotHandler so the offline charts equal
+# the in-browser ones (verified by comparing trace x/y in the tests).
+
+def histogram(df, vars, bins=30):
+    """Histogram of ``vars[0]`` (numeric) or a frequency bar chart (categorical),
+    matching the emulator: ``go.Histogram(nbinsx=bins)`` / value-counts bar."""
+    import plotly.express as px
+    var = vars[0]
+    s = df[var].dropna()
+    if not pd.api.types.is_numeric_dtype(s):
+        vc = s.value_counts().sort_index()
+        return px.bar(x=vc.index.tolist(), y=vc.values.tolist())
+    return px.histogram(df.dropna(subset=[var]), x=var, nbins=bins)
+
+
+def barchart(df, vars, stat="count"):
+    """Frequency bar chart of ``vars[0]`` (value counts, value-sorted)."""
+    import plotly.express as px
+    vc = df[vars[0]].value_counts(dropna=False).sort_index()
+    return px.bar(x=vc.index.tolist(), y=vc.values.tolist())
+
+
+def scatter(df, vars):
+    """Scatter of ``vars[0]`` (x) vs ``vars[1]`` (y), missing rows dropped."""
+    import plotly.express as px
+    sub = df[[vars[0], vars[1]]].dropna()
+    return px.scatter(sub, x=vars[0], y=vars[1])
+
+
+def boxplot(df, vars):
+    """Box plot of ``vars[0]``."""
+    import plotly.express as px
+    return px.box(df[[vars[0]]], y=vars[0])
+
+
 def regress(df, dep, indep):
     """OLS of ``dep`` on ``indep`` (+ intercept) via statsmodels. Returns a
     coefficient table ``[term, coef, se, t, p]``."""

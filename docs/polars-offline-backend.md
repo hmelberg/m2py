@@ -67,6 +67,7 @@ crosses the network, not the data.
 | Aggregation | `collapse`, `aggregate` |
 | Merge | `merge` |
 | Analysis (side output) | `summarize`, `tabulate`, `correlate`, `regress` |
+| Plots (side output) | `histogram`, `barchart`, `scatter`, `boxplot` |
 
 Coverage on the repo's real `manual_scripts/` + `examples/`: **186/187 (99%)**
 of these verbs translate. `import`/session plumbing is intentionally out of
@@ -107,6 +108,14 @@ microdata script ──MicroParser──► instruction dicts (IR) ──m2py_tr
   unchanged (matching the emulator). polars analysis sinks `collect()` and
   delegate to the tested pandas implementation; the lazy/streaming benefit is in
   the transform pipeline.
+- **PLOT** verbs build a `plotly` Figure into `fig_<n>` (the same library the
+  emulator uses, so offline charts equal the in-browser ones — verified by
+  comparing trace x/y to `m2py.PlotHandler`). File mode emits
+  `fig_<n>.write_html("plot_<n>.html")`; `fig.to_json()` gives the spec for an
+  API. v1: `histogram` (numeric `bin(n)`, default 30, or categorical
+  value-counts), single-var count `barchart`, `scatter x y`, single-var
+  `boxplot`. Grouped/`over()`/stat/styling variants are deferred and flagged.
+  Needs plotly installed (and `kaleido` for static images).
 - `pandas_ops` reuses the emulator's own evaluator, so the pandas backend
   matches the emulator bit-for-bit; the cross-engine test proves the polars
   backend matches too.
