@@ -7539,7 +7539,7 @@ _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
         var head = '<div style="padding:6px 8px;font-size:12px;opacity:.7">SafeStat &middot; lokal kjøring'
           + (res.datasets && res.datasets.length ? ' &middot; data: ' + res.datasets.join(', ') : '')
           + (res.n === null ? '' : ' &middot; ' + res.n + ' rader')
-          + ' &middot; <a href="#" id="safestatTargetToggle" style="opacity:.8">mål: ' + safeStatTarget + '</a>';
+          + ' &middot; <a href="#" id="safestatTargetToggle" style="opacity:.8">mål: ' + safeStatTarget + '</a></div>';
         var bodyHtml = '';
         if (res.emu_err) bodyHtml += '<pre class="transl-warn" style="opacity:.75">Data-bygging (emulator): ' + escapeHtmlOutput(res.emu_err) + '</pre>';
         if (res.err) bodyHtml += '<pre class="error">' + escapeHtmlOutput(res.err) + '</pre>';
