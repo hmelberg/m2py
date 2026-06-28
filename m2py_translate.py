@@ -21,6 +21,16 @@ import re
 import m2py
 from m2py_runtime.exprcompile import compile_expr, UnsupportedExpr
 from m2py_runtime.keys import resolve_merge_key, key_col_from_cols
+from m2py_runtime.manifest import _format_from
+
+# Extensions that mark a `require` source as a concrete file/URL dataset (vs a
+# registry id like "no.ssb.fdb:43"). DuckDB/SQL sources are a follow-on.
+_SOURCE_EXTS = (".csv", ".parquet")
+
+
+def _looks_like_source(s):
+    return isinstance(s, str) and s.lower().endswith(_SOURCE_EXTS)
+
 
 # prediction verbs (transform: fit a model and add predicted/residual columns).
 # poisson-predict is NOT a real microdata command (the emulator rejects it).
@@ -170,6 +180,7 @@ class KeyTracker:
         self.alias_path = {}      # alias -> registry path
         self.declared_key = {}    # name -> str (manifest keys[0])
         self.manifest = manifest
+        self.source = {}          # name -> (location, format): require URL/path or manifest
 
     def ensure(self, name):
         if name not in self.cols:
@@ -232,6 +243,22 @@ class KeyTracker:
     def is_person_ref(self, alias):
         path = self.alias_path.get(alias, "")
         return path in m2py._PERSONID_REF_VARS or path.endswith("_FNR")
+
+    def add_source(self, name, location, keys=()):
+        self.source[name] = (location, _format_from(location))
+        self.cols[name] = set(keys)
+        if keys:
+            self.declared_key[name] = keys[0]
+
+    def load_spec(self, name):
+        """(location, format) for a dataset's data, or None. require-declared
+        file/URL sources take precedence, then the manifest."""
+        if name in self.source:
+            return self.source[name]
+        m = self.manifest
+        if m is not None and m.has(name):
+            return (m.location(name), m.format(name))
+        return None
 
     def resolve(self, active, into, on_var):
         self.ensure(active)
@@ -334,12 +361,13 @@ def _dsvar(backend, name):
     return f"{'lf' if backend == 'polars' else 'df'}_{_sanitize(name)}"
 
 
-def _load_dataset(backend, name, source_path, manifest=None):
-    """Materialise dataset ``name``: manifest source (read_source) if known, else
-    parquet (file mode) or the in-memory ``_load`` helper."""
+def _load_dataset(backend, name, source_path, tracker=None):
+    """Materialise dataset ``name``: a require/manifest source (read_source) if
+    known, else parquet (file mode), else the in-memory ``_load`` helper."""
     var = _dsvar(backend, name)
-    if manifest is not None and manifest.has(name):
-        src = f"ops.read_source({manifest.location(name)!r}, {manifest.format(name)!r})"
+    spec = tracker.load_spec(name) if tracker is not None else None
+    if spec is not None:
+        src = f"ops.read_source({spec[0]!r}, {spec[1]!r})"
     elif source_path is not None:
         src = (f'pl.scan_parquet("{name}.parquet")' if backend == "polars"
                else f'pd.read_parquet("{name}.parquet")')
@@ -436,17 +464,14 @@ def _emit(instr, backend, frame=None, known=(), tracker=None, active=None,
     return None
 
 
-def _load_other(name, backend, known, source_path, manifest=None):
-    """Emit (lines, varname) making dataset ``name`` available as a frame: an
-    existing dataset variable if known, else loaded from parquet (file mode) or
-    the ``_load`` helper (in-memory mode)."""
+def _load_other(name, backend, known, source_path, tracker=None):
     if name in known:
         return [], _dsvar(backend, name)
     other = _dsvar(backend, name)
-    if manifest is not None and manifest.has(name):
-        return [f"{other} = "
-                f"ops.read_source({manifest.location(name)!r}, {manifest.format(name)!r})"], other
-    if source_path is not None:
+    spec = tracker.load_spec(name) if tracker is not None else None
+    if spec is not None:
+        rhs = f"ops.read_source({spec[0]!r}, {spec[1]!r})"
+    elif source_path is not None:
         rhs = (f'pl.scan_parquet("{name}.parquet")' if backend == "polars"
                else f'pd.read_parquet("{name}.parquet")')
     else:
@@ -476,7 +501,7 @@ def _emit_merge(args, opts, backend, var, known, tracker, active, source_path="d
         res = tracker.resolve(active, into, on_var)
         tracker.add_cols(into, vars_)               # target gains them post-merge
         load, src = ([], var)                       # right side = active (source)
-        tload, tgt = _load_other(into, backend, known, source_path, tracker.manifest)
+        tload, tgt = _load_other(into, backend, known, source_path, tracker)
         known.add(into)                             # the merged target now exists
         todo = ("# TODO: verify join key (could not resolve from catalog)\n"
                 if res.status != "ok" else "")
@@ -501,7 +526,7 @@ def _emit_merge(args, opts, backend, var, known, tracker, active, source_path="d
     key, status = _old_syntax_key(tracker, active, name, on_var)
     if not key:
         return None
-    load, other = _load_other(name, backend, known, source_path, tracker.manifest)
+    load, other = _load_other(name, backend, known, source_path, tracker)
     todo = ("# TODO: verify join key (could not resolve from catalog)\n"
             if status != "ok" else "")
     call = f"{var} = ops.merge({var}, {other}, on={key!r}, how={how!r})"
@@ -871,11 +896,17 @@ def translate(script, backend="pandas", source_path="df", allow_emulated=False,
             alias = a.get("alias") if isinstance(a, dict) else None
             bound = bool(src and alias and tracker.manifest is not None
                          and tracker.manifest.has(src))
+            file_src = bool(src and alias and not bound and _looks_like_source(src))
             if bound:
                 tracker.declared_key[alias] = (tracker.manifest.keys(src)[:1] or [None])[0]
                 tracker.cols[alias] = set(tracker.manifest.variables(src)) | set(tracker.manifest.keys(src))
-            suffix = " (bound from manifest)" if bound else ""
-            body.append(f"# {line.strip()}{suffix}")  # line.strip() already starts with "require"
+            elif file_src:
+                _ks = (instr.get("options") or {}).get("keys")
+                _keys = _ks.split() if isinstance(_ks, str) else []
+                tracker.add_source(alias, src, _keys)
+            suffix = (" (bound from manifest)" if bound
+                      else " (source)" if file_src else "")
+            body.append(f"# {line.strip()}{suffix}")
             continue
 
         # ---- dataset/session management (switch active / create variables) ----
@@ -883,11 +914,11 @@ def translate(script, backend="pandas", source_path="df", allow_emulated=False,
             if cmd == "create-dataset" and a:
                 known.add(a[0]); active = a[0]
                 tracker.create(a[0])
-                body.append(_load_dataset(backend, a[0], source_path, manifest))
+                body.append(_load_dataset(backend, a[0], source_path, tracker))
             elif cmd == "use" and a:
                 if a[0] not in known:
                     known.add(a[0])
-                    body.append(_load_dataset(backend, a[0], source_path, manifest))
+                    body.append(_load_dataset(backend, a[0], source_path, tracker))
                 active = a[0]
                 tracker.ensure(a[0])
             elif cmd == "clone-dataset" and len(a) >= 2:
