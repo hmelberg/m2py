@@ -563,7 +563,7 @@ def _frame_expr(base, cond):
     return base
 
 
-def _emit_analysis(instr, backend, idx, frame=None):
+def _emit_analysis(instr, backend, idx, frame=None, print_results=True):
     """Emit an analysis step: compute a result from the (unchanged) working frame
     and store/print it. Returns the code line, or None if unhandled."""
     cmd, args, opts = instr["command"], instr["args"], instr["options"]
@@ -670,7 +670,7 @@ def _emit_analysis(instr, backend, idx, frame=None):
                 f"polynomial={poly!r}, fuzzy={fuzzy!r})")
     else:
         return None
-    return f"{res} = {call}\nprint({res})"
+    return f"{res} = {call}" + (f"\nprint({res})" if print_results else "")
 
 
 def _emit_plot(instr, backend, idx, write, frame=None):
@@ -806,7 +806,7 @@ def _expand_loops(script):
 
 
 def translate(script, backend="pandas", source_path="df", allow_emulated=False,
-              manifest=None):
+              manifest=None, print_results=True):
     """Return a runnable Python program (string) for ``script``.
 
     ``source_path`` names the input parquet stem ("df" -> df.parquet). Pass
@@ -961,7 +961,7 @@ def translate(script, backend="pandas", source_path="df", allow_emulated=False,
         frame = cur()
         if cmd in ANALYSIS:
             idx += 1
-            emitted = _emit_analysis(instr, backend, idx, frame)
+            emitted = _emit_analysis(instr, backend, idx, frame, print_results)
         elif cmd in PLOT:
             idx += 1
             emitted = _emit_plot(instr, backend, idx, write=source_path is not None, frame=frame)
