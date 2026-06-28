@@ -331,18 +331,19 @@ def _dsvar(backend, name):
 
 def _load_dataset(backend, name, source_path):
     """Emit the line that materialises dataset ``name`` into its variable: from
-    ``<name>.parquet`` (file mode) or the in-memory ``datasets`` dict."""
+    ``<name>.parquet`` (file mode) or, in-memory, via the ``_load`` helper which
+    resolves the ``datasets`` dict with the optional emulator fallback."""
     var = _dsvar(backend, name)
-    if backend == "polars":
-        src = (f'pl.scan_parquet("{name}.parquet")' if source_path is not None
-               else f"datasets[{name!r}]")
+    if source_path is not None:
+        src = (f'pl.scan_parquet("{name}.parquet")' if backend == "polars"
+               else f'pd.read_parquet("{name}.parquet")')
     else:
-        src = (f'pd.read_parquet("{name}.parquet")' if source_path is not None
-               else f"datasets[{name!r}].copy()")
+        src = f"_load({name!r})"
     return f"{var} = {src}"
 
 
-def _emit(instr, backend, frame=None, known=(), tracker=None, active=None):
+def _emit(instr, backend, frame=None, known=(), tracker=None, active=None,
+          source_path="df"):
     cmd, args, opts, cond = (
         instr["command"], instr["args"], instr["options"], instr["condition"])
     var = frame or ("lf" if backend == "polars" else "df")
@@ -424,22 +425,27 @@ def _emit(instr, backend, frame=None, known=(), tracker=None, active=None):
                 f"predicted={pred!r}, residuals={res!r}, "
                 f"noconstant={bool(opts.get('noconstant'))!r})")
     if cmd == "merge":
-        return _emit_merge(args, opts, backend, var, known, tracker, active)
+        return _emit_merge(args, opts, backend, var, known, tracker, active,
+                           source_path)
     return None
 
 
-def _load_other(name, backend, known):
+def _load_other(name, backend, known, source_path):
     """Emit (lines, varname) making dataset ``name`` available as a frame: an
-    existing dataset variable if known, else loaded from ``datasets``/parquet."""
+    existing dataset variable if known, else loaded from parquet (file mode) or
+    the ``_load`` helper (in-memory mode)."""
     if name in known:
         return [], _dsvar(backend, name)
     other = _dsvar(backend, name)
-    rhs = (f'pl.scan_parquet("{name}.parquet")' if backend == "polars"
-           else f'pd.read_parquet("{name}.parquet")')
-    return [f"{other} = datasets[{name!r}] if datasets else {rhs}"], other
+    if source_path is not None:
+        rhs = (f'pl.scan_parquet("{name}.parquet")' if backend == "polars"
+               else f'pd.read_parquet("{name}.parquet")')
+    else:
+        rhs = f"_load({name!r})"
+    return [f"{other} = {rhs}"], other
 
 
-def _emit_merge(args, opts, backend, var, known, tracker, active):
+def _emit_merge(args, opts, backend, var, known, tracker, active, source_path="df"):
     """Emit a merge, baking the resolved join key.
 
     Two forms, mirroring the emulator:
@@ -461,7 +467,7 @@ def _emit_merge(args, opts, backend, var, known, tracker, active):
         res = tracker.resolve(active, into, on_var)
         tracker.add_cols(into, vars_)               # target gains them post-merge
         load, src = ([], var)                       # right side = active (source)
-        tload, tgt = _load_other(into, backend, known)
+        tload, tgt = _load_other(into, backend, known, source_path)
         known.add(into)                             # the merged target now exists
         todo = ("# TODO: verify join key (could not resolve from catalog)\n"
                 if res.status != "ok" else "")
@@ -481,7 +487,7 @@ def _emit_merge(args, opts, backend, var, known, tracker, active):
     key, status = _old_syntax_key(tracker, active, name, on_var)
     if not key:
         return None
-    load, other = _load_other(name, backend, known)
+    load, other = _load_other(name, backend, known, source_path)
     todo = ("# TODO: verify join key (could not resolve from catalog)\n"
             if status != "ok" else "")
     call = f"{var} = ops.merge({var}, {other}, on={key!r}, how={how!r})"
@@ -756,13 +762,19 @@ def _expand_loops(script):
     return "\n".join(out)
 
 
-def translate(script, backend="pandas", source_path="df"):
+def translate(script, backend="pandas", source_path="df", allow_emulated=False):
     """Return a runnable Python program (string) for ``script``.
 
     ``source_path`` names the input parquet stem ("df" -> df.parquet). Pass
     ``None`` to operate on an in-memory ``df`` (pandas) / ``data`` (polars)
     provided by the caller's namespace — used by the test harness. ``datasets``
     (a dict) may also be provided for merge inputs.
+
+    In in-memory mode the emitted program resolves each input dataset through a
+    ``_load`` helper: it returns ``datasets[name]`` when present, else (if the
+    runtime ``allow_emulated`` flag is true) synthesises it via the emulator, else
+    raises ``KeyError``. ``allow_emulated`` here sets that flag's default in the
+    emitted file; a caller (e.g. Anvil) can still override it before running.
     """
     parser = m2py.MicroParser()
     script = _expand_loops(script)               # unroll for-loops, apply let bindings
@@ -779,6 +791,24 @@ def translate(script, backend="pandas", source_path="df"):
                   "datasets = globals().get('datasets')"]
         implicit = (f'df = pd.read_parquet("{source_path}.parquet")'
                     if source_path is not None else None)
+
+    # In-memory mode: resolve inputs through a _load helper (datasets dict, with
+    # an opt-in emulator fallback). File mode reads parquet directly, so no
+    # helper is needed.
+    if source_path is None:
+        copy = "" if backend == "polars" else ".copy()"
+        header += [
+            f"allow_emulated = globals().get('allow_emulated', {bool(allow_emulated)!r})",
+            "def _load(name):",
+            "    _df = (datasets or {}).get(name)",
+            "    if _df is not None:",
+            f"        return _df{copy}",
+            "    if allow_emulated:",
+            "        print(f\"[m2py] dataset {name!r} not provided - emulating\")",
+            "        return ops.emulate_import(name)",
+            "    raise KeyError(f\"dataset {name!r} not provided "
+            "(pass it in datasets, or set allow_emulated=True)\")",
+        ]
 
     default_frame = "lf" if backend == "polars" else "df"
     body = []
@@ -874,7 +904,8 @@ def translate(script, backend="pandas", source_path="df"):
             emitted = _emit_plot(instr, backend, idx, write=source_path is not None, frame=frame)
         else:
             _track(tracker, active, instr)
-            emitted = _emit(instr, backend, frame, known, tracker, active)
+            emitted = _emit(instr, backend, frame, known, tracker, active,
+                            source_path)
         body.append(emitted if emitted else f"# UNTRANSLATED: {line.strip()}")
 
     # footer: materialise the final active frame into `df` (+ write in file mode)

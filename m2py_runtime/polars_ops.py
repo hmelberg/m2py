@@ -117,6 +117,14 @@ def aggregate(lf, targets, by=None):
     return lf.with_columns(cols)
 
 
+def emulate_import(name):
+    """Synthesize a base population (lazy) for ``name`` via the emulator — opt-in
+    fallback when an input isn't provided. Mock data, keyed by PERSONID_1."""
+    pl = _pl()
+    from . import pandas_ops as pdo
+    return pl.from_pandas(pdo.emulate_import(name)).lazy()
+
+
 def merge(lf, other, on, how="left"):
     # pandas uses how="outer"; polars renamed that to "full" and needs
     # coalesce=True so the join key stays a single column (matching pandas).

@@ -147,6 +147,22 @@ def aggregate(df, targets, by=None):
     return out
 
 
+def emulate_import(name):
+    """Synthesize a base population for dataset ``name`` via the emulator.
+
+    Used only on the opt-in ``allow_emulated`` path, when a script needs an input
+    the caller did not provide — so the generated script still runs end-to-end
+    (e.g. for testing on Anvil before real data is wired in). Returns a generic
+    person population keyed by ``PERSONID_1``; it is mock data, not the caller's
+    real dataset.
+    """
+    import m2py
+    it = m2py.MicroInterpreter()
+    it.run_script(f"create-dataset {name}\nimport INNTEKT/WLONN as _emulated")
+    df = it.datasets.get(name)
+    return df if df is not None else pd.DataFrame()
+
+
 def merge(df, other, on, how="left"):
     """Left-join ``other`` onto ``df`` by key ``on`` (adds the right frame's
     non-key columns)."""

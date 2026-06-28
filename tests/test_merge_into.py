@@ -77,3 +77,31 @@ def test_unresolved_key_is_flagged_not_failed():
     # PERSONID_1 (person-centric default) -- assert it bakes a concrete key and
     # never emits broken code.
     assert "merge_into(" in code
+
+
+# --- input resolution: missing dataset KeyError vs emulator fallback -------
+
+# generate a constant so the script doesn't depend on columns the generic mock
+# population lacks (the emulator fallback is a base PERSONID_1 population).
+MISSING = "create-dataset persons\ngenerate flag = 1\nuse persons"
+
+
+def test_missing_input_raises_keyerror_by_default():
+    code = t.translate(MISSING, backend="pandas", source_path=None)
+    ns = {"pd": __import__("pandas"), "datasets": {}}  # 'persons' absent
+    with pytest.raises(KeyError, match="persons"):
+        exec(code, ns)
+
+
+def test_missing_input_emulated_when_allowed():
+    code = t.translate(MISSING, backend="pandas", source_path=None)
+    ns = {"pd": __import__("pandas"), "datasets": {}, "allow_emulated": True}
+    exec(code, ns)
+    out = ns["df"]
+    assert "PERSONID_1" in out.columns and len(out) > 0   # synthesized population
+
+
+def test_allow_emulated_default_baked_into_header():
+    code = t.translate(MISSING, backend="pandas", source_path=None,
+                       allow_emulated=True)
+    assert "allow_emulated = globals().get('allow_emulated', True)" in code
