@@ -112,6 +112,13 @@ CASES = [
     ("aggregate",      "aggregate (mean) x -> gm, by(g)", {"df": pd.DataFrame(_F)}, "df"),
     ("merge",          "merge look on kommune",
      {"main": pd.DataFrame(_MAIN), "look": pd.DataFrame(_LOOK)}, "main"),
+    # non-overlapping keys so left vs outer differ: main has 1,2,4; look has 1,2,3
+    ("merge_left_nonoverlap", "merge look on kommune",
+     {"main": pd.DataFrame({"kommune": [1, 2, 4], "x": [10.0, 20, 40]}),
+      "look": pd.DataFrame(_LOOK)}, "main"),
+    ("merge_outer_join", "merge look on kommune, outer_join",
+     {"main": pd.DataFrame({"kommune": [1, 2, 4], "x": [10.0, 20, 40]}),
+      "look": pd.DataFrame(_LOOK)}, "main"),
     ("pipeline_shaping",
      "generate y = a + b\nreplace y = 0 if y < 0\nkeep if a >= 0\ncollapse (mean) y -> my (count) y -> n, by(g)",
      {"df": pd.DataFrame(_G)}, "df"),

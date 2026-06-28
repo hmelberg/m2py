@@ -106,6 +106,10 @@ def aggregate(lf, targets, by=None):
 
 
 def merge(lf, other, on, how="left"):
+    # pandas uses how="outer"; polars renamed that to "full" and needs
+    # coalesce=True so the join key stays a single column (matching pandas).
+    if how == "outer":
+        return lf.join(other, on=on, how="full", coalesce=True)
     return lf.join(other, on=on, how=how)
 
 
