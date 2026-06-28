@@ -75,10 +75,11 @@ match the emulator's per-verb statistics. **`correlate`** matches the emulator:
 by default rows with any missing value are dropped (listwise) before Pearson
 correlation; `pairwise` keeps them (pairwise correlation); `covariance` returns
 the covariance matrix (`sig`/`obs` text/extra-column variants are deferred).
-**`tabulate`** mirrors the emulator's (inconsistent) missing handling — a one-way
-table keeps the missing category by default and drops it with `missing`, while a
-two-way table drops it by default and keeps it with `missing`; the long output
-omits zero-count combinations that the emulator's wide crosstab shows explicitly.
+**`tabulate`** drops the missing category by default and keeps it with `missing`,
+for both one-way and two-way tables (this corrected an emulator bug where the
+one-way path kept missing by default — `m2py.py` was fixed to match the two-way
+path and convention). The long output omits zero-count combinations that the
+emulator's wide crosstab shows explicitly (format, not data).
 In particular **`summarize`** mirrors
 the emulator's two paths exactly (verified against `StatsEngine`): ungrouped →
 `mean, std, count, p1, p25, p50, p75, p99` (percentiles incl. median, no min/max);

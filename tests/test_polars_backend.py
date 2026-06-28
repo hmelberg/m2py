@@ -420,11 +420,12 @@ def _stats_oracle(cmd, df, args, opts):
 _MISS_DF = pd.DataFrame({"g": [1, 1, 2, 2, 2, 3, 3, np.nan], "h": [1, 2, 1, 2, 1, 2, 1, 1]})
 
 
-@pytest.mark.parametrize("opts,missing,keeps_nan", [
-    ({}, False, True),                 # one-way default KEEPS missing (emu quirk)
-    ({"missing": True}, True, False),  # one-way `missing` DROPS it
+@pytest.mark.parametrize("missing,keeps_nan", [
+    (False, False),    # default DROPS missing (one-way, now consistent w/ two-way)
+    (True, True),      # `missing` KEEPS it
 ])
-def test_tabulate_oneway_missing_matches_emulator(opts, missing, keeps_nan):
+def test_tabulate_oneway_missing_matches_emulator(missing, keeps_nan):
+    opts = {"missing": True} if missing else {}
     emu = _stats_oracle("tabulate", _MISS_DF, ["g"], opts)
     emu_counts = {("NaN" if pd.isna(k) else k): int(v)
                   for k, v in emu.items() if k != "Total"}

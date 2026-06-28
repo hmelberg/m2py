@@ -4660,7 +4660,7 @@ class StatsEngine:
                 if var2:
                     _raw_counts = pd.crosstab(df[var1], df[var2], dropna=dropna)
                 else:
-                    _raw_counts = df[var1].value_counts(dropna=not dropna)
+                    _raw_counts = df[var1].value_counts(dropna=dropna)
                 _flat = _raw_counts.values.flatten() if hasattr(_raw_counts, 'values') else _raw_counts.to_numpy().flatten()
                 _total_cells = len(_flat)
                 if _total_cells > 0:
@@ -4915,7 +4915,7 @@ class StatsEngine:
                     ct = lm.apply_labels_to_frame(ct, var1, var2, fmt=label_fmt)
                 return ct
             else:
-                vc = df[var1].value_counts(normalize=normalize, dropna=not dropna)
+                vc = df[var1].value_counts(normalize=normalize, dropna=dropna)
                 total = vc.sum()
                 # rowsort() / colsort() FØR top/bottom og før Total legges til
                 vc = _sort_tab_series(vc, options)

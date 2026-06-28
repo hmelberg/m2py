@@ -221,10 +221,9 @@ def tabulate(df, vars, by=None, missing=False,
     """Frequency table: counts of each combination of ``vars`` (one-way for a
     single variable, cross-tab for two), optionally within ``by`` groups.
 
-    Missing/null handling mirrors the emulator's (inconsistent) behaviour: a
-    one-way table KEEPS the missing category by default and drops it with
-    ``missing``; a two-way table DROPS missing by default and keeps it with
-    ``missing``. Percentage columns (0-100), within the ``by`` group when given:
+    Missing/null key values are dropped by default and kept when ``missing`` is
+    set (consistent for one-way and two-way, matching the corrected emulator).
+    Percentage columns (0-100), within the ``by`` group when given:
       - ``cellpct``: share of the whole table
       - ``rowpct``:  share within the first variable (``vars[0]``)
       - ``colpct``:  share within the second variable (``vars[1]``, or the only
@@ -237,10 +236,7 @@ def tabulate(df, vars, by=None, missing=False,
     head/tail the table rows; ``top(n)``; bare ``top`` -> 10). Columns: the
     grouping variables, ``n``, then any extras."""
     keys = ([by] if by and by in df.columns else []) + list(vars)
-    # emulator: one-way value_counts(dropna=not dropna) where dropna='missing'
-    # not set -> drop iff `missing`; two-way crosstab(dropna=...) -> drop iff not.
-    drop = missing if len(vars) == 1 else not missing
-    out = df.groupby(keys, dropna=drop).size().reset_index(name="n")
+    out = df.groupby(keys, dropna=not missing).size().reset_index(name="n")
     grp = [by] if by and by in df.columns else []
     first = vars[0]
     second = vars[1] if len(vars) > 1 else vars[0]
