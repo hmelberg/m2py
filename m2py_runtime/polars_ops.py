@@ -175,6 +175,38 @@ def negative_binomial(lf, dep, indep, noconstant=False):
     return _analysis(lf, "negative_binomial", dep, indep, noconstant=noconstant)
 
 
+# ── predict (transform: fit a model and augment the frame with predictions) ───
+# Model fitting needs all rows in pandas, so these materialise, run the pandas
+# op, and return a fresh LazyFrame; subsequent transforms continue lazily.
+
+def _predict_transform(lf, fn, *a, **kw):
+    pl = _pl()
+    from . import pandas_ops as pdo
+    return pl.LazyFrame(getattr(pdo, fn)(lf.collect().to_pandas(), *a, **kw))
+
+
+def regress_predict(lf, dep, indep, predicted="predicted", residuals=None, noconstant=False):
+    return _predict_transform(lf, "regress_predict", dep, indep, predicted, residuals, noconstant)
+
+
+def negative_binomial_predict(lf, dep, indep, predicted="predicted", residuals=None,
+                              noconstant=False):
+    return _predict_transform(lf, "negative_binomial_predict", dep, indep, predicted,
+                              residuals, noconstant)
+
+
+def logit_predict(lf, dep, indep, predicted=None, probabilities=None, residuals=None,
+                  noconstant=False):
+    return _predict_transform(lf, "logit_predict", dep, indep, predicted, probabilities,
+                              residuals, noconstant)
+
+
+def probit_predict(lf, dep, indep, predicted=None, probabilities=None, residuals=None,
+                   noconstant=False):
+    return _predict_transform(lf, "probit_predict", dep, indep, predicted, probabilities,
+                              residuals, noconstant)
+
+
 def cox(lf, event, duration, covars=(), level=95):
     return _analysis(lf, "cox", event, duration, covars=covars, level=level)
 

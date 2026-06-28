@@ -367,6 +367,59 @@ def test_regression_family_matches_emulator(cmd, dep, op):
     assert np.allclose(mine.values, minep.values)      # backend parity
 
 
+def _predict_df():
+    rng = np.random.default_rng(0)
+    n = 80
+    x1, x2 = rng.normal(0, 1, n), rng.normal(0, 1, n)
+    return pd.DataFrame({
+        "x1": x1, "x2": x2,
+        "y": 2 + 1.5 * x1 + rng.normal(0, 1, n),
+        "yb": (0.5 * x1 + rng.normal(0, 1, n) > 0).astype(int),
+        "cnt": rng.poisson(np.exp(0.2 * x1)),
+    })
+
+
+def _emu_after(script, df):
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+    it = m2py.MicroInterpreter(metadata_path=None)
+    it.datasets["df"] = df.copy()
+    it.active_name = "df"
+    it._execute_instruction(it.parser.parse_line(script))
+    return it.datasets["df"]
+
+
+@pytest.mark.parametrize("script", [
+    "regress-predict y x1 x2, predicted(yhat) residuals(res)",
+    "logit-predict yb x1, predicted(xb) probabilities(p) residuals(r)",
+    "probit-predict yb x1, probabilities(p)",
+    "negative-binomial-predict cnt x1, predicted(mu)",
+    "logit-predict yb x1",                      # default -> predicted_prob
+])
+def test_predict_variants_match_emulator(script):
+    pytest.importorskip("statsmodels.api")
+    df = _predict_df()
+    emu = _emu_after(script, df)
+    new = [c for c in emu.columns if c not in df.columns]
+    out_pd = T.run(script, {"df": df}, "pandas")
+    out_pl = T.run(script, {"df": df}, "polars").to_pandas()
+    assert [c for c in out_pd.columns if c not in df.columns] == new   # same columns
+    for c in new:
+        assert np.allclose(out_pd[c].dropna(), emu[c].dropna(), atol=1e-6), c
+        assert np.allclose(out_pd[c].dropna(), out_pl[c].dropna(), atol=1e-6), c
+
+
+def test_poisson_predict_is_flagged():
+    # not a real microdata command (the emulator rejects it)
+    assert T.unsupported("poisson-predict cnt x1") == ["poisson-predict cnt x1"]
+
+
+def test_predict_augments_frame_pipeline_continues():
+    df = _predict_df()
+    out = T.run("regress-predict y x1, predicted(yhat)\nkeep if yhat > 2",
+                {"df": df}, "polars").to_pandas()
+    assert "yhat" in out.columns and (out["yhat"] > 2).all()
+
+
 def _survival_df():
     rng = np.random.default_rng(0)
     n = 300

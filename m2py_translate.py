@@ -19,11 +19,20 @@ emitted as ``# UNTRANSLATED:`` comments — never silently-wrong code. Call
 import m2py
 from m2py_runtime.exprcompile import compile_expr, UnsupportedExpr
 
+# prediction verbs (transform: fit a model and add predicted/residual columns).
+# poisson-predict is NOT a real microdata command (the emulator rejects it).
+PREDICT = {
+    "regress-predict": "regress_predict", "logit-predict": "logit_predict",
+    "probit-predict": "probit_predict",
+    "negative-binomial-predict": "negative_binomial_predict",
+}
+# binary-outcome predicts: `predicted` is Xβ, `probabilities` is P(Y=1|X)
+PREDICT_BINARY = {"logit-predict", "probit-predict"}
 # TRANSFORM verbs reassign the working frame (df / lf -> new frame).
 TRANSFORM = {
     "generate", "replace", "recode", "keep", "drop", "rename", "destring",
     "collapse", "aggregate", "merge",
-}
+} | set(PREDICT)
 # ANALYSIS verbs compute a side result and PRINT it; the working frame is
 # unchanged (matching the emulator, where summarize/tabulate/regress don't alter
 # the active dataset).
@@ -77,6 +86,11 @@ HANDLED_OPTIONS = {
     "hexbin": {"bin", "nbins"},
     "sankey": set(),
     "coefplot": {"standardize", "noconstant"},
+    # predict variants (transform): name the predicted/residual columns
+    # (binary outcomes also accept `probabilities`; regress `cooksd` deferred)
+    **{v: ({"predicted", "residuals", "probabilities", "noconstant"}
+           if v in PREDICT_BINARY else {"predicted", "residuals", "noconstant"})
+       for v in PREDICT},
 }
 
 
@@ -143,6 +157,25 @@ def _emit(instr, backend):
     if cmd in ("collapse", "aggregate"):
         return (f"{var} = ops.{cmd}({var}, targets={args['targets']!r}, "
                 f"by={opts.get('by')!r})")
+    if cmd in PREDICT:
+        if not isinstance(args, (list, tuple)) or len(args) < 2:
+            return None
+        dep, indep = args[0], list(args[1:])
+        res = opts.get("residuals")
+        res = "residuals" if res is True else res          # name, or None
+        if cmd in PREDICT_BINARY:
+            pred = opts.get("predicted")                   # Xβ only if requested
+            pred = "predicted" if pred is True else pred
+            prob = opts.get("probabilities")
+            prob = "probabilities" if prob is True else prob
+            return (f"{var} = ops.{PREDICT[cmd]}({var}, dep={dep!r}, indep={indep!r}, "
+                    f"predicted={pred!r}, probabilities={prob!r}, residuals={res!r}, "
+                    f"noconstant={bool(opts.get('noconstant'))!r})")
+        pred = opts.get("predicted")                       # default 'predicted'
+        pred = "predicted" if pred in (None, True) else pred
+        return (f"{var} = ops.{PREDICT[cmd]}({var}, dep={dep!r}, indep={indep!r}, "
+                f"predicted={pred!r}, residuals={res!r}, "
+                f"noconstant={bool(opts.get('noconstant'))!r})")
     if cmd == "merge":
         name, key, how, sel = _merge_parts(args, opts)
         if not name or not key:

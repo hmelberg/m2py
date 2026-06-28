@@ -68,6 +68,7 @@ crosses the network, not the data.
 | Merge | `merge` |
 | Analysis (side output) | `summarize`, `tabulate`, `correlate` |
 | Regression (coef table) | `regress`, `logit`, `probit`, `poisson`, `negative-binomial` |
+| Predict (adds columns) | `regress-predict`, `logit-predict`, `probit-predict`, `negative-binomial-predict` |
 | Survival (lifelines) | `cox`, `kaplan-meier`, `weibull` |
 | Plots (side output) | `histogram`, `barchart`, `scatter`, `boxplot`, `piechart`, `hexbin`, `sankey`, `coefplot` |
 

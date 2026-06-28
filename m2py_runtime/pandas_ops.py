@@ -479,10 +479,13 @@ def sankey(df, vars):
 
 # ── regression family (statsmodels, matching the emulator's model calls) ──────
 
-def _fit_model(df, family, dep, indep, noconstant=False, standardize=False):
+def _fit_model(df, family, dep, indep, noconstant=False, standardize=False,
+               return_design=False):
     """Fit one regression model the same way the emulator does (numeric coercion,
     listwise dropna, optional standardised predictors, intercept unless
-    ``noconstant``). ``family`` in regress/logit/probit/poisson/negative-binomial."""
+    ``noconstant``). ``family`` in regress/logit/probit/poisson/negative-binomial.
+    With ``return_design`` also returns ``(X, Y)`` and the kept-row index, for
+    prediction."""
     import statsmodels.api as sm
     d = df[[dep] + list(indep)].apply(pd.to_numeric, errors="coerce").dropna().astype(float)
     X = d[list(indep)].copy()
@@ -495,17 +498,82 @@ def _fit_model(df, family, dep, indep, noconstant=False, standardize=False):
         X = sm.add_constant(X, has_constant="add")
     Y = d[dep]
     if family == "regress":
-        return sm.OLS(Y, X).fit()
-    if family == "logit":
-        return sm.Logit(Y, X).fit(disp=0)
-    if family == "probit":
-        return sm.Probit(Y, X).fit(disp=0)
-    if family == "poisson":
-        return sm.GLM(Y, X, family=sm.families.Poisson()).fit()
-    if family == "negative-binomial":
+        model = sm.OLS(Y, X).fit()
+    elif family == "logit":
+        model = sm.Logit(Y, X).fit(disp=0)
+    elif family == "probit":
+        model = sm.Probit(Y, X).fit(disp=0)
+    elif family == "poisson":
+        model = sm.GLM(Y, X, family=sm.families.Poisson()).fit()
+    elif family == "negative-binomial":
         from statsmodels.discrete.discrete_model import NegativeBinomial
-        return NegativeBinomial(Y, X).fit(disp=0)
-    raise ValueError(f"unknown regression family '{family}'")
+        model = NegativeBinomial(Y, X).fit(disp=0)
+    else:
+        raise ValueError(f"unknown regression family '{family}'")
+    if return_design:
+        return model, X, Y, d.index
+    return model
+
+
+def _predict(df, family, dep, indep, predicted="predicted", residuals=None,
+             noconstant=False):
+    """Add fitted values (and optionally response residuals) as new columns,
+    aligned to the original rows (NaN where dropped). Returns a new frame."""
+    model, X, Y, idx = _fit_model(df, family, dep, indep, noconstant, return_design=True)
+    fitted = pd.Series(np.asarray(model.predict(X)), index=idx)
+    out = df.copy()
+    out[predicted or "predicted"] = fitted.reindex(df.index)
+    if residuals:
+        out[residuals] = (Y - fitted).reindex(df.index)
+    return out
+
+
+def regress_predict(df, dep, indep, predicted="predicted", residuals=None, noconstant=False):
+    """OLS: add fitted values (and residuals)."""
+    return _predict(df, "regress", dep, indep, predicted, residuals, noconstant)
+
+
+def negative_binomial_predict(df, dep, indep, predicted="predicted", residuals=None,
+                              noconstant=False):
+    """Negative-binomial: add predicted counts (and Y-fitted residuals)."""
+    return _predict(df, "negative-binomial", dep, indep, predicted, residuals, noconstant)
+
+
+def _binary_predict(df, family, dep, indep, predicted=None, probabilities=None,
+                    residuals=None, noconstant=False):
+    """logit/probit predictions, matching the emulator: ``predicted`` is the
+    LINEAR predictor (Xβ), ``probabilities`` is P(Y=1|X), ``residuals`` is the
+    response residual; with no option, add ``predicted_prob`` (probabilities)."""
+    model, X, Y, idx = _fit_model(df, family, dep, indep, noconstant, return_design=True)
+    out = df.copy()
+    probs = pd.Series(np.asarray(model.predict(X)), index=idx)
+    added = False
+    if probabilities:
+        name = probabilities if probabilities is not True else "probabilities"
+        out[name] = probs.reindex(df.index)
+        added = True
+    if predicted:
+        name = predicted if predicted is not True else "predicted"
+        out[name] = pd.Series(np.asarray(X @ model.params), index=idx).reindex(df.index)
+        added = True
+    if residuals:
+        out[residuals] = pd.Series(np.asarray(model.resid_response), index=idx).reindex(df.index)
+        added = True
+    if not added:
+        out["predicted_prob"] = probs.reindex(df.index)
+    return out
+
+
+def logit_predict(df, dep, indep, predicted=None, probabilities=None, residuals=None,
+                  noconstant=False):
+    """Logit: linear prediction / probabilities / response residuals."""
+    return _binary_predict(df, "logit", dep, indep, predicted, probabilities, residuals, noconstant)
+
+
+def probit_predict(df, dep, indep, predicted=None, probabilities=None, residuals=None,
+                   noconstant=False):
+    """Probit: linear prediction / probabilities / response residuals."""
+    return _binary_predict(df, "probit", dep, indep, predicted, probabilities, residuals, noconstant)
 
 
 def _coef_table(model):
