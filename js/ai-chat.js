@@ -1097,6 +1097,10 @@
         if (adminSec) {
           adminSec.style.display = (user && user.is_admin) ? '' : 'none';
         }
+        const offlineWrap = document.getElementById('offlineMenuWrap');
+        if (offlineWrap) {
+          offlineWrap.style.display = (user && user.is_admin) ? '' : 'none';
+        }
       }
 
       function openSettings() {

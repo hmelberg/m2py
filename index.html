@@ -93,7 +93,7 @@
           </div>
         </div>
         <button type="button" id="menuForklar" title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">Kj&#248;r skrittvis</button>
-        <div class="topbar-examples-wrap" style="position:relative">
+        <div class="topbar-examples-wrap" id="offlineMenuWrap" style="position:relative;display:none">
           <button type="button" id="menuOfflineBtn" title="Oversett microdata-scriptet til frittst&#229;ende Python (pandas/polars) som kan kj&#248;res utenfor nettleseren, f.eks. p&#229; Anvil">Vis offline Python</button>
           <div class="examples-dropdown" id="offlineSubmenu">
             <div class="examples-dropdown-title">Offline Python</div>
@@ -1875,6 +1875,10 @@
         const adminSec = document.getElementById('adminMenuSection');
         if (adminSec) {
           adminSec.style.display = (window.mdAuth && window.mdAuth.user && window.mdAuth.user.is_admin) ? '' : 'none';
+        }
+        const offlineWrap = document.getElementById('offlineMenuWrap');
+        if (offlineWrap) {
+          offlineWrap.style.display = (window.mdAuth && window.mdAuth.user && window.mdAuth.user.is_admin) ? '' : 'none';
         }
       }
       function updateLoginMenuVisibility() {
