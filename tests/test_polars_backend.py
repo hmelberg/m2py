@@ -420,6 +420,53 @@ def test_predict_augments_frame_pipeline_continues():
     assert "yhat" in out.columns and (out["yhat"] > 2).all()
 
 
+def test_mlogit_matches_emulator():
+    pytest.importorskip("statsmodels.api")
+    import re
+    from m2py_runtime import pandas_ops as po
+    rng = np.random.default_rng(0)
+    n = 400
+    x1, x2 = rng.normal(0, 1, n), rng.normal(0, 1, n)
+    eta = np.column_stack([np.zeros(n), 0.5 + 0.8 * x1, -0.3 + 0.5 * x2])
+    probs = np.exp(eta) / np.exp(eta).sum(1, keepdims=True)
+    cat = np.array([rng.choice(3, p=probs[i]) for i in range(n)])
+    df = pd.DataFrame({"cat": cat, "x1": x1, "x2": x2})
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+    out = m2py.MicroInterpreter(metadata_path=None).reg_engine.execute(
+        "mlogit", df, ["cat", "x1", "x2"], {})
+    summary = out[0] if isinstance(out, tuple) else str(out)
+    emu_x1 = sorted(float(m.group(1)) for m in re.finditer(r"x1\s+(-?\d+\.\d+)\s", summary))
+    mine = po.mlogit(df, "cat", ["x1", "x2"])
+    res_pl, _ = _run_analysis("mlogit cat x1 x2", df, "polars")
+    assert sorted(mine["category"].unique()) == [1, 2]          # non-reference cats
+    assert np.allclose(sorted(mine[mine["term"] == "x1"]["coef"]), emu_x1, atol=1e-3)
+    assert np.allclose(mine["coef"].to_numpy(), res_pl["coef"].to_numpy())  # parity
+
+
+def test_rdd_matches_emulator():
+    pytest.importorskip("statsmodels.api")
+    import re
+    from m2py_runtime import pandas_ops as po
+    rng = np.random.default_rng(0)
+    n = 400
+    R = rng.uniform(-1, 1, n)
+    Tt = (R >= 0).astype(int)
+    df = pd.DataFrame({"y": 1 + 2.5 * Tt + 0.7 * R + rng.normal(0, 0.5, n), "run": R})
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+    out = m2py.MicroInterpreter(metadata_path=None).reg_engine.execute(
+        "rdd", df, {"dep": "y", "runvar": "run", "exog": []}, {"cutoff": "0"})
+    s = out[0] if isinstance(out, tuple) else str(out)
+    row = [l for l in s.splitlines() if "Diskontinuitet" in l][0]
+    nums = re.findall(r"-?\d+\.\d+", row)
+    emu_est, emu_se = float(nums[0]), float(nums[1])
+    mine = po.rdd(df, "y", "run", cutoff=0.0)
+    res_pl, _ = _run_analysis("rdd y run, cutoff(0)", df, "polars")
+    # the emulator prints 2 decimals, so compare at display precision
+    assert round(float(mine["estimate"].iloc[0]), 2) == emu_est
+    assert round(float(mine["se"].iloc[0]), 2) == emu_se
+    assert np.isclose(res_pl["estimate"].iloc[0], mine["estimate"].iloc[0])
+
+
 def _emu_coef_table(cmd, df, args, opts):
     """Parse {term: coef} from a regression summary (any alphanumeric term)."""
     import re

@@ -45,8 +45,8 @@ REGRESSION = {
 SURVIVAL = {"cox": "cox", "kaplan-meier": "kaplan_meier", "weibull": "weibull"}
 # panel & IV regression (analysis verbs, linearmodels/statsmodels)
 PANEL_IV = {"regress-panel", "ivregress"}
-ANALYSIS = ({"summarize", "tabulate", "correlate"} | set(REGRESSION)
-            | set(SURVIVAL) | PANEL_IV)
+ANALYSIS = ({"summarize", "tabulate", "correlate", "mlogit", "rdd"}
+            | set(REGRESSION) | set(SURVIVAL) | PANEL_IV)
 # PLOT verbs build a plotly Figure (terminal, like analysis). Offline they are
 # written to an HTML file; in-memory (tests) the figure object is left in scope.
 PLOT = {"histogram", "barchart", "scatter", "boxplot",
@@ -79,6 +79,9 @@ HANDLED_OPTIONS = {
     "regress-panel": {"fe", "re", "random", "be", "pooled"},
     # IV: only 2SLS implemented; liml/gmm/robust/level deferred
     "ivregress": {"tsls", "2sls"},
+    "mlogit": {"noconstant"},
+    # rdd: sharp local-polynomial OLS; fuzzy/cluster/robust/derivate deferred
+    "rdd": {"cutoff", "polynomial"},
     # survival: by/level/hazard variants deferred
     "cox": set(),
     "kaplan-meier": set(),
@@ -261,6 +264,23 @@ def _emit_analysis(instr, backend, idx):
             return None
         call = (f"ops.ivregress({var}, dep={args['dep']!r}, exog={args.get('exog', [])!r}, "
                 f"endog={args['endog']!r}, instruments={args.get('instruments', [])!r})")
+    elif cmd == "mlogit":
+        if not vars_ or len(vars_) < 2:
+            return None
+        call = f"ops.mlogit({var}, dep={vars_[0]!r}, indep={vars_[1:]!r})"
+    elif cmd == "rdd":
+        if not isinstance(args, dict) or not args.get("dep") or not args.get("runvar"):
+            return None
+        try:
+            cutoff = float(opts.get("cutoff", 0))
+        except (ValueError, TypeError):
+            cutoff = 0.0
+        try:
+            poly = int(opts.get("polynomial", 1))
+        except (ValueError, TypeError):
+            poly = 1
+        call = (f"ops.rdd({var}, dep={args['dep']!r}, runvar={args['runvar']!r}, "
+                f"exog={args.get('exog', [])!r}, cutoff={cutoff!r}, polynomial={poly!r})")
     else:
         return None
     return f"{res} = {call}\nprint({res})"

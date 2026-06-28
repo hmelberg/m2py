@@ -207,6 +207,14 @@ def probit_predict(lf, dep, indep, predicted=None, probabilities=None, residuals
                               residuals, noconstant)
 
 
+def mlogit(lf, dep, indep, noconstant=False):
+    return _analysis(lf, "mlogit", dep, indep, noconstant=noconstant)
+
+
+def rdd(lf, dep, runvar, exog=(), cutoff=0.0, polynomial=1):
+    return _analysis(lf, "rdd", dep, runvar, exog=exog, cutoff=cutoff, polynomial=polynomial)
+
+
 def regress_panel(lf, dep, indep, effect="fe", key=None):
     return _analysis(lf, "regress_panel", dep, indep, effect=effect, key=key)
 

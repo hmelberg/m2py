@@ -613,6 +613,56 @@ def negative_binomial(df, dep, indep, noconstant=False):
     return _coef_table(_fit_model(df, "negative-binomial", dep, indep, noconstant))
 
 
+# ── multinomial logit & regression discontinuity ─────────────────────────────
+
+def mlogit(df, dep, indep, noconstant=False):
+    """Multinomial logit (statsmodels MNLogit). Returns one coefficient row per
+    (non-reference category, term): ``[category, term, coef, se, t, p]``. The
+    reference category is the smallest value of ``dep``."""
+    import statsmodels.api as sm
+    from statsmodels.discrete.discrete_model import MNLogit
+    d = df[[dep] + list(indep)].apply(pd.to_numeric, errors="coerce").dropna()
+    Y = d[dep]
+    cats = sorted(Y.unique())
+    X = d[list(indep)].astype(float)
+    if not noconstant:
+        X = sm.add_constant(X, has_constant="add")
+    model = MNLogit(Y, X).fit(disp=0)
+    params, se, t, p = model.params, model.bse, model.tvalues, model.pvalues
+    rows = []
+    for j in range(params.shape[1]):            # one equation per non-reference cat
+        cat = cats[j + 1]
+        for ti, term in enumerate(params.index):
+            rows.append({"category": cat, "term": term,
+                         "coef": params.iloc[ti, j], "se": se.iloc[ti, j],
+                         "t": t.iloc[ti, j], "p": p.iloc[ti, j]})
+    return pd.DataFrame(rows)
+
+
+def rdd(df, dep, runvar, exog=(), cutoff=0.0, polynomial=1):
+    """Sharp regression-discontinuity estimate via local polynomial OLS (the
+    emulator's fallback when rdrobust is unavailable). Returns the discontinuity
+    estimate row ``[term, estimate, se, z, p]`` — the coefficient on the treatment
+    indicator T = 1{runvar >= cutoff}."""
+    import statsmodels.api as sm
+    cols = [dep, runvar] + list(exog)
+    d = df[cols].apply(pd.to_numeric, errors="coerce").dropna().astype(float)
+    R = d[runvar] - cutoff
+    T = (R >= 0).astype(float)
+    X = pd.DataFrame({"const": 1.0, "T": T, "R": R, "T_R": T * R}, index=d.index)
+    if polynomial >= 2:
+        X["R2"] = R ** 2
+        X["T_R2"] = T * R ** 2
+    for c in exog:
+        X[c] = d[c]
+    model = sm.OLS(d[dep], X).fit()
+    est, se = model.params["T"], model.bse["T"]
+    return pd.DataFrame([{
+        "term": "discontinuity", "estimate": est, "se": se,
+        "z": est / se if se > 0 else np.nan, "p": model.pvalues["T"],
+    }])
+
+
 # ── panel & instrumental-variables regression ────────────────────────────────
 
 def regress_panel(df, dep, indep, effect="fe", key=None):
