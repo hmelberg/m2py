@@ -545,6 +545,62 @@ def negative_binomial(df, dep, indep, noconstant=False):
     return _coef_table(_fit_model(df, "negative-binomial", dep, indep, noconstant))
 
 
+# ── survival analysis (lifelines, matching the emulator) ──────────────────────
+
+def cox(df, event, duration, covars=(), level=95):
+    """Cox proportional-hazards model. Returns a coefficient table
+    ``[term, coef, hazard_ratio, se, z, p]`` (rows dropped if missing or
+    duration<=0, matching the emulator)."""
+    from lifelines import CoxPHFitter
+    cols = [event, duration] + [c for c in covars if c in df.columns]
+    sub = df[cols].apply(pd.to_numeric, errors="coerce").dropna()
+    sub = sub[sub[duration] > 0]
+    cph = CoxPHFitter(alpha=1 - level / 100)
+    cph.fit(sub, duration_col=duration, event_col=event)
+    s = cph.summary
+    return pd.DataFrame({
+        "term": list(s.index),
+        "coef": s["coef"].to_numpy(),
+        "hazard_ratio": s["exp(coef)"].to_numpy(),
+        "se": s["se(coef)"].to_numpy(),
+        "z": s["z"].to_numpy(),
+        "p": s["p"].to_numpy(),
+    })
+
+
+def kaplan_meier(df, event, duration):
+    """Kaplan-Meier estimate. Returns the survival function as
+    ``[time, survival]`` (the curve the emulator plots)."""
+    from lifelines import KaplanMeierFitter
+    sub = df[[event, duration]].apply(pd.to_numeric, errors="coerce").dropna()
+    kmf = KaplanMeierFitter()
+    kmf.fit(sub[duration], sub[event])
+    out = kmf.survival_function_.reset_index()
+    out.columns = ["time", "survival"]
+    return out
+
+
+def weibull(df, event, duration):
+    """Weibull (AFT) survival model. Returns the fitted ``lambda``/``rho``
+    parameters plus ``n``/``events``, mirroring the emulator."""
+    from lifelines import WeibullAFTFitter
+    sub = df[[event, duration]].apply(pd.to_numeric, errors="coerce").dropna()
+    sub = sub[sub[duration] > 0]
+    waf = WeibullAFTFitter()
+    waf.fit(sub, duration_col=duration, event_col=event)
+    row = {"n": len(sub), "events": int(sub[event].sum())}
+    if hasattr(waf, "lambda_") and hasattr(waf, "rho_"):
+        row["lambda"] = float(waf.lambda_)
+        row["rho"] = float(waf.rho_)
+    else:
+        # lifelines >= 0.30 has no lambda_/rho_ attrs: read the intercept coefs
+        # (same fallback the emulator uses); strip the trailing underscore.
+        for pname, pval in waf.summary["coef"].items():
+            key = (pname[0] if isinstance(pname, tuple) else str(pname)).rstrip("_")
+            row[key] = float(pval)
+    return pd.DataFrame([row])
+
+
 def coefplot(df, reg_cmd, dep, indep, standardize=False, noconstant=False):
     """Coefficient plot: fit ``reg_cmd`` (regress/logit/probit/poisson) and plot
     the non-intercept coefficients (x) vs variable names (y) with 95% CI error

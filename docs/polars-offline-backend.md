@@ -66,7 +66,9 @@ crosses the network, not the data.
 | Shaping | `generate`, `replace`, `recode`, `keep`, `drop`, `rename`, `destring` |
 | Aggregation | `collapse`, `aggregate` |
 | Merge | `merge` |
-| Analysis (side output) | `summarize`, `tabulate`, `correlate`, `regress` |
+| Analysis (side output) | `summarize`, `tabulate`, `correlate` |
+| Regression (coef table) | `regress`, `logit`, `probit`, `poisson`, `negative-binomial` |
+| Survival (lifelines) | `cox`, `kaplan-meier`, `weibull` |
 | Plots (side output) | `histogram`, `barchart`, `scatter`, `boxplot`, `piechart`, `hexbin`, `sankey`, `coefplot` |
 
 Analysis and plot verbs honour a trailing `if <cond>` (rows are filtered for the
@@ -80,7 +82,14 @@ for both one-way and two-way tables (this corrected an emulator bug where the
 one-way path kept missing by default — `m2py.py` was fixed to match the two-way
 path and convention). The long output omits zero-count combinations that the
 emulator's wide crosstab shows explicitly (format, not data).
-In particular **`summarize`** mirrors
+The **regression family** (`regress`/`logit`/`probit`/`poisson`/
+`negative-binomial`) fits via statsmodels exactly as the emulator does and
+returns a coefficient table `[term, coef, se, t, p]` (verified against the
+emulator's summary output; `noconstant` supported, `or`/`irr`/`robust`/`exposure`
+deferred). **Survival** (`cox`/`kaplan-meier`/`weibull`) uses lifelines as the
+emulator does: `cox` returns `[term, coef, hazard_ratio, se, z, p]`,
+`kaplan-meier` the survival function `[time, survival]`, `weibull` the fitted
+`lambda`/`rho` (+`n`/`events`). In particular **`summarize`** mirrors
 the emulator's two paths exactly (verified against `StatsEngine`): ungrouped →
 `mean, std, count, p1, p25, p50, p75, p99` (percentiles incl. median, no min/max);
 grouped (`by`) → `mean, std, min, max, count`; `gini`/`iqr` append in either path.

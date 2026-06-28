@@ -175,6 +175,18 @@ def negative_binomial(lf, dep, indep, noconstant=False):
     return _analysis(lf, "negative_binomial", dep, indep, noconstant=noconstant)
 
 
+def cox(lf, event, duration, covars=(), level=95):
+    return _analysis(lf, "cox", event, duration, covars=covars, level=level)
+
+
+def kaplan_meier(lf, event, duration):
+    return _analysis(lf, "kaplan_meier", event, duration)
+
+
+def weibull(lf, event, duration):
+    return _analysis(lf, "weibull", event, duration)
+
+
 # ── plots ─────────────────────────────────────────────────────────────────────
 # Terminal sinks: collect and delegate to the tested pandas plot builders,
 # returning the plotly Figure directly (not a frame).

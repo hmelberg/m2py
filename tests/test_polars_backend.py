@@ -367,6 +367,58 @@ def test_regression_family_matches_emulator(cmd, dep, op):
     assert np.allclose(mine.values, minep.values)      # backend parity
 
 
+def _survival_df():
+    rng = np.random.default_rng(0)
+    n = 300
+    x1 = rng.normal(0, 1, n)
+    dur = rng.exponential(np.exp(-0.5 * x1)) * 10 + 0.1
+    event = (rng.random(n) < 0.7).astype(int)
+    return pd.DataFrame({"event": event, "tid": dur, "x1": x1})
+
+
+def test_cox_matches_emulator():
+    pytest.importorskip("lifelines")
+    from m2py_runtime import pandas_ops as po
+    df = _survival_df()
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+    emu = m2py.MicroInterpreter(metadata_path=None).survival_handler.execute(
+        "cox", df, ["event", "tid", "x1"], {})
+    emu_df = emu[0] if isinstance(emu, tuple) else emu          # summary.T: covars as cols
+    mine = po.cox(df, "event", "tid", ["x1"]).set_index("term")
+    res_pl, _ = _run_analysis("cox event tid x1", df, "polars")
+    assert np.isclose(mine.loc["x1", "coef"], float(emu_df.loc["coef", "x1"]))
+    assert np.isclose(res_pl.set_index("term").loc["x1", "coef"], mine.loc["x1", "coef"])
+
+
+def test_kaplan_meier_matches_lifelines():
+    lifelines = pytest.importorskip("lifelines")
+    from m2py_runtime import pandas_ops as po
+    df = _survival_df()
+    kmf = lifelines.KaplanMeierFitter()
+    kmf.fit(df["tid"], df["event"])
+    truth = kmf.survival_function_.iloc[:, 0].to_numpy()
+    mine = po.kaplan_meier(df, "event", "tid")
+    res_pl, _ = _run_analysis("kaplan-meier event tid", df, "polars")
+    assert np.allclose(mine["survival"].to_numpy(), truth)
+    assert np.allclose(res_pl["survival"].to_numpy(), truth)
+
+
+def test_weibull_matches_emulator_params():
+    pytest.importorskip("lifelines")
+    from m2py_runtime import pandas_ops as po
+    df = _survival_df()
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+    emu = m2py.MicroInterpreter(metadata_path=None).survival_handler.execute(
+        "weibull", df, ["event", "tid"], {})
+    emu_df = emu[0] if isinstance(emu, tuple) else emu
+    # emulator returns the full Weibull summary; the coef row holds lambda_/rho_
+    emu_lambda = float(emu_df.iloc[0, 0])
+    emu_rho = float(emu_df.iloc[0, 1])
+    mine = po.weibull(df, "event", "tid")
+    assert np.isclose(mine["lambda"].iloc[0], emu_lambda, atol=1e-3)
+    assert np.isclose(mine["rho"].iloc[0], emu_rho, atol=1e-3)
+
+
 @pytest.mark.parametrize("reg,dep", [
     ("regress", "y"), ("logit", "binv"), ("probit", "binv"), ("poisson", "cnt"),
 ])

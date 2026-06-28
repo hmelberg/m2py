@@ -32,7 +32,9 @@ REGRESSION = {
     "regress": "regress", "logit": "logit", "probit": "probit",
     "poisson": "poisson", "negative-binomial": "negative_binomial",
 }
-ANALYSIS = {"summarize", "tabulate", "correlate"} | set(REGRESSION)
+# survival verbs -> op name (analysis verbs, lifelines)
+SURVIVAL = {"cox": "cox", "kaplan-meier": "kaplan_meier", "weibull": "weibull"}
+ANALYSIS = {"summarize", "tabulate", "correlate"} | set(REGRESSION) | set(SURVIVAL)
 # PLOT verbs build a plotly Figure (terminal, like analysis). Offline they are
 # written to an HTML file; in-memory (tests) the figure object is left in scope.
 PLOT = {"histogram", "barchart", "scatter", "boxplot",
@@ -61,6 +63,10 @@ HANDLED_OPTIONS = {
     "probit": {"noconstant"},
     "poisson": {"noconstant"},
     "negative-binomial": {"noconstant"},
+    # survival: by/level/hazard variants deferred
+    "cox": set(),
+    "kaplan-meier": set(),
+    "weibull": set(),
     # plots
     "histogram": {"bin", "nbins", "discrete", "percent", "density", "freq", "normal"},
     # statistic via parenthesised (stat), not a flag
@@ -194,6 +200,14 @@ def _emit_analysis(instr, backend, idx):
             return None
         call = (f"ops.{REGRESSION[cmd]}({var}, dep={vars_[0]!r}, "
                 f"indep={vars_[1:]!r}, noconstant={bool(opts.get('noconstant'))!r})")
+    elif cmd in SURVIVAL:
+        if not vars_ or len(vars_) < 2:
+            return None
+        event, duration, covars = vars_[0], vars_[1], vars_[2:]
+        if cmd == "cox":
+            call = f"ops.cox({var}, event={event!r}, duration={duration!r}, covars={covars!r})"
+        else:
+            call = f"ops.{SURVIVAL[cmd]}({var}, event={event!r}, duration={duration!r})"
     else:
         return None
     return f"{res} = {call}\nprint({res})"
