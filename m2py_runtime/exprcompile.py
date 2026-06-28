@@ -133,17 +133,40 @@ def _conv_call(node):
         cond, a, b = args
         return pl.when(cond).then(a).otherwise(b)
     if bare in ("minimum", "min") and len(args) == 2:
-        return pl.max_horizontal(args[0], args[1]) if False else _min2(args[0], args[1])
+        return pl.min_horizontal(args[0], args[1])
     if bare in ("maximum", "max") and len(args) == 2:
         return pl.max_horizontal(args[0], args[1])
     if bare == "round":
         ndigits = node.args[1].value if len(node.args) > 1 else 0
         return args[0].round(ndigits)
+
+    # truncate toward zero (microdata int()) -> polars cast drops the fraction
+    if bare in ("int", "int_") and len(args) == 1:
+        return args[0].cast(pl.Int64, strict=False)
+
+    # missing-value predicates (used in conditions)
+    if bare in ("sysmiss", "missing") and len(args) == 1:
+        return args[0].is_null()
+    if bare in ("nonmissing",) and len(args) == 1:
+        return args[0].is_not_null()
+
+    # string functions
+    if bare == "substr" and len(args) == 3:
+        # microdata substr(x, pos, length): pos is 1-based; negative pos = from end
+        pos = node.args[1].value
+        length = node.args[2].value
+        offset = pos - 1 if pos > 0 else pos
+        return args[0].cast(pl.Utf8).str.slice(offset, length)
+    if bare in ("string", "to_str") and len(args) == 1:
+        return args[0].cast(pl.Utf8)
+    if bare in ("lower",) and len(args) == 1:
+        return args[0].cast(pl.Utf8).str.to_lowercase()
+    if bare in ("upper",) and len(args) == 1:
+        return args[0].cast(pl.Utf8).str.to_uppercase()
+    if bare in ("length", "strlen") and len(args) == 1:
+        return args[0].cast(pl.Utf8).str.len_chars()
+
     if bare in _UNARY_METHOD and len(args) == 1:
         return getattr(args[0], _UNARY_METHOD[bare])()
 
     raise UnsupportedExpr(f"function {name}()")
-
-
-def _min2(a, b):
-    return _pl().min_horizontal(a, b)

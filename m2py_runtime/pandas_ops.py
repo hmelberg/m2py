@@ -136,6 +136,20 @@ def merge(df, other, on, how="left"):
     return pd.merge(df, other, on=on, how=how)
 
 
+def rename(df, old, new):
+    """Rename column ``old`` to ``new``."""
+    return df.rename(columns={old: new})
+
+
+def destring(df, vars):
+    """Coerce string columns to numeric (non-parseable values -> NaN)."""
+    out = df.copy()
+    for v in vars:
+        if v in out.columns:
+            out[v] = pd.to_numeric(out[v], errors="coerce")
+    return out
+
+
 # ── analysis ─────────────────────────────────────────────────────────────────
 
 def summarize(df, vars=None, by=None):

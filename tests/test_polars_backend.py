@@ -118,6 +118,20 @@ CASES = [
     ("merge_then_collapse",
      "merge look on kommune\ncollapse (sum) inntekt -> total (mean) inntekt -> snitt, by(navn)",
      {"main": pd.DataFrame(_MAIN), "look": pd.DataFrame(_LOOK)}, "main"),
+    # real-world shaping idioms (region code -> fylke; birth-year -> age; missing)
+    ("substr_fylke", "generate fylke = substr(bosted,1,2)",
+     {"df": pd.DataFrame({"bosted": ["0301", "1103", "5001"]})}, "df"),
+    ("int_truncate", "generate alder = 2017 - int(faarmnd/100)",
+     {"df": pd.DataFrame({"faarmnd": [195003.0, 200011.0, 198506.0]})}, "df"),
+    ("bool_arith", "generate hoy = 1 * (a > 1)", {"df": pd.DataFrame(_G)}, "df"),
+    ("rename", "rename a alpha", {"df": pd.DataFrame(_G)}, "df"),
+    ("destring_force", "destring s, force",
+     {"df": pd.DataFrame({"s": ["1", "2", "x", "4"]})}, "df"),
+    ("destring_clean", "destring s",
+     {"df": pd.DataFrame({"s": ["1", "2", "3", "4"]})}, "df"),
+    ("shaping_chain",
+     "generate fylke = substr(bosted,1,2)\nkeep if fylke == \"03\"",
+     {"df": pd.DataFrame({"bosted": ["0301", "0302", "1103", "5001"]})}, "df"),
 ]
 
 

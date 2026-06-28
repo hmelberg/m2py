@@ -109,6 +109,16 @@ def merge(lf, other, on, how="left"):
     return lf.join(other, on=on, how=how)
 
 
+def rename(lf, old, new):
+    return lf.rename({old: new})
+
+
+def destring(lf, vars):
+    pl = _pl()
+    return lf.with_columns(
+        [pl.col(v).cast(pl.Float64, strict=False) for v in vars])
+
+
 # ── analysis ─────────────────────────────────────────────────────────────────
 
 def summarize(lf, vars=None, by=None):

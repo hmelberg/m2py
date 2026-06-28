@@ -21,7 +21,7 @@ from m2py_runtime.exprcompile import compile_expr, UnsupportedExpr
 
 # verbs the translator understands (data shaping / stats / merge — not import)
 SUPPORTED = {
-    "generate", "replace", "recode", "keep", "drop",
+    "generate", "replace", "recode", "keep", "drop", "rename", "destring",
     "collapse", "aggregate", "merge", "summarize",
 }
 
@@ -41,6 +41,8 @@ def _check_polars_expr(instr):
     expression/condition (so the caller can mark it UNTRANSLATED)."""
     cmd, args, cond = instr["command"], instr["args"], instr["condition"]
     if cmd in ("generate", "replace"):
+        if not isinstance(args, dict) or "expression" not in args:
+            raise UnsupportedExpr(f"unexpected {cmd} args shape")
         compile_expr(args["expression"])
     if cond:
         compile_expr(cond, condition=True)
@@ -52,8 +54,14 @@ def _emit(instr, backend):
     var = "lf" if backend == "polars" else "df"
 
     if cmd in ("generate", "replace"):
+        if not isinstance(args, dict) or "expression" not in args:
+            return None
         return (f"{var} = ops.{cmd}({var}, target={args['target']!r}, "
                 f"expression={args['expression']!r}, cond={cond!r})")
+    if cmd == "rename":
+        return f"{var} = ops.rename({var}, old={args['old']!r}, new={args['new']!r})"
+    if cmd == "destring":
+        return f"{var} = ops.destring({var}, vars={args['vars']!r})"
     if cmd == "recode":
         return (f"{var} = ops.recode({var}, vars={args['vars']!r}, "
                 f"rules={args['rules']!r}, prefix={args.get('prefix')!r})")
@@ -120,7 +128,8 @@ def translate(script, backend="pandas", source_path="df"):
             except UnsupportedExpr as e:
                 body.append(f"# UNTRANSLATED (expr: {e}): {line.strip()}")
                 continue
-        body.append(_emit(instr, backend))
+        emitted = _emit(instr, backend)
+        body.append(emitted if emitted else f"# UNTRANSLATED: {line.strip()}")
 
     return "\n".join(header + [""] + body + [""] + footer) + "\n"
 
