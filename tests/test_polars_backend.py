@@ -31,7 +31,7 @@ def _emulate(script, datasets, active):
     for k, v in datasets.items():
         it.datasets[k] = v.copy()
     it.active_name = active
-    for ln in script.splitlines():
+    for ln in it.parser.preprocess_script(script).splitlines():   # join `\` continuations
         if ln.strip():
             it._execute_instruction(it.parser.parse_line(ln))
     feil = [l for l in it.output_log if "FEIL" in str(l)]
@@ -104,6 +104,11 @@ CASES = [
     ("drop_cols",      "drop b", {"df": pd.DataFrame(_G)}, "df"),
     ("drop_rows",      "drop if a < 2", {"df": pd.DataFrame(_G)}, "df"),
     ("recode",         "recode k (1=10)(2=20)(3=30)", {"df": pd.DataFrame(_F)}, "df"),
+    ("recode_multivalue", "recode k (1 2 = 1)(3 = 2)", {"df": pd.DataFrame(_F)}, "df"),
+    ("recode_range",   "recode x (0/15 = 1)(16/max = 2)", {"df": pd.DataFrame(_F)}, "df"),
+    ("generate_boolprec", "generate hi = (a >= 0 & a < 3)", {"df": pd.DataFrame(_G)}, "df"),
+    ("generate_boolor", "generate flag = a == 0 | a == 4", {"df": pd.DataFrame(_G)}, "df"),
+    ("generate_linecont", "generate s = rowtotal(a, \\\n   b)", {"df": pd.DataFrame(_G)}, "df"),
     ("collapse_mean",  "collapse (mean) x -> mx, by(g)", {"df": pd.DataFrame(_F)}, "df"),
     ("collapse_multi", "collapse (mean) x -> mx (sum) x -> sx (min) x -> lo (max) x -> hi, by(g)",
      {"df": pd.DataFrame(_F)}, "df"),

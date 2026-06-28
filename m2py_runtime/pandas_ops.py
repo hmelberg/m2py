@@ -82,16 +82,15 @@ def _coerce(tok):
 
 
 def recode(df, vars, rules, prefix=None):
-    """Map values in each listed column per ``rules`` ('old=new'); unmatched
-    values are left unchanged. ``prefix`` writes results to new columns."""
+    """Map values per microdata recode rules. Delegates to the emulator's own
+    DataTransformHandler so the full rule grammar — multi-value (``1 2 = 1``),
+    ranges (``000000/099999 = 1``), ``min``/``max``, ``missing``/``nonmissing``/
+    ``*``, labels, first-match-wins — matches the emulator exactly."""
+    import m2py
     out = df.copy()
-    mapping = dict(_parse_recode_rule(r) for r in rules)
-    for v in vars:
-        if v not in out.columns:
-            continue
-        target = f"{prefix}{v}" if prefix else v
-        out[target] = out[v].map(lambda x: mapping.get(x, x))
-    return out
+    res = m2py.DataTransformHandler(label_manager=None).execute(
+        "recode", out, {"vars": vars, "rules": rules, "prefix": prefix}, {})
+    return res if res is not None else out
 
 
 # ── row/column shaping ───────────────────────────────────────────────────────

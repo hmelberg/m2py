@@ -65,16 +65,11 @@ def replace(lf, target, expression, cond=None):
 
 
 def recode(lf, vars, rules, prefix=None):
+    # delegate to the pandas op (emulator's DataTransformHandler) for the full
+    # rule grammar — multi-value, ranges, min/max, missing/*, labels.
     pl = _pl()
-    from .pandas_ops import _parse_recode_rule
-    mapping = dict(_parse_recode_rule(r) for r in rules)
-    old = list(mapping.keys())
-    new = list(mapping.values())
-    cols = []
-    for v in vars:
-        target = f"{prefix}{v}" if prefix else v
-        cols.append(pl.col(v).replace(old=old, new=new).alias(target))
-    return lf.with_columns(cols)
+    from . import pandas_ops as pdo
+    return pl.from_pandas(pdo.recode(lf.collect().to_pandas(), vars, rules, prefix)).lazy()
 
 
 # ── row/column shaping ───────────────────────────────────────────────────────
