@@ -151,6 +151,63 @@ Consequences:
 `CatalogKind` is the default; `manifest=None` / no Extended mode selects it, so the
 untouched path is always the baseline.
 
+## Execution targets (a second axis, orthogonal to mode)
+
+*Where* and *how* a script runs — local Pyodide, send-to-server-API,
+encrypted-local-with-API-unscramble, remote-data-remote-execution — is a
+**different axis from semantics**, and must not become its own mode. Splitting on
+it would create a cross-product (Extended-local, Extended-remote,
+microdata-remote, …) and duplicate the identical translation. Whenever
+"mode × mechanism" starts multiplying, the mechanism is a *strategy*, not a mode.
+
+**Translate once, run via an Executor.** The translator produces one portable
+artifact (the pandas/polars script + the source bindings); an executor runs it,
+behind a common interface:
+
+```python
+class Executor:
+    def run(self, artifact, sources) -> Result: ...
+```
+
+| Scenario | Executor |
+|---|---|
+| Local Pyodide, public data | `LocalPyodideExecutor` |
+| Send script to server, get result back | `RemoteApiExecutor` (compute-to-data) |
+| Encrypted local data, unscramble result via API | `EncryptedLocalExecutor` |
+| External data, code runs there | `RemoteApiExecutor` |
+
+The security mechanisms (encryption, unscramble-API, no-data-egress) are
+properties of the executor and the source — layered on, **not new languages**.
+
+**The target is derived, not toggled.** The manifest's `sensitivity`/location
+(the security spectrum in the manifest spec) implies the executor: a public URL →
+local; a registered sensitive source → remote-API (data never leaves the server);
+an encrypted blob → encrypted-local. So *the same source property that picks the
+source-kind policy (semantics) also picks the executor (where it runs)* — both
+fall out of "what kind of source is this," and neither needs a manual mode switch
+in the common case.
+
+**Most-restrictive source wins.** For a script mixing sources of different
+sensitivity (a public CSV + a sensitive registry), the executor is the most
+restrictive any source demands: if anything is compute-to-data, the whole script
+runs remotely — you cannot pull sensitive data local. This makes the target a
+derived, *enforced* property, not a user preference.
+
+**Backend** (pandas / polars / DuckDB push-down) is a third, related runtime knob
+the executor selects (browser → pandas; large server-side data → DuckDB/polars
+streaming). It too is orthogonal to mode.
+
+So the three axes compose independently:
+
+| Axis | What it decides | Selector |
+|---|---|---|
+| **Mode** | semantics (microdata vs Extended) | source kind (`CatalogKind`/`FileKind`) |
+| **Executor** | where it runs + trust envelope | source sensitivity/location (most-restrictive wins) |
+| **Backend** | runtime engine | executor (size/locality) |
+
+"Translate once, run anywhere, under the envelope the source demands" is the
+property that keeps this from exploding into modes.
+
 ## Front-end: reuse the existing mode-plugin system
 
 The editor already has a lazy mode-plugin system (`registerMode` + the `window.M2PY`
