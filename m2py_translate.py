@@ -875,7 +875,7 @@ def translate(script, backend="pandas", source_path="df", allow_emulated=False,
                 tracker.declared_key[alias] = (tracker.manifest.keys(src)[:1] or [None])[0]
                 tracker.cols[alias] = set(tracker.manifest.variables(src)) | set(tracker.manifest.keys(src))
             suffix = " (bound from manifest)" if bound else ""
-            body.append(f"# require {line.strip()}{suffix}")
+            body.append(f"# {line.strip()}{suffix}")  # line.strip() already starts with "require"
             continue
 
         # ---- dataset/session management (switch active / create variables) ----
