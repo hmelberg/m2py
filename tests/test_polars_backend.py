@@ -182,6 +182,8 @@ def _run_analysis(script, df, backend):
     "summarize y x",
     "summarize y x, by(g)",
     "summarize y x, gini iqr",
+    "summarize y if x > 3",          # analysis with an if-condition
+    "tabulate g if y > 2",
     "tabulate g",
     "tabulate g y",          # two-way cross-tab
     "tabulate g y, cellpct",
@@ -346,6 +348,66 @@ def test_summarize_gini_matches_emulator_definition():
     res, _ = _run_analysis("summarize inntekt, gini iqr", df, "pandas")
     assert np.isclose(res["gini"].iloc[0], m2py.AGG_STAT_ALIAS["gini"](df["inntekt"]))
     assert np.isclose(res["iqr"].iloc[0], m2py.AGG_STAT_ALIAS["iqr"](df["inntekt"]))
+
+
+_SUM_DF = pd.DataFrame({
+    "inntekt": [10.0, 20, 30, 40, 100, 5, 7, 9],
+    "alder": [20.0, 30, 40, 50, 60, 25, 35, 45],
+    "kjonn": [1, 1, 1, 2, 2, 2, 1, 2],
+})
+
+# emulator stat label -> my tidy column, for the two paths
+_NOBY_MAP = {"mean": "Gj.snitt", "std": "Std.avvik", "count": "Antall",
+             "p1": "1%", "p25": "25%", "p50": "50%", "p75": "75%", "p99": "99%"}
+_BY_STATS = ["mean", "std", "min", "max", "count"]
+
+
+def _summarize_oracle(df, args, opts):
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+    return m2py.MicroInterpreter(metadata_path=None).stats_engine.execute(
+        "summarize", df, args, opts)
+
+
+def test_summarize_ungrouped_matches_emulator():
+    # ungrouped path: mean/std/count + percentiles 1/25/50/75/99 (no min/max)
+    emu = _summarize_oracle(_SUM_DF, ["inntekt", "alder"], {})
+    for backend in ("pandas", "polars"):
+        res, _ = _run_analysis("summarize inntekt alder", _SUM_DF, backend)
+        res = res.set_index("variable")
+        for v in ("inntekt", "alder"):
+            for mine, emu_col in _NOBY_MAP.items():
+                assert np.isclose(res.loc[v, mine], emu.loc[v, emu_col]), (backend, v, mine)
+        assert "min" not in res.columns and "max" not in res.columns
+
+
+def test_summarize_grouped_matches_emulator():
+    # grouped path: mean/std/min/max/count (no percentiles)
+    emu = _summarize_oracle(_SUM_DF, ["inntekt"], {"by": "kjonn"})
+    for backend in ("pandas", "polars"):
+        res, _ = _run_analysis("summarize inntekt, by(kjonn)", _SUM_DF, backend)
+        res = res.set_index("kjonn")
+        for g in (1, 2):
+            for stat in _BY_STATS:
+                assert np.isclose(res.loc[g, stat], emu.loc[g, ("inntekt", stat)]), (backend, g, stat)
+        assert not any(c.startswith("p") and c[1:].isdigit() for c in res.columns)
+
+
+def test_summarize_default_all_numeric_vars():
+    # no var list -> all numeric columns (kjonn is numeric here, so included)
+    res, _ = _run_analysis("summarize", _SUM_DF, "pandas")
+    assert set(res["variable"]) == {"inntekt", "alder", "kjonn"}
+
+
+def test_summarize_if_condition_matches_emulator():
+    # `summarize x if cond` filters rows before computing — and must not change
+    # the working frame.
+    emu = _summarize_oracle(_SUM_DF[_SUM_DF["alder"] > 35], ["inntekt"], {})
+    for backend in ("pandas", "polars"):
+        res, final = _run_analysis("summarize inntekt if alder > 35", _SUM_DF, backend)
+        res = res.set_index("variable")
+        assert np.isclose(res.loc["inntekt", "count"], emu.loc["inntekt", "Antall"])
+        assert np.isclose(res.loc["inntekt", "mean"], emu.loc["inntekt", "Gj.snitt"])
+        assert len(final) == len(_SUM_DF)            # working frame unchanged
 
 
 @pytest.mark.parametrize("script", [

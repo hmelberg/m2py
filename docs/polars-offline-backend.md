@@ -69,6 +69,16 @@ crosses the network, not the data.
 | Analysis (side output) | `summarize`, `tabulate`, `correlate`, `regress` |
 | Plots (side output) | `histogram`, `barchart`, `scatter`, `boxplot` |
 
+Analysis and plot verbs honour a trailing `if <cond>` (rows are filtered for the
+computation via the `keep` op, without changing the working frame), and they
+match the emulator's per-verb statistics. In particular **`summarize`** mirrors
+the emulator's two paths exactly (verified against `StatsEngine`): ungrouped →
+`mean, std, count, p1, p25, p50, p75, p99` (percentiles incl. median, no min/max);
+grouped (`by`) → `mean, std, min, max, count`; `gini`/`iqr` append in either path.
+Note: the emulator's **disclosure control** (winsorising before mean/std,
+3-sig-fig percentile rounding) is *not* reproduced — the offline backend reports
+raw statistics, matching the emulator with disclosure control off.
+
 Coverage on the repo's real `manual_scripts/` + `examples/`: **186/187 (99%)**
 of these verbs translate. `import`/session plumbing is intentionally out of
 scope — point the offline script at a parquet/CSV extract you already have

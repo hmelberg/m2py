@@ -139,11 +139,21 @@ def _emit(instr, backend):
     return None
 
 
+def _frame_expr(backend, cond):
+    """The frame an analysis/plot reads: the working frame, or a row-filtered
+    view of it when the verb carries an ``if`` condition. Uses the tested ``keep``
+    op so the condition is applied without mutating the working frame."""
+    base = "lf" if backend == "polars" else "df"
+    if cond:
+        return f"ops.keep({base}, vars=None, cond={cond!r})"
+    return base
+
+
 def _emit_analysis(instr, backend, idx):
     """Emit an analysis step: compute a result from the (unchanged) working frame
     and store/print it. Returns the code line, or None if unhandled."""
     cmd, args, opts = instr["command"], instr["args"], instr["options"]
-    var = "lf" if backend == "polars" else "df"
+    var = _frame_expr(backend, instr["condition"])
     res = f"result_{idx}"
     vars_ = list(args) if args else None
 
@@ -174,7 +184,7 @@ def _emit_plot(instr, backend, idx, write):
     """Emit a plot step: build a plotly Figure from the (unchanged) working frame
     into ``fig_<idx>``; write it to an HTML file in file mode."""
     cmd, args, opts = instr["command"], instr["args"], instr["options"]
-    var = "lf" if backend == "polars" else "df"
+    var = _frame_expr(backend, instr["condition"])
     vars_ = args.get("vars") if isinstance(args, dict) else None
     if not vars_:
         return None

@@ -152,13 +152,14 @@ def destring(df, vars):
 
 # ── analysis ─────────────────────────────────────────────────────────────────
 
-_SUM_STATS = ["count", "mean", "std", "min", "max"]
-
-
 def _numeric_vars(df, vars):
     if not vars:
         vars = [c for c in df.columns if c not in ("unit_id", "PERSONID_1")]
     return [v for v in vars if v in df.columns and pd.api.types.is_numeric_dtype(df[v])]
+
+
+# Percentiles the emulator reports for an ungrouped summarize (incl. median).
+_SUM_PCTLS = [("p1", 0.01), ("p25", 0.25), ("p50", 0.5), ("p75", 0.75), ("p99", 0.99)]
 
 
 def _extra_stat_cols(s, gini, iqr):
@@ -171,25 +172,37 @@ def _extra_stat_cols(s, gini, iqr):
 
 
 def summarize(df, vars=None, by=None, gini=False, iqr=False):
-    """Descriptive statistics for numeric ``vars`` as a tidy long frame:
-    columns ``[variable, n, mean, std, min, max]`` (plus ``gini``/``iqr`` when
-    requested; a ``by`` column is prepended when grouping). Returns an analysis
-    result; does not change the dataset. gini/iqr reuse the emulator's own
-    ``calculate_gini``/``calculate_iqr`` so values match exactly."""
-    vars = _numeric_vars(df, vars)
-    rename = {"count": "n"}
+    """Descriptive statistics for numeric ``vars`` as a tidy long frame, matching
+    the emulator's two paths (verified against ``StatsEngine``):
 
-    def _row(s, label_cols):
-        r = dict(label_cols)
-        r.update({rename.get(a, a): s.agg(a) for a in _SUM_STATS})
-        r.update(_extra_stat_cols(s, gini, iqr))
-        return r
+      - ungrouped: ``[variable, mean, std, count, p1, p25, p50, p75, p99]``
+        (percentiles incl. the median; no min/max — same as the emulator)
+      - grouped (``by``): ``[<by>, variable, mean, std, min, max, count]``
+        (no percentiles — same as the emulator)
+
+    ``gini``/``iqr`` (reusing the emulator's ``calculate_gini``/``calculate_iqr``)
+    append columns in either path. Analysis result; the dataset is unchanged."""
+    vars = _numeric_vars(df, vars)
 
     if by and by in df.columns:
-        recs = [_row(sub[v], {by: key, "variable": v})
-                for key, sub in df.groupby(by) for v in vars]
+        recs = []
+        for key, sub in df.groupby(by, dropna=False):
+            for v in vars:
+                s = sub[v]
+                r = {by: key, "variable": v, "mean": s.mean(), "std": s.std(),
+                     "min": s.min(), "max": s.max(), "count": s.count()}
+                r.update(_extra_stat_cols(s, gini, iqr))
+                recs.append(r)
         return pd.DataFrame(recs)
-    return pd.DataFrame([_row(df[v], {"variable": v}) for v in vars])
+
+    recs = []
+    for v in vars:
+        s = df[v]
+        r = {"variable": v, "mean": s.mean(), "std": s.std(), "count": s.count()}
+        r.update({label: s.quantile(q) for label, q in _SUM_PCTLS})
+        r.update(_extra_stat_cols(s, gini, iqr))
+        recs.append(r)
+    return pd.DataFrame(recs)
 
 
 def _chi2_stats(sub, v1, v2, dropna):
