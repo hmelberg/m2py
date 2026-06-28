@@ -3632,7 +3632,13 @@ def _get_df_key_col(df):
     """Returnerer nøkkelkolonnen for en DataFrame, eller None."""
     if df is None:
         return None
-    return _KEYS.key_col_from_cols(df.columns)
+    # Inline copy of m2py_runtime.keys.ENTITY_KEY_COLS (kept in sync) so this
+    # hot, import-time-safe helper carries no dependency on m2py_runtime.
+    for c in ('PERSONID_1', 'ARBEIDSFORHOLD_ID', 'KJORETOY_ID',
+              'NUDB_KURS_LOEPENR', 'AGGRSHOPPID', 'NPRID', 'unit_id'):
+        if c in df.columns:
+            return c
+    return None
 
 # ICD-10: (kode, norsk_label, min_alder, max_alder, kjønn_bias, base_vekt)
 # kjønn_bias: >0 = mer vanlig hos kvinner, <0 = mer vanlig hos menn
@@ -8107,7 +8113,11 @@ class MicroInterpreter:
                     # Key resolution is delegated to the shared resolver so the
                     # offline translator joins on exactly the same column. The
                     # emulator formats its own (unchanged) error messages from the
-                    # returned reason code, and aborts on error.
+                    # returned reason code, and aborts on error. Imported lazily
+                    # (not at module load) so m2py stays import-safe even where
+                    # m2py_runtime isn't yet on the path (e.g. Pyodide bootstrap).
+                    from m2py_runtime import keys as _KEYS
+                    _resolve_merge_key = _KEYS.resolve_merge_key
                     _src_collapse_key = self.dataset_key_cols.get(self.active_name)
                     _tgt_collapse_key = self.dataset_key_cols.get(into_name)
 
@@ -8958,11 +8968,3 @@ class MicroInterpreter:
         """Embedd objekt i output: __micro_transform_start_<type>__ ... __micro_transform_end__"""
         start = MICRO_EMBED_START.format(embed_type)
         self.output_log.append(f"\n{start}\n{payload}\n{MICRO_EMBED_END}\n")
-
-
-# ── Shared merge-key resolver (imported last to avoid an import cycle) ──────────
-# m2py_runtime.pandas_ops imports symbols from this module at import time, so we
-# pull the resolver in only after m2py is fully defined. The resolver is pure
-# (no m2py dependency); the emulator's merge handler and _get_df_key_col use it.
-from m2py_runtime import keys as _KEYS  # noqa: E402
-from m2py_runtime.keys import resolve_merge_key as _resolve_merge_key  # noqa: E402
