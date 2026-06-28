@@ -68,9 +68,9 @@ crosses the network, not the data.
 | Merge | `merge` |
 | Analysis (side output) | `summarize`, `tabulate`, `correlate` |
 | Regression (coef table) | `regress`, `logit`, `probit`, `poisson`, `negative-binomial` |
-| Panel / IV (coef table) | `regress-panel` (fe/re/be/pooled), `ivregress` (2SLS) |
-| Other models | `mlogit` (multinomial), `rdd` (sharp regression discontinuity) |
-| Predict (adds columns) | `regress-predict`, `logit-predict`, `probit-predict`, `negative-binomial-predict` |
+| Panel / IV (coef table) | `regress-panel` (fe/re/be/pooled), `regress-panel-diff` (diff-in-diff), `ivregress` (2SLS) |
+| Other models | `mlogit` (multinomial), `rdd` (regression discontinuity, sharp/fuzzy) |
+| Predict (adds columns) | `regress-predict`, `logit-predict`, `probit-predict`, `negative-binomial-predict`, `mlogit-predict`, `ivregress-predict` |
 | Survival (lifelines) | `cox`, `kaplan-meier`, `weibull` |
 | Plots (side output) | `histogram`, `barchart`, `scatter`, `boxplot`, `piechart`, `hexbin`, `sankey`, `coefplot` |
 
@@ -92,7 +92,11 @@ emulator's summary output; `noconstant` supported, `or`/`irr`/`robust`/`exposure
 deferred). **Survival** (`cox`/`kaplan-meier`/`weibull`) uses lifelines as the
 emulator does: `cox` returns `[term, coef, hazard_ratio, se, z, p]`,
 `kaplan-meier` the survival function `[time, survival]`, `weibull` the fitted
-`lambda`/`rho` (+`n`/`events`). In particular **`summarize`** mirrors
+`lambda`/`rho` (+`n`/`events`). **`rdd`** uses the `rdrobust` package when present
+(returning the Conventional/Bias-Corrected/Robust estimates, matching the
+emulator's preferred path) and falls back to local-polynomial OLS otherwise —
+unlike the in-browser engine, the offline target can install rdrobust. In
+particular **`summarize`** mirrors
 the emulator's two paths exactly (verified against `StatsEngine`): ungrouped →
 `mean, std, count, p1, p25, p50, p75, p99` (percentiles incl. median, no min/max);
 grouped (`by`) → `mean, std, min, max, count`; `gini`/`iqr` append in either path.

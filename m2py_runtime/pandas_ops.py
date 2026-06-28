@@ -639,14 +639,37 @@ def mlogit(df, dep, indep, noconstant=False):
     return pd.DataFrame(rows)
 
 
-def rdd(df, dep, runvar, exog=(), cutoff=0.0, polynomial=1):
-    """Sharp regression-discontinuity estimate via local polynomial OLS (the
-    emulator's fallback when rdrobust is unavailable). Returns the discontinuity
-    estimate row ``[term, estimate, se, z, p]`` — the coefficient on the treatment
-    indicator T = 1{runvar >= cutoff}."""
+def rdd(df, dep, runvar, exog=(), cutoff=0.0, polynomial=1, fuzzy=None):
+    """Regression-discontinuity estimate, matching the emulator: use the
+    ``rdrobust`` package when available (proper bandwidth selection; returns the
+    Conventional/Bias-Corrected/Robust estimates as ``[method, estimate, se, p,
+    ci_lower, ci_upper]``), else fall back to local-polynomial OLS (returns the
+    single ``[term, estimate, se, z, p]`` discontinuity = the coefficient on
+    T=1{runvar>=cutoff}, or the fuzzy treatment via 2SLS)."""
     import statsmodels.api as sm
-    cols = [dep, runvar] + list(exog)
+    cols = [dep, runvar] + list(exog) + ([fuzzy] if fuzzy else [])
     d = df[cols].apply(pd.to_numeric, errors="coerce").dropna().astype(float)
+
+    try:
+        from rdrobust import rdrobust as _rdrobust
+        kw = dict(y=d[dep].values, x=d[runvar].values, c=cutoff, p=polynomial)
+        if exog:
+            kw["covs"] = d[list(exog)].values
+        if fuzzy:
+            kw["fuzzy"] = d[fuzzy].values
+        res = _rdrobust(**kw)
+        return pd.DataFrame({
+            "method": list(res.coef.index),
+            "estimate": res.coef.iloc[:, 0].to_numpy(),
+            "se": res.se.iloc[:, 0].to_numpy(),
+            "p": res.pv.iloc[:, 0].to_numpy(),
+            "ci_lower": res.ci.iloc[:, 0].to_numpy(),
+            "ci_upper": res.ci.iloc[:, 1].to_numpy(),
+        })
+    except ImportError:
+        pass
+
+    # ---- fallback: manual local-polynomial OLS ----
     R = d[runvar] - cutoff
     T = (R >= 0).astype(float)
     X = pd.DataFrame({"const": 1.0, "T": T, "R": R, "T_R": T * R}, index=d.index)
@@ -655,12 +678,63 @@ def rdd(df, dep, runvar, exog=(), cutoff=0.0, polynomial=1):
         X["T_R2"] = T * R ** 2
     for c in exog:
         X[c] = d[c]
-    model = sm.OLS(d[dep], X).fit()
-    est, se = model.params["T"], model.bse["T"]
+    if fuzzy:
+        fuzzy_hat = sm.OLS(d[fuzzy], X).fit().predict()   # T instruments fuzzy
+        X2 = X.drop(columns=["T"]).copy()
+        X2[fuzzy] = fuzzy_hat
+        model = sm.OLS(d[dep], X2).fit()
+        disc = fuzzy
+    else:
+        model = sm.OLS(d[dep], X).fit()
+        disc = "T"
+    est, se = model.params[disc], model.bse[disc]
     return pd.DataFrame([{
         "term": "discontinuity", "estimate": est, "se": se,
-        "z": est / se if se > 0 else np.nan, "p": model.pvalues["T"],
+        "z": est / se if se > 0 else np.nan, "p": model.pvalues[disc],
     }])
+
+
+def mlogit_predict(df, dep, indep, predicted=None, probabilities=None, residuals=None,
+                   noconstant=False):
+    """Multinomial-logit predictions, one column per category (suffix ``_<cat>``),
+    matching the emulator: ``probabilities`` -> P(Y=cat), ``predicted`` -> the
+    linear predictor Xβ (0 for the reference category), ``residuals`` -> 1{Y=cat}-P;
+    with no option, add ``prob_<cat>`` probabilities."""
+    import statsmodels.api as sm
+    from statsmodels.discrete.discrete_model import MNLogit
+    d = df[[dep] + list(indep)].apply(pd.to_numeric, errors="coerce").dropna()
+    Y = d[dep]
+    cats = sorted(Y.unique())
+    X = d[list(indep)].astype(float)
+    if not noconstant:
+        X = sm.add_constant(X, has_constant="add")
+    model = MNLogit(Y, X).fit(disp=0)
+    probs = model.predict()                       # n × K
+    labels = [str(int(c)) if float(c) == int(c) else str(c) for c in cats]
+    out = df.copy()
+
+    def add(base, series_for):
+        for i, lab in enumerate(labels):
+            out[f"{base}_{lab}"] = pd.Series(series_for(i), index=d.index).reindex(df.index)
+
+    added = False
+    if probabilities:
+        add(probabilities if probabilities is not True else "prob", lambda i: probs[:, i])
+        added = True
+    if predicted:
+        base = predicted if predicted is not True else "predicted"
+        for i, lab in enumerate(labels):
+            col = (np.zeros(len(d)) if i == 0
+                   else np.asarray(X @ model.params.iloc[:, i - 1]))
+            out[f"{base}_{lab}"] = pd.Series(col, index=d.index).reindex(df.index)
+        added = True
+    if residuals:
+        base = residuals if residuals is not True else "residuals"
+        add(base, lambda i: (Y == cats[i]).astype(float).to_numpy() - probs[:, i])
+        added = True
+    if not added:
+        add("prob", lambda i: probs[:, i])
+    return out
 
 
 # ── panel & instrumental-variables regression ────────────────────────────────
@@ -702,14 +776,13 @@ def regress_panel(df, dep, indep, effect="fe", key=None):
     })
 
 
-def ivregress(df, dep, exog, endog, instruments):
-    """Instrumental-variables (2SLS) regression — manual two-stage least squares
-    with the emulator's fixed-scale 2SLS standard errors. Returns the second-stage
-    coefficient table ``[term, coef, se, t, p]``."""
+def _iv_fit(df, dep, exog, endog, instruments):
+    """Manual 2SLS. Returns (robust_model, X2_columns, fitted_pred, resid, index)
+    where fitted_pred uses the ACTUAL endog values (for 2SLS SEs/predictions)."""
     import statsmodels.api as sm
     exog, endog, instruments = list(exog), list(endog), list(instruments)
-    allv = [dep] + exog + endog + instruments
-    d = df[allv].apply(pd.to_numeric, errors="coerce").dropna().astype(float)
+    d = df[[dep] + exog + endog + instruments].apply(
+        pd.to_numeric, errors="coerce").dropna().astype(float)
     Y = d[dep]
     Z = sm.add_constant(d[instruments + exog], has_constant="add")
     fitted = pd.DataFrame(index=d.index)
@@ -720,19 +793,51 @@ def ivregress(df, dep, exog, endog, instruments):
         X2[ev] = fitted[ev]
     X2 = sm.add_constant(X2, has_constant="add")
     model = sm.OLS(Y, X2).fit()
-    # 2SLS SE: residual variance from the ACTUAL endog values (fixed-scale cov)
     Xa = sm.add_constant(d[exog + endog], has_constant="add").reindex(
         columns=X2.columns, fill_value=0.0)
-    resid = Y - Xa @ model.params
+    pred = Xa @ model.params
+    resid = Y - pred
     sigma2 = float(resid @ resid) / model.df_resid
     robust = model.get_robustcov_results(cov_type="fixed scale", scale=sigma2)
+    return robust, list(X2.columns), pred, resid, d.index
+
+
+def ivregress(df, dep, exog, endog, instruments):
+    """Instrumental-variables (2SLS) regression with the emulator's fixed-scale
+    2SLS standard errors. Returns the second-stage coefficient table
+    ``[term, coef, se, t, p]``."""
+    robust, terms, _, _, _ = _iv_fit(df, dep, exog, endog, instruments)
     return pd.DataFrame({
-        "term": list(X2.columns),
+        "term": terms,
         "coef": np.asarray(robust.params),
         "se": np.asarray(robust.bse),
         "t": np.asarray(robust.tvalues),
         "p": np.asarray(robust.pvalues),
     })
+
+
+def ivregress_predict(df, dep, exog, endog, instruments, predicted="predicted",
+                      residuals=None):
+    """IV (2SLS): add fitted values (using the actual endog) and residuals."""
+    _, _, pred, resid, idx = _iv_fit(df, dep, exog, endog, instruments)
+    out = df.copy()
+    out[predicted or "predicted"] = pd.Series(np.asarray(pred), index=idx).reindex(df.index)
+    if residuals:
+        out[residuals] = pd.Series(np.asarray(resid), index=idx).reindex(df.index)
+    return out
+
+
+def regress_panel_diff(df, dep, group, treated, covars=()):
+    """Difference-in-differences (pooled OLS with a group×treated interaction).
+    Returns the coefficient table; the interaction term is the ATET."""
+    import statsmodels.api as sm
+    interact = f"{group}_x_{treated}"
+    base = [group, treated] + [c for c in covars if c not in (group, treated)]
+    d = df[[dep] + base].apply(pd.to_numeric, errors="coerce").dropna().astype(float)
+    d[interact] = d[group] * d[treated]
+    indep = [group, treated, interact] + [c for c in base if c not in (group, treated)]
+    X = sm.add_constant(d[indep], has_constant="add")
+    return _coef_table(sm.OLS(d[dep], X).fit())
 
 
 # ── survival analysis (lifelines, matching the emulator) ──────────────────────

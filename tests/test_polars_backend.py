@@ -443,28 +443,78 @@ def test_mlogit_matches_emulator():
     assert np.allclose(mine["coef"].to_numpy(), res_pl["coef"].to_numpy())  # parity
 
 
-def test_rdd_matches_emulator():
-    pytest.importorskip("statsmodels.api")
+def _emu_rdd_estimates(args, opts, df):
+    """{method: (estimate, se)} from the emulator's rdrobust rdd output."""
     import re
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+    out = m2py.MicroInterpreter(metadata_path=None).reg_engine.execute("rdd", df, args, opts)
+    s = out[0] if isinstance(out, tuple) else str(out)
+    res = {}
+    for l in s.splitlines():
+        m = re.match(r"^(Conventional|Bias-Corrected|Robust)\s+(-?\d+\.\d+)\s+(\d+\.\d+)", l)
+        if m:
+            res[m.group(1)] = (float(m.group(2)), float(m.group(3)))
+    return res
+
+
+def test_rdd_matches_emulator_rdrobust():
+    pytest.importorskip("rdrobust")
     from m2py_runtime import pandas_ops as po
     rng = np.random.default_rng(0)
     n = 400
     R = rng.uniform(-1, 1, n)
     Tt = (R >= 0).astype(int)
     df = pd.DataFrame({"y": 1 + 2.5 * Tt + 0.7 * R + rng.normal(0, 0.5, n), "run": R})
-    m2py.M2PY_DISCLOSURE_CONTROL = "0"
-    out = m2py.MicroInterpreter(metadata_path=None).reg_engine.execute(
-        "rdd", df, {"dep": "y", "runvar": "run", "exog": []}, {"cutoff": "0"})
-    s = out[0] if isinstance(out, tuple) else str(out)
-    row = [l for l in s.splitlines() if "Diskontinuitet" in l][0]
-    nums = re.findall(r"-?\d+\.\d+", row)
-    emu_est, emu_se = float(nums[0]), float(nums[1])
-    mine = po.rdd(df, "y", "run", cutoff=0.0)
+    emu = _emu_rdd_estimates({"dep": "y", "runvar": "run", "exog": []}, {"cutoff": "0"}, df)
+    mine = po.rdd(df, "y", "run", cutoff=0.0).set_index("method")
     res_pl, _ = _run_analysis("rdd y run, cutoff(0)", df, "polars")
-    # the emulator prints 2 decimals, so compare at display precision
-    assert round(float(mine["estimate"].iloc[0]), 2) == emu_est
-    assert round(float(mine["se"].iloc[0]), 2) == emu_se
-    assert np.isclose(res_pl["estimate"].iloc[0], mine["estimate"].iloc[0])
+    assert set(emu) == {"Conventional", "Bias-Corrected", "Robust"}
+    for meth, (est, se) in emu.items():
+        assert round(float(mine.loc[meth, "estimate"]), 2) == est
+        assert round(float(mine.loc[meth, "se"]), 2) == se
+    assert np.allclose(res_pl.set_index("method")["estimate"], mine["estimate"])  # parity
+
+
+def test_rdd_fuzzy_matches_emulator():
+    pytest.importorskip("rdrobust")
+    from m2py_runtime import pandas_ops as po
+    rng = np.random.default_rng(0)
+    n = 400
+    R = rng.uniform(-1, 1, n)
+    Tt = (R >= 0).astype(int)
+    D = (rng.random(n) < 0.5 + 0.4 * Tt).astype(float)
+    df = pd.DataFrame({"y": 1 + 2.0 * D + 0.7 * R + rng.normal(0, 0.5, n), "run": R, "d": D})
+    emu = _emu_rdd_estimates({"dep": "y", "runvar": "run", "exog": []},
+                             {"cutoff": "0", "fuzzy": "d"}, df)
+    mine = po.rdd(df, "y", "run", cutoff=0.0, fuzzy="d").set_index("method")
+    for meth, (est, se) in emu.items():
+        assert round(float(mine.loc[meth, "estimate"]), 2) == est
+
+
+@pytest.mark.parametrize("method,fallback_runs", [(None, True)])
+def test_rdd_ols_fallback_runs(method, fallback_runs):
+    # the OLS fallback still produces an estimate when used directly
+    from m2py_runtime import pandas_ops as po
+    import m2py_runtime.pandas_ops as mod
+    rng = np.random.default_rng(1)
+    n = 200
+    R = rng.uniform(-1, 1, n)
+    df = pd.DataFrame({"y": 1 + 2.0 * (R >= 0) + 0.5 * R + rng.normal(0, 0.4, n), "run": R})
+    # force the fallback by hiding rdrobust
+    import builtins
+    real_import = builtins.__import__
+
+    def no_rdrobust(name, *a, **k):
+        if name == "rdrobust" or name.startswith("rdrobust."):
+            raise ImportError("forced")
+        return real_import(name, *a, **k)
+    builtins.__import__ = no_rdrobust
+    try:
+        out = po.rdd(df, "y", "run", cutoff=0.0)
+    finally:
+        builtins.__import__ = real_import
+    assert "discontinuity" in out["term"].values
+    assert 1.5 < float(out["estimate"].iloc[0]) < 2.5
 
 
 def _emu_coef_table(cmd, df, args, opts):
@@ -508,6 +558,67 @@ def test_regress_panel_matches_emulator(effect, opts):
     for term, c in emu.items():
         assert np.isclose(mine[term], c, atol=1e-3), (effect, term)
     assert np.allclose(res_pl.set_index("term").loc[mine.index, "coef"], mine.values)
+
+
+def test_regress_panel_diff_matches_emulator():
+    pytest.importorskip("statsmodels.api")
+    import re
+    from m2py_runtime import pandas_ops as po
+    rng = np.random.default_rng(0)
+    n = 400
+    g, tr = rng.integers(0, 2, n), rng.integers(0, 2, n)
+    df = pd.DataFrame({"y": 1 + 0.5 * g + 0.3 * tr + 2.0 * (g * tr) + rng.normal(0, 0.5, n),
+                       "g": g.astype(float), "tr": tr.astype(float),
+                       "unit_id": np.arange(n) % 50, "tid": np.arange(n) % 4})
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+    out = m2py.MicroInterpreter(metadata_path=None).reg_engine.execute(
+        "regress-panel-diff", df, ["y", "g", "tr"], {})
+    s = out[0] if isinstance(out, tuple) else str(out)
+    emu_atet = float(re.search(r"g_x_tr\s+(-?\d+\.\d+)", s).group(1))
+    mine = po.regress_panel_diff(df, "y", "g", "tr").set_index("term")
+    res_pl, _ = _run_analysis("regress-panel-diff y g tr", df, "polars")
+    assert np.isclose(mine.loc["g_x_tr", "coef"], emu_atet, atol=1e-3)
+    assert np.allclose(res_pl.set_index("term")["coef"], mine["coef"])
+
+
+def test_ivregress_predict_matches_emulator():
+    pytest.importorskip("statsmodels.api")
+    from m2py_runtime import pandas_ops as po
+    rng = np.random.default_rng(0)
+    n = 400
+    z1, z2, u = rng.normal(0, 1, n), rng.normal(0, 1, n), rng.normal(0, 1, n)
+    endo = 0.5 * z1 + 0.3 * z2 + u + rng.normal(0, 0.3, n)
+    df = pd.DataFrame({"y": 1 + 1.2 * endo + 0.4 * u + rng.normal(0, 0.3, n),
+                       "endo": endo, "z1": z1, "z2": z2})
+    script = "ivregress-predict y (endo = z1 z2), predicted(yhat) residuals(res)"
+    emu = _emu_after(script, df)
+    new = [c for c in emu.columns if c not in df.columns]
+    out_pd = T.run(script, {"df": df}, "pandas")
+    out_pl = T.run(script, {"df": df}, "polars").to_pandas()
+    assert new == ["yhat", "res"]
+    for c in new:
+        assert np.allclose(out_pd[c].dropna(), emu[c].dropna())
+        assert np.allclose(out_pd[c].dropna(), out_pl[c].dropna())
+
+
+def test_mlogit_predict_matches_emulator():
+    pytest.importorskip("statsmodels.api")
+    rng = np.random.default_rng(0)
+    n = 400
+    x1 = rng.normal(0, 1, n)
+    eta = np.column_stack([np.zeros(n), 0.5 + 0.8 * x1, -0.3 + 0.5 * x1])
+    probs = np.exp(eta) / np.exp(eta).sum(1, keepdims=True)
+    cat = np.array([rng.choice(3, p=probs[i]) for i in range(n)])
+    df = pd.DataFrame({"cat": cat, "x1": x1})
+    script = "mlogit-predict cat x1, probabilities(p)"
+    emu = _emu_after(script, df)
+    new = [c for c in emu.columns if c not in df.columns]
+    out_pd = T.run(script, {"df": df}, "pandas")
+    out_pl = T.run(script, {"df": df}, "polars").to_pandas()
+    assert new == ["p_0", "p_1", "p_2"]
+    for c in new:
+        assert np.allclose(out_pd[c].dropna(), emu[c].dropna())
+        assert np.allclose(out_pd[c].dropna(), out_pl[c].dropna())
 
 
 def test_ivregress_matches_emulator():

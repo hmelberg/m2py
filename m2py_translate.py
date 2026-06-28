@@ -23,15 +23,15 @@ from m2py_runtime.exprcompile import compile_expr, UnsupportedExpr
 # poisson-predict is NOT a real microdata command (the emulator rejects it).
 PREDICT = {
     "regress-predict": "regress_predict", "logit-predict": "logit_predict",
-    "probit-predict": "probit_predict",
+    "probit-predict": "probit_predict", "mlogit-predict": "mlogit_predict",
     "negative-binomial-predict": "negative_binomial_predict",
 }
-# binary-outcome predicts: `predicted` is Xβ, `probabilities` is P(Y=1|X)
-PREDICT_BINARY = {"logit-predict", "probit-predict"}
+# binary/multinomial predicts: `predicted` is Xβ, `probabilities` is P(Y=…)
+PREDICT_BINARY = {"logit-predict", "probit-predict", "mlogit-predict"}
 # TRANSFORM verbs reassign the working frame (df / lf -> new frame).
 TRANSFORM = {
     "generate", "replace", "recode", "keep", "drop", "rename", "destring",
-    "collapse", "aggregate", "merge",
+    "collapse", "aggregate", "merge", "ivregress-predict",
 } | set(PREDICT)
 # ANALYSIS verbs compute a side result and PRINT it; the working frame is
 # unchanged (matching the emulator, where summarize/tabulate/regress don't alter
@@ -44,7 +44,7 @@ REGRESSION = {
 # survival verbs -> op name (analysis verbs, lifelines)
 SURVIVAL = {"cox": "cox", "kaplan-meier": "kaplan_meier", "weibull": "weibull"}
 # panel & IV regression (analysis verbs, linearmodels/statsmodels)
-PANEL_IV = {"regress-panel", "ivregress"}
+PANEL_IV = {"regress-panel", "regress-panel-diff", "ivregress"}
 ANALYSIS = ({"summarize", "tabulate", "correlate", "mlogit", "rdd"}
             | set(REGRESSION) | set(SURVIVAL) | PANEL_IV)
 # PLOT verbs build a plotly Figure (terminal, like analysis). Offline they are
@@ -79,9 +79,11 @@ HANDLED_OPTIONS = {
     "regress-panel": {"fe", "re", "random", "be", "pooled"},
     # IV: only 2SLS implemented; liml/gmm/robust/level deferred
     "ivregress": {"tsls", "2sls"},
+    "ivregress-predict": {"predicted", "residuals", "tsls", "2sls"},
+    "regress-panel-diff": {"pooled"},
     "mlogit": {"noconstant"},
-    # rdd: sharp local-polynomial OLS; fuzzy/cluster/robust/derivate deferred
-    "rdd": {"cutoff", "polynomial"},
+    # rdd: local-polynomial OLS (sharp + fuzzy); cluster/robust/derivate deferred
+    "rdd": {"cutoff", "polynomial", "fuzzy"},
     # survival: by/level/hazard variants deferred
     "cox": set(),
     "kaplan-meier": set(),
@@ -167,6 +169,17 @@ def _emit(instr, backend):
     if cmd in ("collapse", "aggregate"):
         return (f"{var} = ops.{cmd}({var}, targets={args['targets']!r}, "
                 f"by={opts.get('by')!r})")
+    if cmd == "ivregress-predict":
+        if not isinstance(args, dict) or not args.get("dep") or not args.get("endog"):
+            return None
+        res = opts.get("residuals")
+        res = "residuals" if res is True else res
+        pred = opts.get("predicted")
+        pred = "predicted" if pred in (None, True) else pred
+        return (f"{var} = ops.ivregress_predict({var}, dep={args['dep']!r}, "
+                f"exog={args.get('exog', [])!r}, endog={args['endog']!r}, "
+                f"instruments={args.get('instruments', [])!r}, "
+                f"predicted={pred!r}, residuals={res!r})")
     if cmd in PREDICT:
         if not isinstance(args, (list, tuple)) or len(args) < 2:
             return None
@@ -259,6 +272,11 @@ def _emit_analysis(instr, backend, idx):
             effect = "re"
         call = (f"ops.regress_panel({var}, dep={vars_[0]!r}, indep={vars_[1:]!r}, "
                 f"effect={effect!r})")
+    elif cmd == "regress-panel-diff":
+        if not vars_ or len(vars_) < 3:
+            return None
+        call = (f"ops.regress_panel_diff({var}, dep={vars_[0]!r}, group={vars_[1]!r}, "
+                f"treated={vars_[2]!r}, covars={vars_[3:]!r})")
     elif cmd == "ivregress":
         if not isinstance(args, dict) or not args.get("dep") or not args.get("endog"):
             return None
@@ -279,8 +297,11 @@ def _emit_analysis(instr, backend, idx):
             poly = int(opts.get("polynomial", 1))
         except (ValueError, TypeError):
             poly = 1
+        fuzzy = opts.get("fuzzy")
+        fuzzy = None if fuzzy in (None, True) else fuzzy
         call = (f"ops.rdd({var}, dep={args['dep']!r}, runvar={args['runvar']!r}, "
-                f"exog={args.get('exog', [])!r}, cutoff={cutoff!r}, polynomial={poly!r})")
+                f"exog={args.get('exog', [])!r}, cutoff={cutoff!r}, "
+                f"polynomial={poly!r}, fuzzy={fuzzy!r})")
     else:
         return None
     return f"{res} = {call}\nprint({res})"

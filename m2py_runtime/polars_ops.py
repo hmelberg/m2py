@@ -211,16 +211,33 @@ def mlogit(lf, dep, indep, noconstant=False):
     return _analysis(lf, "mlogit", dep, indep, noconstant=noconstant)
 
 
-def rdd(lf, dep, runvar, exog=(), cutoff=0.0, polynomial=1):
-    return _analysis(lf, "rdd", dep, runvar, exog=exog, cutoff=cutoff, polynomial=polynomial)
+def mlogit_predict(lf, dep, indep, predicted=None, probabilities=None, residuals=None,
+                   noconstant=False):
+    return _predict_transform(lf, "mlogit_predict", dep, indep, predicted, probabilities,
+                              residuals, noconstant)
+
+
+def rdd(lf, dep, runvar, exog=(), cutoff=0.0, polynomial=1, fuzzy=None):
+    return _analysis(lf, "rdd", dep, runvar, exog=exog, cutoff=cutoff,
+                     polynomial=polynomial, fuzzy=fuzzy)
 
 
 def regress_panel(lf, dep, indep, effect="fe", key=None):
     return _analysis(lf, "regress_panel", dep, indep, effect=effect, key=key)
 
 
+def regress_panel_diff(lf, dep, group, treated, covars=()):
+    return _analysis(lf, "regress_panel_diff", dep, group, treated, covars=covars)
+
+
 def ivregress(lf, dep, exog, endog, instruments):
     return _analysis(lf, "ivregress", dep, exog, endog, instruments)
+
+
+def ivregress_predict(lf, dep, exog, endog, instruments, predicted="predicted",
+                      residuals=None):
+    return _predict_transform(lf, "ivregress_predict", dep, exog, endog, instruments,
+                              predicted, residuals)
 
 
 def cox(lf, event, duration, covars=(), level=95):
