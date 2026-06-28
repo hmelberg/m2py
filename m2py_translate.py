@@ -19,11 +19,17 @@ emitted as ``# UNTRANSLATED:`` comments — never silently-wrong code. Call
 import m2py
 from m2py_runtime.exprcompile import compile_expr, UnsupportedExpr
 
-# verbs the translator understands (data shaping / stats / merge — not import)
-SUPPORTED = {
+# TRANSFORM verbs reassign the working frame (df / lf -> new frame).
+TRANSFORM = {
     "generate", "replace", "recode", "keep", "drop", "rename", "destring",
-    "collapse", "aggregate", "merge", "summarize",
+    "collapse", "aggregate", "merge",
 }
+# ANALYSIS verbs compute a side result and PRINT it; the working frame is
+# unchanged (matching the emulator, where summarize/tabulate/regress don't alter
+# the active dataset).
+ANALYSIS = {"summarize", "tabulate", "correlate", "regress"}
+
+SUPPORTED = TRANSFORM | ANALYSIS
 
 
 def _merge_parts(args):
@@ -71,9 +77,6 @@ def _emit(instr, backend):
     if cmd in ("collapse", "aggregate"):
         return (f"{var} = ops.{cmd}({var}, targets={args['targets']!r}, "
                 f"by={opts.get('by')!r})")
-    if cmd == "summarize":
-        vars_ = list(args) if args else None
-        return f"{var} = ops.summarize({var}, vars={vars_!r}, by={opts.get('by')!r})"
     if cmd == "merge":
         name, key = _merge_parts(args)
         rhs = (f'pl.scan_parquet("{name}.parquet")' if backend == "polars"
@@ -81,6 +84,29 @@ def _emit(instr, backend):
         load = f"_{name} = datasets[{name!r}] if datasets else {rhs}"
         return f"{load}\n{var} = ops.merge({var}, _{name}, on={key!r})"
     return None
+
+
+def _emit_analysis(instr, backend, idx):
+    """Emit an analysis step: compute a result from the (unchanged) working frame
+    and store/print it. Returns the code line, or None if unhandled."""
+    cmd, args, opts = instr["command"], instr["args"], instr["options"]
+    var = "lf" if backend == "polars" else "df"
+    res = f"result_{idx}"
+    vars_ = list(args) if args else None
+
+    if cmd == "summarize":
+        call = f"ops.summarize({var}, vars={vars_!r}, by={opts.get('by')!r})"
+    elif cmd == "tabulate":
+        call = f"ops.tabulate({var}, vars={vars_!r}, by={opts.get('by')!r})"
+    elif cmd == "correlate":
+        call = f"ops.correlate({var}, vars={vars_!r})"
+    elif cmd == "regress":
+        if not vars_:
+            return None
+        call = f"ops.regress({var}, dep={vars_[0]!r}, indep={vars_[1:]!r})"
+    else:
+        return None
+    return f"{res} = {call}\nprint({res})"
 
 
 def translate(script, backend="pandas", source_path="df"):
@@ -113,14 +139,16 @@ def translate(script, backend="pandas", source_path="df"):
         footer = ['df.to_parquet("result.parquet")'] if source_path is not None else []
 
     body = []
+    idx = 0
     for line in script.splitlines():
         if not line.strip():
             continue
         instr = parser.parse_line(line)
         if not instr or instr["command"] in ("textblock", "endblock", "end"):
             continue
-        if instr["command"] not in SUPPORTED:
-            body.append(f"# UNTRANSLATED ({instr['command']}): {line.strip()}")
+        cmd = instr["command"]
+        if cmd not in SUPPORTED:
+            body.append(f"# UNTRANSLATED ({cmd}): {line.strip()}")
             continue
         if backend == "polars":
             try:
@@ -128,7 +156,11 @@ def translate(script, backend="pandas", source_path="df"):
             except UnsupportedExpr as e:
                 body.append(f"# UNTRANSLATED (expr: {e}): {line.strip()}")
                 continue
-        emitted = _emit(instr, backend)
+        if cmd in ANALYSIS:
+            idx += 1
+            emitted = _emit_analysis(instr, backend, idx)
+        else:
+            emitted = _emit(instr, backend)
         body.append(emitted if emitted else f"# UNTRANSLATED: {line.strip()}")
 
     return "\n".join(header + [""] + body + [""] + footer) + "\n"

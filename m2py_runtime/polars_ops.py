@@ -121,18 +121,31 @@ def destring(lf, vars):
 
 # ── analysis ─────────────────────────────────────────────────────────────────
 
-def summarize(lf, vars=None, by=None):
+# ── analysis sinks ────────────────────────────────────────────────────────────
+# These are terminal outputs (not part of the lazy transform pipeline), so they
+# collect the frame and delegate to the tested pandas implementation, returning
+# a pl.DataFrame. Equivalence with the pandas backend is therefore guaranteed;
+# the lazy/streaming benefit lives in the transform ops above. regress needs
+# pandas+statsmodels regardless.
+
+def _analysis(lf, fn, *a, **kw):
     pl = _pl()
-    schema = lf.collect_schema()
-    numeric = {n for n, dt in schema.items() if dt.is_numeric()}
-    if not vars:
-        vars = [n for n in schema.names()
-                if n in numeric and n not in ("unit_id", "PERSONID_1")]
-    vars = [v for v in vars if v in numeric]
-    stat_methods = [("count", "count"), ("mean", "mean"), ("std", "std"),
-                    ("min", "min"), ("max", "max")]
-    aggs = [getattr(pl.col(v), m)().alias(f"{v}_{a}")
-            for v in vars for a, m in stat_methods]
-    if by and by in schema.names():
-        return lf.group_by(by).agg(aggs)
-    return lf.select(aggs)
+    from . import pandas_ops as pdo
+    pdf = lf.collect().to_pandas()
+    return pl.from_pandas(getattr(pdo, fn)(pdf, *a, **kw).reset_index(drop=True))
+
+
+def summarize(lf, vars=None, by=None):
+    return _analysis(lf, "summarize", vars, by)
+
+
+def tabulate(lf, vars, by=None):
+    return _analysis(lf, "tabulate", vars, by)
+
+
+def correlate(lf, vars):
+    return _analysis(lf, "correlate", vars)
+
+
+def regress(lf, dep, indep):
+    return _analysis(lf, "regress", dep, indep)

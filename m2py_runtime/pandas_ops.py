@@ -152,26 +152,64 @@ def destring(df, vars):
 
 # ── analysis ─────────────────────────────────────────────────────────────────
 
-def summarize(df, vars=None, by=None):
-    """Descriptive statistics (count/mean/std/min/max) for numeric ``vars``,
-    optionally per ``by`` group. Returns a tidy frame."""
+_SUM_STATS = ["count", "mean", "std", "min", "max"]
+
+
+def _numeric_vars(df, vars):
     if not vars:
-        vars = [c for c in df.columns
-                if c not in ("unit_id", "PERSONID_1")
-                and pd.api.types.is_numeric_dtype(df[c])]
-    vars = [v for v in vars if v in df.columns and pd.api.types.is_numeric_dtype(df[v])]
-    aggs = ["count", "mean", "std", "min", "max"]
+        vars = [c for c in df.columns if c not in ("unit_id", "PERSONID_1")]
+    return [v for v in vars if v in df.columns and pd.api.types.is_numeric_dtype(df[v])]
+
+
+def summarize(df, vars=None, by=None):
+    """Descriptive statistics for numeric ``vars`` as a tidy long frame:
+    columns ``[variable, n, mean, std, min, max]`` (a ``by`` column is prepended
+    when grouping). Returns an analysis result; does not change the dataset."""
+    vars = _numeric_vars(df, vars)
+    rename = {"count": "n"}
     if by and by in df.columns:
-        frames = []
-        g = df.groupby(by)
-        for v in vars:
-            s = g[v].agg(aggs)
-            s.columns = [f"{v}_{a}" for a in aggs]
-            frames.append(s)
-        return pd.concat(frames, axis=1).reset_index()
-    rows = []
+        recs = []
+        for key, sub in df.groupby(by):
+            for v in vars:
+                r = {by: key, "variable": v}
+                r.update({rename.get(a, a): sub[v].agg(a) for a in _SUM_STATS})
+                recs.append(r)
+        return pd.DataFrame(recs)
+    recs = []
     for v in vars:
         r = {"variable": v}
-        r.update({a: df[v].agg(a) for a in aggs})
-        rows.append(r)
-    return pd.DataFrame(rows)
+        r.update({rename.get(a, a): df[v].agg(a) for a in _SUM_STATS})
+        recs.append(r)
+    return pd.DataFrame(recs)
+
+
+def tabulate(df, vars, by=None):
+    """Frequency table: counts of each value of ``vars[0]`` (cross-tabulated by
+    ``by`` when given). Columns ``[<var>, n]`` or ``[<by>, <var>, n]``."""
+    v = vars[0]
+    keys = ([by, v] if by and by in df.columns else [v])
+    return df.groupby(keys, dropna=False).size().reset_index(name="n")
+
+
+def correlate(df, vars):
+    """Pearson correlation matrix for numeric ``vars`` as a frame whose first
+    column ``variable`` labels each row."""
+    vars = _numeric_vars(df, vars)
+    c = df[vars].corr()
+    return c.reset_index(names="variable")
+
+
+def regress(df, dep, indep):
+    """OLS of ``dep`` on ``indep`` (+ intercept) via statsmodels. Returns a
+    coefficient table ``[term, coef, se, t, p]``."""
+    import statsmodels.api as sm
+    d = df[[dep] + list(indep)].dropna()
+    X = sm.add_constant(d[list(indep)], has_constant="add")
+    model = sm.OLS(d[dep].astype(float), X.astype(float)).fit()
+    return pd.DataFrame({
+        "term": model.params.index,
+        "coef": model.params.to_numpy(),
+        "se": model.bse.to_numpy(),
+        "t": model.tvalues.to_numpy(),
+        "p": model.pvalues.to_numpy(),
+    })

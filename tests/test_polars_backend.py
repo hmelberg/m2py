@@ -149,6 +149,59 @@ def test_polars_backend_matches_emulator(case):
                  _run_polars(script, datasets, active), "polars", script)
 
 
+# ── analysis verbs (side outputs; working frame unchanged) ───────────────────
+
+_ANALYSIS_DF = pd.DataFrame({
+    "y": [1.0, 3, 2, 5, 4, 6, 2, 7],
+    "x": [1.0, 2, 3, 4, 5, 6, 7, 8],
+    "g": [1, 1, 1, 2, 2, 2, 3, 3],
+})
+
+
+def _run_analysis(script, df, backend):
+    """Translate+exec; return the result_1 frame (as pandas) and the final df."""
+    code = T.translate(script, backend=backend, source_path=None)
+    assert "UNTRANSLATED" not in code, code
+    if backend == "polars":
+        ns = {"data": pl.LazyFrame(df), "pl": pl, "datasets": None}
+        exec(code, ns)
+        return ns["result_1"].to_pandas(), ns["df"].to_pandas()
+    ns = {"df": df.copy(), "pd": pd, "datasets": None}
+    exec(code, ns)
+    return ns["result_1"], ns["df"]
+
+
+@pytest.mark.parametrize("script", [
+    "summarize y x",
+    "summarize y x, by(g)",
+    "tabulate g",
+    "correlate y x",
+])
+def test_analysis_pandas_polars_agree(script):
+    rp, _ = _run_analysis(script, _ANALYSIS_DF, "pandas")
+    rl, _ = _run_analysis(script, _ANALYSIS_DF, "polars")
+    _assert_same(rp, rl, "analysis", script)
+
+
+def test_analysis_does_not_change_working_frame():
+    # summarize between two transforms must not clobber the dataset
+    script = "generate z = x * 2\nsummarize y\ncollapse (mean) z -> mz, by(g)"
+    _, final = _run_analysis(script, _ANALYSIS_DF, "polars")
+    assert sorted(final.columns) == ["g", "mz"]
+    assert len(final) == 3  # 3 groups, not the summary rows
+
+
+def test_regress_matches_statsmodels():
+    sm = pytest.importorskip("statsmodels.api")
+    for backend in ("pandas", "polars"):
+        res, _ = _run_analysis("regress y x", _ANALYSIS_DF, backend)
+        X = sm.add_constant(_ANALYSIS_DF[["x"]])
+        truth = sm.OLS(_ANALYSIS_DF["y"], X).fit()
+        got = dict(zip(res["term"], res["coef"]))
+        assert np.isclose(got["const"], truth.params["const"], rtol=1e-9)
+        assert np.isclose(got["x"], truth.params["x"], rtol=1e-9)
+
+
 def test_unsupported_expression_is_marked_not_silently_wrong():
     # a microdata function the polars compiler doesn't implement -> UNTRANSLATED,
     # never emitted as incorrect polars.
