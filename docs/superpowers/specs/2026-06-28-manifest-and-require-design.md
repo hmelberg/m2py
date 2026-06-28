@@ -45,11 +45,13 @@ is just one built-in manifest.
 The manifest has two halves with different exposure:
 
 - **Schema (non-sensitive):** dataset names, formats, key column(s) + entity
-  type, available versions, sensitivity flag. This is the only part the
-  **browser/translator** receives, served by a registry endpoint the session is
-  bound to. It carries no rows, no physical locations-with-credentials, no
-  secrets. The translator uses it to bake merge keys at translate time
-  (`KeyTracker` consumes it).
+  type, available versions, sensitivity flag, and **optional variable-level
+  metadata** (types/levels/labels — see *Variable-level schema*; inferred when
+  absent). This is the only part the **browser/translator** receives, served by a
+  registry endpoint the session is bound to, and gated by the source's clearance.
+  It carries no rows, no physical locations-with-credentials, no secrets. The
+  translator uses it to bake merge keys at translate time (`KeyTracker` consumes
+  it) and to drive tab-complete.
 - **Run-time half (sensitive):** physical location, secret handle, access
   grants. Resolved only on the execution side (Anvil) at run time. Never crosses
   the browser or the API boundary.
@@ -138,6 +140,64 @@ handle is expected is a hard error.
 The auth *type* (basic / api_key / bearer / cloud-keys / connection-string) is
 manifest metadata; the script is auth-agnostic. The platform logs *which secret
 handles* a run used (never the values).
+
+## Variable-level schema (optional, inferred if absent)
+
+The schema half of the manifest may carry, **per dataset, per variable**:
+variable name, data type (numeric/string/date/bool), measurement level
+(nominal/ordinal/continuous), a cardinality hint, and labels (already supported).
+This is **entirely optional** — if a source declares none of it, the platform
+**infers** what it can at registration; nothing breaks without it.
+
+Uses (all UX/validation, never correctness): editor **tab-complete** (names +
+label hints), **sensible verb defaults** (categorical vs continuous in
+`tabulate`/`barchart`/`histogram`), and **validation warnings** (e.g. `regress`
+on a string column). The **run-time dtype is authoritative** for actual
+behaviour — the data the verbs see is the real column — so missing or wrong
+schema only costs autocomplete/warnings, never a wrong result. That keeps
+inference low-stakes.
+
+### Provenance — three tiers, explicit wins
+
+1. **Rich catalog (microdata)** — full metadata, already present.
+2. **Manifest-declared** — the data owner specifies types/levels/labels in the
+   JSON manifest.
+3. **Inferred at registration** (raw CSV with no metadata) — server-side
+   profiling (`DESCRIBE` for dtype + a distinct-count pass for cardinality →
+   nominal-vs-continuous guess), stored in the schema.
+
+Declared/explicit always overrides inferred. Honesty about inference: dtype and
+"low-cardinality ⇒ probably nominal" are inferable; **ordinality and the meaning
+of a code set are not** — they must be declared.
+
+### In-script declaration / override
+
+Optional, parallel to the existing `define-labels`, populating the same schema;
+explicit-in-script wins over inferred:
+
+```
+import survey/edu as edu, level(ordinal)                  # option on import
+define-variable income, level(continuous)                 # standalone statement
+define-labels    edu 1 'Grunnskole' 2 'VGS' 3 'Høyere'    # already exists
+```
+
+### Labels stay display-only — no silent categorical→alphanumeric convert
+
+Coded categoricals keep their **codes as the data**; labels render at **display**
+only (exactly as the emulator and offline translator already treat them).
+Auto-converting codes to label strings would change dtype and break downstream
+numeric/recode ops, so it is **not** done silently. Materializing label strings
+(e.g. when building an export extract) is an **explicit** opt-in — an
+`encode`/`label-to-string` verb or an `, asstring` option.
+
+### Schema follows clearance
+
+Variable names and labels are metadata, not rows, but **can themselves be
+sensitive** (a column named `hiv_status`, a revealing label). So the schema
+endpoint enforces the **same clearance as the data**: schema (and therefore
+tab-complete) is served for a source **only to users cleared for it**. Public
+sources → open schema, anonymous autocomplete; sensitive sources → schema after
+login + grant check. Autocomplete lights up exactly for the data a user may use.
 
 ## Import semantics
 
