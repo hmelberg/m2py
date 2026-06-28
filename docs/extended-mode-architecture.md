@@ -62,6 +62,57 @@ Any change to one of these three surfaces is rare and must be reviewed against t
 **full test suite** as the regression guard (the characterization-test method:
 refactor behind a seam, suite stays green, prove behavior is unchanged).
 
+## Parsing vs interpreting (the subtlest seam)
+
+The parser is the surface most likely to be *felt* as shared, because new Extended
+behavior — especially for `import` — often seems to need new syntax. Keep two
+layers distinct:
+
+- **Parsing** (text → IR): shared. Changing it can affect both engines.
+- **Interpreting** (IR → behavior): the emulator does one thing with the IR, the
+  translator another. Separate.
+
+The real question for any Extended change is **"new *syntax*, or just new
+*interpretation*?"** — and most import changes are the latter. Three routes reach
+new behavior **without touching `MicroParser`**:
+
+1. **Reinterpret existing syntax.** `import src/INNTEKT as lonn` already parses;
+   Extended makes `src` a file/URL source and the import a column-pull/join
+   instead of catalog+mock. Same IR, different meaning → translator-only.
+2. **Use the generic option slot.** `MicroParser` already captures `, name(arg)`
+   generically (this is how `keys()`, `version()`, `auth()` parse), so a new knob
+   like `import s/x as y, join(left)` → `options={'join':'left'}` needs **no
+   grammar change** — the translator just reads the option.
+3. **Post-parse in the translator.** Pull Extended-only constructs out of the raw
+   line / IR in the translator, leaving `MicroParser` untouched.
+
+When a grammar change in `MicroParser` *is* genuinely needed, the protective rule
+is **not** "don't touch the parser." It is:
+
+> **Don't change how any *existing* script parses.**
+
+An additive change (a new optional token/form) is safe for two compounding
+reasons: (1) existing microdata scripts parse identically — the new field is
+simply absent for them (verified by the suite); and (2) the new syntax only
+appears in Extended scripts, which run on the **translator, never the emulator**,
+so the emulator never even sees that IR. So the blast radius is "did an existing
+line's parse result change?", not "did the parser file change?".
+
+**Anti-pattern to avoid:** making the *same text* parse differently per mode
+(mode-dependent tokenization). That genuinely couples the engines. Keep **one
+superset grammar** — the IR carries every field, each engine interprets what it
+needs. If two behaviors need different syntax, give them *different syntax*.
+
+| Kind of import change | Parser? | Affects emulator? |
+|---|---|---|
+| Reinterpret existing syntax (file source, column-pull) | no | no |
+| New option via the generic `, opt(arg)` slot | no | no |
+| Extended-only construct, post-parsed in the translator | no | no |
+| Genuinely new grammar, **additive** | yes (additive) | no — existing scripts parse identically; new syntax only runs in Extended |
+| Change to how *existing* syntax parses | yes | **yes — red flag, don't** |
+
+Only the last row is dangerous, and it is the one thing rule 1 forbids.
+
 ## In-engine divergence: dispatch by source kind, never branch on mode
 
 Inside the translator, **do not write `if extended:`** anywhere. Put the
