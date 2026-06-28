@@ -16,6 +16,8 @@ emitted as ``# UNTRANSLATED:`` comments — never silently-wrong code. Call
 :func:`unsupported` to list them for a script without generating.
 """
 
+import re
+
 import m2py
 from m2py_runtime.exprcompile import compile_expr, UnsupportedExpr
 
@@ -55,7 +57,12 @@ ANALYSIS = ({"summarize", "tabulate", "correlate", "mlogit", "rdd",
 PLOT = {"histogram", "barchart", "scatter", "boxplot",
         "piechart", "hexbin", "sankey", "coefplot"}
 
-SUPPORTED = TRANSFORM | ANALYSIS | PLOT
+# dataset/session verbs — handled by the translate loop (they switch the active
+# dataset / create variables), not by the per-frame emitters.
+SESSION = {"create-dataset", "use", "clone-dataset", "delete-dataset",
+           "rename-dataset"}
+
+SUPPORTED = TRANSFORM | ANALYSIS | PLOT | SESSION
 
 # Options each verb actually honours. Any option on a line that is NOT listed
 # here makes the line UNTRANSLATED — so an unrecognised flag (e.g. a tabulate
@@ -190,10 +197,34 @@ def _check_polars_expr(instr):
         raise UnsupportedExpr("unknown function in condition")
 
 
-def _emit(instr, backend):
+def _sanitize(name):
+    """A valid Python identifier suffix for a dataset name."""
+    s = re.sub(r"\W", "_", str(name))
+    return s if s and not s[0].isdigit() else "d_" + s
+
+
+def _dsvar(backend, name):
+    """Variable holding the working frame for a named dataset."""
+    return f"{'lf' if backend == 'polars' else 'df'}_{_sanitize(name)}"
+
+
+def _load_dataset(backend, name, source_path):
+    """Emit the line that materialises dataset ``name`` into its variable: from
+    ``<name>.parquet`` (file mode) or the in-memory ``datasets`` dict."""
+    var = _dsvar(backend, name)
+    if backend == "polars":
+        src = (f'pl.scan_parquet("{name}.parquet")' if source_path is not None
+               else f"datasets[{name!r}]")
+    else:
+        src = (f'pd.read_parquet("{name}.parquet")' if source_path is not None
+               else f"datasets[{name!r}].copy()")
+    return f"{var} = {src}"
+
+
+def _emit(instr, backend, frame=None, known=()):
     cmd, args, opts, cond = (
         instr["command"], instr["args"], instr["options"], instr["condition"])
-    var = "lf" if backend == "polars" else "df"
+    var = frame or ("lf" if backend == "polars" else "df")
 
     if cmd in ("generate", "replace"):
         if not isinstance(args, dict) or "expression" not in args:
@@ -269,35 +300,38 @@ def _emit(instr, backend):
         name, key, how, sel = _merge_parts(args, opts)
         if not name or not key:
             return None
-        rhs = (f'pl.scan_parquet("{name}.parquet")' if backend == "polars"
-               else f'pd.read_parquet("{name}.parquet")')
-        lines = [f"_{name} = datasets[{name!r}] if datasets else {rhs}"]
+        lines = []
+        if name in known:                           # already a dataset variable
+            other = _dsvar(backend, name)
+        else:
+            other = f"_{name}"
+            rhs = (f'pl.scan_parquet("{name}.parquet")' if backend == "polars"
+                   else f'pd.read_parquet("{name}.parquet")')
+            lines.append(f"{other} = datasets[{name!r}] if datasets else {rhs}")
         if sel:                                     # into-form: bring only these cols (+ key)
             cols = [key] + [v for v in sel if v != key]
-            if backend == "polars":
-                lines.append(f"_{name} = _{name}.select({cols!r})")
-            else:
-                lines.append(f"_{name} = _{name}[{cols!r}]")
-        lines.append(f"{var} = ops.merge({var}, _{name}, on={key!r}, how={how!r})")
+            lines.append(f"{other} = {other}.select({cols!r})" if backend == "polars"
+                         else f"{other} = {other}[{cols!r}]")
+        lines.append(f"{var} = ops.merge({var}, {other}, on={key!r}, how={how!r})")
         return "\n".join(lines)
     return None
 
 
-def _frame_expr(backend, cond):
-    """The frame an analysis/plot reads: the working frame, or a row-filtered
-    view of it when the verb carries an ``if`` condition. Uses the tested ``keep``
-    op so the condition is applied without mutating the working frame."""
-    base = "lf" if backend == "polars" else "df"
+def _frame_expr(base, cond):
+    """The frame an analysis/plot reads: the working frame ``base``, or a
+    row-filtered view of it when the verb carries an ``if`` condition (applied via
+    the tested ``keep`` op, without mutating the working frame)."""
     if cond:
         return f"ops.keep({base}, vars=None, cond={cond!r})"
     return base
 
 
-def _emit_analysis(instr, backend, idx):
+def _emit_analysis(instr, backend, idx, frame=None):
     """Emit an analysis step: compute a result from the (unchanged) working frame
     and store/print it. Returns the code line, or None if unhandled."""
     cmd, args, opts = instr["command"], instr["args"], instr["options"]
-    var = _frame_expr(backend, instr["condition"])
+    base = frame or ("lf" if backend == "polars" else "df")
+    var = _frame_expr(base, instr["condition"])
     res = f"result_{idx}"
     vars_ = list(args) if args else None
 
@@ -400,11 +434,12 @@ def _emit_analysis(instr, backend, idx):
     return f"{res} = {call}\nprint({res})"
 
 
-def _emit_plot(instr, backend, idx, write):
+def _emit_plot(instr, backend, idx, write, frame=None):
     """Emit a plot step: build a plotly Figure from the (unchanged) working frame
     into ``fig_<idx>``; write it to an HTML file in file mode."""
     cmd, args, opts = instr["command"], instr["args"], instr["options"]
-    var = _frame_expr(backend, instr["condition"])
+    base = frame or ("lf" if backend == "polars" else "df")
+    var = _frame_expr(base, instr["condition"])
     vars_ = args.get("vars") if isinstance(args, dict) else None
     if not vars_:
         return None
@@ -485,29 +520,58 @@ def translate(script, backend="pandas", source_path="df"):
             header.append(f'lf = pl.scan_parquet("{source_path}.parquet")')
         else:
             header.append("lf = data if isinstance(data, pl.LazyFrame) else pl.LazyFrame(data)")
-        footer = ['df = lf.collect(engine="streaming")']
-        if source_path is not None:
-            footer.append('df.write_parquet("result.parquet")')
     else:
         header = ["import pandas as pd",
                   "from m2py_runtime import pandas_ops as ops",
                   "datasets = globals().get('datasets')"]
         if source_path is not None:
             header.append(f'df = pd.read_parquet("{source_path}.parquet")')
-        footer = ['df.to_parquet("result.parquet")'] if source_path is not None else []
 
+    default_frame = "lf" if backend == "polars" else "df"
     body = []
     idx = 0
+    active = None          # None = the implicit single working frame (df/lf)
+    known = set()          # dataset names that already have an emitted variable
+
+    def cur():
+        return _dsvar(backend, active) if active else default_frame
+
     for line in script.splitlines():
         if not line.strip():
             continue
         instr = parser.parse_line(line)
         if not instr or instr["command"] in ("textblock", "endblock", "end"):
             continue
-        cmd = instr["command"]
-        if cmd not in SUPPORTED:
-            body.append(f"# UNTRANSLATED ({cmd}): {line.strip()}")
+        cmd, a = instr["command"], instr["args"]
+
+        # ---- dataset/session management (switch active / create variables) ----
+        if cmd in SESSION:
+            if cmd == "create-dataset" and a:
+                known.add(a[0]); active = a[0]
+                body.append(_load_dataset(backend, a[0], source_path))
+            elif cmd == "use" and a:
+                if a[0] not in known:
+                    known.add(a[0])
+                    body.append(_load_dataset(backend, a[0], source_path))
+                active = a[0]
+            elif cmd == "clone-dataset" and len(a) >= 2:
+                sv, dv = _dsvar(backend, a[0]), _dsvar(backend, a[1])
+                body.append(f"{dv} = {sv}" if backend == "polars" else f"{dv} = {sv}.copy()")
+                known.add(a[1])
+            elif cmd == "rename-dataset" and len(a) >= 2:
+                body.append(f"{_dsvar(backend, a[1])} = {_dsvar(backend, a[0])}")
+                known.discard(a[0]); known.add(a[1])
+                if active == a[0]:
+                    active = a[1]
+            elif cmd == "delete-dataset" and a:
+                body.append(f"del {_dsvar(backend, a[0])}")
+                known.discard(a[0])
+                if active == a[0]:
+                    active = None
+            else:
+                body.append(f"# UNTRANSLATED ({cmd}): {line.strip()}")
             continue
+
         bad = _unhandled_options(instr)
         if bad:
             body.append(f"# UNTRANSLATED (unhandled option: {', '.join(bad)}): {line.strip()}")
@@ -518,15 +582,27 @@ def translate(script, backend="pandas", source_path="df"):
             except UnsupportedExpr as e:
                 body.append(f"# UNTRANSLATED (expr: {e}): {line.strip()}")
                 continue
+        frame = cur()
         if cmd in ANALYSIS:
             idx += 1
-            emitted = _emit_analysis(instr, backend, idx)
+            emitted = _emit_analysis(instr, backend, idx, frame)
         elif cmd in PLOT:
             idx += 1
-            emitted = _emit_plot(instr, backend, idx, write=source_path is not None)
+            emitted = _emit_plot(instr, backend, idx, write=source_path is not None, frame=frame)
         else:
-            emitted = _emit(instr, backend)
+            emitted = _emit(instr, backend, frame, known)
         body.append(emitted if emitted else f"# UNTRANSLATED: {line.strip()}")
+
+    # footer: materialise the final active frame into `df` (+ write in file mode)
+    final = cur()
+    if backend == "polars":
+        footer = [f'df = {final}.collect(engine="streaming")']
+        if source_path is not None:
+            footer.append('df.write_parquet("result.parquet")')
+    else:
+        footer = ([] if final == "df" else [f"df = {final}"])
+        if source_path is not None:
+            footer.append('df.to_parquet("result.parquet")')
 
     return "\n".join(header + [""] + body + [""] + footer) + "\n"
 
@@ -566,8 +642,11 @@ def unsupported(script):
         instr = parser.parse_line(line)
         if not instr or instr["command"] in ("textblock", "endblock", "end"):
             continue
-        if instr["command"] not in SUPPORTED:
+        cmd = instr["command"]
+        if cmd not in SUPPORTED:
             out.append(line.strip())
+            continue
+        if cmd in SESSION:                 # session verbs always translate
             continue
         if _unhandled_options(instr):
             out.append(line.strip())
@@ -579,7 +658,6 @@ def unsupported(script):
             continue
         # also flag verbs that parse/options-check but can't actually emit
         # (e.g. coefplot without a reg-command, scatter with one variable)
-        cmd = instr["command"]
         if cmd in ANALYSIS:
             emitted = _emit_analysis(instr, "polars", 1)
         elif cmd in PLOT:

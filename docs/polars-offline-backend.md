@@ -63,6 +63,7 @@ crosses the network, not the data.
 
 | Category | Verbs |
 |---|---|
+| Datasets / session | `create-dataset`, `use`, `clone-dataset`, `rename-dataset`, `delete-dataset` |
 | Shaping | `generate`, `replace`, `recode`, `keep`, `drop`, `rename`, `destring`, `reshape-to-panel`, `reshape-from-panel` |
 | Aggregation | `collapse`, `aggregate` |
 | Merge | `merge` |
@@ -103,6 +104,18 @@ grouped (`by`) → `mean, std, min, max, count`; `gini`/`iqr` append in either p
 Note: the emulator's **disclosure control** (winsorising before mean/std,
 3-sig-fig percentile rounding) is *not* reproduced — the offline backend reports
 raw statistics, matching the emulator with disclosure control off.
+
+**Multiple datasets.** Scripts that switch the active dataset (`create-dataset
+A` … `use B` …) translate faithfully: the active dataset is resolved *statically*
+at translate time (it's fixed by the script text), so each command is emitted on
+a per-dataset variable `df_<name>` / `lf_<name>`, mirroring the emulator's
+`datasets` dict + `active_name`. `use`/`create-dataset` switch the active frame,
+`clone-dataset`/`rename-dataset` map to variable assignment, and `merge` of an
+already-created dataset references its variable directly. The final active
+dataset is what's collected/written. (One semantic note: offline
+`create-dataset N` *loads* the extract `N.parquet` / `datasets["N"]`, since
+`import` is out of scope — whereas the in-browser engine makes an empty frame
+that `import` then populates.)
 
 Coverage on the repo's real `manual_scripts/` + `examples/`: **186/187 (99%)**
 of these verbs translate. `import`/session plumbing is intentionally out of

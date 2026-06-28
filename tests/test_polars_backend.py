@@ -881,6 +881,48 @@ def test_all_functions_match_emulator(expr):
     assert pl_r == emu_r, f"polars != emulator for {expr}"
 
 
+def test_multi_dataset_use_switching_matches_emulator():
+    # `use` keeps existing data in the emulator, so it compares apples-to-apples.
+    A = pd.DataFrame({"x": [1.0, 2, 3, 4, 5], "g": [1, 1, 2, 2, 1]})
+    B = pd.DataFrame({"y": [10.0, 20, 30, 40], "g": [1, 1, 2, 2]})
+    script = ("use A\ngenerate x2 = x * 2\nuse B\n"
+              "collapse (mean) y -> my, by(g)\nuse A\nkeep if x > 2")
+
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+    it = m2py.MicroInterpreter(metadata_path=None)
+    it.datasets["A"], it.datasets["B"] = A.copy(), B.copy()
+    it.active_name = "A"
+    for ln in script.splitlines():
+        it._execute_instruction(it.parser.parse_line(ln))
+    emu = it.datasets["A"]                       # final active dataset
+
+    out_pd = T.run(script, {"A": A, "B": B}, "pandas", active="A")
+    out_pl = T.run(script, {"A": A, "B": B}, "polars", active="A").to_pandas()
+    assert _reshape_norm(emu).equals(_reshape_norm(out_pd))   # commands hit dataset A
+    assert _reshape_norm(out_pd).equals(_reshape_norm(out_pl))
+    assert "x2" in out_pd.columns and (out_pd["x"] > 2).all()
+
+
+def test_create_dataset_clone_and_merge_known_datasets():
+    # create-dataset loads the named extract; clone copies; merge references the
+    # already-created dataset variable (no parquet load).
+    main = pd.DataFrame({"g": [1, 2, 3], "v": [10.0, 20, 30]})
+    look = pd.DataFrame({"g": [1, 2, 3], "navn": ["a", "b", "c"]})
+    script = ("create-dataset main\ncreate-dataset look\n"
+              "use main\nmerge look on g\ngenerate vv = v * 2")
+    code = T.translate(script, backend="pandas", source_path=None)
+    assert "df_main = ops.merge(df_main, df_look" in code   # variable, not a load
+    out = T.run(script, {"main": main, "look": look}, "pandas", active="main")
+    assert list(out.columns) == ["g", "v", "navn", "vv"]
+    assert out["vv"].tolist() == [20.0, 40.0, 60.0]
+
+
+def test_session_verbs_not_flagged():
+    for v in ("create-dataset A", "use A", "clone-dataset A B",
+              "rename-dataset A B", "delete-dataset A"):
+        assert T.unsupported(v) == [], v
+
+
 def test_unknown_function_is_flagged():
     # a name that is NOT a microdata function -> can't compile or fall back
     script = "generate w = totallymadeupfn(a)"
