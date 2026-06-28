@@ -52,8 +52,9 @@ HANDLED_OPTIONS = {
     "correlate": set(),
     "regress": set(),
     # plots
-    "histogram": {"bin", "nbins", "discrete", "percent", "density", "freq"},
-    "barchart": {"over"},               # statistic via parenthesised (stat), not a flag
+    "histogram": {"bin", "nbins", "discrete", "percent", "density", "freq", "normal"},
+    # statistic via parenthesised (stat), not a flag
+    "barchart": {"over", "horizontal", "stack"},
     "scatter": {"by", "color"},
     "boxplot": {"over"},
     "piechart": set(),                  # (percent) via parenthesised stat
@@ -203,15 +204,17 @@ def _emit_plot(instr, backend, idx, write):
         call = (f"ops.histogram({var}, vars={vars_!r}, bins={bins}, "
                 f"discrete={bool(opts.get('discrete'))!r}, "
                 f"percent={bool(opts.get('percent'))!r}, "
-                f"density={bool(opts.get('density'))!r})")
+                f"density={bool(opts.get('density'))!r}, "
+                f"normal={bool(opts.get('normal'))!r})")
     elif cmd == "barchart":
-        if len(vars_) > 1:
-            return None                      # multi-variable barchart deferred
         # statistic comes from the parenthesised (stat) form -> args['stat'];
         # bare `, mean`-style flags are NOT honoured by the emulator, so they
         # remain unhandled options and the line is flagged.
         stat = args.get("stat", "count")
-        call = f"ops.barchart({var}, vars={vars_!r}, stat={stat!r}, over={opts.get('over')!r})"
+        call = (f"ops.barchart({var}, vars={vars_!r}, stat={stat!r}, "
+                f"over={opts.get('over')!r}, "
+                f"horizontal={bool(opts.get('horizontal'))!r}, "
+                f"stack={bool(opts.get('stack'))!r})")
     elif cmd == "scatter":
         if len(vars_) < 2:
             return None

@@ -284,11 +284,14 @@ _BAR_AGG = {"mean": "mean", "median": "median", "sum": "sum",
             "sd": "std", "min": "min", "max": "max"}
 
 
-def histogram(df, vars, bins=30, discrete=False, percent=False, density=False):
+def histogram(df, vars, bins=30, discrete=False, percent=False, density=False,
+              normal=False):
     """Histogram of ``vars[0]``. Numeric -> ``go.Histogram`` (``histnorm`` for
     percent/density); categorical or ``discrete`` -> value-counts bar (as percent
-    when requested). Mirrors the emulator."""
+    when requested). ``normal`` overlays a fitted normal curve (numeric only),
+    scaled to the histogram's y units. Mirrors the emulator."""
     import plotly.express as px
+    import plotly.graph_objects as go
     var = vars[0]
     s = df[var].dropna()
     if discrete or not pd.api.types.is_numeric_dtype(s):
@@ -297,38 +300,85 @@ def histogram(df, vars, bins=30, discrete=False, percent=False, density=False):
             vc = (vc / vc.sum() * 100).round(2)
         return px.bar(x=vc.index.tolist(), y=vc.values.tolist())
     histnorm = "probability density" if density else ("percent" if percent else None)
-    return px.histogram(df.dropna(subset=[var]), x=var, nbins=bins, histnorm=histnorm)
+    fig = px.histogram(df.dropna(subset=[var]), x=var, nbins=bins, histnorm=histnorm)
+    if normal:
+        import numpy as np
+        from scipy.stats import norm
+        mu, sigma = float(s.mean()), float(s.std())
+        x_range = np.linspace(float(s.min()), float(s.max()), 200)
+        y_pdf = norm.pdf(x_range, mu, sigma)
+        if density:
+            y_curve = y_pdf
+        else:
+            bin_width = (float(s.max()) - float(s.min())) / bins
+            y_curve = y_pdf * bin_width * (100 if percent else len(s))
+        fig.add_trace(go.Scatter(
+            x=x_range.tolist(), y=y_curve.tolist(), mode="lines",
+            line=dict(color="red", width=2),
+            name=f"Normal(μ={mu:.1f}, σ={sigma:.1f})"))
+    return fig
 
 
-def barchart(df, vars, stat="count", over=None):
-    """Bar chart of ``vars[0]``. The statistic comes from the parenthesised
-    ``(stat)`` form: count/percent -> value counts (one bar per category, or one
-    trace per category grouped over ``over``); a numeric stat
-    (mean/median/sum/sd/min/max) -> that statistic, by ``over`` group when given.
-    Mirrors the emulator's trace construction."""
-    import plotly.express as px
+def barchart(df, vars, stat="count", over=None, horizontal=False, stack=False):
+    """Bar chart of the listed variable(s). The statistic comes from the
+    parenthesised ``(stat)`` form: count/percent -> value counts; a numeric stat
+    (mean/median/sum/sd/min/max) -> that statistic. One trace per category grouped
+    over ``over`` (``stack`` vs grouped); one bar per variable when several are
+    listed; ``horizontal`` swaps the axes. Mirrors the emulator's traces."""
     import plotly.graph_objects as go
-    var = vars[0]
+    vars_list = [v for v in vars if v in df.columns]
+    over_var = over if over and over in df.columns else None
+    orient = "h" if horizontal else "v"
+    barmode = "stack" if stack else "group"
+
     if stat in ("count", "percent"):
         as_pct = stat == "percent"
-        if over and over in df.columns:
-            ct = pd.crosstab(df[over], df[var], dropna=False)
+        if len(vars_list) > 1:                       # one bar per variable
+            counts = [int(df[v].count()) for v in vars_list]
+            if as_pct:
+                total = sum(counts) or 1
+                y = [round(c / total * 100, 1) for c in counts]
+            else:
+                y = counts
+            x = vars_list
+            return go.Figure(data=[go.Bar(
+                x=x if not horizontal else y, y=y if not horizontal else x,
+                orientation=orient)])
+        var = vars_list[0]
+        if over_var:                                 # one trace per category
+            ct = pd.crosstab(df[over_var], df[var], dropna=False)
             if as_pct:
                 ct = ct.div(ct.sum(axis=1), axis=0).multiply(100).round(1)
             fig = go.Figure()
             for col in ct.columns:
                 fig.add_trace(go.Bar(name=str(col), x=ct.index.tolist(), y=ct[col].values))
-            fig.update_layout(barmode="group")
+            fig.update_layout(barmode=barmode)
             return fig
         s = df[var].value_counts(dropna=False).sort_index()
         if as_pct:
             s = (s / s.sum() * 100).round(1)
-        return px.bar(x=s.index.tolist(), y=s.values.tolist())
+        labels, vals = s.index.tolist(), s.values
+        x, y = (labels, vals) if not horizontal else (vals, labels)
+        return go.Figure(data=[go.Bar(x=x, y=y, orientation=orient)])
+
     agg = _BAR_AGG.get(stat, "mean")
-    if over and over in df.columns:
-        grp = df.groupby(over, dropna=False)[var].agg(agg)
-        return go.Figure(data=[go.Bar(x=grp.index.tolist(), y=grp.values)])
-    return go.Figure(data=[go.Bar(x=[var], y=[df[var].agg(agg)])])
+    if len(vars_list) > 1:
+        if over_var:                                 # one trace per variable, grouped
+            fig = go.Figure()
+            for v in vars_list:
+                grp = df.groupby(over_var, dropna=False)[v].agg(agg)
+                fig.add_trace(go.Bar(name=v, x=grp.index.tolist(), y=grp.values))
+            fig.update_layout(barmode=barmode)
+            return fig
+        return go.Figure(data=[go.Bar(
+            x=vars_list, y=[df[v].agg(agg) for v in vars_list], orientation=orient)])
+    var = vars_list[0]
+    if over_var:
+        grp = df.groupby(over_var, dropna=False)[var].agg(agg)
+        x, y = grp.index.tolist(), grp.values
+    else:
+        x, y = [var], [df[var].agg(agg)]
+    return go.Figure(data=[go.Bar(x=x, y=y, orientation=orient)])
 
 
 def scatter(df, vars, by=None):

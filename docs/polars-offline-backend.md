@@ -140,9 +140,10 @@ microdata script ──MicroParser──► instruction dicts (IR) ──m2py_tr
   For `barchart`/`piechart` the statistic comes from the **parenthesised**
   `(stat)` form (e.g. `barchart (mean) x`, `piechart (percent) x`) — matching the
   emulator, which ignores bare `, mean`/`, percent` flags (so those are flagged).
-  Deferred and flagged: histogram `normal` overlay, scatter `lfit`, barchart
-  `stack`/`horizontal`/multi-var. Needs plotly installed (`kaleido` for static
-  images).
+  `histogram` also supports `normal` (overlaid fitted-normal curve, numeric);
+  `barchart` supports `horizontal`, `stack` (grouped bars), and multi-variable
+  (one bar per variable). Deferred and flagged: scatter `lfit` (regression-line
+  overlay). Needs plotly installed (`kaleido` for static images).
 - `pandas_ops` reuses the emulator's own evaluator, so the pandas backend
   matches the emulator bit-for-bit; the cross-engine test proves the polars
   backend matches too.

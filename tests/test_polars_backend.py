@@ -255,8 +255,11 @@ def _axis_eq(a, b):
 
 def _trace_key(t):
     # normalise empty/None trace name (plotly express uses '' where go uses None)
+    # and orientation ('v' is the default, equivalent to None)
+    orient = getattr(t, "orientation", None)
+    orient = None if orient in (None, "v") else orient
     return (t.name or None, type(t).__name__, getattr(t, "nbinsx", None),
-            getattr(t, "histnorm", None) or None)
+            getattr(t, "histnorm", None) or None, orient)
 
 
 def _fig_equal(f1, f2):
@@ -288,7 +291,16 @@ def _fig_equal(f1, f2):
     ("histogram inntekt, percent", "histogram", {"vars": ["inntekt"]}, {"percent": True}),
     ("histogram inntekt, density", "histogram", {"vars": ["inntekt"]}, {"density": True}),
     ("histogram kommune, discrete", "histogram", {"vars": ["kommune"]}, {"discrete": True}),
+    ("histogram inntekt, normal", "histogram", {"vars": ["inntekt"]}, {"normal": True}),
+    ("histogram inntekt, percent normal", "histogram",
+     {"vars": ["inntekt"]}, {"percent": True, "normal": True}),
     ("barchart kommune", "barchart", {"stat": "count", "vars": ["kommune"]}, {}),
+    ("barchart kommune, horizontal", "barchart",
+     {"stat": "count", "vars": ["kommune"]}, {"horizontal": True}),
+    ("barchart kommune kjonn", "barchart",
+     {"stat": "count", "vars": ["kommune", "kjonn"]}, {}),
+    ("barchart kommune, over(kjonn) stack", "barchart",
+     {"stat": "count", "vars": ["kommune"]}, {"over": "kjonn", "stack": True}),
     ("barchart kommune, over(kjonn)", "barchart",
      {"stat": "count", "vars": ["kommune"]}, {"over": "kjonn"}),
     ("barchart (mean) inntekt, over(kommune)", "barchart",
@@ -494,8 +506,7 @@ def test_summarize_if_condition_matches_emulator():
     "correlate a b, covariance",   # covariance variant not implemented
     "barchart x, mean",            # bare stat flag (use parenthesised (mean))
     "piechart x, percent",         # bare percent flag (use (percent))
-    "histogram x, normal",         # normal-curve overlay deferred
-    "scatter a b, lfit",           # regression-line overlay deferred
+    "scatter a b, lfit",           # regression-line overlay (scatter not mopped up)
 ])
 def test_unhandled_options_flagged_not_silently_dropped(script):
     code = T.translate(script, backend="polars", source_path=None)
