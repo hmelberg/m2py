@@ -80,11 +80,12 @@ set is emitted as a `# UNTRANSLATED` comment — **never silently-wrong code**.
 
 **Options** are guarded by a per-verb allow-list (`HANDLED_OPTIONS`): a verb
 honours `by()` (collapse/aggregate/summarize/tabulate), `outer_join`/`on()`
-(merge), `gini`/`iqr` (summarize), `missing` (tabulate), `force` (destring), and
-the `if` condition everywhere. Any *other* option on a line — e.g. tabulate
-`cellpct`/`nolabels`/`sig`, destring `dpcomma` — makes the line `# UNTRANSLATED`
-rather than being silently ignored. Two-way `tabulate x y` is supported (via
-args). List all gaps (unknown verb, expression, or option) for a script with
+(merge), `gini`/`iqr` (summarize), `missing` + `cellpct`/`rowpct`/`colpct` +
+`freq` (tabulate), `force` (destring), and the `if` condition everywhere. Any
+*other* option on a line — e.g. tabulate `nolabels`/`chi2`/`rowsort`, destring
+`dpcomma` — makes the line `# UNTRANSLATED` rather than being silently ignored.
+Two-way `tabulate x y` is supported (via args); percentages are added as `0-100`
+columns computed within any `by` group. List all gaps (unknown verb, expression, or option) for a script with
 `m2py_translate.unsupported(script)`.
 
 ## Architecture

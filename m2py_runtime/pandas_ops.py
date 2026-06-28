@@ -192,14 +192,31 @@ def summarize(df, vars=None, by=None, gini=False, iqr=False):
     return pd.DataFrame([_row(df[v], {"variable": v}) for v in vars])
 
 
-def tabulate(df, vars, by=None, missing=False):
+def tabulate(df, vars, by=None, missing=False,
+             cellpct=False, rowpct=False, colpct=False):
     """Frequency table: counts of each combination of ``vars`` (one-way for a
     single variable, cross-tab for two), optionally within ``by`` groups.
-    Missing/null key values are dropped by default and kept when ``missing`` is
-    set (matching microdata's ``missing`` option). Columns: the grouping
-    variables plus ``n``."""
+
+    Missing/null key values are dropped by default, kept when ``missing`` is set.
+    Percentage columns (0-100), each computed within the ``by`` group when given:
+      - ``cellpct``: share of the whole table
+      - ``rowpct``:  share within the first variable (``vars[0]``)
+      - ``colpct``:  share within the second variable (``vars[1]``, or the only
+        variable for a one-way table)
+    Columns: the grouping variables, ``n``, then any requested ``*pct``."""
     keys = ([by] if by and by in df.columns else []) + list(vars)
-    return df.groupby(keys, dropna=not missing).size().reset_index(name="n")
+    out = df.groupby(keys, dropna=not missing).size().reset_index(name="n")
+    grp = [by] if by and by in df.columns else []
+    first = vars[0]
+    second = vars[1] if len(vars) > 1 else vars[0]
+    if cellpct:
+        denom = out.groupby(grp)["n"].transform("sum") if grp else out["n"].sum()
+        out["cellpct"] = 100.0 * out["n"] / denom
+    if rowpct:
+        out["rowpct"] = 100.0 * out["n"] / out.groupby(grp + [first])["n"].transform("sum")
+    if colpct:
+        out["colpct"] = 100.0 * out["n"] / out.groupby(grp + [second])["n"].transform("sum")
+    return out
 
 
 def correlate(df, vars):

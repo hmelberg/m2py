@@ -143,8 +143,10 @@ def summarize(lf, vars=None, by=None, gini=False, iqr=False):
     return _analysis(lf, "summarize", vars, by, gini=gini, iqr=iqr)
 
 
-def tabulate(lf, vars, by=None, missing=False):
-    return _analysis(lf, "tabulate", vars, by, missing=missing)
+def tabulate(lf, vars, by=None, missing=False,
+             cellpct=False, rowpct=False, colpct=False):
+    return _analysis(lf, "tabulate", vars, by, missing=missing,
+                     cellpct=cellpct, rowpct=rowpct, colpct=colpct)
 
 
 def correlate(lf, vars):

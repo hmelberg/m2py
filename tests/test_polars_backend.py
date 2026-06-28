@@ -184,6 +184,10 @@ def _run_analysis(script, df, backend):
     "summarize y x, gini iqr",
     "tabulate g",
     "tabulate g y",          # two-way cross-tab
+    "tabulate g y, cellpct",
+    "tabulate g y, rowpct",
+    "tabulate g y, colpct",
+    "tabulate g y, freq rowpct",
     "correlate y x",
 ])
 def test_analysis_pandas_polars_agree(script):
@@ -220,6 +224,18 @@ def test_unsupported_expression_is_marked_not_silently_wrong():
     assert T.unsupported(script) == ["generate w = wordcount(a)"]
 
 
+def test_tabulate_percentages_are_correct():
+    # x in {1,2}, y in {1,2}; counts (1,1)=2 (1,2)=1 (2,1)=1 (2,2)=1, total 5
+    df = pd.DataFrame({"x": [1, 1, 1, 2, 2], "y": [1, 1, 2, 1, 2]})
+    res, _ = _run_analysis("tabulate x y, cellpct rowpct colpct", df, "pandas")
+    row = res[(res["x"] == 1) & (res["y"] == 1)].iloc[0]
+    assert np.isclose(row["cellpct"], 40.0)        # 2/5
+    assert np.isclose(row["rowpct"], 200 / 3)      # 2/3 of x==1
+    assert np.isclose(row["colpct"], 200 / 3)      # 2/3 of y==1
+    # each percentage column sums correctly
+    assert np.isclose(res["cellpct"].sum(), 100.0)
+
+
 def test_summarize_gini_matches_emulator_definition():
     df = pd.DataFrame({"inntekt": [10.0, 20, 30, 40, 100]})
     res, _ = _run_analysis("summarize inntekt, gini iqr", df, "pandas")
@@ -229,7 +245,7 @@ def test_summarize_gini_matches_emulator_definition():
 
 @pytest.mark.parametrize("script", [
     "tabulate g, nolabels",        # formatting option not implemented
-    "tabulate g, cellpct",         # percentage option not implemented
+    "tabulate g y, chi2",          # chi-square option not implemented
     "destring x, dpcomma",         # decimal-comma changes values
     "correlate a b, covariance",   # covariance variant not implemented
 ])
