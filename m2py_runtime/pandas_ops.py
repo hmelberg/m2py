@@ -174,21 +174,20 @@ def merge_into(target, source, vars, left_on, right_on):
     """Into-form merge ``merge vars into TARGET``: bring ``vars`` from ``source``
     onto ``target`` (left=target, right=source deduped on its key), always a
     left-join. Mirrors the emulator's column handling exactly, including the
-    asymmetric-key suffix/drop behaviour.
+    asymmetric-key suffix/drop behaviour. Accepts scalar or list keys.
     """
+    lon = left_on if isinstance(left_on, list) else [left_on]
+    ron = right_on if isinstance(right_on, list) else [right_on]
     cols_from_source = [c for c in (vars or []) if c in source.columns]
-    right_cols = list(dict.fromkeys([right_on] + cols_from_source))
-    right = source[right_cols].drop_duplicates(subset=[right_on])
-    if left_on == right_on:
-        return pd.merge(target, right, on=left_on, how="left")
-    target_has_right_on = right_on in target.columns
-    merged = pd.merge(target, right, left_on=left_on, right_on=right_on,
+    right_cols = list(dict.fromkeys(list(ron) + cols_from_source))
+    right = source[right_cols].drop_duplicates(subset=ron)
+    if lon == ron:
+        return pd.merge(target, right, on=lon, how="left")
+    merged = pd.merge(target, right, left_on=lon, right_on=ron,
                       how="left", suffixes=("", "_src_dup"))
-    merged = merged.drop(columns=[c for c in merged.columns
-                                  if c.endswith("_src_dup")])
-    if not target_has_right_on and right_on != left_on and right_on in merged.columns:
-        merged = merged.drop(columns=[right_on])
-    return merged
+    merged = merged.drop(columns=[c for c in merged.columns if c.endswith("_src_dup")])
+    drop = [c for c in ron if c not in lon and c not in target.columns and c in merged.columns]
+    return merged.drop(columns=drop) if drop else merged
 
 
 def reshape_to_panel(df, prefixes):

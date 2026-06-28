@@ -192,6 +192,17 @@ class KeyTracker:
         """Current key for a dataset: collapse key, else manifest-declared."""
         return self.collapse_key.get(name) or self.declared_key.get(name)
 
+    def _keys(self, name):
+        """Full declared/collapse key list (composite-aware)."""
+        ck = self.collapse_key.get(name)
+        if ck:
+            return [ck]
+        m = self.manifest
+        if m is not None and m.has(name) and m.keys(name):
+            return m.keys(name)
+        dk = self.declared_key.get(name)
+        return [dk] if dk else []
+
     def add_cols(self, name, cols):
         self.ensure(name).update(c for c in cols if c)
 
@@ -469,8 +480,13 @@ def _emit_merge(args, opts, backend, var, known, tracker, active, source_path="d
         known.add(into)                             # the merged target now exists
         todo = ("# TODO: verify join key (could not resolve from catalog)\n"
                 if res.status != "ok" else "")
+        keys = tracker._keys(into)
+        if len(keys) > 1 and res.status == "ok" and res.left_on == res.right_on == keys[0]:
+            left_on = right_on = keys
+        else:
+            left_on, right_on = res.left_on, res.right_on
         call = (f"{tgt} = ops.merge_into({tgt}, {src}, vars={vars_!r}, "
-                f"left_on={res.left_on!r}, right_on={res.right_on!r})")
+                f"left_on={left_on!r}, right_on={right_on!r})")
         return "\n".join(tload + load + [todo + call]) or None
 
     # old-syntax: args is a list (name [on key]); active gains other's cols.
