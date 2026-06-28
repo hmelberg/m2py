@@ -168,17 +168,18 @@ def _plot(lf, fn, *a, **kw):
     return getattr(pdo, fn)(lf.collect().to_pandas(), *a, **kw)
 
 
-def histogram(lf, vars, bins=30):
-    return _plot(lf, "histogram", vars, bins=bins)
+def histogram(lf, vars, bins=30, discrete=False, percent=False, density=False):
+    return _plot(lf, "histogram", vars, bins=bins, discrete=discrete,
+                 percent=percent, density=density)
 
 
-def barchart(lf, vars, stat="count"):
-    return _plot(lf, "barchart", vars, stat=stat)
+def barchart(lf, vars, stat="count", over=None, percent=False):
+    return _plot(lf, "barchart", vars, stat=stat, over=over, percent=percent)
 
 
-def scatter(lf, vars):
-    return _plot(lf, "scatter", vars)
+def scatter(lf, vars, by=None):
+    return _plot(lf, "scatter", vars, by=by)
 
 
-def boxplot(lf, vars):
-    return _plot(lf, "boxplot", vars)
+def boxplot(lf, vars, over=None):
+    return _plot(lf, "boxplot", vars, over=over)

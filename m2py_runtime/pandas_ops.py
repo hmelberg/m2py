@@ -280,36 +280,90 @@ def correlate(df, vars):
 # emulator's trace data, mirroring m2py.PlotHandler so the offline charts equal
 # the in-browser ones (verified by comparing trace x/y in the tests).
 
-def histogram(df, vars, bins=30):
-    """Histogram of ``vars[0]`` (numeric) or a frequency bar chart (categorical),
-    matching the emulator: ``go.Histogram(nbinsx=bins)`` / value-counts bar."""
+_BAR_AGG = {"mean": "mean", "median": "median", "sum": "sum",
+            "sd": "std", "min": "min", "max": "max"}
+
+
+def histogram(df, vars, bins=30, discrete=False, percent=False, density=False):
+    """Histogram of ``vars[0]``. Numeric -> ``go.Histogram`` (``histnorm`` for
+    percent/density); categorical or ``discrete`` -> value-counts bar (as percent
+    when requested). Mirrors the emulator."""
     import plotly.express as px
     var = vars[0]
     s = df[var].dropna()
-    if not pd.api.types.is_numeric_dtype(s):
+    if discrete or not pd.api.types.is_numeric_dtype(s):
         vc = s.value_counts().sort_index()
+        if percent:
+            vc = (vc / vc.sum() * 100).round(2)
         return px.bar(x=vc.index.tolist(), y=vc.values.tolist())
-    return px.histogram(df.dropna(subset=[var]), x=var, nbins=bins)
+    histnorm = "probability density" if density else ("percent" if percent else None)
+    return px.histogram(df.dropna(subset=[var]), x=var, nbins=bins, histnorm=histnorm)
 
 
-def barchart(df, vars, stat="count"):
-    """Frequency bar chart of ``vars[0]`` (value counts, value-sorted)."""
+def barchart(df, vars, stat="count", over=None, percent=False):
+    """Bar chart of ``vars[0]``. count/percent -> value counts (one bar per
+    category, or one trace per category grouped over ``over``); a numeric ``stat``
+    (mean/median/sum/sd/min/max) -> that statistic, by ``over`` group when given.
+    Mirrors the emulator's trace construction."""
     import plotly.express as px
-    vc = df[vars[0]].value_counts(dropna=False).sort_index()
-    return px.bar(x=vc.index.tolist(), y=vc.values.tolist())
+    import plotly.graph_objects as go
+    var = vars[0]
+    if stat in ("count", "percent"):
+        as_pct = percent or stat == "percent"
+        if over and over in df.columns:
+            ct = pd.crosstab(df[over], df[var], dropna=False)
+            if as_pct:
+                ct = ct.div(ct.sum(axis=1), axis=0).multiply(100).round(1)
+            fig = go.Figure()
+            for col in ct.columns:
+                fig.add_trace(go.Bar(name=str(col), x=ct.index.tolist(), y=ct[col].values))
+            fig.update_layout(barmode="group")
+            return fig
+        s = df[var].value_counts(dropna=False).sort_index()
+        if as_pct:
+            s = (s / s.sum() * 100).round(1)
+        return px.bar(x=s.index.tolist(), y=s.values.tolist())
+    agg = _BAR_AGG.get(stat, "mean")
+    if over and over in df.columns:
+        grp = df.groupby(over, dropna=False)[var].agg(agg)
+        return go.Figure(data=[go.Bar(x=grp.index.tolist(), y=grp.values)])
+    return go.Figure(data=[go.Bar(x=[var], y=[df[var].agg(agg)])])
 
 
-def scatter(df, vars):
-    """Scatter of ``vars[0]`` (x) vs ``vars[1]`` (y), missing rows dropped."""
+def scatter(df, vars, by=None):
+    """Scatter of ``vars[0]`` (x) vs ``vars[1]`` (y); one trace per ``by`` group
+    (in first-seen order, matching the emulator) when given."""
     import plotly.express as px
-    sub = df[[vars[0], vars[1]]].dropna()
-    return px.scatter(sub, x=vars[0], y=vars[1])
+    import plotly.graph_objects as go
+    x, y = vars[0], vars[1]
+    if by and by in df.columns:
+        sub = df[[x, y, by]].dropna()
+        fig = go.Figure()
+        for val in sub[by].unique():
+            m = sub[by] == val
+            fig.add_trace(go.Scatter(x=sub.loc[m, x], y=sub.loc[m, y],
+                                     mode="markers", name=str(val)))
+        return fig
+    sub = df[[x, y]].dropna()
+    return px.scatter(sub, x=x, y=y)
 
 
-def boxplot(df, vars):
-    """Box plot of ``vars[0]``."""
+def boxplot(df, vars, over=None):
+    """Box plot of ``vars[0]`` (grouped by ``over`` when given), or one box per
+    variable when several are listed. Mirrors the emulator."""
     import plotly.express as px
-    return px.box(df[[vars[0]]], y=vars[0])
+    import plotly.graph_objects as go
+    if len(vars) > 1:
+        fig = go.Figure()
+        for v in vars:
+            s = df[v].dropna()
+            if not s.empty:
+                fig.add_trace(go.Box(y=s, name=v))
+        return fig
+    var = vars[0]
+    if over and over in df.columns:
+        return px.box(df[[over, var]], x=over, y=var)
+    return px.box(df[[var]], y=var)
 
 
 def regress(df, dep, indep):

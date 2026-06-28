@@ -50,12 +50,15 @@ HANDLED_OPTIONS = {
                  "cellpct", "rowpct", "colpct", "cell", "row", "col"},
     "correlate": set(),
     "regress": set(),
-    # plots: v1 supports the core forms; grouped/stat/styling options deferred
-    "histogram": {"bin", "nbins"},      # microdata's option is bin(); 'bins' is flagged
-    "barchart": set(),
-    "scatter": set(),
-    "boxplot": set(),
+    # plots
+    "histogram": {"bin", "nbins", "discrete", "percent", "density", "freq"},
+    "barchart": {"over", "percent", "mean", "median", "sum", "sd", "min", "max"},
+    "scatter": {"by", "color"},
+    "boxplot": {"over"},
 }
+
+# numeric barchart statistics that may arrive as bare option flags (`, mean`)
+_BAR_STATS = ("mean", "median", "sum", "sd", "min", "max")
 
 
 def _unhandled_options(instr):
@@ -195,15 +198,25 @@ def _emit_plot(instr, backend, idx, write):
             bins = int(raw) if raw else 30
         except (ValueError, TypeError):
             bins = 30
-        call = f"ops.histogram({var}, vars={vars_!r}, bins={bins})"
+        call = (f"ops.histogram({var}, vars={vars_!r}, bins={bins}, "
+                f"discrete={bool(opts.get('discrete'))!r}, "
+                f"percent={bool(opts.get('percent'))!r}, "
+                f"density={bool(opts.get('density'))!r})")
     elif cmd == "barchart":
-        call = f"ops.barchart({var}, vars={vars_!r})"
+        if len(vars_) > 1:
+            return None                      # multi-variable barchart deferred
+        stat = args.get("stat", "count")
+        if stat == "count":                  # also accept the `, mean`-style flag
+            stat = next((k for k in _BAR_STATS if opts.get(k)), "count")
+        call = (f"ops.barchart({var}, vars={vars_!r}, stat={stat!r}, "
+                f"over={opts.get('over')!r}, percent={bool(opts.get('percent'))!r})")
     elif cmd == "scatter":
         if len(vars_) < 2:
             return None
-        call = f"ops.scatter({var}, vars={vars_!r})"
+        by = opts.get("by") or opts.get("color")
+        call = f"ops.scatter({var}, vars={vars_!r}, by={by!r})"
     elif cmd == "boxplot":
-        call = f"ops.boxplot({var}, vars={vars_!r})"
+        call = f"ops.boxplot({var}, vars={vars_!r}, over={opts.get('over')!r})"
     else:
         return None
     line = f"{fig} = {call}"

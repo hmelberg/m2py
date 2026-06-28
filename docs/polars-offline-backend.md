@@ -120,12 +120,19 @@ microdata script ──MicroParser──► instruction dicts (IR) ──m2py_tr
   the transform pipeline.
 - **PLOT** verbs build a `plotly` Figure into `fig_<n>` (the same library the
   emulator uses, so offline charts equal the in-browser ones — verified by
-  comparing trace x/y to `m2py.PlotHandler`). File mode emits
+  comparing every trace's x/y to `m2py.PlotHandler`). File mode emits
   `fig_<n>.write_html("plot_<n>.html")`; `fig.to_json()` gives the spec for an
-  API. v1: `histogram` (numeric `bin(n)`, default 30, or categorical
-  value-counts), single-var count `barchart`, `scatter x y`, single-var
-  `boxplot`. Grouped/`over()`/stat/styling variants are deferred and flagged.
-  Needs plotly installed (and `kaleido` for static images).
+  API. Supported:
+  - `histogram` — numeric (`bin(n)`, default 30; `percent`/`density` histnorm)
+    or categorical/`discrete` value-counts (`percent`)
+  - `barchart` — single-var `count`/`percent`, or a numeric `(mean|median|sum|
+    sd|min|max)` statistic; grouped over `over()` (count → grouped bars, stat →
+    per-group bars)
+  - `scatter x y` — one trace per `by()` group when given
+  - `boxplot` — single variable, grouped over `over()`, or one box per variable
+  Deferred and flagged: histogram `normal` overlay, scatter `lfit`, barchart
+  `stack`/`horizontal`/multi-var. Needs plotly installed (`kaleido` for static
+  images).
 - `pandas_ops` reuses the emulator's own evaluator, so the pandas backend
   matches the emulator bit-for-bit; the cross-engine test proves the polars
   backend matches too.

@@ -225,8 +225,9 @@ def test_regress_matches_statsmodels():
 
 _PLOT_DF = pd.DataFrame({
     "inntekt": (list(range(100, 1100, 10)) + [None]),    # 100 numeric + 1 missing
-    "kommune": ([1, 2, 3, 1, 2] * 20 + [3]),
-    "alder": (list(range(20, 120)) + [50]),
+    "kommune": (([1, 2, 3] * 34)[:101]),                 # 3 levels
+    "kjonn": (([1, 2] * 51)[:101]),                      # 2 levels (grouping)
+    "alder": list(range(20, 121)),
 })
 
 
@@ -252,19 +253,39 @@ def _axis_eq(a, b):
         return list(a) == list(b)         # categorical / strings
 
 
-def _trace0_equal(f1, f2):
-    d1, d2 = f1.data[0], f2.data[0]
-    return (type(d1).__name__ == type(d2).__name__
-            and getattr(d1, "nbinsx", None) == getattr(d2, "nbinsx", None)
-            and _axis_eq(d1.x, d2.x) and _axis_eq(d1.y, d2.y))
+def _trace_key(t):
+    # normalise empty/None trace name (plotly express uses '' where go uses None)
+    return (t.name or None, type(t).__name__, getattr(t, "nbinsx", None),
+            getattr(t, "histnorm", None) or None)
+
+
+def _fig_equal(f1, f2):
+    if len(f1.data) != len(f2.data):
+        return False
+    for d1, d2 in zip(f1.data, f2.data):
+        if _trace_key(d1) != _trace_key(d2):
+            return False
+        if not (_axis_eq(d1.x, d2.x) and _axis_eq(d1.y, d2.y)):
+            return False
+    return True
 
 
 @pytest.mark.parametrize("script,cmd,args,opts", [
     ("histogram inntekt", "histogram", {"vars": ["inntekt"]}, {}),
     ("histogram inntekt, bin(15)", "histogram", {"vars": ["inntekt"]}, {"bin": "15"}),
+    ("histogram inntekt, percent", "histogram", {"vars": ["inntekt"]}, {"percent": True}),
+    ("histogram inntekt, density", "histogram", {"vars": ["inntekt"]}, {"density": True}),
+    ("histogram kommune, discrete", "histogram", {"vars": ["kommune"]}, {"discrete": True}),
     ("barchart kommune", "barchart", {"stat": "count", "vars": ["kommune"]}, {}),
+    ("barchart kommune, over(kjonn)", "barchart",
+     {"stat": "count", "vars": ["kommune"]}, {"over": "kjonn"}),
+    ("barchart (mean) inntekt, over(kommune)", "barchart",
+     {"stat": "mean", "vars": ["inntekt"]}, {"over": "kommune"}),
     ("scatter alder inntekt", "scatter", {"vars": ["alder", "inntekt"]}, {}),
+    ("scatter alder inntekt, by(kjonn)", "scatter",
+     {"vars": ["alder", "inntekt"]}, {"by": "kjonn"}),
     ("boxplot inntekt", "boxplot", {"vars": ["inntekt"]}, {}),
+    ("boxplot inntekt, over(kjonn)", "boxplot", {"vars": ["inntekt"]}, {"over": "kjonn"}),
 ])
 def test_plot_trace_matches_emulator_and_backends_agree(script, cmd, args, opts):
     pytest.importorskip("plotly")
@@ -273,8 +294,8 @@ def test_plot_trace_matches_emulator_and_backends_agree(script, cmd, args, opts)
     emu = _m.PlotHandler().execute(cmd, _PLOT_DF, args, opts)
     fpd = _run_fig(script, _PLOT_DF, "pandas")
     fpl = _run_fig(script, _PLOT_DF, "polars")
-    assert _trace0_equal(fpd, emu), f"{script}: differs from emulator"
-    assert _trace0_equal(fpd, fpl), f"{script}: pandas vs polars differ"
+    assert _fig_equal(fpd, emu), f"{script}: differs from emulator"
+    assert _fig_equal(fpd, fpl), f"{script}: pandas vs polars differ"
 
 
 def test_plot_is_terminal_and_writes_html_in_file_mode():
