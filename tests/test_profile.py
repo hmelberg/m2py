@@ -1,3 +1,5 @@
+"""Tests for variable-metadata inference (m2py_runtime/profile.py)."""
+
 import pandas as pd
 from m2py_runtime.profile import infer_schema
 

@@ -7,10 +7,10 @@ run-time dtype remains authoritative for actual behaviour.
 
 import pandas as pd
 
-_NOMINAL_MAX_CARD = 10
+_CONTINUOUS_MIN_CARD = 10
 
 
-def infer_schema(df):
+def infer_schema(df) -> dict:
     out = {}
     for col in df.columns:
         s = df[col]
@@ -26,7 +26,7 @@ def infer_schema(df):
             dtype = "string"
         card = int(s.nunique(dropna=True))
         if dtype in ("int", "float"):
-            level = "nominal" if card < _NOMINAL_MAX_CARD else "continuous"
+            level = "continuous" if card >= _CONTINUOUS_MIN_CARD else "nominal"
         else:
             level = "nominal"
         out[col] = {"dtype": dtype, "level": level, "cardinality": card}
