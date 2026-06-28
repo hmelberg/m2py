@@ -64,6 +64,7 @@ crosses the network, not the data.
 | Category | Verbs |
 |---|---|
 | Datasets / session | `create-dataset`, `use`, `clone-dataset`, `rename-dataset`, `delete-dataset` |
+| Labels (no-op on data) | `define-labels`, `assign-labels`, `drop-labels`, `list-labels` |
 | Shaping | `generate`, `replace`, `recode`, `keep`, `drop`, `rename`, `destring`, `reshape-to-panel`, `reshape-from-panel` |
 | Aggregation | `collapse`, `aggregate` |
 | Merge | `merge` |

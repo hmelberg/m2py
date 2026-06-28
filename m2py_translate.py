@@ -61,8 +61,11 @@ PLOT = {"histogram", "barchart", "scatter", "boxplot",
 # dataset / create variables), not by the per-frame emitters.
 SESSION = {"create-dataset", "use", "clone-dataset", "delete-dataset",
            "rename-dataset"}
+# label verbs are display-only in the emulator (the data keeps its codes), so
+# they are no-ops on the offline data — recorded as comments, not flagged.
+LABELS = {"define-labels", "assign-labels", "drop-labels", "list-labels"}
 
-SUPPORTED = TRANSFORM | ANALYSIS | PLOT | SESSION
+SUPPORTED = TRANSFORM | ANALYSIS | PLOT | SESSION | LABELS
 
 # Options each verb actually honours. Any option on a line that is NOT listed
 # here makes the line UNTRANSLATED — so an unrecognised flag (e.g. a tabulate
@@ -611,6 +614,11 @@ def translate(script, backend="pandas", source_path="df"):
             continue
         cmd, a = instr["command"], instr["args"]
 
+        # ---- labels: display-only in the emulator, so a no-op on the data ----
+        if cmd in LABELS:
+            body.append(f"# {cmd} (display-only; data keeps codes): {line.strip()}")
+            continue
+
         # ---- dataset/session management (switch active / create variables) ----
         if cmd in SESSION:
             if cmd == "create-dataset" and a:
@@ -717,7 +725,7 @@ def unsupported(script):
         if cmd not in SUPPORTED:
             out.append(line.strip())
             continue
-        if cmd in SESSION:                 # session verbs always translate
+        if cmd in SESSION or cmd in LABELS:    # always translate (no-op/state)
             continue
         if _unhandled_options(instr):
             out.append(line.strip())

@@ -945,6 +945,27 @@ def test_for_loop_and_let_match_emulator():
     assert set(["x1", "x2", "x3", "big"]).issubset(out_pd.columns)
 
 
+def test_labels_are_noop_keeping_codes_like_emulator():
+    df = pd.DataFrame({"k": [1, 2, 1, 2, 1], "x": [10.0, 20, 30, 40, 50]})
+    script = ('define-labels kjonn 1 "Mann" 2 "Kvinne"\n'
+              "assign-labels k kjonn\ncollapse (mean) x -> mx, by(k)")
+    assert T.unsupported(script) == []                  # labels translate (no flag)
+
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+    it = m2py.MicroInterpreter(metadata_path=None)
+    it.datasets["df"] = df.copy()
+    it.active_name = "df"
+    for ln in script.splitlines():
+        it._execute_instruction(it.parser.parse_line(ln))
+    emu = it.datasets["df"]                              # data keeps codes (k=1,2)
+
+    out_pd = T.run(script, {"df": df}, "pandas")
+    out_pl = T.run(script, {"df": df}, "polars").to_pandas()
+    assert _reshape_norm(emu).equals(_reshape_norm(out_pd))   # collapse by code matches
+    assert _reshape_norm(out_pd).equals(_reshape_norm(out_pl))
+    assert set(out_pd["k"]) == {1, 2}                   # codes, not label strings
+
+
 def test_session_verbs_not_flagged():
     for v in ("create-dataset A", "use A", "clone-dataset A B",
               "rename-dataset A B", "delete-dataset A"):
