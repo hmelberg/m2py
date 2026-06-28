@@ -148,16 +148,46 @@ def _merge_parts(args, opts):
     return name, key, how, None
 
 
+def _expr_polars_ok(expr):
+    """An expression is fine for the polars backend if exprcompile maps it
+    natively OR every function it calls is a known microdata function / numpy —
+    in which case the polars op's pandas-eval fallback handles it. Only genuinely
+    unknown function names make it untranslatable."""
+    import ast
+    try:
+        compile_expr(expr)
+        return True
+    except UnsupportedExpr:
+        pass
+    known = set(m2py.get_microdata_functions()) | {
+        "int", "min", "max", "abs", "round", "len", "str", "float", "where", "np"}
+    try:
+        tree = ast.parse(m2py._micro_expr_fixup(expr), mode="eval")
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            f = node.func
+            if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) \
+                    and f.value.id == "np":
+                continue                          # numpy fn -> fallback handles it
+            name = f.id if isinstance(f, ast.Name) else getattr(f, "attr", None)
+            if name and name not in known:
+                return False
+    return True
+
+
 def _check_polars_expr(instr):
-    """Raise UnsupportedExpr if the polars backend can't compile this line's
-    expression/condition (so the caller can mark it UNTRANSLATED)."""
+    """Raise UnsupportedExpr if the polars backend can neither compile nor fall
+    back on this line's expression/condition (i.e. an unknown function)."""
     cmd, args, cond = instr["command"], instr["args"], instr["condition"]
     if cmd in ("generate", "replace"):
         if not isinstance(args, dict) or "expression" not in args:
             raise UnsupportedExpr(f"unexpected {cmd} args shape")
-        compile_expr(args["expression"])
-    if cond:
-        compile_expr(cond, condition=True)
+        if not _expr_polars_ok(args["expression"]):
+            raise UnsupportedExpr("unknown function in expression")
+    if cond and not _expr_polars_ok(cond):
+        raise UnsupportedExpr("unknown function in condition")
 
 
 def _emit(instr, backend):

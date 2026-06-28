@@ -35,16 +35,29 @@ def _agg_expr(stat, src, alias):
 
 
 # ── value-producing verbs ────────────────────────────────────────────────────
+# Expressions compile to native polars (lazy) when possible; anything the
+# compiler can't express (scipy distributions, label funcs, etc.) falls back to
+# the emulator's own pandas evaluator — materialise, eval, re-lazy — so every one
+# of microdata's 85 functions works, exactly as in the emulator.
+
+def _eval_fallback(lf, fn, *args):
+    pl = _pl()
+    from . import pandas_ops as pdo
+    return pl.from_pandas(getattr(pdo, fn)(lf.collect().to_pandas(), *args)).lazy()
+
 
 def generate(lf, target, expression, cond=None):
     pl = _pl()
-    e = compile_expr(expression)
-    if cond:
-        c = compile_expr(cond, condition=True)
-        existing = lf.collect_schema().names()
-        otherwise = pl.col(target) if target in existing else pl.lit(None)
-        e = pl.when(c).then(e).otherwise(otherwise)
-    return lf.with_columns(e.alias(target))
+    try:
+        e = compile_expr(expression)
+        if cond:
+            c = compile_expr(cond, condition=True)
+            existing = lf.collect_schema().names()
+            otherwise = pl.col(target) if target in existing else pl.lit(None)
+            e = pl.when(c).then(e).otherwise(otherwise)
+        return lf.with_columns(e.alias(target))
+    except UnsupportedExpr:
+        return _eval_fallback(lf, "generate", target, expression, cond)
 
 
 def replace(lf, target, expression, cond=None):
@@ -67,19 +80,23 @@ def recode(lf, vars, rules, prefix=None):
 # ── row/column shaping ───────────────────────────────────────────────────────
 
 def keep(lf, vars=None, cond=None):
-    if vars:
-        lf = lf.select(vars)
-    if cond:
-        lf = lf.filter(compile_expr(cond, condition=True))
-    return lf
+    try:
+        out = lf.select(vars) if vars else lf
+        if cond:
+            out = out.filter(compile_expr(cond, condition=True))
+        return out
+    except UnsupportedExpr:
+        return _eval_fallback(lf, "keep", vars, cond)
 
 
 def drop(lf, vars=None, cond=None):
-    if vars:
-        lf = lf.drop(vars)
-    if cond:
-        lf = lf.filter(~compile_expr(cond, condition=True))
-    return lf
+    try:
+        out = lf.drop(vars) if vars else lf
+        if cond:
+            out = out.filter(~compile_expr(cond, condition=True))
+        return out
+    except UnsupportedExpr:
+        return _eval_fallback(lf, "drop", vars, cond)
 
 
 # ── aggregation / reshaping ──────────────────────────────────────────────────

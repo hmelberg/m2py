@@ -39,7 +39,13 @@ _UNARY_METHOD = {
     "log": "log", "ln": "log", "log10": "log10", "exp": "exp", "sqrt": "sqrt",
     "abs": "abs", "abs_": "abs", "floor": "floor", "ceil": "ceil",
     "sin": "sin", "cos": "cos", "tan": "tan",
+    "acos": "arccos", "asin": "arcsin", "atan": "arctan",
 }
+
+# horizontal (row-wise across columns) microdata funcs -> polars helper
+_ROW_FN = {"rowmean": "mean_horizontal", "rowmax": "max_horizontal",
+           "rowmin": "min_horizontal", "rowtotal": "sum_horizontal",
+           "rowsum": "sum_horizontal"}
 
 
 def _pl():
@@ -150,7 +156,40 @@ def _conv_call(node):
     if bare in ("nonmissing",) and len(args) == 1:
         return args[0].is_not_null()
 
+    # row-wise (horizontal) aggregations
+    if bare in _ROW_FN and len(args) >= 1:
+        return getattr(pl, _ROW_FN[bare])(*args)
+    if bare == "rowmissing":
+        return sum((a.is_null().cast(pl.Int64) for a in args[1:]), args[0].is_null().cast(pl.Int64))
+    if bare == "rowvalid":
+        return sum((a.is_not_null().cast(pl.Int64) for a in args[1:]),
+                   args[0].is_not_null().cast(pl.Int64))
+
+    # membership / range
+    if bare == "inlist" and len(args) >= 2:
+        consts = [n.value for n in node.args[1:] if isinstance(n, ast.Constant)]
+        if len(consts) == len(node.args) - 1:
+            return args[0].is_in(consts)
+        raise UnsupportedExpr("inlist with non-literal values")
+    if bare == "inrange" and len(args) == 3:
+        return (args[0] >= args[1]) & (args[0] <= args[2])
+
+    if bare == "logit" and len(args) == 1:
+        return (args[0] / (1 - args[0])).log()
+    if bare in ("to_int",) and len(args) == 1:
+        return args[0].cast(pl.Int64, strict=False)
+
     # string functions
+    if bare in ("trim",) and len(args) == 1:
+        return args[0].cast(pl.Utf8).str.strip_chars()
+    if bare == "ltrim" and len(args) == 1:
+        return args[0].cast(pl.Utf8).str.strip_chars_start()
+    if bare == "rtrim" and len(args) == 1:
+        return args[0].cast(pl.Utf8).str.strip_chars_end()
+    if bare == "startswith" and len(args) == 2:
+        return args[0].cast(pl.Utf8).str.starts_with(node.args[1].value)
+    if bare == "endswith" and len(args) == 2:
+        return args[0].cast(pl.Utf8).str.ends_with(node.args[1].value)
     if bare == "substr" and len(args) == 3:
         # microdata substr(x, pos, length): pos is 1-based; negative pos = from end
         pos = node.args[1].value

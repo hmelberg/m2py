@@ -109,10 +109,16 @@ of these verbs translate. `import`/session plumbing is intentionally out of
 scope — point the offline script at a parquet/CSV extract you already have
 (e.g. one DuckDB mode built).
 
-**Expressions** (for `generate`/`replace`/`if`): arithmetic, comparisons,
-boolean, `substr`, `int`, `sysmiss`/`missing`, `string`/`lower`/`upper`/`length`,
-`log`/`exp`/`sqrt`/`abs`/`round`/`min`/`max`, `np.where`. Anything outside this
-set is emitted as a `# UNTRANSLATED` comment — **never silently-wrong code**.
+**Expressions** (for `generate`/`replace`/`if`): **all 85 microdata functions are
+supported.** The polars `exprcompile` maps the element-wise ones natively (stays
+lazy) — arithmetic/comparisons/boolean, math+trig (`log`/`exp`/`sqrt`/`sin`/
+`acos`/…), strings (`substr`/`lower`/`trim`/`startswith`/…), row-wise
+(`rowmean`/`rowmax`/`rowtotal`/`rowmissing`/…), `inlist`/`inrange`/`logit`,
+`np.where`. Anything it can't express natively (scipy distributions like
+`chi2tail`/`ttail`/`normal`, date construction, label functions) falls back at
+runtime to the emulator's own pandas evaluator (`materialise → eval → re-lazy`),
+so the result is identical to the browser. Only a **genuinely unknown function
+name** is emitted as `# UNTRANSLATED` — never silently-wrong code.
 
 **Options** are guarded by a per-verb allow-list (`HANDLED_OPTIONS`): a verb
 honours `by()` (collapse/aggregate/summarize/tabulate), `outer_join`/`on()`

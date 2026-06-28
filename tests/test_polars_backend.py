@@ -834,13 +834,58 @@ def test_nonstandard_bins_option_is_flagged():
     assert T.unsupported("histogram inntekt, bins(20)") == ["histogram inntekt, bins(20)"]
 
 
-def test_unsupported_expression_is_marked_not_silently_wrong():
-    # a microdata function the polars compiler doesn't implement -> UNTRANSLATED,
-    # never emitted as incorrect polars.
-    script = "generate w = wordcount(a)"
-    code = T.translate(script, backend="polars", source_path=None)
-    assert "UNTRANSLATED" in code
-    assert T.unsupported(script) == ["generate w = wordcount(a)"]
+_FUNC_DF = pd.DataFrame({"a": [1.0, 2, 3, 4, 5], "b": [2.0, 3, 1, 5, 4],
+                         "c": [10.0, 20, 30, 40, 50], "s": ["Ab", " cD ", "eF", "Gh", "iJ"],
+                         "d": [18262, 18627, 18993, 19358, 19723]})
+
+
+@pytest.mark.parametrize("expr", [
+    # scipy distributions (handled by the pandas-eval fallback)
+    "chi2tail(2, a)", "ttail(10, a)", "normal(a)", "normalden(a)",
+    "binomialtail(10, 3, 0.5)", "invchi2tail(2, 0.5)",
+    # row-wise (native)
+    "rowmean(a,b,c)", "rowmax(a,b,c)", "rowmin(a,b,c)", "rowtotal(a,b,c)",
+    "rowmissing(a,b)", "rowstd(a,b,c)", "rowmedian(a,b,c)", "rowvalid(a,b)",
+    # dates (fallback)
+    "year(d)", "month(d)", "quarter(d)", "week(d)", "dow(d)",
+    # strings (native + fallback)
+    "lower(s)", "upper(s)", "trim(s)", "length(s)", "startswith(s,'e')", "substr(s,1,1)",
+    # math (native + fallback)
+    "acos(a/10)", "atan(a)", "logit(a/10)", "comb(5, a)", "lnfactorial(a)",
+    "inrange(a,2,4)", "inlist(a,1,3,5)", "sqrt(a)", "ln(a)",
+])
+def test_all_functions_match_emulator(expr):
+    df = _FUNC_DF
+
+    def emu(e):
+        m2py.M2PY_DISCLOSURE_CONTROL = "0"
+        it = m2py.MicroInterpreter(metadata_path=None)
+        it.datasets["df"] = df.copy()
+        it.active_name = "df"
+        it._execute_instruction(it.parser.parse_line(f"generate r = {e}"))
+        return it.datasets["df"]["r"]
+
+    def norm(x):
+        x = pd.Series(x)
+        num = pd.to_numeric(x, errors="coerce")
+        if num.notna().sum() >= x.notna().sum():
+            return [round(float(v), 6) if pd.notna(v) else None for v in num]
+        return [str(v) for v in x]
+
+    code = T.translate(f"generate r = {expr}", backend="polars", source_path=None)
+    assert "UNTRANSLATED" not in code, code
+    emu_r = norm(emu(expr))
+    pd_r = norm(T.run(f"generate r = {expr}", {"df": df}, "pandas")["r"])
+    pl_r = norm(T.run(f"generate r = {expr}", {"df": df}, "polars").to_pandas()["r"])
+    assert pd_r == emu_r, f"pandas != emulator for {expr}"
+    assert pl_r == emu_r, f"polars != emulator for {expr}"
+
+
+def test_unknown_function_is_flagged():
+    # a name that is NOT a microdata function -> can't compile or fall back
+    script = "generate w = totallymadeupfn(a)"
+    assert "UNTRANSLATED" in T.translate(script, backend="polars", source_path=None)
+    assert T.unsupported(script) == [script]
 
 
 def _stats_oracle(cmd, df, args, opts):
