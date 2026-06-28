@@ -420,6 +420,69 @@ def test_predict_augments_frame_pipeline_continues():
     assert "yhat" in out.columns and (out["yhat"] > 2).all()
 
 
+def _emu_coef_table(cmd, df, args, opts):
+    """Parse {term: coef} from a regression summary (any alphanumeric term)."""
+    import re
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+    out = m2py.MicroInterpreter(metadata_path=None).reg_engine.execute(cmd, df, args, opts)
+    s = out[0] if isinstance(out, tuple) else str(out)
+    d = {}
+    for line in s.splitlines():
+        mobj = re.match(r"^\s*([A-Za-z_]\w*)\s+(-?\d+\.\d+)\s+\d", line)
+        if mobj and mobj.group(1) not in ("Dep", "No", "Df", "R", "Method", "Date",
+                                          "Time", "Covariance", "Model"):
+            d[mobj.group(1)] = float(mobj.group(2))
+    return d
+
+
+def _panel_df():
+    rng = np.random.default_rng(0)
+    rows = []
+    for i in range(50):
+        fe = rng.normal(0, 1)
+        for t in range(5):
+            x1, x2 = rng.normal(0, 1), rng.normal(0, 1)
+            rows.append({"unit_id": i, "tid": t, "x1": x1, "x2": x2,
+                         "y": 1 + 0.8 * x1 - 0.5 * x2 + fe + rng.normal(0, 0.5)})
+    return pd.DataFrame(rows)
+
+
+@pytest.mark.parametrize("effect,opts", [("fe", {}), ("re", {"re": True}),
+                                         ("pooled", {"pooled": True})])
+def test_regress_panel_matches_emulator(effect, opts):
+    pytest.importorskip("linearmodels")
+    from m2py_runtime import pandas_ops as po
+    df = _panel_df()
+    emu = _emu_coef_table("regress-panel", df, ["y", "x1", "x2"], opts)
+    flag = {"fe": "", "re": ", re", "pooled": ", pooled"}[effect]
+    mine = po.regress_panel(df, "y", ["x1", "x2"], effect=effect).set_index("term")["coef"]
+    res_pl, _ = _run_analysis("regress-panel y x1 x2" + flag, df, "polars")
+    assert emu
+    for term, c in emu.items():
+        assert np.isclose(mine[term], c, atol=1e-3), (effect, term)
+    assert np.allclose(res_pl.set_index("term").loc[mine.index, "coef"], mine.values)
+
+
+def test_ivregress_matches_emulator():
+    pytest.importorskip("statsmodels.api")
+    from m2py_runtime import pandas_ops as po
+    rng = np.random.default_rng(0)
+    n = 400
+    z1, z2, u = rng.normal(0, 1, n), rng.normal(0, 1, n), rng.normal(0, 1, n)
+    endo = 0.5 * z1 + 0.3 * z2 + u + rng.normal(0, 0.3, n)
+    df = pd.DataFrame({"y": 1 + 1.2 * endo + 0.4 * u + rng.normal(0, 0.3, n),
+                       "endo": endo, "z1": z1, "z2": z2})
+    emu = _emu_coef_table("ivregress", df,
+                          {"dep": "y", "exog": [], "endog": ["endo"],
+                           "instruments": ["z1", "z2"], "method": "tsls"}, {})
+    mine = po.ivregress(df, "y", [], ["endo"], ["z1", "z2"]).set_index("term")["coef"]
+    res_pl, _ = _run_analysis("ivregress y (endo = z1 z2)", df, "polars")
+    assert "endo" in emu
+    for term, c in emu.items():
+        assert np.isclose(mine[term], c, atol=1e-3), term
+    assert np.allclose(res_pl.set_index("term").loc[mine.index, "coef"], mine.values)
+
+
 def _survival_df():
     rng = np.random.default_rng(0)
     n = 300

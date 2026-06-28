@@ -613,6 +613,78 @@ def negative_binomial(df, dep, indep, noconstant=False):
     return _coef_table(_fit_model(df, "negative-binomial", dep, indep, noconstant))
 
 
+# ── panel & instrumental-variables regression ────────────────────────────────
+
+def regress_panel(df, dep, indep, effect="fe", key=None):
+    """Panel regression. ``effect`` in fe (PanelOLS entity effects, default),
+    re (RandomEffects), be (BetweenOLS), pooled (OLS). Needs a ``tid`` column and
+    an entity-key column (auto-detected like the emulator, default ``unit_id``).
+    Returns a coefficient table ``[term, coef, se, t, p]``."""
+    import statsmodels.api as sm
+    from m2py import _get_df_key_col
+    key = key or _get_df_key_col(df) or "unit_id"
+    if "tid" not in df.columns:
+        raise ValueError("regress-panel requires a 'tid' (time) column")
+    if key not in df.columns:
+        raise ValueError(f"regress-panel requires an entity-key column ('{key}')")
+    d = df[[dep] + list(indep) + [key, "tid"]].copy()
+    for v in [dep] + list(indep):
+        d[v] = pd.to_numeric(d[v], errors="coerce")
+    d = d.dropna()
+    pidx = d.set_index([key, "tid"])
+    Y = pidx[dep]
+    X = sm.add_constant(pidx[list(indep)], has_constant="add")
+    if effect == "pooled":
+        return _coef_table(sm.OLS(Y, X).fit())
+    from linearmodels.panel import PanelOLS, RandomEffects, BetweenOLS
+    if effect == "re":
+        model = RandomEffects(Y, X).fit()
+    elif effect == "be":
+        model = BetweenOLS(Y, X).fit()
+    else:
+        model = PanelOLS(Y, X, entity_effects=True, drop_absorbed=True).fit()
+    return pd.DataFrame({
+        "term": list(model.params.index),
+        "coef": model.params.to_numpy(),
+        "se": model.std_errors.to_numpy(),
+        "t": model.tstats.to_numpy(),
+        "p": model.pvalues.to_numpy(),
+    })
+
+
+def ivregress(df, dep, exog, endog, instruments):
+    """Instrumental-variables (2SLS) regression — manual two-stage least squares
+    with the emulator's fixed-scale 2SLS standard errors. Returns the second-stage
+    coefficient table ``[term, coef, se, t, p]``."""
+    import statsmodels.api as sm
+    exog, endog, instruments = list(exog), list(endog), list(instruments)
+    allv = [dep] + exog + endog + instruments
+    d = df[allv].apply(pd.to_numeric, errors="coerce").dropna().astype(float)
+    Y = d[dep]
+    Z = sm.add_constant(d[instruments + exog], has_constant="add")
+    fitted = pd.DataFrame(index=d.index)
+    for ev in endog:
+        fitted[ev] = sm.OLS(d[ev], Z).fit().predict()
+    X2 = d[exog].copy() if exog else pd.DataFrame(index=d.index)
+    for ev in endog:
+        X2[ev] = fitted[ev]
+    X2 = sm.add_constant(X2, has_constant="add")
+    model = sm.OLS(Y, X2).fit()
+    # 2SLS SE: residual variance from the ACTUAL endog values (fixed-scale cov)
+    Xa = sm.add_constant(d[exog + endog], has_constant="add").reindex(
+        columns=X2.columns, fill_value=0.0)
+    resid = Y - Xa @ model.params
+    sigma2 = float(resid @ resid) / model.df_resid
+    robust = model.get_robustcov_results(cov_type="fixed scale", scale=sigma2)
+    return pd.DataFrame({
+        "term": list(X2.columns),
+        "coef": np.asarray(robust.params),
+        "se": np.asarray(robust.bse),
+        "t": np.asarray(robust.tvalues),
+        "p": np.asarray(robust.pvalues),
+    })
+
+
 # ── survival analysis (lifelines, matching the emulator) ──────────────────────
 
 def cox(df, event, duration, covars=(), level=95):

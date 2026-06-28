@@ -207,6 +207,14 @@ def probit_predict(lf, dep, indep, predicted=None, probabilities=None, residuals
                               residuals, noconstant)
 
 
+def regress_panel(lf, dep, indep, effect="fe", key=None):
+    return _analysis(lf, "regress_panel", dep, indep, effect=effect, key=key)
+
+
+def ivregress(lf, dep, exog, endog, instruments):
+    return _analysis(lf, "ivregress", dep, exog, endog, instruments)
+
+
 def cox(lf, event, duration, covars=(), level=95):
     return _analysis(lf, "cox", event, duration, covars=covars, level=level)
 

@@ -43,7 +43,10 @@ REGRESSION = {
 }
 # survival verbs -> op name (analysis verbs, lifelines)
 SURVIVAL = {"cox": "cox", "kaplan-meier": "kaplan_meier", "weibull": "weibull"}
-ANALYSIS = {"summarize", "tabulate", "correlate"} | set(REGRESSION) | set(SURVIVAL)
+# panel & IV regression (analysis verbs, linearmodels/statsmodels)
+PANEL_IV = {"regress-panel", "ivregress"}
+ANALYSIS = ({"summarize", "tabulate", "correlate"} | set(REGRESSION)
+            | set(SURVIVAL) | PANEL_IV)
 # PLOT verbs build a plotly Figure (terminal, like analysis). Offline they are
 # written to an HTML file; in-memory (tests) the figure object is left in scope.
 PLOT = {"histogram", "barchart", "scatter", "boxplot",
@@ -72,6 +75,10 @@ HANDLED_OPTIONS = {
     "probit": {"noconstant"},
     "poisson": {"noconstant"},
     "negative-binomial": {"noconstant"},
+    # panel: effect selectors; robust/level/cluster deferred
+    "regress-panel": {"fe", "re", "random", "be", "pooled"},
+    # IV: only 2SLS implemented; liml/gmm/robust/level deferred
+    "ivregress": {"tsls", "2sls"},
     # survival: by/level/hazard variants deferred
     "cox": set(),
     "kaplan-meier": set(),
@@ -241,6 +248,19 @@ def _emit_analysis(instr, backend, idx):
             call = f"ops.cox({var}, event={event!r}, duration={duration!r}, covars={covars!r})"
         else:
             call = f"ops.{SURVIVAL[cmd]}({var}, event={event!r}, duration={duration!r})"
+    elif cmd == "regress-panel":
+        if not vars_ or len(vars_) < 2:
+            return None
+        effect = next((e for e in ("re", "be", "pooled") if opts.get(e)), "fe")
+        if opts.get("random"):
+            effect = "re"
+        call = (f"ops.regress_panel({var}, dep={vars_[0]!r}, indep={vars_[1:]!r}, "
+                f"effect={effect!r})")
+    elif cmd == "ivregress":
+        if not isinstance(args, dict) or not args.get("dep") or not args.get("endog"):
+            return None
+        call = (f"ops.ivregress({var}, dep={args['dep']!r}, exog={args.get('exog', [])!r}, "
+                f"endog={args['endog']!r}, instruments={args.get('instruments', [])!r})")
     else:
         return None
     return f"{res} = {call}\nprint({res})"
