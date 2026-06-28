@@ -1,0 +1,6 @@
+// SafeStat: analyser en CSV fra en URL uten å laste den ned til deg.
+// Bytt URL-en med din egen .csv (kolonner inkl. en nøkkel, f.eks. PERSONID_1).
+require https://raw.githubusercontent.com/your/repo/main/income.csv as inc, keys(PERSONID_1)
+use inc
+summarize wage
+histogram wage
