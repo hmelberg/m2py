@@ -3632,11 +3632,7 @@ def _get_df_key_col(df):
     """Returnerer nøkkelkolonnen for en DataFrame, eller None."""
     if df is None:
         return None
-    for c in ('PERSONID_1', 'ARBEIDSFORHOLD_ID', 'KJORETOY_ID',
-              'NUDB_KURS_LOEPENR', 'AGGRSHOPPID', 'NPRID', 'unit_id'):
-        if c in df.columns:
-            return c
-    return None
+    return _KEYS.key_col_from_cols(df.columns)
 
 # ICD-10: (kode, norsk_label, min_alder, max_alder, kjønn_bias, base_vekt)
 # kjønn_bias: >0 = mer vanlig hos kvinner, <0 = mer vanlig hos menn
@@ -8108,83 +8104,49 @@ class MicroInterpreter:
                     source_df = self.active_df
                     target_df = self.datasets[into_name]
 
-                    src_key = (
-                        _get_df_key_col(source_df)
-                        or self.dataset_key_cols.get(self.active_name)
+                    # Key resolution is delegated to the shared resolver so the
+                    # offline translator joins on exactly the same column. The
+                    # emulator formats its own (unchanged) error messages from the
+                    # returned reason code, and aborts on error.
+                    _src_collapse_key = self.dataset_key_cols.get(self.active_name)
+                    _tgt_collapse_key = self.dataset_key_cols.get(into_name)
+
+                    def _is_person_ref(alias):
+                        if not alias:
+                            return False
+                        reg = self.label_manager.var_alias_to_path.get(alias, '')
+                        return reg in _PERSONID_REF_VARS or reg.endswith('_FNR')
+
+                    _res = _resolve_merge_key(
+                        source_cols=list(source_df.columns),
+                        target_cols=list(target_df.columns),
+                        on_var=on_var,
+                        src_collapse_key=_src_collapse_key,
+                        tgt_collapse_key=_tgt_collapse_key,
+                        is_person_ref=_is_person_ref,
                     )
-                    if src_key and src_key not in source_df.columns:
-                        src_key = None
-                    if src_key is None:
-                        src_key = source_df.columns[0] if len(source_df.columns) > 0 else 'unit_id'
-                    tgt_key = _get_df_key_col(target_df) or 'unit_id'
-
-                    if on_var:
-                        in_src = on_var in source_df.columns
-                        in_tgt = on_var in target_df.columns
-                        if in_src and in_tgt:
-                            left_on, right_on = on_var, on_var
-                        elif in_tgt:
-                            # on_var finnes bare i målet — kobler mot kildedatasettets nøkkel
-                            if src_key not in source_df.columns:
-                                self._log(
-                                    f"FEIL: '{on_var}' finnes i {into_name}, men ikke i {self.active_name}. "
-                                    f"Kilden {self.active_name} har heller ikke nøkkelkolonnen '{src_key}'. "
-                                    f"Tilgjengelige kolonner i {self.active_name}: {list(source_df.columns)}. "
-                                    f"Bruk 'on <koblingsvariabel>' der koblingsvariabelen finnes i begge datasett."
-                                )
-                                return
-                            left_on, right_on = on_var, src_key
-                        elif in_src:
-                            left_on, right_on = tgt_key, on_var   # target.tgt_key == source.on_var
-                        else:
+                    if _res.status == 'error':
+                        if _res.reason == _KEYS.ON_VAR_ONLY_IN_TARGET_NO_SRC_KEY:
+                            self._log(
+                                f"FEIL: '{on_var}' finnes i {into_name}, men ikke i {self.active_name}. "
+                                f"Kilden {self.active_name} har heller ikke nøkkelkolonnen '{_res.src_key}'. "
+                                f"Tilgjengelige kolonner i {self.active_name}: {list(source_df.columns)}. "
+                                f"Bruk 'on <koblingsvariabel>' der koblingsvariabelen finnes i begge datasett."
+                            )
+                        elif _res.reason == _KEYS.ON_VAR_IN_NEITHER:
                             self._log(f"FEIL: Koblingsvariabel '{on_var}' finnes ikke i noen av datasettene.")
-                            return
-                    else:
-                        if src_key in target_df.columns:
-                            left_on = right_on = src_key
-                        elif tgt_key in source_df.columns:
-                            left_on = right_on = tgt_key
-                        else:
-                            common = list(set(source_df.columns) & set(target_df.columns))
-                            if not common:
-                                # Auto-detect FNR-to-PERSONID_1 linkage:
-                                # If source OR target has a collapse key that's a person-ref FNR variable,
-                                # match it against PERSONID_1 on the other side.
-                                _src_collapse_key = self.dataset_key_cols.get(self.active_name)
-                                _tgt_collapse_key = self.dataset_key_cols.get(into_name)
-                                _fnr_matched = False
-
-                                def _is_person_ref(alias):
-                                    if not alias:
-                                        return False
-                                    reg = self.label_manager.var_alias_to_path.get(alias, '')
-                                    return reg in _PERSONID_REF_VARS or reg.endswith('_FNR')
-
-                                # Source has FNR-type collapse key → match vs target's PERSONID_1
-                                if _src_collapse_key and _src_collapse_key in source_df.columns and _is_person_ref(_src_collapse_key):
-                                    _pid_col = _get_df_key_col(target_df)
-                                    if _pid_col and _pid_col in target_df.columns:
-                                        left_on, right_on = _pid_col, _src_collapse_key
-                                        _fnr_matched = True
-                                # Target has FNR-type collapse key → match source's PERSONID_1 vs target's key
-                                elif _tgt_collapse_key and _tgt_collapse_key in target_df.columns and _is_person_ref(_tgt_collapse_key):
-                                    _pid_col = _get_df_key_col(source_df)
-                                    if _pid_col and _pid_col in source_df.columns:
-                                        left_on, right_on = _tgt_collapse_key, _pid_col
-                                        _fnr_matched = True
-                                if not _fnr_matched:
-                                    _collapse_key = _src_collapse_key
-                                    _hint = (
-                                        f" Kilden '{self.active_name}' ble laget med collapse by({_collapse_key}). "
-                                        f"Hvis '{_collapse_key}' finnes i {into_name}, bruk: merge ... into {into_name} on {_collapse_key}"
-                                    ) if _collapse_key else (
-                                        f" Kolonner i {self.active_name}: {list(source_df.columns)}. "
-                                        f"Kolonner i {into_name}: {list(target_df.columns)}."
-                                    )
-                                    self._log(f"FEIL: Finner ingen felles koblingsvariabel mellom datasettene.{_hint}")
-                                    return
-                            else:
-                                left_on = right_on = common[0]
+                        else:  # NO_COMMON_KEY
+                            _collapse_key = _src_collapse_key
+                            _hint = (
+                                f" Kilden '{self.active_name}' ble laget med collapse by({_collapse_key}). "
+                                f"Hvis '{_collapse_key}' finnes i {into_name}, bruk: merge ... into {into_name} on {_collapse_key}"
+                            ) if _collapse_key else (
+                                f" Kolonner i {self.active_name}: {list(source_df.columns)}. "
+                                f"Kolonner i {into_name}: {list(target_df.columns)}."
+                            )
+                            self._log(f"FEIL: Finner ingen felles koblingsvariabel mellom datasettene.{_hint}")
+                        return
+                    left_on, right_on = _res.left_on, _res.right_on
 
                     cols_from_source = [c for c in var_list if c in source_df.columns]
                     if not cols_from_source:
@@ -8996,3 +8958,11 @@ class MicroInterpreter:
         """Embedd objekt i output: __micro_transform_start_<type>__ ... __micro_transform_end__"""
         start = MICRO_EMBED_START.format(embed_type)
         self.output_log.append(f"\n{start}\n{payload}\n{MICRO_EMBED_END}\n")
+
+
+# ── Shared merge-key resolver (imported last to avoid an import cycle) ──────────
+# m2py_runtime.pandas_ops imports symbols from this module at import time, so we
+# pull the resolver in only after m2py is fully defined. The resolver is pure
+# (no m2py dependency); the emulator's merge handler and _get_df_key_col use it.
+from m2py_runtime import keys as _KEYS  # noqa: E402
+from m2py_runtime.keys import resolve_merge_key as _resolve_merge_key  # noqa: E402
