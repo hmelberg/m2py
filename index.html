@@ -5391,6 +5391,36 @@ json.dumps(out)
       });
     }
 
+    function mdRenderPlotlyFigure(div, spec) {
+      if (typeof Plotly === 'undefined') return;
+      var staticEl = document.getElementById('plotStatic');
+      var seabornEl = document.getElementById('plotSeaborn');
+      var staticPlot = !!(staticEl && staticEl.checked);
+      var seabornStyle = !!(seabornEl && seabornEl.checked);
+      div.className = 'plotly-container' + (seabornStyle ? ' seaborn-style' : '');
+      var data = spec.data || [];
+      var styles = getComputedStyle(document.body);
+      var bgCode = (styles.getPropertyValue('--bg-code') || '#faf8f5').trim();
+      var textColor = (styles.getPropertyValue('--text') || '#1a1b26').trim();
+      var borderColor = (styles.getPropertyValue('--border') || '#e4e2dd').trim();
+      var baseLayout = {
+        autosize: false, width: 480, height: 300,
+        margin: { t: 40, r: 40, b: 50, l: 50 },
+        paper_bgcolor: bgCode, plot_bgcolor: bgCode,
+        font: { color: textColor, family: 'DejaVu Sans, Arial, sans-serif', size: 12 },
+        xaxis: { gridcolor: borderColor, zerolinecolor: borderColor, linecolor: borderColor, tickfont: { color: textColor } },
+        yaxis: { gridcolor: borderColor, zerolinecolor: borderColor, linecolor: borderColor, tickfont: { color: textColor } }
+      };
+      if (seabornStyle) {
+        Object.assign(baseLayout, {
+          template: 'plotly_white',
+          colorway: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+        });
+      }
+      var layout = Object.assign(baseLayout, spec.layout || {});
+      Plotly.newPlot(div, data, layout, { responsive: true, autosizable: true, staticPlot: staticPlot }).catch(function(){});
+    }
+
     function renderOutput(raw, asHtml, suppress) {
       const parts = parseOutput(raw);
       if (asHtml) {
@@ -5513,37 +5543,8 @@ json.dumps(out)
               try {
                 const spec = JSON.parse(p.payload);
                 const div = document.createElement('div');
-                div.className = 'plotly-container' + (document.getElementById('plotSeaborn').checked ? ' seaborn-style' : '');
                 frag.appendChild(div);
-                const data = spec.data || [];
-                const staticPlot = document.getElementById('plotStatic').checked;
-                const seabornStyle = document.getElementById('plotSeaborn').checked;
-                const PLOT_DEFAULT_WIDTH = 480;
-                const PLOT_DEFAULT_HEIGHT = 300;
-                const styles = getComputedStyle(document.body);
-                const bgCode = (styles.getPropertyValue('--bg-code') || '#faf8f5').trim();
-                const textColor = (styles.getPropertyValue('--text') || '#1a1b26').trim();
-                const borderColor = (styles.getPropertyValue('--border') || '#e4e2dd').trim();
-                const baseLayout = {
-                  autosize: false,
-                  width: PLOT_DEFAULT_WIDTH,
-                  height: PLOT_DEFAULT_HEIGHT,
-                  margin: { t: 40, r: 40, b: 50, l: 50 },
-                  paper_bgcolor: bgCode,
-                  plot_bgcolor: bgCode,
-                  font: { color: textColor, family: 'DejaVu Sans, Arial, sans-serif', size: 12 },
-                  xaxis: { gridcolor: borderColor, zerolinecolor: borderColor, linecolor: borderColor, tickfont: { color: textColor } },
-                  yaxis: { gridcolor: borderColor, zerolinecolor: borderColor, linecolor: borderColor, tickfont: { color: textColor } }
-                };
-                if (seabornStyle) {
-                  Object.assign(baseLayout, {
-                    template: 'plotly_white',
-                    colorway: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
-                  });
-                }
-                const layout = Object.assign(baseLayout, spec.layout || {});
-                const config = { responsive: true, autosizable: true, staticPlot: staticPlot };
-                Plotly.newPlot(div, data, layout, config).catch(function(){});
+                mdRenderPlotlyFigure(div, spec);
               } catch (e) {
                 const pre = document.createElement('pre');
                 pre.className = 'embed-placeholder';
@@ -7635,7 +7636,7 @@ _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
         _figIds.forEach(function(_f){
           try {
             var _spec = JSON.parse(_f.json);
-            Plotly.newPlot(document.getElementById(_f.id), _spec.data, _spec.layout, {responsive:true});
+            mdRenderPlotlyFigure(document.getElementById(_f.id), _spec);
           } catch (e) { console.warn('safestat plot', e); }
         });
         var _tt = document.getElementById('safestatTargetToggle');
