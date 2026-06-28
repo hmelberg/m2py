@@ -46,7 +46,8 @@ REGRESSION = {
 SURVIVAL = {"cox": "cox", "kaplan-meier": "kaplan_meier", "weibull": "weibull"}
 # panel & IV regression (analysis verbs, linearmodels/statsmodels)
 PANEL_IV = {"regress-panel", "regress-panel-diff", "ivregress"}
-ANALYSIS = ({"summarize", "tabulate", "correlate", "mlogit", "rdd"}
+ANALYSIS = ({"summarize", "tabulate", "correlate", "mlogit", "rdd",
+             "normaltest", "ci", "anova", "hausman"}
             | set(REGRESSION) | set(SURVIVAL) | PANEL_IV)
 # PLOT verbs build a plotly Figure (terminal, like analysis). Offline they are
 # written to an HTML file; in-memory (tests) the figure object is left in scope.
@@ -72,6 +73,10 @@ HANDLED_OPTIONS = {
     "tabulate": {"by", "missing", "freq", "chi2", "top", "bottom",
                  "cellpct", "rowpct", "colpct", "cell", "row", "col"},
     "correlate": {"pairwise", "covariance"},   # sig/obs (text/extra cols) deferred
+    "normaltest": set(),
+    "ci": {"level"},
+    "anova": set(),
+    "hausman": set(),
     # regression family: noconstant only; or/irr/robust/exposure/level deferred
     "regress": {"noconstant"},
     "logit": {"noconstant"},
@@ -278,6 +283,22 @@ def _emit_analysis(instr, backend, idx):
         call = (f"ops.correlate({var}, vars={vars_!r}, "
                 f"pairwise={bool(opts.get('pairwise'))!r}, "
                 f"covariance={bool(opts.get('covariance'))!r})")
+    elif cmd == "normaltest":
+        call = f"ops.normaltest({var}, vars={vars_!r})"
+    elif cmd == "ci":
+        try:
+            level = int(opts.get("level", 95))
+        except (ValueError, TypeError):
+            level = 95
+        call = f"ops.ci({var}, vars={vars_!r}, level={level!r})"
+    elif cmd == "anova":
+        if not vars_ or len(vars_) < 2:
+            return None
+        call = f"ops.anova({var}, dep={vars_[0]!r}, factors={vars_[1:]!r})"
+    elif cmd == "hausman":
+        if not vars_ or len(vars_) < 2:
+            return None
+        call = f"ops.hausman({var}, dep={vars_[0]!r}, indep={vars_[1:]!r})"
     elif cmd in REGRESSION:
         if not vars_ or len(vars_) < 2:
             return None

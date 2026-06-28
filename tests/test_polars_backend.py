@@ -892,6 +892,60 @@ def test_correlate_matches_emulator(opts, kw):
     assert np.allclose(emu.values, mine.loc[emu.index, emu.columns].values, equal_nan=True)
 
 
+def test_normaltest_ci_anova_match_emulator():
+    pytest.importorskip("scipy")
+    from m2py_runtime import pandas_ops as po
+    rng = np.random.default_rng(0)
+    n = 300
+    df = pd.DataFrame({"inntekt": rng.normal(5, 1, n), "formue": rng.exponential(2, n),
+                       "kjonn": rng.integers(1, 3, n)})
+    eng = m2py.MicroInterpreter(metadata_path=None).stats_engine
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+
+    # normaltest
+    emu = eng.execute("normaltest", df, ["inntekt", "formue"], {})
+    mine, _ = _run_analysis("normaltest inntekt formue", df, "pandas")
+    assert np.allclose(emu["Statistic"].astype(float).fillna(0),
+                       mine["statistic"].astype(float).fillna(0), atol=1e-6)
+    minep, _ = _run_analysis("normaltest inntekt formue", df, "polars")
+    assert np.allclose(mine["statistic"].fillna(0), minep["statistic"].fillna(0))
+
+    # ci (level 99)
+    emu = eng.execute("ci", df, ["inntekt"], {"level": "99"})
+    mine, _ = _run_analysis("ci inntekt, level(99)", df, "pandas")
+    assert np.allclose([emu["Mean"].iloc[0], emu["CI_low"].iloc[0], emu["CI_high"].iloc[0]],
+                       [mine["mean"].iloc[0], mine["ci_low"].iloc[0], mine["ci_high"].iloc[0]])
+
+    # anova
+    emu = eng.execute("anova", df, ["inntekt", "kjonn"], {})
+    mine, _ = _run_analysis("anova inntekt kjonn", df, "pandas")
+    mf = float(mine[mine["term"].str.contains("kjonn")]["F"].iloc[0])
+    assert np.isclose(float(emu["F"].iloc[0]), mf, atol=1e-4)
+
+
+def test_hausman_matches_emulator():
+    pytest.importorskip("linearmodels")
+    import re
+    from m2py_runtime import pandas_ops as po
+    rng = np.random.default_rng(0)
+    rows = []
+    for i in range(50):
+        fe = rng.normal(0, 1)
+        for t in range(5):
+            x1 = rng.normal(0, 1)
+            rows.append({"unit_id": i, "tid": t, "x1": x1,
+                         "y": 1 + 0.8 * x1 + fe + rng.normal(0, 0.5)})
+    df = pd.DataFrame(rows)
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+    out = m2py.MicroInterpreter(metadata_path=None).reg_engine.execute("hausman", df, ["y", "x1"], {})
+    s = out[0] if isinstance(out, tuple) else str(out)
+    emu_chi2 = float(re.search(r"chi2=(-?\d+\.\d+)", s).group(1))
+    mine, _ = _run_analysis("hausman y x1", df, "pandas")
+    minep, _ = _run_analysis("hausman y x1", df, "polars")
+    assert np.isclose(mine["statistic"].iloc[0], emu_chi2, atol=1e-3)
+    assert np.isclose(mine["statistic"].iloc[0], minep["statistic"].iloc[0])
+
+
 def test_tabulate_percentages_are_correct():
     # x in {1,2}, y in {1,2}; counts (1,1)=2 (1,2)=1 (2,1)=1 (2,2)=1, total 5
     df = pd.DataFrame({"x": [1, 1, 1, 2, 2], "y": [1, 1, 2, 1, 2]})

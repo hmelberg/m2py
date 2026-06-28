@@ -171,6 +171,22 @@ def correlate(lf, vars, pairwise=False, covariance=False):
     return _analysis(lf, "correlate", vars, pairwise=pairwise, covariance=covariance)
 
 
+def normaltest(lf, vars=None):
+    return _analysis(lf, "normaltest", vars)
+
+
+def ci(lf, vars=None, level=95):
+    return _analysis(lf, "ci", vars, level=level)
+
+
+def anova(lf, dep, factors):
+    return _analysis(lf, "anova", dep, factors)
+
+
+def hausman(lf, dep, indep, key=None):
+    return _analysis(lf, "hausman", dep, indep, key=key)
+
+
 def regress(lf, dep, indep, noconstant=False):
     return _analysis(lf, "regress", dep, indep, noconstant=noconstant)
 

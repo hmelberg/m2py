@@ -270,6 +270,93 @@ def _chi2_stats(sub, v1, v2, dropna):
     return (float(chi2), float(p), float(dof))
 
 
+def normaltest(df, vars=None):
+    """Normality diagnostics per numeric variable (skewness, kurtosis,
+    D'Agostino-Pearson, Jarque-Bera, Shapiro-Wilk for n<=5000). Returns a long
+    frame ``[variable, test, statistic, p]``."""
+    from scipy import stats as st
+    vars = _numeric_vars(df, vars)
+    rows = []
+    for v in vars:
+        s = df[v].dropna()
+        if len(s) < 3:
+            rows.append({"variable": v, "test": "-", "statistic": np.nan, "p": np.nan})
+            continue
+        rows.append({"variable": v, "test": "skewness", "statistic": st.skew(s), "p": np.nan})
+        rows.append({"variable": v, "test": "kurtosis", "statistic": st.kurtosis(s), "p": np.nan})
+        nt = st.normaltest(s)
+        rows.append({"variable": v, "test": "normaltest (s-k)", "statistic": nt[0], "p": nt[1]})
+        jb = st.jarque_bera(s)
+        rows.append({"variable": v, "test": "Jarque-Bera", "statistic": jb[0], "p": jb[1]})
+        sw = st.shapiro(s) if len(s) <= 5000 else (np.nan, np.nan)
+        rows.append({"variable": v, "test": "Shapiro-Wilk", "statistic": sw[0], "p": sw[1]})
+    return pd.DataFrame(rows)
+
+
+def ci(df, vars=None, level=95):
+    """Confidence interval for the mean of each numeric variable (Student-t).
+    Returns ``[variable, mean, se, ci_low, ci_high]``."""
+    from scipy import stats as st
+    vars = _numeric_vars(df, vars)
+    lv = float(level) / 100 if level else 0.95
+    rows = []
+    for v in vars:
+        s = df[v].dropna()
+        n, mean = len(s), df[v].dropna().mean()
+        if n < 2:
+            rows.append({"variable": v, "mean": mean, "se": np.nan,
+                         "ci_low": np.nan, "ci_high": np.nan})
+            continue
+        sem = st.sem(s)
+        t = st.t.ppf((1 + lv) / 2, n - 1)
+        rows.append({"variable": v, "mean": mean, "se": sem,
+                     "ci_low": mean - t * sem, "ci_high": mean + t * sem})
+    return pd.DataFrame(rows)
+
+
+def anova(df, dep, factors):
+    """Type-II ANOVA of ``dep`` on the categorical ``factors`` (statsmodels OLS +
+    ``anova_lm``). ``#`` in a factor denotes an interaction. Returns the ANOVA
+    table ``[term, sum_sq, df, F, PR(>F)]``."""
+    from statsmodels.formula.api import ols
+    from statsmodels.stats.anova import anova_lm
+    terms = [f"C({f})" for f in factors if "#" not in f and f in df.columns]
+    for a in factors:
+        if "#" in a:
+            parts = a.replace("##", "#").split("#")
+            terms.append(":".join(f"C({p.strip()})" for p in parts if p.strip() in df.columns))
+    model = ols(f"{dep} ~ " + " + ".join(terms), data=df).fit()
+    return anova_lm(model, typ=2).reset_index(names="term")
+
+
+def hausman(df, dep, indep, key=None):
+    """Hausman FE-vs-RE test (linearmodels). Needs a ``tid`` column + entity key.
+    Returns ``[statistic, df, p]`` (the chi-square test of coefficient
+    differences; small p favours fixed effects)."""
+    import statsmodels.api as sm
+    from linearmodels.panel import PanelOLS, RandomEffects
+    from scipy.stats import chi2 as chi2_dist
+    from m2py import _get_df_key_col
+    key = key or _get_df_key_col(df) or "unit_id"
+    if "tid" not in df.columns:
+        raise ValueError("hausman requires a 'tid' column")
+    d = df[[dep] + list(indep) + [key, "tid"]].copy()
+    for v in [dep] + list(indep):
+        d[v] = pd.to_numeric(d[v], errors="coerce")
+    d = d.dropna()
+    pidx = d.set_index([key, "tid"])
+    Y = pidx[dep]
+    X = sm.add_constant(pidx[list(indep)], has_constant="add")
+    fe = PanelOLS(Y, X, entity_effects=True, drop_absorbed=True).fit()
+    re = RandomEffects(Y, X).fit()
+    common = fe.params.index.intersection(re.params.index)
+    diff = (fe.params.loc[common] - re.params.loc[common]).to_numpy()
+    vdiff = fe.cov.loc[common, common].to_numpy() - re.cov.loc[common, common].to_numpy()
+    chi2 = float(diff @ np.linalg.solve(vdiff, diff))
+    return pd.DataFrame([{"statistic": chi2, "df": len(common),
+                          "p": float(1 - chi2_dist.cdf(chi2, len(common)))}])
+
+
 def tabulate(df, vars, by=None, missing=False,
              cellpct=False, rowpct=False, colpct=False,
              chi2=False, top=None, bottom=None):
