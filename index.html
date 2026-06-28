@@ -117,6 +117,7 @@
         </button>
         <button type="button" id="menuRunnerMode" style="display:none">Kjøremodus: Microdata</button>
         <button type="button" id="menuToggleOutputMode" style="display:none">Output-modus: String</button>
+        <button type="button" id="menuToggleSafestatOutput" style="display:none">SafeStat-output: Formatert</button>
         <button type="button" id="menuShowIndividata" title="Når PÅ: klikk på datasett-navnet i sidemenyen for å åpne en tabellvisning av rådataene (sorter, filtrer, bla). Når AV: dataset-navnet er inaktivt." style="display:flex;align-items:center;gap:8px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
             <rect x="3" y="4" width="18" height="16" rx="2"/>
@@ -2270,6 +2271,21 @@
         dropdown.classList.remove('open');
       });
 
+      (function(){
+        var b = document.getElementById('menuToggleSafestatOutput');
+        if (!b) return;
+        function lbl(){ b.textContent = 'SafeStat-output: ' + (safeStatFormat === 'raw' ? 'Rå' : 'Formatert'); }
+        lbl();
+        b.addEventListener('click', function(){
+          safeStatFormat = (safeStatFormat === 'raw') ? 'formatted' : 'raw';
+          lbl();
+        });
+        window.mdUpdateSafestatToggle = function(){
+          b.style.display = (activeEditorMode === 'safestat') ? '' : 'none';
+          lbl();
+        };
+      })();
+
       // Hent/Vis individata-bryter: når PÅ er datasett-navnet i sidebar
       // klikkbart og åpner en Tabulator-modal med selve datatabellen.
       const SHOW_INDIVIDATA_KEY = 'microdata_show_individata';
@@ -3355,6 +3371,7 @@
       var oBtn = document.getElementById('oversettBtn');
       if (oBtn) oBtn.style.display = _shows ? '' : 'none';
       if (typeof updateModeGuiBar==='function') updateModeGuiBar();
+      if (window.mdUpdateSafestatToggle) window.mdUpdateSafestatToggle();
     }
 
     function updateModeGuiBar() {
