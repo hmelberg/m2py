@@ -12,6 +12,7 @@ into an ``UNTRANSLATED`` marker rather than emitting wrong polars.
 """
 
 from .exprcompile import compile_expr, UnsupportedExpr  # noqa: F401
+from .sources import scan_source as read_source  # noqa: F401  (generated code calls ops.read_source)
 
 # microdata collapse/summarize stat -> polars Expr method (element of a group agg)
 _AGG_METHOD = {

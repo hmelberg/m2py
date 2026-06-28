@@ -118,3 +118,24 @@ def test_manifest_key_resolves_merge():
         backend="pandas", source_path=None, manifest=man)
     assert "left_on='id', right_on='id'" in code
     assert "# TODO" not in code            # resolved, not flagged
+
+
+def test_runs_end_to_end_from_manifest(tmp_path):
+    import pandas as pd
+    from m2py_runtime.manifest import Manifest
+    persons = pd.DataFrame({"id": [1, 2, 3], "alder": [20, 30, 40]})
+    income  = pd.DataFrame({"id": [1, 2, 3], "wage": [100, 200, 300]})
+    p = tmp_path / "persons.parquet"; persons.to_parquet(p)
+    i = tmp_path / "income.parquet"; income.to_parquet(i)
+    man = Manifest.from_dict({"datasets": {
+        "persons": {"source": str(p), "keys": ["id"], "variables": {"alder": {}}},
+        "income":  {"source": str(i), "keys": ["id"], "variables": {"wage": {}}},
+    }})
+    code = t.translate(
+        "use income\nmerge wage into persons\nuse persons",
+        backend="pandas", source_path=None, manifest=man)
+    assert "ops.read_source(" in code
+    ns = {"pd": pd}
+    exec(code, ns)
+    out = ns["df"].sort_values("id").reset_index(drop=True)
+    assert out["wage"].tolist() == [100, 200, 300]   # joined on id from the manifest

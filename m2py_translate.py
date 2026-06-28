@@ -323,12 +323,13 @@ def _dsvar(backend, name):
     return f"{'lf' if backend == 'polars' else 'df'}_{_sanitize(name)}"
 
 
-def _load_dataset(backend, name, source_path):
-    """Emit the line that materialises dataset ``name`` into its variable: from
-    ``<name>.parquet`` (file mode) or, in-memory, via the ``_load`` helper which
-    resolves the ``datasets`` dict with the optional emulator fallback."""
+def _load_dataset(backend, name, source_path, manifest=None):
+    """Materialise dataset ``name``: manifest source (read_source) if known, else
+    parquet (file mode) or the in-memory ``_load`` helper."""
     var = _dsvar(backend, name)
-    if source_path is not None:
+    if manifest is not None and manifest.has(name):
+        src = f"ops.read_source({manifest.location(name)!r}, {manifest.format(name)!r})"
+    elif source_path is not None:
         src = (f'pl.scan_parquet("{name}.parquet")' if backend == "polars"
                else f'pd.read_parquet("{name}.parquet")')
     else:
@@ -424,13 +425,16 @@ def _emit(instr, backend, frame=None, known=(), tracker=None, active=None,
     return None
 
 
-def _load_other(name, backend, known, source_path):
+def _load_other(name, backend, known, source_path, manifest=None):
     """Emit (lines, varname) making dataset ``name`` available as a frame: an
     existing dataset variable if known, else loaded from parquet (file mode) or
     the ``_load`` helper (in-memory mode)."""
     if name in known:
         return [], _dsvar(backend, name)
     other = _dsvar(backend, name)
+    if manifest is not None and manifest.has(name):
+        return [f"{other} = "
+                f"ops.read_source({manifest.location(name)!r}, {manifest.format(name)!r})"], other
     if source_path is not None:
         rhs = (f'pl.scan_parquet("{name}.parquet")' if backend == "polars"
                else f'pd.read_parquet("{name}.parquet")')
@@ -461,7 +465,7 @@ def _emit_merge(args, opts, backend, var, known, tracker, active, source_path="d
         res = tracker.resolve(active, into, on_var)
         tracker.add_cols(into, vars_)               # target gains them post-merge
         load, src = ([], var)                       # right side = active (source)
-        tload, tgt = _load_other(into, backend, known, source_path)
+        tload, tgt = _load_other(into, backend, known, source_path, tracker.manifest)
         known.add(into)                             # the merged target now exists
         todo = ("# TODO: verify join key (could not resolve from catalog)\n"
                 if res.status != "ok" else "")
@@ -481,7 +485,7 @@ def _emit_merge(args, opts, backend, var, known, tracker, active, source_path="d
     key, status = _old_syntax_key(tracker, active, name, on_var)
     if not key:
         return None
-    load, other = _load_other(name, backend, known, source_path)
+    load, other = _load_other(name, backend, known, source_path, tracker.manifest)
     todo = ("# TODO: verify join key (could not resolve from catalog)\n"
             if status != "ok" else "")
     call = f"{var} = ops.merge({var}, {other}, on={key!r}, how={how!r})"
@@ -846,11 +850,11 @@ def translate(script, backend="pandas", source_path="df", allow_emulated=False,
             if cmd == "create-dataset" and a:
                 known.add(a[0]); active = a[0]
                 tracker.create(a[0])
-                body.append(_load_dataset(backend, a[0], source_path))
+                body.append(_load_dataset(backend, a[0], source_path, manifest))
             elif cmd == "use" and a:
                 if a[0] not in known:
                     known.add(a[0])
-                    body.append(_load_dataset(backend, a[0], source_path))
+                    body.append(_load_dataset(backend, a[0], source_path, manifest))
                 active = a[0]
                 tracker.ensure(a[0])
             elif cmd == "clone-dataset" and len(a) >= 2:

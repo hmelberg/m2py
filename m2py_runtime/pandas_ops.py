@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 
 from m2py import _py_eval_expr, _py_eval_cond, AGG_STAT_ALIAS
+from .sources import read_source  # noqa: F401  (used by generated code: ops.read_source)
 
 
 # ── value-producing verbs ────────────────────────────────────────────────────
