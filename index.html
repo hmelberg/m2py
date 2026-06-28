@@ -3282,8 +3282,7 @@
         translate: { showsButton: false },
         runSelf: async function (script, ctx) { await runStatxScript(script, ctx); } },
       duckdb: { id: 'duckdb', label: 'DuckDB', hlConfig: SQL_HL_CFG, handleTab: microdataHandleTab,
-        translate: { showsButton: false },
-        runSelf: async function (script, ctx) { await runDuckdbScript(script, ctx); } },
+        translate: { showsButton: false }, runDefault: 'duckdb' },
     };
     function currentMode() {
       return modeRegistry[activeEditorMode] || modeRegistry.microdata;
@@ -5600,11 +5599,12 @@ json.dumps(out)
       if (/^(\/\/|##?)\s*(pyodide|python|py)\s*$/i.test(trimmed)) return 'pyodide';
       if (/^(\/\/|##?)\s*r\s*$/i.test(trimmed)) return 'r';
       if (/^(\/\/|##?)\s*(stata|statx)\s*$/i.test(trimmed)) return 'stata';
+      if (/^(\/\/|##?)\s*(duckdb|duck|sql)\s*$/i.test(trimmed)) return 'duckdb';
       return null;
     }
     function parseHybridScript(text, defaultMode) {
       var lines = text.split(/\r?\n/);
-      var mode = defaultMode === 'pyodide' ? 'pyodide' : defaultMode === 'r' ? 'r' : defaultMode === 'stata' ? 'stata' : 'microdata';
+      var mode = defaultMode === 'pyodide' ? 'pyodide' : defaultMode === 'r' ? 'r' : defaultMode === 'stata' ? 'stata' : defaultMode === 'duckdb' ? 'duckdb' : 'microdata';
       var buf = [];
       var segments = [];
       function flush() {
@@ -6390,6 +6390,85 @@ def _exec_pyodide_block(code, g, show_commands=False):
         # vist med plt.show() — slik at f.eks. df.plot.hist() uten plt.show()
         # likevel kommer ut som én PNG i output.
         _m2py_flush_pyplot_figs()
+
+# ── Shared DuckDB executor (used by the hybrid segment loop for #duckdb) ──
+import js as _duck_js
+import duckdb_bridge as _duck_db
+from pyodide.ffi import to_js as _duck_to_js
+
+# Pyodide shim: pandas' to_parquet lazily runs patch_pyarrow(), which calls
+# pyarrow.unregister_extension_type('arrow.py_extension_type') and raises
+# ArrowKeyError in the Pyodide pyarrow build. Make unregister lenient, then
+# pre-import the module so df.to_parquet(engine='pyarrow') works.
+import pyarrow as _duck_pa
+if not getattr(_duck_pa, "_m2py_unreg_patched", False):
+    _duck_oru = _duck_pa.unregister_extension_type
+    def _duck_safe_unreg(name, _o=_duck_oru):
+        try:
+            return _o(name)
+        except Exception:
+            return None
+    _duck_pa.unregister_extension_type = _duck_safe_unreg
+    _duck_pa._m2py_unreg_patched = True
+    try:
+        import pandas.core.arrays.arrow.extension_types as _duck_pet
+    except Exception:
+        pass
+
+def _duck_concise(_msg):
+    _best = ""
+    for _l in str(_msg).split("\\n"):
+        if "Error:" in _l:
+            _best = _l.strip()
+            break
+    if not _best:
+        _parts = [p for p in str(_msg).strip().split("\\n") if p.strip()]
+        _best = _parts[-1] if _parts else str(_msg)
+    for _p in ("pyodide.ffi.JsException:", "Error:"):
+        if _best.startswith(_p):
+            _best = _best[len(_p):].strip()
+    return _best
+
+async def _run_duck_sql(_sql):
+    _datasets = e.datasets
+    _stmts = _duck_db.split_sql_statements(_sql)
+    _known = list(_datasets.keys())
+    _refs = _duck_db.extract_referenced_tables(_stmts, _known)
+    _created = _duck_db.extract_created_tables(_stmts)
+    _preview = _duck_db.build_preview_select(_stmts)
+    # Created tables win over a same-named existing dataset: don't register the
+    # old dataset as a view, or the CREATE TABLE collides with that view.
+    _created_lower = {c.lower() for c in _created}
+    _refs = [r for r in _refs if r.lower() not in _created_lower]
+    _out = []
+    try:
+        await _duck_js.__duck.begin()
+        try:
+            for _name in _refs:
+                _buf = _duck_db.df_to_parquet_bytes(_datasets[_name])
+                await _duck_js.__duck.registerTable(_name, _duck_to_js(_buf))
+            if _sql.strip():
+                await _duck_js.__duck.exec(_sql)
+            if _preview:
+                _cnt = (await _duck_js.__duck.query("SELECT count(*) AS n FROM (" + _preview + ") _q")).to_py()
+                _nlist = _cnt.get("n") or [0]
+                _total = int(_nlist[0]) if _nlist else 0
+                _cols = (await _duck_js.__duck.query("SELECT * FROM (" + _preview + ") _q LIMIT 400")).to_py()
+                _pv = pd.DataFrame(_cols)
+                _out.append(_pv.to_string(index=False) if len(_pv) else "(0 rader)")
+                if _total > 400:
+                    _out.append(str(_total) + " rader — viser de første 400. Bruk CREATE TABLE navn AS … for å lagre som datasett.")
+            for _name in _created:
+                _cc = (await _duck_js.__duck.query('SELECT * FROM "' + _name + '"')).to_py()
+                _df = pd.DataFrame(_cc)
+                _datasets[_name] = _df
+                if not _preview:
+                    _out.append("Opprettet datasett " + _name + " (" + str(len(_df)) + " rader × " + str(_df.shape[1]) + " kolonner)")
+        finally:
+            await _duck_js.__duck.end()
+    except Exception as _ex:
+        raise RuntimeError(_duck_concise(_ex)) from None
+    return "\\n\\n".join(_out)
 `;
     }
 
@@ -6962,133 +7041,6 @@ json.dumps(out)
       return __duckBridgeP;
     }
 
-    // Python program: parse SQL, register referenced datasets, run, preview the
-    // trailing SELECT (cap 400), materialize CREATE TABLE results back into
-    // micro_interpreter.datasets. Reads the global `_duck_sql`; returns the
-    // output text. js.__duck.end() runs in finally so the connection never leaks.
-    const __DUCK_RUN_PY = `
-import pandas as _pd
-import js as _js
-import __main__ as _m
-import duckdb_bridge as _db
-from pyodide.ffi import to_js as _to_js
-
-# Pyodide shim: pandas' to_parquet lazily runs patch_pyarrow(), which calls
-# pyarrow.unregister_extension_type('arrow.py_extension_type') and raises
-# ArrowKeyError in the Pyodide pyarrow build (the type isn't registered).
-# Make unregister lenient, then pre-import the module so the patch runs once
-# without aborting df.to_parquet(engine='pyarrow').
-import pyarrow as _pa
-if not getattr(_pa, "_m2py_unreg_patched", False):
-    _oru = _pa.unregister_extension_type
-    def _safe_unreg(name, _o=_oru):
-        try:
-            return _o(name)
-        except Exception:
-            return None
-    _pa.unregister_extension_type = _safe_unreg
-    _pa._m2py_unreg_patched = True
-try:
-    import pandas.core.arrays.arrow.extension_types as _pet
-except Exception:
-    pass
-
-_mi = _m.micro_interpreter
-_datasets = _mi.datasets
-_sql = _duck_sql
-
-_stmts = _db.split_sql_statements(_sql)
-_known = list(_datasets.keys())
-_refs = _db.extract_referenced_tables(_stmts, _known)
-_created = _db.extract_created_tables(_stmts)
-_preview = _db.build_preview_select(_stmts)
-# If the script CREATEs a table whose name also matches an existing dataset,
-# the created table wins — do not also register the old dataset as a view, or
-# the CREATE TABLE collides with that view ("X is not a table"/"replace View").
-_created_lower = {c.lower() for c in _created}
-_refs = [r for r in _refs if r.lower() not in _created_lower]
-_out = []
-
-async def _run_duck():
-    await _js.__duck.begin()
-    try:
-        for _name in _refs:
-            _buf = _db.df_to_parquet_bytes(_datasets[_name])
-            await _js.__duck.registerTable(_name, _to_js(_buf))
-        if _sql.strip():
-            await _js.__duck.exec(_sql)
-        if _preview:
-            _cnt = (await _js.__duck.query("SELECT count(*) AS n FROM (" + _preview + ") _q")).to_py()
-            _nlist = _cnt.get("n") or [0]
-            _total = int(_nlist[0]) if _nlist else 0
-            _cols = (await _js.__duck.query("SELECT * FROM (" + _preview + ") _q LIMIT 400")).to_py()
-            _pv = _pd.DataFrame(_cols)
-            _out.append(_pv.to_string(index=False) if len(_pv) else "(0 rader)")
-            if _total > 400:
-                _out.append(str(_total) + " rader \\u2014 viser de f\\u00f8rste 400. "
-                            "Bruk CREATE TABLE navn AS \\u2026 for \\u00e5 lagre som datasett.")
-        for _name in _created:
-            _cc = (await _js.__duck.query('SELECT * FROM "' + _name + '"')).to_py()
-            _df = _pd.DataFrame(_cc)
-            _datasets[_name] = _df
-            if not _preview:
-                _out.append("Opprettet datasett " + _name + " (" + str(len(_df)) +
-                            " rader \\u00d7 " + str(_df.shape[1]) + " kolonner)")
-    finally:
-        await _js.__duck.end()
-
-await _run_duck()
-"\\n\\n".join(_out)
-`;
-
-    async function runDuckdbScript(script, ctx) {
-      var rightStatus = (ctx && ctx.rightStatus) ? ctx.rightStatus : window.rightStatus;
-      const py = (ctx && ctx.py) || await loadPyodideAndM2py();
-      setStatus(rightStatus, 'Laster DuckDB-bro…');
-      await __ensureDuckBridge(py);
-      try {
-        var _needPa = await py.runPythonAsync('import importlib.util as _iu\n_iu.find_spec("pyarrow") is None');
-        if (_needPa) {
-          setStatus(rightStatus, 'Installerer pyarrow…');
-          await py.runPythonAsync('import micropip as _mp\nawait _mp.install("pyarrow")');
-        }
-      } catch (e) { console.warn('pyarrow ensure:', e); }
-      setStatus(rightStatus, 'Kjører SQL…');
-      py.globals.set('_duck_sql', script || '');
-      var out;
-      try {
-        out = await py.runPythonAsync(__DUCK_RUN_PY);
-      } catch (e) {
-        var msg = (e && e.message) ? e.message : String(e);
-        // The exception is a full Pyodide traceback; show the concise DuckDB/SQL
-        // message to the user and keep the full trace in console. DuckDB errors
-        // append a "LINE n: … ^" pointer, so pick the line that names the error
-        // (first line containing "Error:") rather than the last line.
-        console.warn('[duckdb]', msg);
-        var _lines = msg.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
-        var _errLine = '';
-        for (var _i = 0; _i < _lines.length; _i++) {
-          if (/Error:/.test(_lines[_i])) { _errLine = _lines[_i]; break; }
-        }
-        var concise = (_errLine || _lines[_lines.length - 1] || msg)
-          .replace(/^pyodide\.ffi\.JsException:\s*/, '').replace(/^Error:\s*/, '');
-        purgePlots(outputArea);
-        outputArea.innerHTML = '';
-        var pre = document.createElement('pre');
-        pre.className = 'error';
-        pre.textContent = 'DuckDB-feil:\n' + concise;
-        outputArea.appendChild(pre);
-        setStatus(rightStatus, 'Kjøring feilet.', true);
-        return;
-      }
-      lastOutput = String(out || '').trim();
-      try { await refreshDatasetSidebarFromPy(py); } catch (e) { console.warn('duckdb sidebar refresh:', e); }
-      lastOutputMode = 'run';
-      var asHtml = document.querySelector('input[name="outputMode"]:checked').value === 'html';
-      renderOutput(lastOutput, asHtml, suppressEmbedded.checked);
-      setStatus(rightStatus, '');
-    }
-
     async function runStatxScript(script, ctx) {
       var rightStatus = ctx && ctx.rightStatus ? ctx.rightStatus : window.rightStatus;
       try {
@@ -7577,6 +7529,19 @@ options(width = 200)
         if (segments.length === 0 && effectiveScript.trim()) {
           segments = [{ kind: runDefault, text: effectiveScript }];
         }
+        // If any segment is DuckDB SQL, make sure the bridge module + pyarrow are
+        // ready before the Pyodide run loop reaches a #duckdb segment.
+        if (segments.some(function (s) { return s.kind === 'duckdb'; })) {
+          setStatus(rightStatus, 'Laster DuckDB-bro…');
+          await __ensureDuckBridge(py);
+          try {
+            var _needPa = await py.runPythonAsync('import importlib.util as _iu\n_iu.find_spec("pyarrow") is None');
+            if (_needPa) {
+              setStatus(rightStatus, 'Installerer pyarrow…');
+              await py.runPythonAsync('import micropip as _mp\nawait _mp.install("pyarrow")');
+            }
+          } catch (e) { console.warn('pyarrow ensure:', e); }
+        }
         const segmentsStr = JSON.stringify(segments);
         const runCode = getInterpreterCorePython(catalogArg, pageBase, segmentsStr) + `
 import asyncio as _asyncio
@@ -7619,6 +7584,17 @@ for _seg in _segments:
         _g["show"] = show
         _g["to_microdata"] = to_microdata
         _exec_pyodide_block(_st, _g, ${_showCmds ? 'True' : 'False'})
+        e.sync_datasets_to_globals(_g)
+        _apply_labels_to_globals(_g, catalog)
+        _g["show"] = show
+        _g["to_microdata"] = to_microdata
+    elif _k == "duckdb":
+        e.sync_datasets_to_globals(_g)
+        try:
+            print(await _run_duck_sql(_st))
+        except Exception as _de:
+            print("DuckDB-feil: " + str(_de))
+            break
         e.sync_datasets_to_globals(_g)
         _apply_labels_to_globals(_g, catalog)
         _g["show"] = show
