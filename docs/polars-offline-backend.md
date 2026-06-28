@@ -67,7 +67,7 @@ crosses the network, not the data.
 | Aggregation | `collapse`, `aggregate` |
 | Merge | `merge` |
 | Analysis (side output) | `summarize`, `tabulate`, `correlate`, `regress` |
-| Plots (side output) | `histogram`, `barchart`, `scatter`, `boxplot` |
+| Plots (side output) | `histogram`, `barchart`, `scatter`, `boxplot`, `piechart`, `hexbin`, `sankey` |
 
 Analysis and plot verbs honour a trailing `if <cond>` (rows are filtered for the
 computation via the `keep` op, without changing the working frame), and they
@@ -130,9 +130,15 @@ microdata script ──MicroParser──► instruction dicts (IR) ──m2py_tr
     per-group bars)
   - `scatter x y` — one trace per `by()` group when given
   - `boxplot` — single variable, grouped over `over()`, or one box per variable
+  - `piechart` — value counts, or `(percent)`
+  - `hexbin x y` — 2-D density (`Histogram2d`, `bin(n)`)
+  - `sankey a b …` — transitions across categorical variables
+  For `barchart`/`piechart` the statistic comes from the **parenthesised**
+  `(stat)` form (e.g. `barchart (mean) x`, `piechart (percent) x`) — matching the
+  emulator, which ignores bare `, mean`/`, percent` flags (so those are flagged).
   Deferred and flagged: histogram `normal` overlay, scatter `lfit`, barchart
-  `stack`/`horizontal`/multi-var. Needs plotly installed (`kaleido` for static
-  images).
+  `stack`/`horizontal`/multi-var, `coefplot` (needs the prior model). Needs
+  plotly installed (`kaleido` for static images).
 - `pandas_ops` reuses the emulator's own evaluator, so the pandas backend
   matches the emulator bit-for-bit; the cross-engine test proves the polars
   backend matches too.

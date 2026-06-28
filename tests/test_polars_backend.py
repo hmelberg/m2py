@@ -265,7 +265,19 @@ def _fig_equal(f1, f2):
     for d1, d2 in zip(f1.data, f2.data):
         if _trace_key(d1) != _trace_key(d2):
             return False
-        if not (_axis_eq(d1.x, d2.x) and _axis_eq(d1.y, d2.y)):
+        kind = type(d1).__name__
+        if kind == "Pie":
+            if list(d1.labels or []) != list(d2.labels or []):
+                return False
+            if list(d1.values or []) != list(d2.values or []):
+                return False
+        elif kind == "Sankey":
+            if list(d1.node.label or []) != list(d2.node.label or []):
+                return False
+            for side in ("source", "target", "value"):
+                if list(getattr(d1.link, side) or []) != list(getattr(d2.link, side) or []):
+                    return False
+        elif not (_axis_eq(d1.x, d2.x) and _axis_eq(d1.y, d2.y)):
             return False
     return True
 
@@ -286,6 +298,11 @@ def _fig_equal(f1, f2):
      {"vars": ["alder", "inntekt"]}, {"by": "kjonn"}),
     ("boxplot inntekt", "boxplot", {"vars": ["inntekt"]}, {}),
     ("boxplot inntekt, over(kjonn)", "boxplot", {"vars": ["inntekt"]}, {"over": "kjonn"}),
+    ("piechart kommune", "piechart", {"stat": "count", "vars": ["kommune"]}, {}),
+    ("piechart (percent) kommune", "piechart", {"stat": "percent", "vars": ["kommune"]}, {}),
+    ("hexbin alder inntekt", "hexbin", {"vars": ["alder", "inntekt"]}, {}),
+    ("hexbin alder inntekt, bin(12)", "hexbin", {"vars": ["alder", "inntekt"]}, {"bin": "12"}),
+    ("sankey kommune kjonn", "sankey", {"vars": ["kommune", "kjonn"]}, {}),
 ])
 def test_plot_trace_matches_emulator_and_backends_agree(script, cmd, args, opts):
     pytest.importorskip("plotly")
@@ -436,6 +453,10 @@ def test_summarize_if_condition_matches_emulator():
     "tabulate g, rowsort",         # sort option not implemented
     "destring x, dpcomma",         # decimal-comma changes values
     "correlate a b, covariance",   # covariance variant not implemented
+    "barchart x, mean",            # bare stat flag (use parenthesised (mean))
+    "piechart x, percent",         # bare percent flag (use (percent))
+    "histogram x, normal",         # normal-curve overlay deferred
+    "scatter a b, lfit",           # regression-line overlay deferred
 ])
 def test_unhandled_options_flagged_not_silently_dropped(script):
     code = T.translate(script, backend="polars", source_path=None)

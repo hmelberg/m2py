@@ -173,8 +173,8 @@ def histogram(lf, vars, bins=30, discrete=False, percent=False, density=False):
                  percent=percent, density=density)
 
 
-def barchart(lf, vars, stat="count", over=None, percent=False):
-    return _plot(lf, "barchart", vars, stat=stat, over=over, percent=percent)
+def barchart(lf, vars, stat="count", over=None):
+    return _plot(lf, "barchart", vars, stat=stat, over=over)
 
 
 def scatter(lf, vars, by=None):
@@ -183,3 +183,15 @@ def scatter(lf, vars, by=None):
 
 def boxplot(lf, vars, over=None):
     return _plot(lf, "boxplot", vars, over=over)
+
+
+def piechart(lf, vars, stat="count"):
+    return _plot(lf, "piechart", vars, stat=stat)
+
+
+def hexbin(lf, vars, bins=30):
+    return _plot(lf, "hexbin", vars, bins=bins)
+
+
+def sankey(lf, vars):
+    return _plot(lf, "sankey", vars)

@@ -30,7 +30,8 @@ TRANSFORM = {
 ANALYSIS = {"summarize", "tabulate", "correlate", "regress"}
 # PLOT verbs build a plotly Figure (terminal, like analysis). Offline they are
 # written to an HTML file; in-memory (tests) the figure object is left in scope.
-PLOT = {"histogram", "barchart", "scatter", "boxplot"}
+PLOT = {"histogram", "barchart", "scatter", "boxplot",
+        "piechart", "hexbin", "sankey"}
 
 SUPPORTED = TRANSFORM | ANALYSIS | PLOT
 
@@ -52,13 +53,13 @@ HANDLED_OPTIONS = {
     "regress": set(),
     # plots
     "histogram": {"bin", "nbins", "discrete", "percent", "density", "freq"},
-    "barchart": {"over", "percent", "mean", "median", "sum", "sd", "min", "max"},
+    "barchart": {"over"},               # statistic via parenthesised (stat), not a flag
     "scatter": {"by", "color"},
     "boxplot": {"over"},
+    "piechart": set(),                  # (percent) via parenthesised stat
+    "hexbin": {"bin", "nbins"},
+    "sankey": set(),
 }
-
-# numeric barchart statistics that may arrive as bare option flags (`, mean`)
-_BAR_STATS = ("mean", "median", "sum", "sd", "min", "max")
 
 
 def _unhandled_options(instr):
@@ -205,11 +206,11 @@ def _emit_plot(instr, backend, idx, write):
     elif cmd == "barchart":
         if len(vars_) > 1:
             return None                      # multi-variable barchart deferred
+        # statistic comes from the parenthesised (stat) form -> args['stat'];
+        # bare `, mean`-style flags are NOT honoured by the emulator, so they
+        # remain unhandled options and the line is flagged.
         stat = args.get("stat", "count")
-        if stat == "count":                  # also accept the `, mean`-style flag
-            stat = next((k for k in _BAR_STATS if opts.get(k)), "count")
-        call = (f"ops.barchart({var}, vars={vars_!r}, stat={stat!r}, "
-                f"over={opts.get('over')!r}, percent={bool(opts.get('percent'))!r})")
+        call = f"ops.barchart({var}, vars={vars_!r}, stat={stat!r}, over={opts.get('over')!r})"
     elif cmd == "scatter":
         if len(vars_) < 2:
             return None
@@ -217,6 +218,22 @@ def _emit_plot(instr, backend, idx, write):
         call = f"ops.scatter({var}, vars={vars_!r}, by={by!r})"
     elif cmd == "boxplot":
         call = f"ops.boxplot({var}, vars={vars_!r}, over={opts.get('over')!r})"
+    elif cmd == "piechart":
+        stat = args.get("stat", "count")     # (percent) via parenthesised stat
+        call = f"ops.piechart({var}, vars={vars_!r}, stat={stat!r})"
+    elif cmd == "hexbin":
+        if len(vars_) < 2:
+            return None
+        raw = opts.get("bin") or opts.get("nbins")
+        try:
+            bins = int(raw) if raw else 30
+        except (ValueError, TypeError):
+            bins = 30
+        call = f"ops.hexbin({var}, vars={vars_!r}, bins={bins})"
+    elif cmd == "sankey":
+        if len(vars_) < 2:
+            return None
+        call = f"ops.sankey({var}, vars={vars_!r})"
     else:
         return None
     line = f"{fig} = {call}"

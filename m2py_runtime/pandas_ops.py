@@ -300,16 +300,17 @@ def histogram(df, vars, bins=30, discrete=False, percent=False, density=False):
     return px.histogram(df.dropna(subset=[var]), x=var, nbins=bins, histnorm=histnorm)
 
 
-def barchart(df, vars, stat="count", over=None, percent=False):
-    """Bar chart of ``vars[0]``. count/percent -> value counts (one bar per
-    category, or one trace per category grouped over ``over``); a numeric ``stat``
+def barchart(df, vars, stat="count", over=None):
+    """Bar chart of ``vars[0]``. The statistic comes from the parenthesised
+    ``(stat)`` form: count/percent -> value counts (one bar per category, or one
+    trace per category grouped over ``over``); a numeric stat
     (mean/median/sum/sd/min/max) -> that statistic, by ``over`` group when given.
     Mirrors the emulator's trace construction."""
     import plotly.express as px
     import plotly.graph_objects as go
     var = vars[0]
     if stat in ("count", "percent"):
-        as_pct = percent or stat == "percent"
+        as_pct = stat == "percent"
         if over and over in df.columns:
             ct = pd.crosstab(df[over], df[var], dropna=False)
             if as_pct:
@@ -364,6 +365,60 @@ def boxplot(df, vars, over=None):
     if over and over in df.columns:
         return px.box(df[[over, var]], x=over, y=var)
     return px.box(df[[var]], y=var)
+
+
+def piechart(df, vars, stat="count"):
+    """Pie chart of ``vars[0]`` value counts, or percents with the ``(percent)``
+    statistic. Mirrors the emulator."""
+    import plotly.graph_objects as go
+    s = df[vars[0]].value_counts(dropna=False).sort_index()
+    if stat == "percent":
+        values = (s / s.sum() * 100).round(1).tolist()
+    else:
+        values = s.values.tolist()
+    return go.Figure(data=[go.Pie(labels=s.index.tolist(), values=values, hole=0)])
+
+
+def hexbin(df, vars, bins=30):
+    """2-D density (hexbin-style) of ``vars[0]`` vs ``vars[1]`` via Histogram2d."""
+    import plotly.graph_objects as go
+    x, y = vars[0], vars[1]
+    sub = df[[x, y]].dropna()
+    return go.Figure(data=[go.Histogram2d(
+        x=sub[x], y=sub[y], nbinsx=bins, nbinsy=bins,
+        colorscale="Blues", showscale=True)])
+
+
+def sankey(df, vars):
+    """Sankey diagram of transitions across the listed categorical variables
+    (one node per stage+value). Mirrors the emulator's node/link construction."""
+    import plotly.graph_objects as go
+    vars_list = [v for v in vars if v in df.columns]
+    sub = df[vars_list].dropna(how="any")
+    stages, stage_idx, offsets = [], [], [0]
+    for va in vars_list:
+        uniq = sub[va].dropna().unique().tolist()
+        stages.append(uniq)
+        stage_idx.append({v: offsets[-1] + j for j, v in enumerate(uniq)})
+        offsets.append(offsets[-1] + len(uniq))
+    labels = [str(v) for uniq in stages for v in uniq]
+    src, tgt, val = [], [], []
+    for i in range(len(vars_list) - 1):
+        va, vb = vars_list[i], vars_list[i + 1]
+        grp = sub.groupby([va, vb], dropna=False).size().reset_index(name="count")
+        ia, ib = stage_idx[i], stage_idx[i + 1]
+        for _, row in grp.iterrows():
+            a, b = row[va], row[vb]
+            if pd.isna(a) or pd.isna(b):
+                continue
+            s, t = ia.get(a), ib.get(b)
+            if s is not None and t is not None:
+                src.append(s)
+                tgt.append(t)
+                val.append(int(row["count"]))
+    return go.Figure(data=[go.Sankey(
+        node=dict(label=labels, pad=15, thickness=20),
+        link=dict(source=src, target=tgt, value=val))])
 
 
 def regress(df, dep, indep):
