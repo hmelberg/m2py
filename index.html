@@ -7455,7 +7455,31 @@ has and "int" in (m.get_microdata_functions() or {})
       outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: oversetter til pandas og kjører lokalt…</div>';
       try {
         await loadTranslator(py);                 // ensures m2py_runtime + m2py_translate on the FS
-        py.globals.set('_ss_src', script);
+        // Pyodide can't pd.read_csv(url); fetch require'd URLs in JS, write to the
+        // FS, and rewrite the script's require lines to the local path so the
+        // emitted read_source() reads a local file.
+        var _reqRe = /^\s*require\s+(https?:\/\/\S+\.(?:csv|parquet))\s+as\s+(\w+)/gim;
+        var _m, _fetches = [];
+        var _localScript = script;
+        while ((_m = _reqRe.exec(script)) !== null) {
+          (function(url, alias){
+            _fetches.push(fetch(url).then(function(r){
+              if (!r.ok) throw new Error('require ' + url + ' -> HTTP ' + r.status);
+              return r.arrayBuffer();
+            }).then(function(buf){
+              var path = '/home/pyodide/_safestat/' + alias + url.slice(url.lastIndexOf('.'));
+              py.FS.mkdirTree('/home/pyodide/_safestat');
+              py.FS.writeFile(path, new Uint8Array(buf));
+              // rewrite this require's URL to the local path
+              _localScript = _localScript.replace(url, path);
+            }));
+          })(_m[1], _m[2]);
+        }
+        if (_fetches.length) {
+          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: henter ' + _fetches.length + ' datakilde(r)…</div>';
+          await Promise.all(_fetches);
+        }
+        py.globals.set('_ss_src', _localScript);
         var raw = await py.runPythonAsync(`
 import json as _json, io as _io, contextlib as _ctxlib
 from m2py import MicroInterpreter as _MI, MicroParser as _MP
