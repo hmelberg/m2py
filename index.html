@@ -7282,6 +7282,10 @@ has = hasattr(m, "get_microdata_functions")
 has and "int" in (m.get_microdata_functions() or {})
 `);
       } catch (e) { /* ignore */ }
+      // Write the m2py_runtime package to the Pyodide FS so the emulator's lazy
+      // `from m2py_runtime import keys` (merge handler) resolves without needing
+      // the offline-translation menu first. Non-fatal (only merges need it).
+      try { await ensureM2pyRuntime(pyodide); } catch (e) { console.warn('m2py_runtime load:', e); }
       setStatus(leftStatus, functionsLoaded ? 'Ready. (functions.py lastet.)' : 'Ready.');
       return pyodide;
     }
@@ -7352,22 +7356,39 @@ has and "int" in (m.get_microdata_functions() or {})
       setStatus(leftStatus, 'Klar.');
     }
 
-    // Offline translator (microdata -> standalone pandas/polars). Writes the
-    // m2py_runtime package + m2py_translate to the Pyodide FS so they import
-    // normally (mirrors loadPy2m). m2py itself is already registered.
+    // Write the m2py_runtime package to the Pyodide FS so it imports normally.
+    // Used by BOTH the main bootstrap (emulator merge -> `from m2py_runtime import
+    // keys`) and the offline translator. Keep the file list in sync with
+    // m2py_runtime/*.py (pandas_ops imports .sources, sources imports .manifest).
+    let m2pyRuntimeReady = false;
+    async function ensureM2pyRuntime(py) {
+      if (m2pyRuntimeReady) return;
+      const base = window.location.href.replace(/[^/]+$/, '');
+      const rtMods = ['__init__', 'keys', 'manifest', 'sources', 'profile', 'exprcompile', 'pandas_ops', 'polars_ops'];
+      const rtSrcs = await Promise.all(rtMods.map(function(m) {
+        return fetch(base + 'm2py_runtime/' + m + '.py').then(function(r) {
+          if (!r.ok) throw new Error('m2py_runtime/' + m + '.py'); return r.text();
+        });
+      }));
+      await py.runPythonAsync('import os, sys\nos.makedirs("/home/pyodide/m2py_runtime", exist_ok=True)\nif "/home/pyodide" not in sys.path: sys.path.insert(0, "/home/pyodide")');
+      for (let i = 0; i < rtMods.length; i++) {
+        py.globals.set('_rt_src', rtSrcs[i]);
+        await py.runPythonAsync('open("/home/pyodide/m2py_runtime/' + rtMods[i] + '.py", "w", encoding="utf-8").write(_rt_src)');
+      }
+      py.globals.set('_rt_src', null);
+      m2pyRuntimeReady = true;
+    }
+
+    // Offline translator (microdata -> standalone pandas/polars): the runtime
+    // package (above) plus m2py_translate. m2py itself is already registered.
     let translatorReady = false;
     async function loadTranslator(py) {
       if (translatorReady) return;
       setStatus(leftStatus, 'Henter offline-oversetter…');
       const base = window.location.href.replace(/[^/]+$/, '');
-      const rtMods = ['__init__', 'keys', 'exprcompile', 'pandas_ops', 'polars_ops'];
-      let rtSrcs, transSrc;
+      let transSrc;
       try {
-        rtSrcs = await Promise.all(rtMods.map(function(m) {
-          return fetch(base + 'm2py_runtime/' + m + '.py').then(function(r) {
-            if (!r.ok) throw new Error('m2py_runtime/' + m + '.py'); return r.text();
-          });
-        }));
+        await ensureM2pyRuntime(py);
         transSrc = await fetch(base + 'm2py_translate.py').then(function(r) {
           if (!r.ok) throw new Error('m2py_translate.py'); return r.text();
         });
@@ -7375,17 +7396,9 @@ has and "int" in (m.get_microdata_functions() or {})
         setStatus(leftStatus, 'Offline-oversetter utilgjengelig: ' + (e.message || e), true);
         throw e;
       }
-      await py.runPythonAsync('import os; os.makedirs("/home/pyodide/m2py_runtime", exist_ok=True)');
-      for (let i = 0; i < rtMods.length; i++) {
-        py.globals.set('_rt_src', rtSrcs[i]);
-        await py.runPythonAsync(
-          'open("/home/pyodide/m2py_runtime/' + rtMods[i] + '.py", "w", encoding="utf-8").write(_rt_src)');
-      }
       py.globals.set('_trans_src', transSrc);
       await py.runPythonAsync('open("/home/pyodide/m2py_translate.py", "w", encoding="utf-8").write(_trans_src)');
-      await py.runPythonAsync(
-        'import sys\nif "/home/pyodide" not in sys.path: sys.path.insert(0, "/home/pyodide")\nimport m2py_translate');
-      py.globals.set('_rt_src', null);
+      await py.runPythonAsync('import m2py_translate');
       py.globals.set('_trans_src', null);
       translatorReady = true;
       setStatus(leftStatus, 'Klar.');
