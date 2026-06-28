@@ -295,6 +295,34 @@ require https://api.host/extract.parquet as x, secret(host_token)
 import x/value as v
 ```
 
+## Editor delivery & source kinds (decision: staged A→B)
+
+The same `require`/`import` syntax means different things for an SSB-registry
+source (catalog + mock-in-browser + labels + protections) versus an external
+file (read the real data, column-pull). This is resolved by treating
+**microdata as the richest *source kind***, not a separate language: `require`/
+`import`/protections **dispatch on the bound source's kind**, taken from the
+registry entry (the SSB registry is a built-in `kind: catalog`), with the source
+address as the inference fallback (`no.ssb.<reg>:<ver>` ⇒ catalog; path/URL/sql ⇒
+file). Existing scripts are therefore unaffected — `require ssb:43` still resolves
+to the catalog kind and behaves identically; the new semantics activate only for
+new source kinds, additively.
+
+**Editor delivery is staged (decision: option C):**
+1. **Now** — ship a **new editor mode** ("Extended") for external/manifest
+   sources; the existing **Microdata-mode runtime is left untouched** (provably no
+   regression). The generalized semantics live in the offline translator (opt-in
+   `manifest=`; `None` = today's behavior) and that new mode.
+2. **Later, once proven** — add per-source-kind **inference** so the modes merge:
+   no mode-switching, SSB and external sources mix in one script, and Microdata
+   mode becomes "Extended with only the SSB catalog registered."
+
+This decision does **not** block the first implementation slice (the offline
+translator + file-kind manifest), which carries no editor changes. A `kind` field
+on manifest entries (default `file`; `catalog` for SSB) is added when the
+catalog-kind behavior is built — a forward-compatible follow-on, not part of the
+file-only floor.
+
 ## Out of scope (named follow-ons)
 
 - **Disclosure / output-control layer** — small-cell suppression, the
