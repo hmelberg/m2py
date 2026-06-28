@@ -22,9 +22,27 @@ from m2py import _py_eval_expr, _py_eval_cond, AGG_STAT_ALIAS
 
 # ── value-producing verbs ────────────────────────────────────────────────────
 
+def _normalize_expr(expression):
+    """The emulator's generate preprocessing: join line-continuation newlines,
+    apply the Stata-like &/| precedence fixup, and rewrite ``N if cond`` to
+    ``np.where``. Keeps generate/replace expression semantics identical."""
+    from m2py import _stata_like_bool_fixup
+    import re
+    expr = expression
+    if isinstance(expr, str):
+        if "\n" in expr:
+            expr = " ".join(expr.splitlines())
+        if "&" in expr or "|" in expr:
+            expr = _stata_like_bool_fixup(expr)
+        m = re.match(r"^(\d+)\s+if\s+(.+)$", expr.strip())
+        if m:
+            expr = f"np.where({m.group(2)}, {int(m.group(1))}, np.nan)"
+    return expr
+
+
 def _assign(df, target, expression, cond):
     out = df.copy()
-    values = _py_eval_expr(out, expression)
+    values = _py_eval_expr(out, _normalize_expr(expression))
     if cond:
         mask = _py_eval_cond(out, cond)
         if target in out.columns:

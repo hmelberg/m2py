@@ -523,6 +523,7 @@ def _expand_loops(script):
     ``_substitute_bindings`` for exact fidelity."""
     it = m2py.MicroInterpreter(metadata_path=None)   # used only for substitution
     parser = it.parser
+    script = parser.preprocess_script(script)        # join `\` line continuations
     lines = script.splitlines()
     out = []
 

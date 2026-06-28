@@ -23,10 +23,11 @@ def compile_expr(expr, *, condition=False):
     """Return a ``polars.Expr`` for ``expr``. Set ``condition=True`` for if-clauses."""
     import m2py
 
-    if condition:
-        expr = m2py._stata_like_bool_fixup(m2py._micro_expr_fixup(expr))
-    else:
-        expr = m2py._micro_expr_fixup(expr)
+    expr = m2py._micro_expr_fixup(expr)
+    # Stata-like &/| precedence: always for conditions, and for expressions that
+    # use &/| (Python binds & tighter than >=, so `a >= 1 & a < 9` needs fixing).
+    if condition or (isinstance(expr, str) and ("&" in expr or "|" in expr)):
+        expr = m2py._stata_like_bool_fixup(expr)
     try:
         tree = ast.parse(expr, mode="eval")
     except SyntaxError as e:  # pragma: no cover - normaliser usually prevents this
