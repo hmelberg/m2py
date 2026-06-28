@@ -122,3 +122,9 @@ def test_person_ref_target_collapse_key_matches_source_personid():
     )
     # target.eier_fnr == source.PERSONID_1
     assert (r.left_on, r.right_on, r.status) == ("eier_fnr", "PERSONID_1", "ok")
+
+
+def test_require_parses_url_source():
+    import m2py
+    out = m2py.MicroParser().parse_line("require https://h/x.csv as d")
+    assert out["args"] == {"source": "https://h/x.csv", "alias": "d"}

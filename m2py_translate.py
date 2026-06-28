@@ -164,19 +164,44 @@ class KeyTracker:
 
     DEFAULT_KEY = "PERSONID_1"
 
-    def __init__(self):
+    def __init__(self, manifest=None):
         self.cols = {}            # name (None = implicit frame) -> set[str]
         self.collapse_key = {}    # name -> str
         self.alias_path = {}      # alias -> registry path
+        self.declared_key = {}    # name -> str (manifest keys[0])
+        self.manifest = manifest
 
     def ensure(self, name):
         if name not in self.cols:
-            self.cols[name] = {self.DEFAULT_KEY}
+            m = self.manifest
+            if m is not None and m.has(name):
+                keys = m.keys(name)
+                self.cols[name] = set(m.variables(name)) | set(keys)
+                if keys:
+                    self.declared_key[name] = keys[0]
+            else:
+                self.cols[name] = {self.DEFAULT_KEY}
         return self.cols[name]
 
     def create(self, name):
-        self.cols[name] = {self.DEFAULT_KEY}
+        self.cols.pop(name, None)
         self.collapse_key.pop(name, None)
+        self.ensure(name)
+
+    def _key(self, name):
+        """Current key for a dataset: collapse key, else manifest-declared."""
+        return self.collapse_key.get(name) or self.declared_key.get(name)
+
+    def _keys(self, name):
+        """Full declared/collapse key list (composite-aware)."""
+        ck = self.collapse_key.get(name)
+        if ck:
+            return [ck]
+        m = self.manifest
+        if m is not None and m.has(name) and m.keys(name):
+            return m.keys(name)
+        dk = self.declared_key.get(name)
+        return [dk] if dk else []
 
     def add_cols(self, name, cols):
         self.ensure(name).update(c for c in cols if c)
@@ -215,8 +240,8 @@ class KeyTracker:
             source_cols=self.cols[active],
             target_cols=self.cols[into],
             on_var=on_var,
-            src_collapse_key=self.collapse_key.get(active),
-            tgt_collapse_key=self.collapse_key.get(into),
+            src_collapse_key=self._key(active),
+            tgt_collapse_key=self._key(into),
             is_person_ref=self.is_person_ref,
         )
 
@@ -309,12 +334,13 @@ def _dsvar(backend, name):
     return f"{'lf' if backend == 'polars' else 'df'}_{_sanitize(name)}"
 
 
-def _load_dataset(backend, name, source_path):
-    """Emit the line that materialises dataset ``name`` into its variable: from
-    ``<name>.parquet`` (file mode) or, in-memory, via the ``_load`` helper which
-    resolves the ``datasets`` dict with the optional emulator fallback."""
+def _load_dataset(backend, name, source_path, manifest=None):
+    """Materialise dataset ``name``: manifest source (read_source) if known, else
+    parquet (file mode) or the in-memory ``_load`` helper."""
     var = _dsvar(backend, name)
-    if source_path is not None:
+    if manifest is not None and manifest.has(name):
+        src = f"ops.read_source({manifest.location(name)!r}, {manifest.format(name)!r})"
+    elif source_path is not None:
         src = (f'pl.scan_parquet("{name}.parquet")' if backend == "polars"
                else f'pd.read_parquet("{name}.parquet")')
     else:
@@ -410,13 +436,16 @@ def _emit(instr, backend, frame=None, known=(), tracker=None, active=None,
     return None
 
 
-def _load_other(name, backend, known, source_path):
+def _load_other(name, backend, known, source_path, manifest=None):
     """Emit (lines, varname) making dataset ``name`` available as a frame: an
     existing dataset variable if known, else loaded from parquet (file mode) or
     the ``_load`` helper (in-memory mode)."""
     if name in known:
         return [], _dsvar(backend, name)
     other = _dsvar(backend, name)
+    if manifest is not None and manifest.has(name):
+        return [f"{other} = "
+                f"ops.read_source({manifest.location(name)!r}, {manifest.format(name)!r})"], other
     if source_path is not None:
         rhs = (f'pl.scan_parquet("{name}.parquet")' if backend == "polars"
                else f'pd.read_parquet("{name}.parquet")')
@@ -447,12 +476,17 @@ def _emit_merge(args, opts, backend, var, known, tracker, active, source_path="d
         res = tracker.resolve(active, into, on_var)
         tracker.add_cols(into, vars_)               # target gains them post-merge
         load, src = ([], var)                       # right side = active (source)
-        tload, tgt = _load_other(into, backend, known, source_path)
+        tload, tgt = _load_other(into, backend, known, source_path, tracker.manifest)
         known.add(into)                             # the merged target now exists
         todo = ("# TODO: verify join key (could not resolve from catalog)\n"
                 if res.status != "ok" else "")
+        keys = tracker._keys(into)
+        if len(keys) > 1 and res.status == "ok" and res.left_on == res.right_on == keys[0]:
+            left_on = right_on = keys  # promote to the full composite key list when the manifest declares >1 key
+        else:
+            left_on, right_on = res.left_on, res.right_on
         call = (f"{tgt} = ops.merge_into({tgt}, {src}, vars={vars_!r}, "
-                f"left_on={res.left_on!r}, right_on={res.right_on!r})")
+                f"left_on={left_on!r}, right_on={right_on!r})")
         return "\n".join(tload + load + [todo + call]) or None
 
     # old-syntax: args is a list (name [on key]); active gains other's cols.
@@ -467,7 +501,7 @@ def _emit_merge(args, opts, backend, var, known, tracker, active, source_path="d
     key, status = _old_syntax_key(tracker, active, name, on_var)
     if not key:
         return None
-    load, other = _load_other(name, backend, known, source_path)
+    load, other = _load_other(name, backend, known, source_path, tracker.manifest)
     todo = ("# TODO: verify join key (could not resolve from catalog)\n"
             if status != "ok" else "")
     call = f"{var} = ops.merge({var}, {other}, on={key!r}, how={how!r})"
@@ -479,6 +513,10 @@ def _old_syntax_key(tracker, active, other, on_var):
     the entity key present in both, else a shared column. Returns (key, status)."""
     if on_var:
         return on_var, "ok"
+    ak = tracker._keys(active)
+    if ak and all(c in tracker.ensure(other) for c in ak):
+        # promote to the full composite key list when the manifest declares >1 key
+        return (ak if len(ak) > 1 else ak[0]), "ok"
     acols = tracker.ensure(active)
     ocols = tracker.ensure(other)
     ek = key_col_from_cols(acols)
@@ -742,7 +780,8 @@ def _expand_loops(script):
     return "\n".join(out)
 
 
-def translate(script, backend="pandas", source_path="df", allow_emulated=False):
+def translate(script, backend="pandas", source_path="df", allow_emulated=False,
+              manifest=None):
     """Return a runnable Python program (string) for ``script``.
 
     ``source_path`` names the input parquet stem ("df" -> df.parquet). Pass
@@ -796,7 +835,7 @@ def translate(script, backend="pandas", source_path="df", allow_emulated=False):
     active = None          # None = the implicit single working frame (df/lf)
     known = set()          # dataset names that already have an emitted variable
     used_implicit = False  # did any command actually read the implicit frame?
-    tracker = KeyTracker()  # per-dataset cols + key, for baking merge join keys
+    tracker = KeyTracker(manifest)   # per-dataset cols + key, for baking merge join keys
 
     def cur():
         nonlocal used_implicit
@@ -826,16 +865,29 @@ def translate(script, backend="pandas", source_path="df", allow_emulated=False):
             body.append(f"# import (data assumed present): {line.strip()}")
             continue
 
+        # ---- require: bind an alias to a manifest source; seed keys/cols ----
+        if cmd == "require":
+            src = a.get("source") if isinstance(a, dict) else None
+            alias = a.get("alias") if isinstance(a, dict) else None
+            bound = bool(src and alias and tracker.manifest is not None
+                         and tracker.manifest.has(src))
+            if bound:
+                tracker.declared_key[alias] = (tracker.manifest.keys(src)[:1] or [None])[0]
+                tracker.cols[alias] = set(tracker.manifest.variables(src)) | set(tracker.manifest.keys(src))
+            suffix = " (bound from manifest)" if bound else ""
+            body.append(f"# {line.strip()}{suffix}")  # line.strip() already starts with "require"
+            continue
+
         # ---- dataset/session management (switch active / create variables) ----
         if cmd in SESSION:
             if cmd == "create-dataset" and a:
                 known.add(a[0]); active = a[0]
                 tracker.create(a[0])
-                body.append(_load_dataset(backend, a[0], source_path))
+                body.append(_load_dataset(backend, a[0], source_path, manifest))
             elif cmd == "use" and a:
                 if a[0] not in known:
                     known.add(a[0])
-                    body.append(_load_dataset(backend, a[0], source_path))
+                    body.append(_load_dataset(backend, a[0], source_path, manifest))
                 active = a[0]
                 tracker.ensure(a[0])
             elif cmd == "clone-dataset" and len(a) >= 2:

@@ -105,3 +105,90 @@ def test_allow_emulated_default_baked_into_header():
     code = t.translate(MISSING, backend="pandas", source_path=None,
                        allow_emulated=True)
     assert "allow_emulated = globals().get('allow_emulated', True)" in code
+
+
+def test_manifest_key_resolves_merge():
+    from m2py_runtime.manifest import Manifest
+    man = Manifest.from_dict({"datasets": {
+        "persons": {"source": "p.parquet", "keys": ["id"]},
+        "income":  {"source": "i.parquet", "keys": ["id"]},
+    }})
+    code = t.translate(
+        "use income\nmerge wage into persons",
+        backend="pandas", source_path=None, manifest=man)
+    assert "left_on='id', right_on='id'" in code
+    assert "# TODO" not in code            # resolved, not flagged
+
+
+def test_runs_end_to_end_from_manifest(tmp_path):
+    import pandas as pd
+    from m2py_runtime.manifest import Manifest
+    persons = pd.DataFrame({"id": [1, 2, 3], "alder": [20, 30, 40]})
+    income  = pd.DataFrame({"id": [1, 2, 3], "wage": [100, 200, 300]})
+    p = tmp_path / "persons.parquet"; persons.to_parquet(p)
+    i = tmp_path / "income.parquet"; income.to_parquet(i)
+    man = Manifest.from_dict({"datasets": {
+        "persons": {"source": str(p), "keys": ["id"], "variables": {"alder": {}}},
+        "income":  {"source": str(i), "keys": ["id"], "variables": {"wage": {}}},
+    }})
+    code = t.translate(
+        "use income\nmerge wage into persons\nuse persons",
+        backend="pandas", source_path=None, manifest=man)
+    assert "ops.read_source(" in code
+    ns = {"pd": pd}
+    exec(code, ns)
+    out = ns["df"].sort_values("id").reset_index(drop=True)
+    assert out["wage"].tolist() == [100, 200, 300]   # joined on id from the manifest
+
+
+def test_require_alias_resolves_from_manifest():
+    from m2py_runtime.manifest import Manifest
+    man = Manifest.from_dict({"datasets": {
+        "no.ssb/persons": {"source": "p.parquet", "keys": ["id"]},
+        "no.ssb/income":  {"source": "i.parquet", "keys": ["id"]},
+    }})
+    code = t.translate(
+        "require no.ssb/persons as persons\n"
+        "require no.ssb/income as income\n"
+        "use income\nmerge wage into persons",
+        backend="pandas", source_path=None, manifest=man)
+    assert "left_on='id', right_on='id'" in code and "# TODO" not in code
+
+
+def test_composite_key_from_manifest(tmp_path):
+    import pandas as pd
+    from m2py_runtime.manifest import Manifest
+    a = pd.DataFrame({"id": [1, 1, 2], "yr": [2020, 2021, 2020], "v": [10, 11, 20]})
+    b = pd.DataFrame({"id": [1, 1, 2], "yr": [2020, 2021, 2020], "w": [1, 2, 3]})
+    pa = tmp_path / "a.parquet"; a.to_parquet(pa)
+    pb = tmp_path / "b.parquet"; b.to_parquet(pb)
+    man = Manifest.from_dict({"datasets": {
+        "a": {"source": str(pa), "keys": ["id", "yr"], "variables": {"v": {}}},
+        "b": {"source": str(pb), "keys": ["id", "yr"], "variables": {"w": {}}},
+    }})
+    code = t.translate("use a\nmerge v into b\nuse b",
+                       backend="pandas", source_path=None, manifest=man)
+    assert "['id', 'yr']" in code
+    ns = {"pd": pd}; exec(code, ns)
+    out = ns["df"].sort_values(["id", "yr"]).reset_index(drop=True)
+    assert out["v"].tolist() == [10, 11, 20]
+
+
+def test_composite_key_old_syntax_from_manifest(tmp_path):
+    import pandas as pd
+    from m2py_runtime.manifest import Manifest
+    a = pd.DataFrame({"id": [1, 1, 2], "yr": [2020, 2021, 2020], "v": [10, 11, 20]})
+    b = pd.DataFrame({"id": [1, 1, 2], "yr": [2020, 2021, 2020], "w": [1, 2, 3]})
+    pa = tmp_path / "a.parquet"; a.to_parquet(pa)
+    pb = tmp_path / "b.parquet"; b.to_parquet(pb)
+    man = Manifest.from_dict({"datasets": {
+        "a": {"source": str(pa), "keys": ["id", "yr"], "variables": {"v": {}}},
+        "b": {"source": str(pb), "keys": ["id", "yr"], "variables": {"w": {}}},
+    }})
+    # old-syntax: `merge b` merges b into the active frame `a` (no `into`)
+    code = t.translate("use a\nmerge b", backend="pandas", source_path=None, manifest=man)
+    assert "['id', 'yr']" in code
+    ns = {"pd": pd}; exec(code, ns)
+    out = ns["df"].sort_values(["id", "yr"]).reset_index(drop=True)
+    assert len(out) == 3                       # no row multiplication
+    assert out["w"].tolist() == [1, 2, 3]

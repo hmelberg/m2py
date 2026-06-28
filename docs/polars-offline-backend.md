@@ -246,6 +246,21 @@ python -m pytest tests/test_polars_backend.py -q
 (The repo's full suite has 4 pre-existing failures unrelated to this work:
 missing `plotly`, and a pandas-3.0 parquet dtype nuance in the duckdb bridge.)
 
+## Manifest-driven external sources
+
+`translate(script, manifest=Manifest.from_dict({...}))` reads external CSV/parquet
+sources described by a manifest. Each dataset declares its `source`, optional
+`format` (else inferred from the extension), `keys` (optional; keyless sources do
+single-table analysis and only need a key to *combine*), and optional `variables`
+metadata (inferred via `m2py_runtime.profile.infer_schema` when absent). The
+emitted program loads each dataset with `ops.read_source(location, format)` and
+bakes the manifest's join key into merges (`KeyTracker` consumes the manifest;
+the shared resolver is unchanged). Composite keys (`keys: ["id", "yr"]`) bake a
+list `on`. `require <src> as <alias>` binds an alias to a manifest entry.
+
+DuckDB-backed reading (URL/SQL sources, larger-than-memory) and the
+disclosure/IAM layers are follow-ons; this is the public/non-sensitive floor.
+
 ## Extending
 
 1. New verb: add a pure op to `pandas_ops` (and `polars_ops`), add an emit case

@@ -327,7 +327,8 @@ class MicroParser:
                     in_str = ch
                 elif in_str == ch:
                     in_str = None
-            elif ch == '/' and i + 1 < len(line) and line[i + 1] == '/' and in_str is None:
+            elif ch == '/' and i + 1 < len(line) and line[i + 1] == '/' and in_str is None \
+                    and (i == 0 or line[i - 1] != ':'):
                 line = line[:i].rstrip()
                 break
         if not line:
