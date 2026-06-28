@@ -516,25 +516,28 @@ def translate(script, backend="pandas", source_path="df"):
         header = ["import polars as pl",
                   "from m2py_runtime import polars_ops as ops",
                   "datasets = globals().get('datasets')"]
-        if source_path is not None:
-            header.append(f'lf = pl.scan_parquet("{source_path}.parquet")')
-        else:
-            header.append("lf = data if isinstance(data, pl.LazyFrame) else pl.LazyFrame(data)")
+        implicit = (f'lf = pl.scan_parquet("{source_path}.parquet")' if source_path is not None
+                    else "lf = data if isinstance(data, pl.LazyFrame) else pl.LazyFrame(data)")
     else:
         header = ["import pandas as pd",
                   "from m2py_runtime import pandas_ops as ops",
                   "datasets = globals().get('datasets')"]
-        if source_path is not None:
-            header.append(f'df = pd.read_parquet("{source_path}.parquet")')
+        implicit = (f'df = pd.read_parquet("{source_path}.parquet")'
+                    if source_path is not None else None)
 
     default_frame = "lf" if backend == "polars" else "df"
     body = []
     idx = 0
     active = None          # None = the implicit single working frame (df/lf)
     known = set()          # dataset names that already have an emitted variable
+    used_implicit = False  # did any command actually read the implicit frame?
 
     def cur():
-        return _dsvar(backend, active) if active else default_frame
+        nonlocal used_implicit
+        if active:
+            return _dsvar(backend, active)
+        used_implicit = True
+        return default_frame
 
     for line in script.splitlines():
         if not line.strip():
@@ -604,6 +607,10 @@ def translate(script, backend="pandas", source_path="df"):
         if source_path is not None:
             footer.append('df.to_parquet("result.parquet")')
 
+    # only set up the implicit df/lf if the script actually reads it (a pure
+    # multi-dataset script never does, so we don't require a default source)
+    if used_implicit and implicit:
+        header.append(implicit)
     return "\n".join(header + [""] + body + [""] + footer) + "\n"
 
 
