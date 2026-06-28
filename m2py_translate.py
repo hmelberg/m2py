@@ -31,7 +31,7 @@ ANALYSIS = {"summarize", "tabulate", "correlate", "regress"}
 # PLOT verbs build a plotly Figure (terminal, like analysis). Offline they are
 # written to an HTML file; in-memory (tests) the figure object is left in scope.
 PLOT = {"histogram", "barchart", "scatter", "boxplot",
-        "piechart", "hexbin", "sankey"}
+        "piechart", "hexbin", "sankey", "coefplot"}
 
 SUPPORTED = TRANSFORM | ANALYSIS | PLOT
 
@@ -59,6 +59,7 @@ HANDLED_OPTIONS = {
     "piechart": set(),                  # (percent) via parenthesised stat
     "hexbin": {"bin", "nbins"},
     "sankey": set(),
+    "coefplot": {"standardize", "noconstant"},
 }
 
 
@@ -234,6 +235,13 @@ def _emit_plot(instr, backend, idx, write):
         if len(vars_) < 2:
             return None
         call = f"ops.sankey({var}, vars={vars_!r})"
+    elif cmd == "coefplot":
+        reg_cmd = args.get("reg_cmd", "regress") if isinstance(args, dict) else "regress"
+        if reg_cmd not in ("regress", "logit", "probit", "poisson") or len(vars_) < 2:
+            return None                      # e.g. `coefplot y x1` -> reg_cmd='y'
+        call = (f"ops.coefplot({var}, reg_cmd={reg_cmd!r}, dep={vars_[0]!r}, "
+                f"indep={vars_[1:]!r}, standardize={bool(opts.get('standardize'))!r}, "
+                f"noconstant={bool(opts.get('noconstant'))!r})")
     else:
         return None
     line = f"{fig} = {call}"
@@ -350,5 +358,17 @@ def unsupported(script):
         try:
             _check_polars_expr(instr)
         except UnsupportedExpr:
+            out.append(line.strip())
+            continue
+        # also flag verbs that parse/options-check but can't actually emit
+        # (e.g. coefplot without a reg-command, scatter with one variable)
+        cmd = instr["command"]
+        if cmd in ANALYSIS:
+            emitted = _emit_analysis(instr, "polars", 1)
+        elif cmd in PLOT:
+            emitted = _emit_plot(instr, "polars", 1, False)
+        else:
+            emitted = _emit(instr, "polars")
+        if not emitted:
             out.append(line.strip())
     return out

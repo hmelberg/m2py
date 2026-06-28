@@ -195,3 +195,8 @@ def hexbin(lf, vars, bins=30):
 
 def sankey(lf, vars):
     return _plot(lf, "sankey", vars)
+
+
+def coefplot(lf, reg_cmd, dep, indep, standardize=False, noconstant=False):
+    return _plot(lf, "coefplot", reg_cmd, dep, indep,
+                 standardize=standardize, noconstant=noconstant)

@@ -315,6 +315,45 @@ def test_plot_trace_matches_emulator_and_backends_agree(script, cmd, args, opts)
     assert _fig_equal(fpd, fpl), f"{script}: pandas vs polars differ"
 
 
+@pytest.mark.parametrize("reg,dep", [
+    ("regress", "y"), ("logit", "binv"), ("probit", "binv"), ("poisson", "cnt"),
+])
+def test_coefplot_matches_emulator_fit(reg, dep):
+    pytest.importorskip("statsmodels.api")
+    import m2py as _m
+    rng = np.random.default_rng(0)
+    n = 200
+    x1, x2 = rng.normal(0, 1, n), rng.normal(0, 1, n)
+    df = pd.DataFrame({
+        "x1": x1, "x2": x2,
+        "y": 2 + 1.5 * x1 - 0.7 * x2 + rng.normal(0, 1, n),
+        "binv": (0.5 * x1 + rng.normal(0, 1, n) > 0).astype(int),
+        "cnt": rng.poisson(np.exp(0.3 + 0.2 * x1)),
+    })
+    it = _m.MicroInterpreter(metadata_path=None)
+    model, _, _, _ = it.reg_engine._fit_simple(reg, df, [dep, "x1", "x2"], {})
+    params = model.params.drop("const", errors="ignore")
+    ci = model.conf_int().drop("const", errors="ignore")
+    exp_x = params.values.tolist()
+    exp_eplus = [h - c for c, h in zip(exp_x, ci.iloc[:, 1].tolist())]
+
+    script = f"coefplot {reg} {dep} x1 x2"
+    f_pd = _run_fig(script, df, "pandas")
+    f_pl = _run_fig(script, df, "polars")
+    t = f_pd.data[0]
+    assert np.allclose(list(t.x), exp_x)
+    assert list(t.y) == list(params.index)
+    assert np.allclose(list(t.error_x.array), exp_eplus)
+    assert np.allclose(list(t.x), list(f_pl.data[0].x))      # backend parity
+
+
+def test_coefplot_requires_reg_command():
+    # `coefplot y x1 x2` parses reg_cmd='y' (no reg verb) -> flagged, not emitted
+    assert T.unsupported("coefplot y x1 x2") == ["coefplot y x1 x2"]
+    assert "UNTRANSLATED" in T.translate("coefplot y x1 x2", backend="polars",
+                                         source_path=None)
+
+
 def test_plot_is_terminal_and_writes_html_in_file_mode():
     # plots don't change the working frame; file mode emits a write_html call
     code = T.translate("histogram inntekt\nkeep if inntekt > 500",

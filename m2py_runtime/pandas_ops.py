@@ -421,6 +421,48 @@ def sankey(df, vars):
         link=dict(source=src, target=tgt, value=val))])
 
 
+def coefplot(df, reg_cmd, dep, indep, standardize=False, noconstant=False):
+    """Coefficient plot: fit ``reg_cmd`` (regress/logit/probit/poisson) of ``dep``
+    on ``indep`` and plot the non-intercept coefficients (x) against variable
+    names (y) with 95% CI error bars. Mirrors the emulator's `_fit_simple`."""
+    import statsmodels.api as sm
+    import plotly.graph_objects as go
+    d = df[[dep] + list(indep)].apply(pd.to_numeric, errors="coerce").dropna().astype(float)
+    X = d[list(indep)].copy()
+    if standardize:
+        for v in indep:
+            sd = X[v].std()
+            if sd > 0:
+                X[v] = (X[v] - X[v].mean()) / sd
+    if not noconstant:
+        X = sm.add_constant(X, has_constant="add")
+    Y = d[dep]
+    if reg_cmd == "regress":
+        model = sm.OLS(Y, X).fit()
+    elif reg_cmd == "logit":
+        model = sm.Logit(Y, X).fit(disp=0)
+    elif reg_cmd == "probit":
+        model = sm.Probit(Y, X).fit(disp=0)
+    elif reg_cmd == "poisson":
+        model = sm.GLM(Y, X, family=sm.families.Poisson()).fit()
+    else:
+        raise ValueError(f"coefplot does not support '{reg_cmd}'")
+    params = model.params.drop("const", errors="ignore")
+    ci = model.conf_int().drop("const", errors="ignore")
+    coefs = params.values.tolist()
+    lo, hi = ci.iloc[:, 0].tolist(), ci.iloc[:, 1].tolist()
+    err_minus = [c - l for c, l in zip(coefs, lo)]
+    err_plus = [h - c for c, h in zip(coefs, hi)]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=coefs, y=list(params.index), mode="markers",
+        marker=dict(size=9, color="#2563eb"),
+        error_x=dict(type="data", symmetric=False, array=err_plus,
+                     arrayminus=err_minus, thickness=1.5, width=6)))
+    fig.add_vline(x=0, line_dash="dot", line_color="#9ca3af", line_width=1)
+    return fig
+
+
 def regress(df, dep, indep):
     """OLS of ``dep`` on ``indep`` (+ intercept) via statsmodels. Returns a
     coefficient table ``[term, coef, se, t, p]``."""
