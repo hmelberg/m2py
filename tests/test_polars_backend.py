@@ -581,6 +581,32 @@ def test_regress_panel_diff_matches_emulator():
     assert np.allclose(res_pl.set_index("term")["coef"], mine["coef"])
 
 
+@pytest.mark.parametrize("script,new", [
+    ("regress-panel-predict y x1, predicted(yhat) residuals(res)", ["yhat", "res"]),
+    ("regress-panel-predict y x1, re predicted(yhat)", ["yhat"]),
+    ("regress-panel-predict y x1, pooled predicted(yhat) residuals(res)", ["yhat", "res"]),
+    ("regress-panel-predict y x1, predicted(yhat) effects(eff)", ["yhat", "eff"]),
+])
+def test_regress_panel_predict_matches_emulator(script, new):
+    pytest.importorskip("linearmodels")
+    rng = np.random.default_rng(0)
+    rows = []
+    for i in range(50):
+        fe = rng.normal(0, 1)
+        for t in range(5):
+            x1 = rng.normal(0, 1)
+            rows.append({"unit_id": i, "tid": t, "x1": x1,
+                         "y": 1 + 0.8 * x1 + fe + rng.normal(0, 0.5)})
+    df = pd.DataFrame(rows)
+    emu = _emu_after(script, df)
+    out_pd = T.run(script, {"df": df}, "pandas")
+    out_pl = T.run(script, {"df": df}, "polars").to_pandas()
+    assert [c for c in out_pd.columns if c not in df.columns] == new
+    for c in new:
+        assert np.allclose(out_pd[c].dropna(), emu[c].dropna(), atol=1e-6), c
+        assert np.allclose(out_pd[c].dropna(), out_pl[c].dropna(), atol=1e-6), c
+
+
 def test_ivregress_predict_matches_emulator():
     pytest.importorskip("statsmodels.api")
     from m2py_runtime import pandas_ops as po

@@ -230,6 +230,12 @@ def regress_panel_diff(lf, dep, group, treated, covars=()):
     return _analysis(lf, "regress_panel_diff", dep, group, treated, covars=covars)
 
 
+def regress_panel_predict(lf, dep, indep, effect="fe", key=None,
+                          predicted="predicted", residuals=None, effects=None):
+    return _predict_transform(lf, "regress_panel_predict", dep, indep, effect, key,
+                              predicted, residuals, effects)
+
+
 def ivregress(lf, dep, exog, endog, instruments):
     return _analysis(lf, "ivregress", dep, exog, endog, instruments)
 

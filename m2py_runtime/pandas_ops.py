@@ -802,6 +802,53 @@ def _iv_fit(df, dep, exog, endog, instruments):
     return robust, list(X2.columns), pred, resid, d.index
 
 
+def regress_panel_predict(df, dep, indep, effect="fe", key=None,
+                          predicted="predicted", residuals=None, effects=None):
+    """Panel regression with predictions added as columns. With linearmodels
+    (fe/re/be) uses ``model.fitted_values``/``resids``/``estimated_effects``;
+    pooled uses OLS ``predict``. Matches the emulator's regress-panel-predict."""
+    import statsmodels.api as sm
+    from m2py import _get_df_key_col
+    key = key or _get_df_key_col(df) or "unit_id"
+    if "tid" not in df.columns or key not in df.columns:
+        raise ValueError("regress-panel-predict requires a 'tid' column and an entity key")
+    d = df[[dep] + list(indep) + [key, "tid"]].copy()
+    for v in [dep] + list(indep):
+        d[v] = pd.to_numeric(d[v], errors="coerce")
+    d = d.dropna()
+    idx = d.index
+    pidx = d.set_index([key, "tid"])
+    Y = pidx[dep]
+    X = sm.add_constant(pidx[list(indep)], has_constant="add")
+    out = df.copy()
+
+    def put(name, values):
+        out[name] = pd.Series(np.asarray(values).ravel(), index=idx).reindex(df.index)
+
+    if effect == "pooled":
+        model = sm.OLS(Y, X).fit()
+        put(predicted or "predicted", model.predict(X))
+        if residuals:
+            put(residuals, (Y - model.predict(X)).to_numpy())
+        return out
+    from linearmodels.panel import PanelOLS, RandomEffects, BetweenOLS
+    if effect == "re":
+        model = RandomEffects(Y, X).fit()
+    elif effect == "be":
+        model = BetweenOLS(Y, X).fit()
+    else:
+        model = PanelOLS(Y, X, entity_effects=True, drop_absorbed=True).fit()
+    put(predicted or "predicted", model.fitted_values.to_numpy())
+    if residuals:
+        put(residuals, model.resids.to_numpy())
+    if effects:
+        try:
+            put(effects, model.estimated_effects.to_numpy())
+        except Exception:
+            pass
+    return out
+
+
 def ivregress(df, dep, exog, endog, instruments):
     """Instrumental-variables (2SLS) regression with the emulator's fixed-scale
     2SLS standard errors. Returns the second-stage coefficient table

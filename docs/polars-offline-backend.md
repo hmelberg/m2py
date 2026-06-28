@@ -70,7 +70,7 @@ crosses the network, not the data.
 | Regression (coef table) | `regress`, `logit`, `probit`, `poisson`, `negative-binomial` |
 | Panel / IV (coef table) | `regress-panel` (fe/re/be/pooled), `regress-panel-diff` (diff-in-diff), `ivregress` (2SLS) |
 | Other models | `mlogit` (multinomial), `rdd` (regression discontinuity, sharp/fuzzy) |
-| Predict (adds columns) | `regress-predict`, `logit-predict`, `probit-predict`, `negative-binomial-predict`, `mlogit-predict`, `ivregress-predict` |
+| Predict (adds columns) | `regress-predict`, `logit-predict`, `probit-predict`, `negative-binomial-predict`, `mlogit-predict`, `ivregress-predict`, `regress-panel-predict` |
 | Survival (lifelines) | `cox`, `kaplan-meier`, `weibull` |
 | Plots (side output) | `histogram`, `barchart`, `scatter`, `boxplot`, `piechart`, `hexbin`, `sankey`, `coefplot` |
 

@@ -31,7 +31,7 @@ PREDICT_BINARY = {"logit-predict", "probit-predict", "mlogit-predict"}
 # TRANSFORM verbs reassign the working frame (df / lf -> new frame).
 TRANSFORM = {
     "generate", "replace", "recode", "keep", "drop", "rename", "destring",
-    "collapse", "aggregate", "merge", "ivregress-predict",
+    "collapse", "aggregate", "merge", "ivregress-predict", "regress-panel-predict",
 } | set(PREDICT)
 # ANALYSIS verbs compute a side result and PRINT it; the working frame is
 # unchanged (matching the emulator, where summarize/tabulate/regress don't alter
@@ -81,6 +81,8 @@ HANDLED_OPTIONS = {
     "ivregress": {"tsls", "2sls"},
     "ivregress-predict": {"predicted", "residuals", "tsls", "2sls"},
     "regress-panel-diff": {"pooled"},
+    "regress-panel-predict": {"fe", "re", "random", "be", "pooled",
+                              "predicted", "residuals", "effects"},
     "mlogit": {"noconstant"},
     # rdd: local-polynomial OLS (sharp + fuzzy); cluster/robust/derivate deferred
     "rdd": {"cutoff", "polynomial", "fuzzy"},
@@ -169,6 +171,21 @@ def _emit(instr, backend):
     if cmd in ("collapse", "aggregate"):
         return (f"{var} = ops.{cmd}({var}, targets={args['targets']!r}, "
                 f"by={opts.get('by')!r})")
+    if cmd == "regress-panel-predict":
+        if not isinstance(args, (list, tuple)) or len(args) < 2:
+            return None
+        dep, indep = args[0], list(args[1:])
+        effect = next((e for e in ("re", "be", "pooled") if opts.get(e)), "fe")
+        if opts.get("random"):
+            effect = "re"
+        pred = opts.get("predicted")
+        pred = "predicted" if pred in (None, True) else pred
+        res = opts.get("residuals")
+        res = "residuals" if res is True else res
+        eff = opts.get("effects")
+        eff = "effects" if eff is True else eff
+        return (f"{var} = ops.regress_panel_predict({var}, dep={dep!r}, indep={indep!r}, "
+                f"effect={effect!r}, predicted={pred!r}, residuals={res!r}, effects={eff!r})")
     if cmd == "ivregress-predict":
         if not isinstance(args, dict) or not args.get("dep") or not args.get("endog"):
             return None
