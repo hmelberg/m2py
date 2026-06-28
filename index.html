@@ -7453,6 +7453,7 @@ has and "int" in (m.get_microdata_functions() or {})
     // data source is wired in, inputs fall back to the emulator (allow_emulated)
     // so the pipeline runs end-to-end; scripts that reference imported variable
     // values will report a missing column until real data is provided.
+    var safeStatFormat = 'formatted'; // 'formatted' | 'raw'
     var safeStatTarget = 'local';   // 'local' | 'remote' (remote = compute-to-data, placeholder)
 
     async function runSafeStatScript(script, ctx) {
@@ -7509,6 +7510,7 @@ has and "int" in (m.get_microdata_functions() or {})
           }
         }
         py.globals.set('_ss_src', _localScript);
+        py.globals.set('_ss_raw', safeStatFormat === 'raw');
         var raw = await py.runPythonAsync(`
 import json as _json, io as _io, contextlib as _ctxlib
 from m2py import MicroInterpreter as _MI, MicroParser as _MP
@@ -7538,7 +7540,7 @@ for _k, _v in (getattr(_e, "datasets", {}) or {}).items():
     except Exception: _datasets[_k] = _v
 
 # Translate the FULL script and run it on that data.
-_code = _mt.translate(_ss_src, backend="pandas", source_path=None, allow_emulated=True)
+_code = _mt.translate(_ss_src, backend="pandas", source_path=None, allow_emulated=True, print_results=_ss_raw)
 _ns = {"datasets": _datasets}
 _buf = _io.StringIO()
 _err = None
@@ -7556,6 +7558,19 @@ for _k in sorted(_ns):
             _figs.append(_f.to_json())
         except Exception:
             pass
+_results = []
+for _k in sorted(_ns):
+    if _k.startswith("result_"):
+        _r = _ns[_k]
+        try:
+            if hasattr(_r, "to_html"):
+                _results.append(_r.to_html(border=0, classes="output-table"))
+            elif hasattr(_r, "summary"):
+                _results.append("<pre>" + str(_r.summary()) + "</pre>")
+            else:
+                _results.append("<pre>" + str(_r) + "</pre>")
+        except Exception:
+            _results.append("<pre>" + str(_r)[:5000] + "</pre>")
 _html = ""
 if _df is not None:
     try: _html = _df.head(50).to_html(border=0)
@@ -7563,18 +7578,29 @@ if _df is not None:
 _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
              "n": (None if _df is None else int(len(_df))),
              "err": _err, "emu_err": _emu_err, "datasets": sorted(_datasets.keys()),
-             "figs": _figs})
+             "figs": _figs, "results": _results})
 `);
         var res = JSON.parse(raw);
         var head = '<div style="padding:6px 8px;font-size:12px;opacity:.7">SafeStat &middot; lokal kjøring'
           + (res.datasets && res.datasets.length ? ' &middot; data: ' + res.datasets.join(', ') : '')
           + (res.n === null ? '' : ' &middot; ' + res.n + ' rader')
           + ' &middot; <a href="#" id="safestatTargetToggle" style="opacity:.8">mål: ' + safeStatTarget + '</a></div>';
+        var _hasAnalysis = (res.results && res.results.length) || (res.figs && res.figs.length);
         var bodyHtml = '';
         if (res.emu_err) bodyHtml += '<pre class="transl-warn" style="opacity:.75">Data-bygging (emulator): ' + escapeHtmlOutput(res.emu_err) + '</pre>';
         if (res.err) bodyHtml += '<pre class="error">' + escapeHtmlOutput(res.err) + '</pre>';
-        if (res.out && res.out.trim()) bodyHtml += '<pre>' + escapeHtmlOutput(res.out) + '</pre>';
-        if (res.html) bodyHtml += res.html;
+        if (safeStatFormat === 'raw') {
+          if (res.out && res.out.trim()) bodyHtml += '<pre>' + escapeHtmlOutput(res.out) + '</pre>';
+        } else {
+          (res.results || []).forEach(function(h){ bodyHtml += '<div class="safestat-result">' + h + '</div>'; });
+          if (res.out && res.out.trim()) bodyHtml += '<pre style="opacity:.7">' + escapeHtmlOutput(res.out) + '</pre>';
+        }
+        // working dataframe: inline when it IS the result (no analysis), else collapsible
+        if (res.html) {
+          bodyHtml += _hasAnalysis
+            ? '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">Datasett (df, ' + (res.n||0) + ' rader)</summary>' + res.html + '</details>'
+            : res.html;
+        }
         var _figIds = [];
         (res.figs || []).forEach(function(_fj, _i){
           var _id = 'ssfig_' + _i;
