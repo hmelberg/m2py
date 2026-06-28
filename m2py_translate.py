@@ -502,6 +502,69 @@ def _emit_plot(instr, backend, idx, write, frame=None):
     return line
 
 
+def _expand_loops(script):
+    """Unroll ``for ... end`` loops and apply ``let`` bindings at translate time,
+    producing a flat script. microdata loops are statically unrollable (no nested
+    for-blocks; semicolon `;` separates nested levels, space zips). Binding
+    substitution (`$name`/`${expr}`/`++`) reuses the emulator's own
+    ``_substitute_bindings`` for exact fidelity."""
+    it = m2py.MicroInterpreter(metadata_path=None)   # used only for substitution
+    parser = it.parser
+    lines = script.splitlines()
+    out = []
+
+    def process(seq):
+        i = 0
+        while i < len(seq):
+            sub = it._substitute_bindings(seq[i])
+            instr = parser.parse_line(sub)
+            if not instr:
+                out.append(sub)
+                i += 1
+                continue
+            cmd = instr["command"]
+            if cmd == "let" and isinstance(instr["args"], dict):
+                name, expr = instr["args"].get("name"), instr["args"].get("expression")
+                try:
+                    val = eval(expr, {"__builtins__": {}}, it._binding_eval_env())
+                except Exception:
+                    val = expr
+                if name:
+                    it.bindings[name] = val
+                i += 1
+                continue
+            if cmd == "for" and isinstance(instr["args"], dict) and "levels" in instr["args"]:
+                body, j = [], i + 1
+                while j < len(lines):
+                    bj = parser.parse_line(lines[j].strip())
+                    if bj and bj["command"] == "end":
+                        break
+                    body.append(lines[j])
+                    j += 1
+                levels = instr["args"]["levels"]
+
+                def step(idx):
+                    if idx >= len(levels):
+                        process(body)
+                        return
+                    lvl = levels[idx]
+                    vals = lvl["values"]
+                    n = len(vals[0]) if vals else 0
+                    for k in range(n):
+                        for vn, vl in zip(lvl["vars"], vals):
+                            it.bindings[vn] = vl[k]
+                        step(idx + 1)
+
+                step(0)
+                i = j + 1                       # skip the matching 'end'
+                continue
+            out.append(sub)
+            i += 1
+
+    process(lines)
+    return "\n".join(out)
+
+
 def translate(script, backend="pandas", source_path="df"):
     """Return a runnable Python program (string) for ``script``.
 
@@ -511,6 +574,7 @@ def translate(script, backend="pandas", source_path="df"):
     (a dict) may also be provided for merge inputs.
     """
     parser = m2py.MicroParser()
+    script = _expand_loops(script)               # unroll for-loops, apply let bindings
 
     if backend == "polars":
         header = ["import polars as pl",
@@ -643,7 +707,7 @@ def unsupported(script):
     the polars backend (verb unknown or expression uncompilable)."""
     out = []
     parser = m2py.MicroParser()
-    for line in script.splitlines():
+    for line in _expand_loops(script).splitlines():
         if not line.strip():
             continue
         instr = parser.parse_line(line)

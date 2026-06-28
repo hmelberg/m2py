@@ -105,6 +105,12 @@ Note: the emulator's **disclosure control** (winsorising before mean/std,
 3-sig-fig percentile rounding) is *not* reproduced — the offline backend reports
 raw statistics, matching the emulator with disclosure control off.
 
+**Control flow.** `for … end` loops and `let` bindings are resolved at translate
+time: loops are **unrolled** (microdata loops are statically unrollable — no
+nested for-blocks; `;` separates nested levels, space zips) and `$name`/`${expr}`/
+`++` substitution reuses the emulator's own `_substitute_bindings`, so the
+flattened script translates exactly as the emulator would run it.
+
 **Multiple datasets.** Scripts that switch the active dataset (`create-dataset
 A` … `use B` …) translate faithfully: the active dataset is resolved *statically*
 at translate time (it's fixed by the script text), so each command is emitted on

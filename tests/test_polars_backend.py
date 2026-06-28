@@ -917,6 +917,34 @@ def test_create_dataset_clone_and_merge_known_datasets():
     assert out["vv"].tolist() == [20.0, 40.0, 60.0]
 
 
+def test_for_loop_and_let_match_emulator():
+    df = pd.DataFrame({"a": [1.0, 2, 3, 4], "g": [1, 1, 2, 2]})
+    script = ("let k = 100\n"
+              "for y in 1 2 3\n"
+              "generate x$y = a + $y\n"
+              "end\n"
+              "generate big = a * $k\n"
+              "keep if a > 1")
+
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+    it = m2py.MicroInterpreter(metadata_path=None)
+    it.datasets["df"] = df.copy()
+    it.active_name = "df"
+    it.run_script(script)
+    emu = it.datasets["df"]
+
+    # the loop unrolls to x1/x2/x3 and let resolves $k -> 100, before translating
+    flat = T._expand_loops(script)
+    assert "generate x1 = a + 1" in flat and "generate x3 = a + 3" in flat
+    assert "big = a * 100" in flat and "for " not in flat and "let " not in flat
+
+    out_pd = T.run(script, {"df": df}, "pandas")
+    out_pl = T.run(script, {"df": df}, "polars").to_pandas()
+    assert _reshape_norm(emu).equals(_reshape_norm(out_pd))
+    assert _reshape_norm(out_pd).equals(_reshape_norm(out_pl))
+    assert set(["x1", "x2", "x3", "big"]).issubset(out_pd.columns)
+
+
 def test_session_verbs_not_flagged():
     for v in ("create-dataset A", "use A", "clone-dataset A B",
               "rename-dataset A B", "delete-dataset A"):
