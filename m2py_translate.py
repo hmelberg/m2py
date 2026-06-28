@@ -20,6 +20,7 @@ import re
 
 import m2py
 from m2py_runtime.exprcompile import compile_expr, UnsupportedExpr
+from m2py_runtime.keys import resolve_merge_key, key_col_from_cols
 
 # prediction verbs (transform: fit a model and add predicted/residual columns).
 # poisson-predict is NOT a real microdata command (the emulator rejects it).
@@ -140,6 +141,121 @@ def _unhandled_options(instr):
     return sorted(set(opts) - HANDLED_OPTIONS.get(cmd, set()))
 
 
+class KeyTracker:
+    """Track, per dataset, the columns and collapse key needed to resolve a
+    ``merge``'s join key at translation time.
+
+    Mirrors the emulator's merge-relevant state so the translator can bake an
+    explicit ``on=`` that matches what the emulator would join on:
+      - ``cols[name]``         — known columns (seeded with the person key, then
+                                 grown by import/generate, reset by collapse).
+      - ``collapse_key[name]`` — the key set by a prior ``collapse``/``aggregate``
+                                 (the emulator's ``dataset_key_cols``).
+      - ``alias_path``         — alias -> registry path, built from the script's
+                                 own ``import`` lines, so person-ref FNR linkage
+                                 (mother/father/owner -> PERSONID_1) is detected
+                                 without an external catalog (same rule as the
+                                 emulator's ``_is_person_ref``).
+
+    The person-key seed matches microdata's person-centric default: same-entity
+    merges resolve on ``PERSONID_1`` exactly as the emulator does. ``collapse``
+    drops that seed (the collapsed frame is keyed by its ``by`` variable).
+    """
+
+    DEFAULT_KEY = "PERSONID_1"
+
+    def __init__(self):
+        self.cols = {}            # name (None = implicit frame) -> set[str]
+        self.collapse_key = {}    # name -> str
+        self.alias_path = {}      # alias -> registry path
+
+    def ensure(self, name):
+        if name not in self.cols:
+            self.cols[name] = {self.DEFAULT_KEY}
+        return self.cols[name]
+
+    def create(self, name):
+        self.cols[name] = {self.DEFAULT_KEY}
+        self.collapse_key.pop(name, None)
+
+    def add_cols(self, name, cols):
+        self.ensure(name).update(c for c in cols if c)
+
+    def drop_cols(self, name, cols):
+        s = self.ensure(name)
+        for c in cols:
+            s.discard(c)
+
+    def on_import(self, name, alias, path):
+        s = self.ensure(name)
+        if alias:
+            s.add(alias)
+            if path:
+                self.alias_path[alias] = path
+
+    def on_collapse(self, name, by_var, targets):
+        self.ensure(name)
+        if by_var:
+            self.collapse_key[name] = by_var
+            self.cols[name] = {by_var} | {t for t in targets if t}
+
+    def clone(self, src, dst):
+        self.cols[dst] = set(self.cols.get(src, {self.DEFAULT_KEY}))
+        if src in self.collapse_key:
+            self.collapse_key[dst] = self.collapse_key[src]
+
+    def is_person_ref(self, alias):
+        path = self.alias_path.get(alias, "")
+        return path in m2py._PERSONID_REF_VARS or path.endswith("_FNR")
+
+    def resolve(self, active, into, on_var):
+        self.ensure(active)
+        self.ensure(into)
+        return resolve_merge_key(
+            source_cols=self.cols[active],
+            target_cols=self.cols[into],
+            on_var=on_var,
+            src_collapse_key=self.collapse_key.get(active),
+            tgt_collapse_key=self.collapse_key.get(into),
+            is_person_ref=self.is_person_ref,
+        )
+
+
+def _track(tracker, active, instr):
+    """Update ``tracker`` for a verb's effect on the active dataset's columns /
+    key, so a later ``merge`` resolves against the right column set."""
+    cmd, args = instr["command"], instr["args"]
+    opts = instr.get("options") or {}
+    if cmd == "import" and isinstance(args, dict):
+        tracker.on_import(active, args.get("alias"), args.get("var"))
+    elif cmd in ("generate", "replace") and isinstance(args, dict):
+        tracker.add_cols(active, [args.get("target")])
+    elif cmd == "clone-variables" and isinstance(args, dict):
+        prefix, suffix = opts.get("prefix", ""), opts.get("suffix", "")
+        new = []
+        for pair in (args.get("pairs") or []):
+            old, nw = (pair[0], pair[1]) if len(pair) >= 2 else (pair[0], pair[0])
+            new.append(f"{prefix}{old}{suffix}" if (prefix or suffix) else nw)
+        tracker.add_cols(active, new)
+    elif cmd in ("collapse", "aggregate") and isinstance(args, dict):
+        targets = [t.get("target") or t.get("src") for t in args.get("targets", [])]
+        if cmd == "collapse":
+            tracker.on_collapse(active, opts.get("by"), targets)
+        else:
+            tracker.add_cols(active, targets)
+    elif cmd == "rename" and isinstance(args, dict):
+        tracker.drop_cols(active, [args.get("old")])
+        tracker.add_cols(active, [args.get("new")])
+    elif cmd == "drop" and isinstance(args, dict):
+        tracker.drop_cols(active, args.get("vars") or [])
+    elif cmd == "keep" and isinstance(args, dict) and args.get("vars"):
+        cols = tracker.ensure(active)
+        ek = key_col_from_cols(cols)
+        tracker.cols[active] = (set(args["vars"]) | ({ek} if ek else set()))
+    # merge into-form col tracking happens in _emit_merge AFTER key resolution,
+    # so the merged vars don't create a spurious common join column.
+
+
 def _merge_parts(args, opts):
     """Resolve a merge instruction to (name, key, how, select).
 
@@ -226,7 +342,7 @@ def _load_dataset(backend, name, source_path):
     return f"{var} = {src}"
 
 
-def _emit(instr, backend, frame=None, known=()):
+def _emit(instr, backend, frame=None, known=(), tracker=None, active=None):
     cmd, args, opts, cond = (
         instr["command"], instr["args"], instr["options"], instr["condition"])
     var = frame or ("lf" if backend == "polars" else "df")
@@ -308,24 +424,85 @@ def _emit(instr, backend, frame=None, known=()):
                 f"predicted={pred!r}, residuals={res!r}, "
                 f"noconstant={bool(opts.get('noconstant'))!r})")
     if cmd == "merge":
-        name, key, how, sel = _merge_parts(args, opts)
-        if not name or not key:
-            return None
-        lines = []
-        if name in known:                           # already a dataset variable
-            other = _dsvar(backend, name)
-        else:
-            other = f"_{name}"
-            rhs = (f'pl.scan_parquet("{name}.parquet")' if backend == "polars"
-                   else f'pd.read_parquet("{name}.parquet")')
-            lines.append(f"{other} = datasets[{name!r}] if datasets else {rhs}")
-        if sel:                                     # into-form: bring only these cols (+ key)
-            cols = [key] + [v for v in sel if v != key]
-            lines.append(f"{other} = {other}.select({cols!r})" if backend == "polars"
-                         else f"{other} = {other}[{cols!r}]")
-        lines.append(f"{var} = ops.merge({var}, {other}, on={key!r}, how={how!r})")
-        return "\n".join(lines)
+        return _emit_merge(args, opts, backend, var, known, tracker, active)
     return None
+
+
+def _load_other(name, backend, known):
+    """Emit (lines, varname) making dataset ``name`` available as a frame: an
+    existing dataset variable if known, else loaded from ``datasets``/parquet."""
+    if name in known:
+        return [], _dsvar(backend, name)
+    other = _dsvar(backend, name)
+    rhs = (f'pl.scan_parquet("{name}.parquet")' if backend == "polars"
+           else f'pd.read_parquet("{name}.parquet")')
+    return [f"{other} = datasets[{name!r}] if datasets else {rhs}"], other
+
+
+def _emit_merge(args, opts, backend, var, known, tracker, active):
+    """Emit a merge, baking the resolved join key.
+
+    Two forms, mirroring the emulator:
+      * into-form ``merge vars into TARGET [on K]`` — bring ``vars`` from the
+        active (source) frame into TARGET; TARGET is updated (left=target,
+        right=source dedup on key, always a left-join). The active frame is
+        unchanged.
+      * old-syntax ``merge X [on K]`` — the active frame gains X's columns
+        (symmetric join on the entity/common key).
+    Unresolved keys are baked as a best guess with a ``# TODO`` flag.
+    """
+    tracker = tracker or KeyTracker()
+    into_form = isinstance(args, dict) and "into" in args
+
+    if into_form:
+        into = args["into"]
+        vars_ = args.get("vars") or []
+        on_var = args.get("on")
+        res = tracker.resolve(active, into, on_var)
+        tracker.add_cols(into, vars_)               # target gains them post-merge
+        load, src = ([], var)                       # right side = active (source)
+        tload, tgt = _load_other(into, backend, known)
+        known.add(into)                             # the merged target now exists
+        todo = ("# TODO: verify join key (could not resolve from catalog)\n"
+                if res.status != "ok" else "")
+        call = (f"{tgt} = ops.merge_into({tgt}, {src}, vars={vars_!r}, "
+                f"left_on={res.left_on!r}, right_on={res.right_on!r})")
+        return "\n".join(tload + load + [todo + call]) or None
+
+    # old-syntax: args is a list (name [on key]); active gains other's cols.
+    if not args:
+        return None
+    name = args[0]
+    how = "outer" if opts.get("outer_join") else "left"
+    on_var = opts.get("on")
+    if isinstance(args, list) and "on" in args:
+        i = args.index("on")
+        on_var = args[i + 1] if i + 1 < len(args) else on_var
+    key, status = _old_syntax_key(tracker, active, name, on_var)
+    if not key:
+        return None
+    load, other = _load_other(name, backend, known)
+    todo = ("# TODO: verify join key (could not resolve from catalog)\n"
+            if status != "ok" else "")
+    call = f"{var} = ops.merge({var}, {other}, on={key!r}, how={how!r})"
+    return "\n".join(load + [todo + call])
+
+
+def _old_syntax_key(tracker, active, other, on_var):
+    """Resolve the (symmetric) key for old-syntax ``merge X``: explicit on, else
+    the entity key present in both, else a shared column. Returns (key, status)."""
+    if on_var:
+        return on_var, "ok"
+    acols = tracker.ensure(active)
+    ocols = tracker.ensure(other)
+    ek = key_col_from_cols(acols)
+    if ek and ek in ocols:
+        return ek, "ok"
+    common = list(acols & ocols)
+    if common:
+        return common[0], "ok"
+    # nothing tracked in common: fall back to the person key, flag for review
+    return KeyTracker.DEFAULT_KEY, "error"
 
 
 def _frame_expr(base, cond):
@@ -609,6 +786,7 @@ def translate(script, backend="pandas", source_path="df"):
     active = None          # None = the implicit single working frame (df/lf)
     known = set()          # dataset names that already have an emitted variable
     used_implicit = False  # did any command actually read the implicit frame?
+    tracker = KeyTracker()  # per-dataset cols + key, for baking merge join keys
 
     def cur():
         nonlocal used_implicit
@@ -630,31 +808,47 @@ def translate(script, backend="pandas", source_path="df"):
             body.append(f"# {cmd} (display-only; data keeps codes): {line.strip()}")
             continue
 
+        # ---- import: data is assumed already present on the target; at
+        # translation time we only record the columns it brings (for key
+        # resolution) and note it as a comment. ----
+        if cmd == "import":
+            _track(tracker, active, instr)
+            body.append(f"# import (data assumed present): {line.strip()}")
+            continue
+
         # ---- dataset/session management (switch active / create variables) ----
         if cmd in SESSION:
             if cmd == "create-dataset" and a:
                 known.add(a[0]); active = a[0]
+                tracker.create(a[0])
                 body.append(_load_dataset(backend, a[0], source_path))
             elif cmd == "use" and a:
                 if a[0] not in known:
                     known.add(a[0])
                     body.append(_load_dataset(backend, a[0], source_path))
                 active = a[0]
+                tracker.ensure(a[0])
             elif cmd == "clone-dataset" and len(a) >= 2:
                 sv, dv = _dsvar(backend, a[0]), _dsvar(backend, a[1])
                 body.append(f"{dv} = {sv}" if backend == "polars" else f"{dv} = {sv}.copy()")
                 known.add(a[1])
+                tracker.clone(a[0], a[1])
             elif cmd == "clone-units" and len(a) >= 2:
                 body.append(f"{_dsvar(backend, a[1])} = ops.clone_units({_dsvar(backend, a[0])})")
                 known.add(a[1])
+                tracker.create(a[1])
             elif cmd == "rename-dataset" and len(a) >= 2:
                 body.append(f"{_dsvar(backend, a[1])} = {_dsvar(backend, a[0])}")
                 known.discard(a[0]); known.add(a[1])
+                tracker.cols[a[1]] = tracker.cols.pop(a[0], {KeyTracker.DEFAULT_KEY})
+                if a[0] in tracker.collapse_key:
+                    tracker.collapse_key[a[1]] = tracker.collapse_key.pop(a[0])
                 if active == a[0]:
                     active = a[1]
             elif cmd == "delete-dataset" and a:
                 body.append(f"del {_dsvar(backend, a[0])}")
                 known.discard(a[0])
+                tracker.cols.pop(a[0], None); tracker.collapse_key.pop(a[0], None)
                 if active == a[0]:
                     active = None
             else:
@@ -679,7 +873,8 @@ def translate(script, backend="pandas", source_path="df"):
             idx += 1
             emitted = _emit_plot(instr, backend, idx, write=source_path is not None, frame=frame)
         else:
-            emitted = _emit(instr, backend, frame, known)
+            _track(tracker, active, instr)
+            emitted = _emit(instr, backend, frame, known, tracker, active)
         body.append(emitted if emitted else f"# UNTRANSLATED: {line.strip()}")
 
     # footer: materialise the final active frame into `df` (+ write in file mode)

@@ -153,6 +153,27 @@ def merge(df, other, on, how="left"):
     return pd.merge(df, other, on=on, how=how)
 
 
+def merge_into(target, source, vars, left_on, right_on):
+    """Into-form merge ``merge vars into TARGET``: bring ``vars`` from ``source``
+    onto ``target`` (left=target, right=source deduped on its key), always a
+    left-join. Mirrors the emulator's column handling exactly, including the
+    asymmetric-key suffix/drop behaviour.
+    """
+    cols_from_source = [c for c in (vars or []) if c in source.columns]
+    right_cols = list(dict.fromkeys([right_on] + cols_from_source))
+    right = source[right_cols].drop_duplicates(subset=[right_on])
+    if left_on == right_on:
+        return pd.merge(target, right, on=left_on, how="left")
+    target_has_right_on = right_on in target.columns
+    merged = pd.merge(target, right, left_on=left_on, right_on=right_on,
+                      how="left", suffixes=("", "_src_dup"))
+    merged = merged.drop(columns=[c for c in merged.columns
+                                  if c.endswith("_src_dup")])
+    if not target_has_right_on and right_on != left_on and right_on in merged.columns:
+        merged = merged.drop(columns=[right_on])
+    return merged
+
+
 def reshape_to_panel(df, prefixes):
     """Wide -> long panel. For each prefix, collect columns ``<prefix><suffix>``
     where the suffix is non-alphabetic (years/dates) and stack them into one

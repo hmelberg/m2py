@@ -125,6 +125,17 @@ def merge(lf, other, on, how="left"):
     return lf.join(other, on=on, how=how)
 
 
+def merge_into(target, source, vars, left_on, right_on):
+    """Into-form merge: bring ``vars`` from ``source`` onto ``target``. The
+    emulator's column-drop/dedup semantics are fiddly and not streamable, so we
+    materialise, reuse the tested pandas op, and re-lazy."""
+    pl = _pl()
+    from . import pandas_ops as pdo
+    t = target.collect().to_pandas() if hasattr(target, "collect") else target
+    s = source.collect().to_pandas() if hasattr(source, "collect") else source
+    return pl.from_pandas(pdo.merge_into(t, s, vars, left_on, right_on)).lazy()
+
+
 # reshape needs the whole frame (not streamable) -> materialise, reshape via the
 # tested pandas op, and re-lazy; the pipeline continues lazily afterwards.
 def _reshape(lf, fn, *a):
