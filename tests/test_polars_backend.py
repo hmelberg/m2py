@@ -181,7 +181,9 @@ def _run_analysis(script, df, backend):
 @pytest.mark.parametrize("script", [
     "summarize y x",
     "summarize y x, by(g)",
+    "summarize y x, gini iqr",
     "tabulate g",
+    "tabulate g y",          # two-way cross-tab
     "correlate y x",
 ])
 def test_analysis_pandas_polars_agree(script):
@@ -216,6 +218,30 @@ def test_unsupported_expression_is_marked_not_silently_wrong():
     code = T.translate(script, backend="polars", source_path=None)
     assert "UNTRANSLATED" in code
     assert T.unsupported(script) == ["generate w = wordcount(a)"]
+
+
+def test_summarize_gini_matches_emulator_definition():
+    df = pd.DataFrame({"inntekt": [10.0, 20, 30, 40, 100]})
+    res, _ = _run_analysis("summarize inntekt, gini iqr", df, "pandas")
+    assert np.isclose(res["gini"].iloc[0], m2py.AGG_STAT_ALIAS["gini"](df["inntekt"]))
+    assert np.isclose(res["iqr"].iloc[0], m2py.AGG_STAT_ALIAS["iqr"](df["inntekt"]))
+
+
+@pytest.mark.parametrize("script", [
+    "tabulate g, nolabels",        # formatting option not implemented
+    "tabulate g, cellpct",         # percentage option not implemented
+    "destring x, dpcomma",         # decimal-comma changes values
+    "correlate a b, covariance",   # covariance variant not implemented
+])
+def test_unhandled_options_flagged_not_silently_dropped(script):
+    code = T.translate(script, backend="polars", source_path=None)
+    assert "UNTRANSLATED (unhandled option" in code, code
+    assert T.unsupported(script) == [script]
+
+
+def test_handled_options_not_flagged():
+    for script in ["summarize x, gini iqr", "tabulate x g", "merge l on k, outer_join"]:
+        assert T.unsupported(script) == [], script
 
 
 def test_run_helper_both_backends():

@@ -161,34 +161,45 @@ def _numeric_vars(df, vars):
     return [v for v in vars if v in df.columns and pd.api.types.is_numeric_dtype(df[v])]
 
 
-def summarize(df, vars=None, by=None):
+def _extra_stat_cols(s, gini, iqr):
+    cols = {}
+    if gini:
+        cols["gini"] = AGG_STAT_ALIAS["gini"](s)
+    if iqr:
+        cols["iqr"] = AGG_STAT_ALIAS["iqr"](s)
+    return cols
+
+
+def summarize(df, vars=None, by=None, gini=False, iqr=False):
     """Descriptive statistics for numeric ``vars`` as a tidy long frame:
-    columns ``[variable, n, mean, std, min, max]`` (a ``by`` column is prepended
-    when grouping). Returns an analysis result; does not change the dataset."""
+    columns ``[variable, n, mean, std, min, max]`` (plus ``gini``/``iqr`` when
+    requested; a ``by`` column is prepended when grouping). Returns an analysis
+    result; does not change the dataset. gini/iqr reuse the emulator's own
+    ``calculate_gini``/``calculate_iqr`` so values match exactly."""
     vars = _numeric_vars(df, vars)
     rename = {"count": "n"}
+
+    def _row(s, label_cols):
+        r = dict(label_cols)
+        r.update({rename.get(a, a): s.agg(a) for a in _SUM_STATS})
+        r.update(_extra_stat_cols(s, gini, iqr))
+        return r
+
     if by and by in df.columns:
-        recs = []
-        for key, sub in df.groupby(by):
-            for v in vars:
-                r = {by: key, "variable": v}
-                r.update({rename.get(a, a): sub[v].agg(a) for a in _SUM_STATS})
-                recs.append(r)
+        recs = [_row(sub[v], {by: key, "variable": v})
+                for key, sub in df.groupby(by) for v in vars]
         return pd.DataFrame(recs)
-    recs = []
-    for v in vars:
-        r = {"variable": v}
-        r.update({rename.get(a, a): df[v].agg(a) for a in _SUM_STATS})
-        recs.append(r)
-    return pd.DataFrame(recs)
+    return pd.DataFrame([_row(df[v], {"variable": v}) for v in vars])
 
 
-def tabulate(df, vars, by=None):
-    """Frequency table: counts of each value of ``vars[0]`` (cross-tabulated by
-    ``by`` when given). Columns ``[<var>, n]`` or ``[<by>, <var>, n]``."""
-    v = vars[0]
-    keys = ([by, v] if by and by in df.columns else [v])
-    return df.groupby(keys, dropna=False).size().reset_index(name="n")
+def tabulate(df, vars, by=None, missing=False):
+    """Frequency table: counts of each combination of ``vars`` (one-way for a
+    single variable, cross-tab for two), optionally within ``by`` groups.
+    Missing/null key values are dropped by default and kept when ``missing`` is
+    set (matching microdata's ``missing`` option). Columns: the grouping
+    variables plus ``n``."""
+    keys = ([by] if by and by in df.columns else []) + list(vars)
+    return df.groupby(keys, dropna=not missing).size().reset_index(name="n")
 
 
 def correlate(df, vars):

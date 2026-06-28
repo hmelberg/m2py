@@ -139,12 +139,12 @@ def _analysis(lf, fn, *a, **kw):
     return pl.from_pandas(getattr(pdo, fn)(pdf, *a, **kw).reset_index(drop=True))
 
 
-def summarize(lf, vars=None, by=None):
-    return _analysis(lf, "summarize", vars, by)
+def summarize(lf, vars=None, by=None, gini=False, iqr=False):
+    return _analysis(lf, "summarize", vars, by, gini=gini, iqr=iqr)
 
 
-def tabulate(lf, vars, by=None):
-    return _analysis(lf, "tabulate", vars, by)
+def tabulate(lf, vars, by=None, missing=False):
+    return _analysis(lf, "tabulate", vars, by, missing=missing)
 
 
 def correlate(lf, vars):

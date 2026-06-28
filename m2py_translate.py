@@ -31,6 +31,30 @@ ANALYSIS = {"summarize", "tabulate", "correlate", "regress"}
 
 SUPPORTED = TRANSFORM | ANALYSIS
 
+# Options each verb actually honours. Any option on a line that is NOT listed
+# here makes the line UNTRANSLATED — so an unrecognised flag (e.g. a tabulate
+# formatting option) is surfaced, never silently dropped. Keep these in sync
+# with what _emit / _emit_analysis and the runtime ops implement.
+HANDLED_OPTIONS = {
+    "generate": set(), "replace": set(), "recode": set(), "rename": set(),
+    "keep": set(), "drop": set(),
+    "destring": {"force"},                 # always coerces == force semantics
+    "collapse": {"by"}, "aggregate": {"by"},
+    "merge": {"on", "outer_join"},
+    "summarize": {"by", "gini", "iqr"},
+    "tabulate": {"by", "missing"},         # two-way is via args, not an option
+    "correlate": set(),
+    "regress": set(),
+}
+
+
+def _unhandled_options(instr):
+    """Return option names present on this instruction that the translator does
+    not honour (so the caller can mark the line UNTRANSLATED)."""
+    cmd = instr["command"]
+    opts = instr.get("options") or {}
+    return sorted(set(opts) - HANDLED_OPTIONS.get(cmd, set()))
+
 
 def _merge_parts(args, opts):
     """Resolve a merge instruction to (name, key, how, select).
@@ -114,9 +138,11 @@ def _emit_analysis(instr, backend, idx):
     vars_ = list(args) if args else None
 
     if cmd == "summarize":
-        call = f"ops.summarize({var}, vars={vars_!r}, by={opts.get('by')!r})"
+        call = (f"ops.summarize({var}, vars={vars_!r}, by={opts.get('by')!r}, "
+                f"gini={bool(opts.get('gini'))!r}, iqr={bool(opts.get('iqr'))!r})")
     elif cmd == "tabulate":
-        call = f"ops.tabulate({var}, vars={vars_!r}, by={opts.get('by')!r})"
+        call = (f"ops.tabulate({var}, vars={vars_!r}, by={opts.get('by')!r}, "
+                f"missing={bool(opts.get('missing'))!r})")
     elif cmd == "correlate":
         call = f"ops.correlate({var}, vars={vars_!r})"
     elif cmd == "regress":
@@ -168,6 +194,10 @@ def translate(script, backend="pandas", source_path="df"):
         cmd = instr["command"]
         if cmd not in SUPPORTED:
             body.append(f"# UNTRANSLATED ({cmd}): {line.strip()}")
+            continue
+        bad = _unhandled_options(instr)
+        if bad:
+            body.append(f"# UNTRANSLATED (unhandled option: {', '.join(bad)}): {line.strip()}")
             continue
         if backend == "polars":
             try:
@@ -221,6 +251,9 @@ def unsupported(script):
         if not instr or instr["command"] in ("textblock", "endblock", "end"):
             continue
         if instr["command"] not in SUPPORTED:
+            out.append(line.strip())
+            continue
+        if _unhandled_options(instr):
             out.append(line.strip())
             continue
         try:
