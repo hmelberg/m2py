@@ -7450,8 +7450,16 @@ has and "int" in (m.get_microdata_functions() or {})
     // data source is wired in, inputs fall back to the emulator (allow_emulated)
     // so the pipeline runs end-to-end; scripts that reference imported variable
     // values will report a missing column until real data is provided.
+    var safeStatTarget = 'local';   // 'local' | 'remote' (remote = compute-to-data, placeholder)
+
     async function runSafeStatScript(script, ctx) {
       var py = (ctx && ctx.py) || await loadPyodideAndM2py();
+      if (safeStatTarget === 'remote') {
+        outputArea.innerHTML = '<pre class="transl-warn">SafeStat (remote / compute-to-data): '
+          + 'ikke implementert ennå — scriptet ville blitt sendt til en server som '
+          + 'kjører på data du ikke ser, og bare resultatet returneres. Bruk «local» foreløpig.</pre>';
+        return;
+      }
       outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: oversetter til pandas og kjører lokalt…</div>';
       try {
         await loadTranslator(py);                 // ensures m2py_runtime + m2py_translate on the FS
@@ -7531,7 +7539,7 @@ _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
         var head = '<div style="padding:6px 8px;font-size:12px;opacity:.7">SafeStat &middot; lokal kjøring'
           + (res.datasets && res.datasets.length ? ' &middot; data: ' + res.datasets.join(', ') : '')
           + (res.n === null ? '' : ' &middot; ' + res.n + ' rader')
-          + ' &middot; <em>mock-data (emulator) &middot; remote kommer</em></div>';
+          + ' &middot; <a href="#" id="safestatTargetToggle" style="opacity:.8">mål: ' + safeStatTarget + '</a>';
         var bodyHtml = '';
         if (res.emu_err) bodyHtml += '<pre class="transl-warn" style="opacity:.75">Data-bygging (emulator): ' + escapeHtmlOutput(res.emu_err) + '</pre>';
         if (res.err) bodyHtml += '<pre class="error">' + escapeHtmlOutput(res.err) + '</pre>';
@@ -7541,6 +7549,12 @@ _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
         outputArea.innerHTML = head + bodyHtml
           + '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">Generert Python (pandas)</summary><pre class="offline-code"></pre></details>';
         outputArea.querySelector('details pre').textContent = res.code;
+        var _tt = document.getElementById('safestatTargetToggle');
+        if (_tt) _tt.addEventListener('click', function(e){
+          e.preventDefault();
+          safeStatTarget = (safeStatTarget === 'local') ? 'remote' : 'local';
+          runSafeStatScript(script, ctx);
+        });
       } catch (e) {
         outputArea.innerHTML = '<pre class="error">SafeStat-feil: '
           + escapeHtmlOutput(String(e && e.message ? e.message : e)) + '</pre>';
