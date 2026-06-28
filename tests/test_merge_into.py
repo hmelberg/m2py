@@ -172,3 +172,23 @@ def test_composite_key_from_manifest(tmp_path):
     ns = {"pd": pd}; exec(code, ns)
     out = ns["df"].sort_values(["id", "yr"]).reset_index(drop=True)
     assert out["v"].tolist() == [10, 11, 20]
+
+
+def test_composite_key_old_syntax_from_manifest(tmp_path):
+    import pandas as pd
+    from m2py_runtime.manifest import Manifest
+    a = pd.DataFrame({"id": [1, 1, 2], "yr": [2020, 2021, 2020], "v": [10, 11, 20]})
+    b = pd.DataFrame({"id": [1, 1, 2], "yr": [2020, 2021, 2020], "w": [1, 2, 3]})
+    pa = tmp_path / "a.parquet"; a.to_parquet(pa)
+    pb = tmp_path / "b.parquet"; b.to_parquet(pb)
+    man = Manifest.from_dict({"datasets": {
+        "a": {"source": str(pa), "keys": ["id", "yr"], "variables": {"v": {}}},
+        "b": {"source": str(pb), "keys": ["id", "yr"], "variables": {"w": {}}},
+    }})
+    # old-syntax: `merge b` merges b into the active frame `a` (no `into`)
+    code = t.translate("use a\nmerge b", backend="pandas", source_path=None, manifest=man)
+    assert "['id', 'yr']" in code
+    ns = {"pd": pd}; exec(code, ns)
+    out = ns["df"].sort_values(["id", "yr"]).reset_index(drop=True)
+    assert len(out) == 3                       # no row multiplication
+    assert out["w"].tolist() == [1, 2, 3]

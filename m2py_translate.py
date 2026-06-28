@@ -482,7 +482,7 @@ def _emit_merge(args, opts, backend, var, known, tracker, active, source_path="d
                 if res.status != "ok" else "")
         keys = tracker._keys(into)
         if len(keys) > 1 and res.status == "ok" and res.left_on == res.right_on == keys[0]:
-            left_on = right_on = keys
+            left_on = right_on = keys  # promote to the full composite key list when the manifest declares >1 key
         else:
             left_on, right_on = res.left_on, res.right_on
         call = (f"{tgt} = ops.merge_into({tgt}, {src}, vars={vars_!r}, "
@@ -513,6 +513,10 @@ def _old_syntax_key(tracker, active, other, on_var):
     the entity key present in both, else a shared column. Returns (key, status)."""
     if on_var:
         return on_var, "ok"
+    ak = tracker._keys(active)
+    if ak and all(c in tracker.ensure(other) for c in ak):
+        # promote to the full composite key list when the manifest declares >1 key
+        return (ak if len(ak) > 1 else ak[0]), "ok"
     acols = tracker.ensure(active)
     ocols = tracker.ensure(other)
     ek = key_col_from_cols(acols)
