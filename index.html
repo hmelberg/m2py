@@ -41,6 +41,7 @@
               <button type="button" data-example="py02_pandas_microdata.txt" data-mode="python">pandas + #micro</button>
               <button type="button" data-example="py03_statsmodels_regression.txt" data-mode="python">statsmodels &mdash; OLS-regresjon</button>
               <button type="button" data-example="py04_pandas_plot.txt" data-mode="python">matplotlib + #micro</button>
+              <button type="button" data-example="py05_duckdb_block.txt" data-mode="python">pandas + #duckdb (SQL-blokk)</button>
               <hr style="margin:4px 0;border-color:#334155;">
             </div>
             <div class="examples-section" data-section-mode="r">
@@ -69,6 +70,8 @@
               <button type="button" data-example="sql06_case_recode.txt" data-mode="duckdb">SQL &mdash; CASE WHEN (omkoding)</button>
               <button type="button" data-example="sql07_multi_statement.txt" data-mode="duckdb">SQL &mdash; flere setninger</button>
               <button type="button" data-example="sql08_describe_summary.txt" data-mode="duckdb">SQL &mdash; profilering/oppsummering</button>
+              <button type="button" data-example="sql09_micro_then_sql.txt" data-mode="duckdb">SQL &mdash; #micro &rarr; DuckDB (hybrid)</button>
+              <button type="button" data-example="sql10_py_then_sql.txt" data-mode="duckdb">SQL &mdash; #py &rarr; DuckDB (hybrid)</button>
             </div>
             <button type="button" id="menuWebExamples">Flere eksempler p&#229; web</button>
           </div>
@@ -6430,6 +6433,10 @@ def _duck_concise(_msg):
     return _best
 
 async def _run_duck_sql(_sql):
+    # A segment with only SQL comments (e.g. a leading --/ /* */ note before the
+    # first block marker) has no real SQL — skip it so it doesn't reach DuckDB.
+    if not _duck_db._scrub(_sql).strip():
+        return ""
     _datasets = e.datasets
     _stmts = _duck_db.split_sql_statements(_sql)
     _known = list(_datasets.keys())

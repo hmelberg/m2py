@@ -1,0 +1,17 @@
+# Python + DuckDB: bygg data i pandas, kjør SQL med #duckdb, fortsett i pandas.
+import pandas as pd
+folk = pd.DataFrame({
+    "fnr":    [1, 2, 3, 4, 5, 6],
+    "kjonn":  ["Mann", "Kvinne", "Mann", "Kvinne", "Mann", "Kvinne"],
+    "inntekt":[450000, 620000, 810000, 530000, 210000, 690000],
+})
+to_microdata(folk, "folk")
+
+#duckdb
+CREATE OR REPLACE TABLE oppsummering AS
+SELECT kjonn, count(*) AS antall, round(avg(inntekt)) AS snitt
+FROM folk
+GROUP BY kjonn;
+
+#py
+print(oppsummering.to_string(index=False))
