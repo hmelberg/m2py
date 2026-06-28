@@ -477,12 +477,13 @@ def sankey(df, vars):
         link=dict(source=src, target=tgt, value=val))])
 
 
-def coefplot(df, reg_cmd, dep, indep, standardize=False, noconstant=False):
-    """Coefficient plot: fit ``reg_cmd`` (regress/logit/probit/poisson) of ``dep``
-    on ``indep`` and plot the non-intercept coefficients (x) against variable
-    names (y) with 95% CI error bars. Mirrors the emulator's `_fit_simple`."""
+# ── regression family (statsmodels, matching the emulator's model calls) ──────
+
+def _fit_model(df, family, dep, indep, noconstant=False, standardize=False):
+    """Fit one regression model the same way the emulator does (numeric coercion,
+    listwise dropna, optional standardised predictors, intercept unless
+    ``noconstant``). ``family`` in regress/logit/probit/poisson/negative-binomial."""
     import statsmodels.api as sm
-    import plotly.graph_objects as go
     d = df[[dep] + list(indep)].apply(pd.to_numeric, errors="coerce").dropna().astype(float)
     X = d[list(indep)].copy()
     if standardize:
@@ -493,16 +494,65 @@ def coefplot(df, reg_cmd, dep, indep, standardize=False, noconstant=False):
     if not noconstant:
         X = sm.add_constant(X, has_constant="add")
     Y = d[dep]
-    if reg_cmd == "regress":
-        model = sm.OLS(Y, X).fit()
-    elif reg_cmd == "logit":
-        model = sm.Logit(Y, X).fit(disp=0)
-    elif reg_cmd == "probit":
-        model = sm.Probit(Y, X).fit(disp=0)
-    elif reg_cmd == "poisson":
-        model = sm.GLM(Y, X, family=sm.families.Poisson()).fit()
-    else:
+    if family == "regress":
+        return sm.OLS(Y, X).fit()
+    if family == "logit":
+        return sm.Logit(Y, X).fit(disp=0)
+    if family == "probit":
+        return sm.Probit(Y, X).fit(disp=0)
+    if family == "poisson":
+        return sm.GLM(Y, X, family=sm.families.Poisson()).fit()
+    if family == "negative-binomial":
+        from statsmodels.discrete.discrete_model import NegativeBinomial
+        return NegativeBinomial(Y, X).fit(disp=0)
+    raise ValueError(f"unknown regression family '{family}'")
+
+
+def _coef_table(model):
+    """Tidy coefficient table ``[term, coef, se, t, p]`` (``t`` is the z-statistic
+    for non-OLS models — statsmodels stores it as ``tvalues``)."""
+    return pd.DataFrame({
+        "term": list(model.params.index),
+        "coef": model.params.to_numpy(),
+        "se": model.bse.to_numpy(),
+        "t": model.tvalues.to_numpy(),
+        "p": model.pvalues.to_numpy(),
+    })
+
+
+def regress(df, dep, indep, noconstant=False):
+    """OLS coefficient table ``[term, coef, se, t, p]``."""
+    return _coef_table(_fit_model(df, "regress", dep, indep, noconstant))
+
+
+def logit(df, dep, indep, noconstant=False):
+    """Logistic-regression coefficient table."""
+    return _coef_table(_fit_model(df, "logit", dep, indep, noconstant))
+
+
+def probit(df, dep, indep, noconstant=False):
+    """Probit coefficient table."""
+    return _coef_table(_fit_model(df, "probit", dep, indep, noconstant))
+
+
+def poisson(df, dep, indep, noconstant=False):
+    """Poisson (GLM) coefficient table."""
+    return _coef_table(_fit_model(df, "poisson", dep, indep, noconstant))
+
+
+def negative_binomial(df, dep, indep, noconstant=False):
+    """Negative-binomial coefficient table (includes the dispersion ``alpha``)."""
+    return _coef_table(_fit_model(df, "negative-binomial", dep, indep, noconstant))
+
+
+def coefplot(df, reg_cmd, dep, indep, standardize=False, noconstant=False):
+    """Coefficient plot: fit ``reg_cmd`` (regress/logit/probit/poisson) and plot
+    the non-intercept coefficients (x) vs variable names (y) with 95% CI error
+    bars. Mirrors the emulator's `_fit_simple`."""
+    import plotly.graph_objects as go
+    if reg_cmd not in ("regress", "logit", "probit", "poisson"):
         raise ValueError(f"coefplot does not support '{reg_cmd}'")
+    model = _fit_model(df, reg_cmd, dep, indep, noconstant, standardize)
     params = model.params.drop("const", errors="ignore")
     ci = model.conf_int().drop("const", errors="ignore")
     coefs = params.values.tolist()
@@ -517,19 +567,3 @@ def coefplot(df, reg_cmd, dep, indep, standardize=False, noconstant=False):
                      arrayminus=err_minus, thickness=1.5, width=6)))
     fig.add_vline(x=0, line_dash="dot", line_color="#9ca3af", line_width=1)
     return fig
-
-
-def regress(df, dep, indep):
-    """OLS of ``dep`` on ``indep`` (+ intercept) via statsmodels. Returns a
-    coefficient table ``[term, coef, se, t, p]``."""
-    import statsmodels.api as sm
-    d = df[[dep] + list(indep)].dropna()
-    X = sm.add_constant(d[list(indep)], has_constant="add")
-    model = sm.OLS(d[dep].astype(float), X.astype(float)).fit()
-    return pd.DataFrame({
-        "term": model.params.index,
-        "coef": model.params.to_numpy(),
-        "se": model.bse.to_numpy(),
-        "t": model.tvalues.to_numpy(),
-        "p": model.pvalues.to_numpy(),
-    })

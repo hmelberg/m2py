@@ -155,8 +155,24 @@ def correlate(lf, vars, pairwise=False, covariance=False):
     return _analysis(lf, "correlate", vars, pairwise=pairwise, covariance=covariance)
 
 
-def regress(lf, dep, indep):
-    return _analysis(lf, "regress", dep, indep)
+def regress(lf, dep, indep, noconstant=False):
+    return _analysis(lf, "regress", dep, indep, noconstant=noconstant)
+
+
+def logit(lf, dep, indep, noconstant=False):
+    return _analysis(lf, "logit", dep, indep, noconstant=noconstant)
+
+
+def probit(lf, dep, indep, noconstant=False):
+    return _analysis(lf, "probit", dep, indep, noconstant=noconstant)
+
+
+def poisson(lf, dep, indep, noconstant=False):
+    return _analysis(lf, "poisson", dep, indep, noconstant=noconstant)
+
+
+def negative_binomial(lf, dep, indep, noconstant=False):
+    return _analysis(lf, "negative_binomial", dep, indep, noconstant=noconstant)
 
 
 # ── plots ─────────────────────────────────────────────────────────────────────

@@ -330,6 +330,46 @@ def test_plot_trace_matches_emulator_and_backends_agree(script, cmd, args, opts)
 @pytest.mark.parametrize("reg,dep", [
     ("regress", "y"), ("logit", "binv"), ("probit", "binv"), ("poisson", "cnt"),
 ])
+def _emu_reg_coefs(cmd, df, vars):
+    """Extract {term: coef} from the emulator's regression summary text."""
+    import re
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+    out = m2py.MicroInterpreter(metadata_path=None).reg_engine.execute(cmd, df, vars, {})
+    summary = out[0] if isinstance(out, tuple) else str(out)
+    coefs = {}
+    for line in summary.splitlines():
+        mobj = re.match(r"^\s*(const|x\d+|alpha)\s+(-?\d+\.\d+)\s", line)
+        if mobj:
+            coefs[mobj.group(1)] = float(mobj.group(2))
+    return coefs
+
+
+@pytest.mark.parametrize("cmd,dep,op", [
+    ("logit", "binv", "logit"), ("probit", "binv", "probit"),
+    ("poisson", "cnt", "poisson"), ("negative-binomial", "cnt", "negative_binomial"),
+])
+def test_regression_family_matches_emulator(cmd, dep, op):
+    pytest.importorskip("statsmodels.api")
+    from m2py_runtime import pandas_ops as po
+    rng = np.random.default_rng(1)
+    n = 300
+    x1, x2 = rng.normal(0, 1, n), rng.normal(0, 1, n)
+    df = pd.DataFrame({"x1": x1, "x2": x2,
+                       "binv": (0.5 * x1 + rng.normal(0, 1, n) > 0).astype(int),
+                       "cnt": rng.poisson(np.exp(0.3 + 0.2 * x1 - 0.1 * x2))})
+    emu = _emu_reg_coefs(cmd, df, [dep, "x1", "x2"])
+    mine = getattr(po, op)(df, dep, ["x1", "x2"]).set_index("term")["coef"]
+    res_pl, _ = _run_analysis(f"{cmd} {dep} x1 x2", df, "polars")
+    minep = res_pl.set_index("term")["coef"]
+    assert emu, "no coefs parsed from emulator summary"
+    for term, c in emu.items():
+        assert np.isclose(mine[term], c, atol=1e-3), (cmd, term, mine[term], c)
+    assert np.allclose(mine.values, minep.values)      # backend parity
+
+
+@pytest.mark.parametrize("reg,dep", [
+    ("regress", "y"), ("logit", "binv"), ("probit", "binv"), ("poisson", "cnt"),
+])
 def test_coefplot_matches_emulator_fit(reg, dep):
     pytest.importorskip("statsmodels.api")
     import m2py as _m

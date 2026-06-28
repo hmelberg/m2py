@@ -27,7 +27,12 @@ TRANSFORM = {
 # ANALYSIS verbs compute a side result and PRINT it; the working frame is
 # unchanged (matching the emulator, where summarize/tabulate/regress don't alter
 # the active dataset).
-ANALYSIS = {"summarize", "tabulate", "correlate", "regress"}
+# regression family -> op name (analysis verbs returning a coefficient table)
+REGRESSION = {
+    "regress": "regress", "logit": "logit", "probit": "probit",
+    "poisson": "poisson", "negative-binomial": "negative_binomial",
+}
+ANALYSIS = {"summarize", "tabulate", "correlate"} | set(REGRESSION)
 # PLOT verbs build a plotly Figure (terminal, like analysis). Offline they are
 # written to an HTML file; in-memory (tests) the figure object is left in scope.
 PLOT = {"histogram", "barchart", "scatter", "boxplot",
@@ -50,7 +55,12 @@ HANDLED_OPTIONS = {
     "tabulate": {"by", "missing", "freq", "chi2", "top", "bottom",
                  "cellpct", "rowpct", "colpct", "cell", "row", "col"},
     "correlate": {"pairwise", "covariance"},   # sig/obs (text/extra cols) deferred
-    "regress": set(),
+    # regression family: noconstant only; or/irr/robust/exposure/level deferred
+    "regress": {"noconstant"},
+    "logit": {"noconstant"},
+    "probit": {"noconstant"},
+    "poisson": {"noconstant"},
+    "negative-binomial": {"noconstant"},
     # plots
     "histogram": {"bin", "nbins", "discrete", "percent", "density", "freq", "normal"},
     # statistic via parenthesised (stat), not a flag
@@ -179,10 +189,11 @@ def _emit_analysis(instr, backend, idx):
         call = (f"ops.correlate({var}, vars={vars_!r}, "
                 f"pairwise={bool(opts.get('pairwise'))!r}, "
                 f"covariance={bool(opts.get('covariance'))!r})")
-    elif cmd == "regress":
-        if not vars_:
+    elif cmd in REGRESSION:
+        if not vars_ or len(vars_) < 2:
             return None
-        call = f"ops.regress({var}, dep={vars_[0]!r}, indep={vars_[1:]!r})"
+        call = (f"ops.{REGRESSION[cmd]}({var}, dep={vars_[0]!r}, "
+                f"indep={vars_[1:]!r}, noconstant={bool(opts.get('noconstant'))!r})")
     else:
         return None
     return f"{res} = {call}\nprint({res})"
