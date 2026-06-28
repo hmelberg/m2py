@@ -22,7 +22,30 @@ Bevisst FORSKJELLIG (ikke port til Anvil): den anriket variabel-katalogen
 kunnskap er front-lastet. Grunnen: Anvil har `lookup_variable`-tool +
 validerings-/reparasjons-loop, så der holdes katalogen kompakt og detaljer
 hentes on-demand. Dette løpet har hverken tool eller repair, så det må
-front-laste alt. -->
+front-laste alt.
+
+ENDRINGER 2026-06-14 (kandidat for port til prompts.py):
+- `INFERENCE_RULES` har fått en «Analytisk strategi»-del (konfunderende variabler
+  relevante for spørsmålet, ÉN grov heterogenitets-oppdeling innenfor
+  personvern, og proxy-/avtrykk-tankegang for variabelvalg).
+- `renderCatalog`-headeren ber modellen finne relevant register-klynge først.
+- `renderLabels` viser nå inntil 30 koder (før: skjult ved >12), så
+  format-/kode-anker kommer med for nesten alle variabler.
+- Ny `VISUALIZATION_RULES`-blokk: oppfordrer til å vise resultater som figurer
+  (barchart/boxplot/histogram/coefplot/hexbin) i tillegg til tall, med
+  `over()` for fordeling på grupper. Full syntaks ligger alt i kommando-referansen.
+FELLES med v1 og v2 (delt prefiks via `buildCachedPrefix`).
+
+KUN v2 (`kode-svar-v2.ts`, IKKE i v1/prompts.py): picker-instruksjonen ber også
+om mekanisme-/proxy-kandidater; `SVARFORMAT_TILLEGG` legger til en «Vurderinger
+og forslag»-seksjon i user-turn; focused-blokken henter on-demand kodelister fra
+`/codelists/<NAVN>.json` for plukkede variabler uten inline-koder.
+
+Modus-bevisst generering (2026-06-14): `buildCachedPrefix(origin, mode)` gir
+microdata/python/r-varianter. Python/R = felles data-blokker + pakke-preamble +
+`#micro`-bro + språk-`SYSTEM_INTRO`/`OUTPUT` (ingen kommando-/funksjons-referanse
+eller microdata-analyse-grammatikk). Klienten sender editor-modus; Python/R kjører
+ikke m2py-repair, kun navne-grounding på `#micro`-importen. microdata uendret. -->
 
 Se `dm-vurder.ts` / `kode-svar.ts` — reglene er inlinet som TS-konstanter fordi
 Deno Deploy ikke bundler .md-filer ved kjøretid. Denne filen er kilde-dokument.

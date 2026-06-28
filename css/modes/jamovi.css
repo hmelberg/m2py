@@ -1,0 +1,118 @@
+/* ── jamovi color tokens ────────────────────────────────────────────────── */
+:root { --jmv-blue:#3e6da9; --jmv-blue-d:#2f5685; --jmv-bg:#f3f4f6; --jmv-line:#d8dbe0; }
+/* ── jamovi ribbon ──────────────────────────────────────────────────────── */
+.mode-gui-bar { background:var(--jmv-bg); }
+.jamovi-ribbon { display:block; background:var(--jmv-bg); }
+/* Level 1: tab bar (hamburger + tabs) */
+/* jamovi tab bar: blue header, white tabs; active tab lifts out onto the grey ribbon body */
+.jmv-tabbar { display:flex; align-items:stretch; gap:0; padding:0 4px; background:var(--jmv-blue); position:relative; }
+.jmv-hamburger { border:none; background:transparent; font-size:15px; padding:6px 14px; cursor:pointer; color:#fff; }
+.jmv-hamburger:hover { background:#4675b1; }
+.jmv-tab { border:none; background:transparent; padding:9px 18px; cursor:pointer; font:13px/1.2 inherit; color:#fff; }
+.jmv-tab:hover { background:#4675b1; color:#eee; }
+.jmv-tab.active { background:var(--jmv-bg); color:var(--jmv-blue); }
+/* Active-dataset picker, right side of the tab bar */
+.jmv-dataset-picker { margin-left:auto; display:flex; align-items:center; gap:6px; padding:0 10px; color:#fff; font:13px/1.2 inherit; }
+.jmv-dataset-picker label { color:#eaf0fa; white-space:nowrap; }
+.jmv-dataset-picker select { padding:3px 6px; border:1px solid rgba(255,255,255,.55); border-radius:3px; background:#fff; color:#1f2937; font:13px inherit; max-width:200px; }
+.jmv-app-menu { position:absolute; top:100%; left:6px; z-index:120; min-width:210px; background:#fff; border:1px solid var(--jmv-line); border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,.14); padding:4px; }
+.jmv-app-menu[hidden] { display:none; }
+.jmv-app-menu button { display:block; width:100%; text-align:left; border:none; background:transparent; padding:8px 12px; cursor:pointer; font:13px/1.2 inherit; border-radius:4px; color:#1f2937; }
+.jmv-app-menu button:hover { background:#e8eefc; color:var(--jmv-blue); }
+.jmv-example-list { list-style:none; margin:0; padding:0; width:100%; max-height:60vh; overflow:auto; }
+.jmv-example-list li { padding:9px 12px; border-bottom:1px solid #eaeaea; cursor:pointer; display:flex; flex-direction:column; gap:2px; }
+.jmv-example-list li:hover { background:#eaf0fa; }
+.jmv-example-list li b { color:var(--jmv-blue-d); font-size:14px; }
+.jmv-example-list li span { color:#555; font-size:12px; }
+/* Level 2: ribbon area (per-tab panels) */
+.jmv-ribbon-area { padding:5px 6px; min-height:38px; }
+.jmv-panel { display:flex; gap:2px; align-items:center; flex-wrap:nowrap; }
+.jmv-panel[hidden] { display:none; }
+.jmv-ribbon-btn { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--jmv-line); background:#fff; border-radius:6px; padding:7px 14px; cursor:pointer; font:13px/1.2 inherit; color:var(--jmv-blue-d); }
+.jmv-ribbon-btn:hover { background:var(--jmv-blue); color:#fff; border-color:var(--jmv-blue); }
+.jmv-ribbon-hint { color:#6b7280; font:12px/1.3 inherit; padding:0 10px; }
+.jmv-measure-btn { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--jmv-line); background:#fff; border-radius:6px; padding:3px 10px; cursor:pointer; font:13px/1.2 inherit; color:#1f2937; }
+.jmv-measure-btn:hover { border-color:var(--jmv-blue); }
+.jmv-data-scroll { max-height:430px; overflow:auto; border:1px solid var(--jmv-line); border-radius:6px; }
+.jmv-data-table { margin:0; }
+.jmv-data-table th { position:sticky; top:0; background:#eef1f5; z-index:1; }
+.jmv-cv-label { font:600 12px/1.2 inherit; color:#555; margin:10px 0 3px; }
+.jmv-cv-input { width:100%; box-sizing:border-box; padding:6px 8px; border:1px solid #828282; border-radius:3px; font:13px inherit; outline:none; }
+.jmv-cv-input:focus { border-color:#2e8ac7; box-shadow:0 0 0 1px #2e8ac7; }
+.jmv-data-grid { margin:6px 0 4px; font-size:13px; }
+.jmv-data-grid .tabulator { border:1px solid var(--jmv-line); }
+.jmv-data-grid .jmv-rowid-col { color:#9aa3af; background:#fafbfc; }
+.jmv-group { position:relative; }
+.jmv-cat { display:flex; align-items:center; gap:8px; font:13px/1.2 inherit; padding:6px 12px; background:transparent; border:1px solid transparent; border-radius:4px; cursor:pointer; color:var(--jmv-blue-d); }
+.jmv-cat svg { flex:0 0 auto; }
+.jmv-cat:hover, .jmv-group.open .jmv-cat { background:#fff; border-color:var(--jmv-line); }
+.jmv-menu { display:none; position:absolute; top:100%; left:0; z-index:50; min-width:230px; background:#fff; border:1px solid var(--jmv-line); border-radius:6px; box-shadow:0 6px 20px rgba(0,0,0,.12); padding:4px; }
+.jmv-group.open .jmv-menu { display:block; }
+.jmv-menu button { display:flex; align-items:center; gap:11px; width:100%; text-align:left; padding:7px 10px; background:transparent; border:0; border-radius:4px; cursor:pointer; font:13px/1.2 inherit; color:#1f2937; }
+.jmv-menu button svg { flex:0 0 auto; margin-right:1px; }
+.jmv-menu button:hover { background:#e8eefc; color:var(--jmv-blue); }
+.jmv-menu button:disabled { opacity:.4; cursor:not-allowed; }
+/* ── jamovi result tables ───────────────────────────────────────────────── */
+#jamoviResults { padding:6px 4px; }
+.jmv-result-card { position:relative; border:1px solid var(--jmv-line); border-radius:8px; margin:0 0 16px; background:#fff; }
+.jmv-card-remove { position:absolute; top:6px; right:8px; border:none; background:transparent; color:#c0c4cc; cursor:pointer; font-size:13px; line-height:1; padding:4px 6px; border-radius:4px; z-index:2; }
+.jmv-card-remove:hover { color:#dc2626; background:#fef2f2; }
+/* Table heading = jamovi's table caption: regular weight, left, dark grey. */
+.jmv-result-title { font:400 14px/1.3 inherit; color:#333; margin:14px 0 5px; }
+.jmv-result-note { font:12px/1.4 inherit; color:#565656; margin:3px 0 14px; max-width:640px; }
+.jmv-result-note i { font-style:italic; }
+.jmv-plot-block { margin:8px 0 16px; }
+.jmv-plot-canvas { max-width:100%; height:auto; border:1px solid var(--jmv-line); border-radius:4px; background:#fff; }
+/* "booktabs" results table, matching jamovi: thin top rule, thick bottom rule,
+   no inter-row lines, regular-weight headers (real jamovi resultsview CSS). */
+.jmv-result-table { border-collapse:collapse; margin:0 0 14px; font:13px/1.4 inherit; color:#222; }
+.jmv-result-table th { text-align:right; font-weight:400; padding:4px 8px; border-bottom:1px solid #333; color:#222; white-space:nowrap; }
+.jmv-result-table th:first-child, .jmv-result-table td:first-child { text-align:left; }
+.jmv-result-table td { text-align:right; padding:4px 8px; white-space:nowrap; border:none; }
+.jmv-result-table tbody tr:first-child td { padding-top:8px; }
+.jmv-result-table tbody tr:last-child td { padding-bottom:8px; border-bottom:2px solid #333; }
+/* ── jamovi analysis dialog ─────────────────────────────────────────────── */
+/* Anchor the dialog near the top so expanding an accordion grows it DOWNWARD
+   (no jump). The overlay scrolls if the dialog gets taller than the viewport. */
+.jmv-dialog-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:200; display:flex; align-items:flex-start; justify-content:center; overflow-y:auto; padding:5vh 0 8vh; }
+.jmv-dialog { background:#fff; border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,.25); width:min(760px,94vw); display:flex; flex-direction:column; overflow:hidden; }
+.jmv-dialog-head { padding:14px 18px; font:600 16px/1.2 inherit; border-bottom:1px solid #e3e6ec; background:var(--jmv-bg); color:var(--jmv-blue-d); }
+.jmv-dialog-body { display:flex; gap:14px; padding:16px 18px; overflow:auto; }
+/* jamovi dialog: neutral grey supplier/target boxes (#828282 borders on white),
+   subtle 4px #2e8ac7 left-border selection, grey transfer buttons. (analysisui.css) */
+.jmv-varlist, .jmv-roles { flex:1; min-width:0; }
+.jmv-varlist ul { list-style:none; margin:0; padding:0; border:1px solid #828282; max-height:300px; overflow:auto; background:#fff; }
+.jmv-varlist li, .jmv-rolebox li { display:flex; align-items:center; gap:7px; padding:5px 10px; cursor:pointer; font-size:13px; }
+.jmv-varlist li { border-inline-start:4px solid transparent; border-bottom:1px solid #eaeaea; }
+.jmv-varlist li:hover { background:#f2f2f2; }
+.jmv-varlist li.jmv-selected { background:#eaf0fa; border-inline-start-color:#2e8ac7; }
+.jmv-type-icon { flex:0 0 auto; }
+.jmv-var-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.jmv-remove { color:#555; font-size:12px; }
+.jmv-rolebox li:hover .jmv-remove { color:#c15050; }
+.jmv-rolebox { border:1px solid #828282; min-height:48px; margin:4px 0 12px; padding:2px; background:#fff; }
+.jmv-rolebox.active { border-color:#2e8ac7; box-shadow:0 0 0 1px #2e8ac7; }
+.jmv-rolebox li { border-bottom:1px solid #eaeaea; }
+.jmv-role-label { font:600 12px/1.2 inherit; color:#555; margin:6px 0 2px; }
+.jmv-role-row { display:flex; align-items:flex-start; gap:8px; margin:0 0 12px; }
+.jmv-arrow { flex:0 0 auto; margin-top:2px; width:34px; height:28px; display:flex; align-items:center; justify-content:center; border:1px solid #aeaeae; border-radius:3px; background:#fafafa; color:#555; cursor:pointer; }
+.jmv-arrow:hover { background:#ececec; color:var(--jmv-blue); }
+.jmv-role-row .jmv-rolebox { flex:1; margin:0; }
+.jmv-dialog-foot { padding:12px 18px; border-top:1px solid #e3e6ec; display:flex; justify-content:flex-end; gap:8px; }
+.jmv-dialog-foot button { padding:7px 16px; border-radius:6px; border:1px solid var(--jmv-line); background:#fff; cursor:pointer; font:13px inherit; }
+.jmv-dialog-foot .primary { background:var(--jmv-blue); color:#fff; border-color:var(--jmv-blue); }
+.jmv-opt-item { display:inline-flex; align-items:center; gap:5px; margin:0 14px 4px 0; font:13px/1.3 inherit; cursor:pointer; }
+.jmv-opt-select { padding:3px 6px; border:1px solid #828282; border-radius:3px; font:13px inherit; background:#fff; }
+/* jamovi grey collapse bars (.silky-options-collapse-button) */
+.jmv-section { margin:7px 0 0; }
+.jmv-section-hdr { display:flex; align-items:center; padding:5px 8px; cursor:pointer; font:13px inherit; color:#555; border:1px solid #B0B0B0; background:#d8d8d8; user-select:none; }
+.jmv-section-hdr:hover { background:#c9c9c9; }
+.jmv-section-caret { display:inline-block; width:12px; text-align:center; font-size:9px; color:#555; transition:transform .15s; }
+.jmv-section-title { border-left:1px solid #828282; padding-left:10px; margin-left:6px; }
+.jmv-section.collapsed .jmv-section-caret { transform:rotate(-90deg); }
+.jmv-section.collapsed .jmv-section-body { display:none; }
+.jmv-section-body { padding:8px 12px 10px; border:1px solid #B0B0B0; border-top:none; background:#fff; }
+.jmv-var-search { width:100%; box-sizing:border-box; padding:5px 8px; margin:0 0 4px; border:1px solid #828282; font:13px inherit; outline:none; }
+.jmv-var-search:focus { border-color:#2e8ac7; box-shadow:0 0 0 1px #2e8ac7; }
+.jmv-opt-group { margin:0 0 8px; }
+.jmv-opt-grouphdr { font:700 12px inherit; color:#555; margin:8px 0 3px; }

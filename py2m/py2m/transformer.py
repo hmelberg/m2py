@@ -16,7 +16,7 @@ from typing import Optional
 from .expr import ExprTranslator
 from .formula import parse_formula
 from .expander import (
-    try_np_where, try_map, try_pd_cut, try_fillna, try_clip,
+    try_np_where, try_map, try_pd_cut, try_fillna, try_clip, try_where_mask,
     try_apply_simple_func, try_str_method_assign,
     try_groupby_transform, try_groupby_collapse,
     extract_groupby_transform_info,
@@ -201,9 +201,16 @@ class Py2MTransformer:
             self._current_df = name
 
     def _clone_and_switch(self, src: str, new_name: str) -> None:
-        """Ensure src is active, clone it as new_name, then switch into it."""
+        """Ensure src is active, clone it as new_name, then switch into it.
+
+        When new_name == src (e.g. df2 = df2[df2['x'] > 0]) this is an in-place
+        operation on the already-active dataset — no clone needed.
+        """
         self._ensure_active(src)
-        self._emit(f"clone-dataset {new_name}")
+        if new_name == src:
+            return
+        # microdata: clone-dataset <source> <target>
+        self._emit(f"clone-dataset {src} {new_name}")
         self._known_dfs.add(new_name)
         self._emit(f"use {new_name}")
         self._current_df = new_name
@@ -340,7 +347,7 @@ class Py2MTransformer:
         # ── .query('expr') ───────────────────────────────────────────────────
         if isinstance(step, MethodStep) and step.name == "query":
             if step.args and isinstance(step.args[0], ast.Constant):
-                expr_str = src_tr.translate(step.args[0].value)
+                expr_str = src_tr.translate(_query_str_to_python(step.args[0].value))
                 if expr_str:
                     self._clone_and_switch(src, new_name)
                     self._emit(f"keep if {expr_str}")
@@ -376,7 +383,7 @@ class Py2MTransformer:
         """
         tmp = self._tmp("disp")
         self._ensure_active(self.df_name)
-        self._emit(f"clone-dataset {tmp}")
+        self._emit(f"clone-dataset {self.df_name} {tmp}")
         self._emit(f"use {tmp}")
         for ln in collapse_lines:
             self._emit(ln)
@@ -460,6 +467,9 @@ class Py2MTransformer:
                 return
             # df = df.join(df2)
             if self._try_join(value, lineno):
+                return
+            # df = df.assign(x=..., y=...) → one generate per keyword
+            if self._try_df_assign(value, lineno):
                 return
             self._untranslated(node)
             self._warn("Unrecognised df-level reassignment", lineno)
@@ -694,6 +704,13 @@ class Py2MTransformer:
                 self._emit(l)
             return True
 
+        # df['col'] = df['col2'].where(cond, other) / .mask(cond, other)
+        lines = try_where_mask(col, value, tr)
+        if lines:
+            for l in lines:
+                self._emit(l)
+            return True
+
         # df['col'] = df['col2'].fillna(val)
         lines = try_fillna(col, value, self.df_name, tr)
         if lines:
@@ -774,7 +791,7 @@ class Py2MTransformer:
         # df.query("expr")
         if isinstance(step, MethodStep) and step.name == "query":
             if step.args and isinstance(step.args[0], ast.Constant):
-                expr = tr.translate(step.args[0].value)
+                expr = tr.translate(_query_str_to_python(step.args[0].value))
                 if expr:
                     self._emit(f"keep if {expr}")
                     return True
@@ -864,6 +881,27 @@ class Py2MTransformer:
             else:
                 self._warn("Non-literal rename keys/values", lineno)
         return True
+
+    def _try_df_assign(self, value, lineno: int) -> bool:
+        """df = df.assign(x=expr, y=expr) → one `generate` per keyword."""
+        if not _is_method_call(value, "assign"):
+            return False
+        if not value.keywords:
+            return False
+        tr = self._translator
+        handled = False
+        for kw in value.keywords:
+            if kw.arg is None:  # df.assign(**mapping) — can't introspect
+                self._warn("assign(**mapping) is not translatable", lineno)
+                continue
+            expr = tr.translate(kw.value)
+            if expr is not None:
+                self._emit(f"generate {kw.arg} = {expr}")
+            else:
+                self._emit(f"// UNTRANSLATED: assign {kw.arg} = ...")
+                self._warn(f"Could not translate assign({kw.arg}=...)", lineno)
+            handled = True
+        return handled
 
     def _try_df_sample(self, value, lineno: int) -> bool:
         if not _is_method_call(value, "sample"):
@@ -1183,26 +1221,10 @@ class Py2MTransformer:
 
         cmd, formula, cov_type, cluster_var, extra_opts = info
 
-        # ── Difference-in-differences: smf.ols('y ~ a*b + controls', ...) ────
-        if cmd == "regress":
-            star_m = re.search(r'\b([A-Za-z_]\w*)\s*\*\s*([A-Za-z_]\w*)\b', formula)
-            if star_m:
-                a, b = star_m.group(1), star_m.group(2)
-                dep = formula.split("~")[0].strip()
-                rhs = formula.split("~", 1)[1] if "~" in formula else ""
-                rhs_c = re.sub(
-                    r'\b' + re.escape(a) + r'\s*\*\s*' + re.escape(b) + r'\b', '', rhs)
-                rhs_c = re.sub(
-                    r'\b(?:' + re.escape(a) + r'|' + re.escape(b) + r')\b', '', rhs_c)
-                controls = [v.strip() for v in rhs_c.split("+")
-                            if v.strip() and v.strip() not in ("", "0", "1", "-1")]
-                ctrl_str = (" " + " ".join(controls)) if controls else ""
-                self._emit(f"regress-panel-diff {dep} {a} {b}{ctrl_str}")
-                self._models[var] = {
-                    "cmd": "regress-panel-diff", "depvar": dep,
-                    "predictors": [a, b] + controls,
-                }
-                return True
+        # NOTE: 'a*b' in a statsmodels formula is full-factorial expansion
+        # (a + b + a:b), handled by parse_formula below. It is NOT a
+        # difference-in-differences signal — that requires the explicit
+        # regress-panel-diff command, which py2m does not infer from 'a*b'.
 
         parsed = parse_formula(formula, self.df_name)
 
@@ -1418,8 +1440,14 @@ class Py2MTransformer:
                 self._emit_privacy_note()
             return  # other bare non-call expressions — skip
 
-        # print(...) — skip
+        # print(...) — translate each argument as if it were a bare expression
+        # statement (print(df['x'].mean()) behaves like df['x'].mean()).
+        # Bare string literals (labels) are skipped.
         if isinstance(value.func, ast.Name) and value.func.id == "print":
+            for arg in value.args:
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    continue
+                self._handle_expr_stmt(ast.copy_location(ast.Expr(value=arg), arg))
             return
 
         # use_dataset('name') → use name (explicit dataset switch hint)
@@ -1572,7 +1600,8 @@ class Py2MTransformer:
 
         if var in self._pending_collapses:
             lines = self._pending_collapses.pop(var)
-            self._emit(f"clone-dataset {name}")
+            src = self._dataset_name or self.df_name
+            self._emit(f"clone-dataset {src} {name}")
             for ln in lines:
                 self._emit(ln)
             # Switch back to original dataset after the clone
@@ -1679,6 +1708,11 @@ class Py2MTransformer:
             return
         values, is_range = extracted
 
+        if not values:
+            self._untranslated(node)
+            self._warn("for loop: empty iteration range — nothing to translate", node.lineno)
+            return
+
         # microdata for syntax: range() sources use compact 'a : b', literal lists use space-separated
         if is_range and all(isinstance(v, int) for v in values) and len(values) >= 2:
             sorted_vals = sorted(values)
@@ -1697,14 +1731,32 @@ class Py2MTransformer:
     # ── if statements ─────────────────────────────────────────────────────────
 
     def _handle_if(self, node: ast.If):
-        """Simple if/else at module level — limited support."""
-        # Just emit the body with a warning
-        self._comment("UNTRANSLATED: if statement (translate body manually or use 'keep if')")
-        for child in node.body:
-            self._visit(child)
+        """if/else at module level — not translatable to a microdata script.
+
+        A microdata script is unconditional, so we cannot emit the branch
+        bodies as if always taken (that silently rewrites the program). Emit
+        a loud UNTRANSLATED comment for the whole construct instead.
+        """
+        self._untranslated(node)
+        self._warn(
+            "if statement: conditional control flow has no microdata equivalent "
+            "(translate the intended branch manually, e.g. with 'keep if')",
+            node.lineno,
+        )
 
 
 # ── module-level helpers ──────────────────────────────────────────────────────
+
+def _query_str_to_python(s):
+    """pandas query() treats & / | as low-precedence logical ops, but Python
+    parses `a > 2 & b < 9` as `a > (2 & b) < 9`. Rewrite to `and`/`or` so the
+    AST groups the way query means it."""
+    if not isinstance(s, str):
+        return s
+    s = re.sub(r"\s*&\s*", " and ", s)
+    s = re.sub(r"\s*\|\s*", " or ", s)
+    return s
+
 
 def _is_method_call(node, method: str) -> bool:
     return (
@@ -1882,13 +1934,6 @@ def _is_lifelines_fit(node, lifelines_vars: dict) -> bool:
     )
 
 
-def _lifelines_kind_from_fit(node, lifelines_vars: dict) -> Optional[str]:
-    root, _ = decompose(node)
-    if isinstance(root, ast.Name):
-        return lifelines_vars.get(root.id)
-    return None
-
-
 def _kwarg_str(kwargs: dict, key: str) -> Optional[str]:
     node = kwargs.get(key)
     if node is None:
@@ -1969,7 +2014,11 @@ def _extract_for_values(iter_node) -> Optional[tuple]:
         return result, False
     if isinstance(iter_node, ast.Call) and isinstance(iter_node.func, ast.Name):
         if iter_node.func.id == "range":
-            args = [ast.literal_eval(a) for a in iter_node.args]
+            try:
+                args = [ast.literal_eval(a) for a in iter_node.args]
+            except (ValueError, TypeError, SyntaxError):
+                # Non-literal arg, e.g. range(n) — cannot resolve statically.
+                return None
             if len(args) == 1:
                 return list(range(args[0])), True
             if len(args) == 2:

@@ -40,8 +40,12 @@ The translator works best on **data manipulation pipelines** — filtering rows,
 | `mutate(y = coalesce(x, val))` | `generate y = x` + `replace y = val if sysmiss(y)` | |
 | `mutate(x = factor(x, levels, labels))` | `define-labels` + `assign-labels` | Requires both `levels=` and `labels=` |
 | `mutate(x = ifelse(cond, t, f))` | `generate x = f` + `replace x = t if cond` | |
-| `mutate(x = case_when(...))` | `generate x = .` + multiple `replace x = v if cond` | |
+| `mutate(x = case_when(...))` | `generate x = .` + multiple `replace x = v if cond` | First-match priority preserved (branches emitted in reverse) |
+| `mutate(x = case_match(src, v ~ r, ..., .default=d))` | `generate x = .` + `replace x = r if src == v` (+ `.default` via `sysmiss`) | `c(v1,v2) ~ r` → `inlist(src, v1, v2)` |
 | `mutate(x = recode(x, old=new, ...))` | `recode x (old=new) ...` | |
+| `mutate(x = na_if(x, v))` | `generate x = x` + `replace x = . if x == v` | |
+| `mutate(across(c(a,b), ~ .x * 2))` | one `generate` per column | Lambda form; `.x` / `.` placeholder substituted per column |
+| `transmute(y = expr)` | `generate y = expr` + `keep y` | Like `mutate` but drops the other columns |
 | `select(a, b, c)` | `keep a b c` | |
 | `select(-a, -b)` | `drop a b` | |
 | `rename(new = old)` | `rename old new` | |
@@ -49,7 +53,9 @@ The translator works best on **data manipulation pipelines** — filtering rows,
 | `drop_na()` (no args) | comment only | All-column NA drop has no equivalent |
 | `distinct()` | comment only | No deduplication command in microdata |
 | `arrange(...)` | comment only | No sort command in microdata |
-| `slice_head(n=k)` | comment only | No row-index command in microdata |
+| `slice_head(n=k)` / `slice_max` / `slice_min` | comment only | No row-index command in microdata |
+| `slice(1:5)` / `slice_tail()` | comment only | No positional row selection |
+| `slice_sample(n=k)` / `slice_sample(prop=p)` | `sample k seed` / `sample p seed` | See Sampling below |
 
 #### group_by + summarise → collapse
 
@@ -61,6 +67,9 @@ df |> group_by(sex) |> summarise(mean_inc = mean(income), n = n())
 ```
 
 Supported aggregation statistics: `mean`, `sum`, `sd`, `median`, `min`, `max`, `n()` → `count`, `IQR` → `iqr`.
+
+`summarise(across(c(income, age), mean))` expands to one `(stat) col -> col`
+spec per column in the same `collapse`.
 
 #### group_by + mutate → aggregate
 
@@ -100,18 +109,37 @@ If the key variable is the unit identifier of the target dataset, `on` can be om
 
 ### Sampling and counts
 
+microdata's `sample` requires a seed (`sample count|fraction seed`). The
+translator uses the value from a preceding `set.seed(N)`; if there is none it
+emits a default seed of `1` and a warning. A fraction is passed through directly
+(not converted to a percentage).
+
 | R | microdata |
 |---|-----------|
-| `sample_n(1000)` | `sample 1000` |
-| `sample_frac(0.1)` | `sample 10` |
+| `set.seed(42)` then `sample_n(1000)` | `sample 1000 42` |
+| `set.seed(42)` then `sample_frac(0.1)` | `sample 0.1 42` |
+| `slice_sample(n=100)` / `slice_sample(prop=0.1)` | `sample 100 seed` / `sample 0.1 seed` |
+| `sample_n(1000)` (no `set.seed`) | `sample 1000 1` + warning |
 | `count(x, y)` / `table(df$x, df$y)` | `tabulate x y` |
+
+### Base-R data verbs
+
+These are desugared into their dplyr equivalents and translate identically:
+
+| R | microdata |
+|---|-----------|
+| `subset(df, age > 18)` | `keep if age > 18` (with `clone-dataset` if assigned to a new name) |
+| `subset(df, cond, select=c(a,b))` | `keep if cond` + `keep a b` |
+| `transform(df, y = expr)` | `generate y = expr` |
+| `aggregate(y ~ g, data=df, FUN=mean)` | `collapse (mean) y -> y, by(g)` |
+| `merge(x, y, by="id")` | same as `left_join` (`merge <vars_from_y> into x on id`) |
 
 ### Dataset operations
 
 | R | microdata |
 |---|-----------|
-| `df2 <- df` | `clone-dataset df2` |
-| `df2 <- df[cond, ]` | `clone-dataset df2` + `use df2` + `keep if cond` |
+| `df2 <- df` | `clone-dataset df df2` |
+| `df2 <- df[cond, ]` | `clone-dataset df df2` + `use df2` + `keep if cond` |
 | `YEAR <- 2020` | `let YEAR = 2020` |
 | `label <- "text"` | `let label = 'text'` |
 
@@ -170,8 +198,8 @@ The following R expressions translate inside `mutate`, `filter`, `generate`, `re
 | `startsWith(x, p)` / `str_starts(x, p)` | `startswith(x, p)` |
 | `endsWith(x, p)` / `str_ends(x, p)` | `endswith(x, p)` |
 | `as.character(x)` | `string(x)` |
-| `paste0(a, b, c)` | `rowconcat(a, b, c)` |
-| `paste(a, b, sep=s)` | `rowconcat(a, s, b)` |
+| `paste0(a, b, c)` / `str_c(a, b, c)` | `rowconcat(a, b, c)` |
+| `paste(a, b, sep=s)` / `str_c(a, b, sep=s)` | `rowconcat(a, s, b)` |
 
 #### Date functions
 | R | microdata |
@@ -261,11 +289,18 @@ All functions accept `lower.tail = FALSE` (selects upper-tail variant) and `ncp=
 
 ### Survival analysis
 
+microdata orders the survival commands **event first, time second**
+(`cox hendelse-var tid-var`). R's `Surv(time, event)` is the reverse, so the
+translator swaps the two.
+
 | R | microdata |
 |---|-----------|
-| `survfit(Surv(time, event) ~ group, data=df)` | `kaplan-meier time event, by(group)` |
-| `survfit(Surv(time, event) ~ 1, data=df)` | `kaplan-meier time event` |
-| `survival::coxph(Surv(time, event) ~ x + z, data=df)` | `cox time event x z` |
+| `survfit(Surv(time, event) ~ group, data=df)` | `kaplan-meier event time, by(group)` |
+| `survfit(Surv(time, event) ~ 1, data=df)` | `kaplan-meier event time` |
+| `survival::coxph(Surv(time, event) ~ x + z, data=df)` | `cox event time x z` |
+| `survival::survreg(Surv(time, event) ~ x, dist="weibull", data=df)` | `weibull event time x` |
+
+`survreg` only maps when `dist="weibull"` (other distributions emit a comment).
 
 ### Plots
 
@@ -315,8 +350,7 @@ All functions accept `lower.tail = FALSE` (selects upper-tail variant) and `ncp=
 ### Patterns that partially translate
 | R pattern | What happens |
 |-----------|--------------|
-| `select(starts_with("x"))` | Comment — only literal column names supported |
-| `mutate(across(cols, fn))` | Comment — `across()` not supported |
+| `select(starts_with("x"))` | Comment — only literal column names supported (`across()` with literal columns *is* supported) |
 | `n_distinct(x)` in summarise | Comment — no equivalent statistic |
 | `first()` / `last()` in summarise | Comment — no first/last aggregation |
 | `var(x)` in summarise | Comment — no variance stat (use `sd` then square) |
@@ -324,8 +358,11 @@ All functions accept `lower.tail = FALSE` (selects upper-tail variant) and `ncp=
 | `lme4::lmer` with slope random effects `(x\|group)` | Group extracted, slope term silently dropped |
 | Bare `df()` (F-distribution density) | Not mapped — `df` collides with data frame variable name; use `stats::df()` |
 
-### Silently dropped (no output)
-`library()`, `require()`, `source()`, `options()`, `setwd()`, `install.packages()`, `print()`, `cat()`, `message()`
+### Consumed without output
+`library()`, `require()`, `source()`, `options()`, `setwd()`, `install.packages()` are ignored. `set.seed(N)` is consumed silently and its value is reused for a later `sample` (see Sampling).
+
+### Error recovery
+A statement that fails to translate does **not** abort the rest of the script — it is replaced by a `// SKIPPED (translator error): ...` warning and translation continues. Anything the translator can't handle becomes a `// Untranslated: ...` or `// ...: no microdata equivalent` comment in the output and a warning, never a silent drop.
 
 ---
 
@@ -352,3 +389,15 @@ histogram log_income
 ```
 
 Lines inside a `## microdata` block are passed through unchanged. Lines inside a `## r` block (or any block before the first marker) are translated.
+
+### Commands with no R idiom — write them in a `## microdata` block
+
+Some microdata commands have no natural R equivalent for the translator to
+recognize. Write these directly in a `## microdata` block:
+
+- **Data import**: `require`, `import`, `import-event`, `import-panel`, `create-dataset`, `clone-units`
+- **Labels**: `drop-labels`, `list-labels`
+- **Analysis with no R counterpart here**: `transitions-panel`, `coefplot`, `sankey`, `test`, `hausman`, the `*-predict` family
+- **Loops/bindings**: `for … end` (R `for` loops are not translated)
+
+Everything else — preparation, models, plots, survival, expressions — can be written in R and translated.

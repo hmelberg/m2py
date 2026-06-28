@@ -792,6 +792,12 @@ def main():
             "era2024_sum": round(sum(dist_2024.values()), 6),
         },
     }
+    # Force UTF-8 on stdout so the Norwegian labels survive a redirect to file
+    # on platforms whose default console encoding isn't UTF-8 (e.g. Windows cp1252).
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
     json.dump(output, sys.stdout, ensure_ascii=False, indent=2)
     print()
 

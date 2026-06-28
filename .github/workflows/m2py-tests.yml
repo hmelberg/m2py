@@ -1,0 +1,49 @@
+name: m2py engine + equivalence tests
+
+on:
+  push:
+    paths:
+      - 'm2py.py'
+      - 'functions.py'
+      - 'protect.py'
+      - 'py2m/**'
+      - 'tests/**'
+      - 'mockdata_export.py'
+      - 'mockdata_realism.py'
+      - 'static_source.py'
+      - 'manual_scripts/**'
+      - '.github/workflows/m2py-tests.yml'
+  pull_request:
+    paths:
+      - 'm2py.py'
+      - 'functions.py'
+      - 'protect.py'
+      - 'py2m/**'
+      - 'tests/**'
+      - 'mockdata_export.py'
+      - 'mockdata_realism.py'
+      - 'static_source.py'
+      - 'manual_scripts/**'
+      - '.github/workflows/m2py-tests.yml'
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # R is needed for the r2m half of the equivalence harness (base-R
+      # ground truth via Rscript); the cases skipif when Rscript is absent.
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - name: Install dplyr (for the r2m dplyr equivalence cases; binary via RSPM)
+        run: Rscript -e 'install.packages("dplyr")'
+      - name: Install dependencies
+        run: pip install pytest pandas numpy scipy statsmodels plotly lifelines
+      - name: Run repo-root suite (m2py engine + translation equivalence)
+        run: python -m pytest tests/ -q
+      - name: Run manual example scripts (fails on CRASH or PARTIAL)
+        run: python manual_scripts/run_manual_scripts.py

@@ -25,6 +25,60 @@ export interface StreamEvent {
   message?: string;
 }
 
+const ANTHROPIC_TIMEOUT_MS = 30_000;
+const ANTHROPIC_RETRIES = 2;
+
+export interface RetryDeps {
+  fetchImpl?: typeof fetch;
+  sleep?: (ms: number) => Promise<void>;
+  retries?: number;
+  timeoutMs?: number;
+}
+
+/**
+ * POST with an abort timeout and retry/backoff on 429 (rate limited) and 529
+ * (overloaded). Honours a numeric Retry-After when present. Network errors are
+ * retried too; the final error propagates. Injectable for tests.
+ */
+export async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  deps: RetryDeps = {},
+): Promise<Response> {
+  const fetchImpl = deps.fetchImpl ?? fetch;
+  const sleep = deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+  const retries = deps.retries ?? ANTHROPIC_RETRIES;
+  const timeoutMs = deps.timeoutMs ?? ANTHROPIC_TIMEOUT_MS;
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const resp = await fetchImpl(url, { ...init, signal: ctrl.signal });
+      clearTimeout(timer);
+      if ((resp.status === 429 || resp.status === 529) && attempt < retries) {
+        const ra = parseInt(resp.headers.get("retry-after") ?? "", 10);
+        const delay = Number.isFinite(ra) && ra > 0
+          ? Math.min(ra * 1000, 10_000)
+          : Math.min(1000 * 2 ** attempt, 8000);
+        await sleep(delay);
+        continue;
+      }
+      return resp;
+    } catch (e) {
+      clearTimeout(timer);
+      lastError = e;
+      if (attempt < retries) {
+        await sleep(Math.min(1000 * 2 ** attempt, 8000));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastError;
+}
+
 export async function streamAnthropic(
   opts: AnthropicStreamOptions,
 ): Promise<ReadableStream<Uint8Array>> {
@@ -56,18 +110,93 @@ export async function streamAnthropic(
     ];
   }
 
-  const upstream = await fetch(ANTHROPIC_API, {
+  const upstream = await fetchWithRetry(ANTHROPIC_API, {
     method: "POST",
     headers,
     body: JSON.stringify(requestBody),
   });
 
   if (!upstream.ok || !upstream.body) {
-    const body = await upstream.text();
-    throw new Error(`Anthropic API error ${upstream.status}: ${body}`);
+    // Log the upstream detail server-side, but do NOT echo it to the client
+    // (it can contain account/key diagnostics). Callers surface a generic 502.
+    const detail = await upstream.text().catch(() => "");
+    console.error(`Anthropic API error ${upstream.status}: ${detail}`);
+    throw new Error(`Anthropic API error ${upstream.status}`);
   }
 
   return transformAnthropicStream(upstream.body);
+}
+
+export interface AnthropicMessageResult {
+  text: string;
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+    cacheCreationTokens: number;
+  };
+}
+
+/**
+ * Single, non-streaming completion. Used by the v2 variable-picker pass, which
+ * needs the full result (a JSON array of variable names) before generation can
+ * start. Reuses fetchWithRetry for timeout + 429/529 backoff. `deps` is
+ * injectable for tests.
+ */
+export async function messageAnthropic(
+  opts: AnthropicStreamOptions,
+  deps: RetryDeps = {},
+): Promise<AnthropicMessageResult> {
+  const useLongTtl = opts.cacheTtl === "1h";
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "x-api-key": opts.apiKey,
+    "anthropic-version": ANTHROPIC_VERSION,
+  };
+  if (opts.system && useLongTtl) {
+    headers["anthropic-beta"] = "extended-cache-ttl-2025-04-11";
+  }
+  const requestBody: Record<string, unknown> = {
+    model: opts.model,
+    max_tokens: opts.maxTokens ?? 1024,
+    stream: false,
+    messages: [{ role: "user", content: opts.prompt }],
+  };
+  if (opts.system) {
+    requestBody.system = [
+      {
+        type: "text",
+        text: opts.system,
+        cache_control: useLongTtl ? { type: "ephemeral", ttl: "1h" } : { type: "ephemeral" },
+      },
+    ];
+  }
+
+  const resp = await fetchWithRetry(
+    ANTHROPIC_API,
+    { method: "POST", headers, body: JSON.stringify(requestBody) },
+    deps,
+  );
+  if (!resp.ok) {
+    const detail = await resp.text().catch(() => "");
+    console.error(`Anthropic API error ${resp.status}: ${detail}`);
+    throw new Error(`Anthropic API error ${resp.status}`);
+  }
+  const json = await resp.json();
+  const text = Array.isArray(json?.content)
+    ? json.content.filter((b: { type?: string }) => b?.type === "text")
+        .map((b: { text?: string }) => b.text ?? "").join("")
+    : "";
+  const u = json?.usage ?? {};
+  return {
+    text,
+    usage: {
+      inputTokens: u.input_tokens ?? 0,
+      outputTokens: u.output_tokens ?? 0,
+      cacheReadTokens: u.cache_read_input_tokens ?? 0,
+      cacheCreationTokens: u.cache_creation_input_tokens ?? 0,
+    },
+  };
 }
 
 function transformAnthropicStream(

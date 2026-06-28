@@ -1,0 +1,24 @@
+-- CTE (WITH) + vindusfunksjon: ranger innen gruppe uten å kollapse radene.
+
+CREATE OR REPLACE TABLE personer AS
+SELECT * FROM (VALUES
+  (1, 'Mann',   25, 450000),
+  (2, 'Kvinne', 34, 620000),
+  (3, 'Mann',   52, 810000),
+  (4, 'Kvinne', 41, 530000),
+  (5, 'Mann',   19, 210000),
+  (6, 'Kvinne', 67, 390000),
+  (7, 'Mann',   45, 720000),
+  (8, 'Kvinne', 29, 480000)
+) AS t(fnr, kjonn, alder, inntekt);
+
+-- Topp 2 inntekter innen hvert kjønn.
+WITH rangert AS (
+  SELECT fnr, kjonn, inntekt,
+         row_number() OVER (PARTITION BY kjonn ORDER BY inntekt DESC) AS rang
+  FROM personer
+)
+SELECT *
+FROM rangert
+WHERE rang <= 2
+ORDER BY kjonn, rang;

@@ -141,13 +141,20 @@ handle_mutate <- function(args, df_name, group_by = NULL) {
 
   for (i in seq_along(args)) {
     col <- if (!is.null(nms) && nzchar(nms[i])) nms[i] else NULL
+    node  <- args[[i]]
+    fn    <- if (is.call(node)) .callee_name(node) else ""
+    cargs <- if (is.call(node)) as.list(node)[-1] else list()
+
+    # across(cols, ~ .x ...) is unnamed and expands to one generate per column
+    if (is.null(col) && fn == "across") {
+      r <- .expand_across_mutate(cargs, df_name)
+      gen_lines <- c(gen_lines, r$lines); warnings <- c(warnings, r$warnings)
+      next
+    }
     if (is.null(col)) {
       warnings <- c(warnings, paste0("// mutate: no column name for arg ", i))
       next
     }
-    node  <- args[[i]]
-    fn    <- if (is.call(node)) as.character(node[[1]]) else ""
-    cargs <- if (is.call(node)) as.list(node)[-1] else list()
 
     # ifelse / if_else → generate + replace
     if (fn %in% c("ifelse", "if_else")) {
@@ -183,6 +190,25 @@ handle_mutate <- function(args, df_name, group_by = NULL) {
       gen_lines <- c(gen_lines, r$lines)
       warnings  <- c(warnings,  r$warnings)
       next
+    }
+
+    # case_match(src, v ~ r, ..., .default=) → generate . + replace … if src == v
+    if (fn == "case_match") {
+      r <- .expand_case_match(col, cargs, df_name)
+      gen_lines <- c(gen_lines, r$lines)
+      warnings  <- c(warnings,  r$warnings)
+      next
+    }
+
+    # na_if(x, v) → generate col = x; replace col = . if x == v
+    if (fn == "na_if" && length(cargs) >= 2) {
+      x <- translate_expr(cargs[[1]], df_name)
+      v <- translate_expr(cargs[[2]], df_name)
+      if (!is.null(x) && !is.null(v)) {
+        gen_lines <- c(gen_lines, paste0("generate ", col, " = ", x),
+                       paste0("replace ", col, " = . if ", x, " == ", v))
+        next
+      }
     }
 
     # factor(x, levels=c(...), labels=c(...)) → define-labels + assign-labels
@@ -236,60 +262,18 @@ handle_mutate <- function(args, df_name, group_by = NULL) {
   list(lines = c(agg_line, gen_lines), warnings = warnings)
 }
 
-.expand_ifelse <- function(col, cargs, df_name) {
-  if (length(cargs) < 3)
-    return(list(lines = character(0), warnings = paste0("// ifelse: too few args for ", col)))
-  cond  <- translate_expr(cargs[[1]], df_name)
-  tval  <- translate_expr(cargs[[2]], df_name)
-  fval  <- translate_expr(cargs[[3]], df_name)
-  if (is.null(cond) || is.null(tval) || is.null(fval))
-    return(list(lines = character(0), warnings = paste0("// ifelse: untranslatable for ", col)))
-  list(
-    lines    = c(paste0("generate ", col, " = ", fval),
-                 paste0("replace ",  col, " = ", tval, " if ", cond)),
-    warnings = character(0)
-  )
+# transmute = mutate, then keep only the newly created columns (drops the rest).
+handle_transmute <- function(args, df_name, group_by = NULL) {
+  r   <- handle_mutate(args, df_name, group_by)
+  nms <- names(args)
+  new_cols <- if (is.null(nms)) character(0) else nms[nzchar(nms)]
+  if (length(new_cols) > 0)
+    r$lines <- c(r$lines, paste0("keep ", paste(new_cols, collapse = " ")))
+  r
 }
 
-.expand_case_when <- function(col, cargs, df_name) {
-  lines <- paste0("generate ", col, " = .")
-  warns <- character(0)
-  for (cw in cargs) {
-    if (!is.call(cw) || as.character(cw[[1]]) != "~") next
-    cond_node <- cw[[2]]
-    val_node  <- cw[[3]]
-    val <- translate_expr(val_node, df_name)
-    if (is.null(val)) { warns <- c(warns, paste0("// case_when: untranslatable value for ", col)); next }
-    is_default <- (is.name(cond_node) && as.character(cond_node) %in% c("TRUE", "T")) ||
-                  (is.logical(cond_node) && isTRUE(cond_node))
-    if (is_default) {
-      lines <- c(lines, paste0("replace ", col, " = ", val, " if sysmiss(", col, ")"))
-    } else {
-      cond <- translate_expr(cond_node, df_name)
-      if (!is.null(cond)) {
-        lines <- c(lines, paste0("replace ", col, " = ", val, " if ", cond))
-      } else {
-        warns <- c(warns, paste0("// case_when: untranslatable condition for ", col))
-      }
-    }
-  }
-  list(lines = lines, warnings = warns)
-}
-
-.expand_recode <- function(col, pairs, df_name) {
-  nms <- names(pairs)
-  if (is.null(nms) || !any(nzchar(nms)))
-    return(list(lines = character(0), warnings = paste0("// recode: no names found for ", col)))
-  pair_strs <- sapply(seq_along(pairs), function(j) {
-    val <- translate_expr(pairs[[j]], df_name)
-    if (is.null(val)) return(NULL)
-    paste0("(", nms[j], "=", val, ")")
-  })
-  if (any(sapply(pair_strs, is.null)))
-    return(list(lines = character(0), warnings = paste0("// recode: untranslatable values for ", col)))
-  list(lines = paste0("recode ", col, " ", paste(pair_strs, collapse = " ")),
-       warnings = character(0))
-}
+# .expand_ifelse / .expand_case_when / .expand_recode live in expanders.R
+# (shared source, sourced before this file).
 
 .expand_coalesce <- function(col, cargs, df_name) {
   if (length(cargs) < 2)
@@ -365,11 +349,20 @@ handle_summarise <- function(args, df_name, group_by = NULL) {
   specs    <- character(0)   # accumulate "(stat) src -> tgt" fragments
 
   for (i in seq_along(args)) {
+    node  <- args[[i]]
+    fn    <- if (is.call(node)) .callee_name(node) else ""
+    cargs <- if (is.call(node)) as.list(node)[-1] else list()
+
+    # across(cols, fn) is unnamed and expands to one spec per column
+    if (fn == "across") {
+      r <- .expand_across_summarise(cargs, df_name)
+      specs    <- c(specs, r$specs)
+      warnings <- c(warnings, r$warnings)
+      next
+    }
+
     new_col <- if (!is.null(nms) && nzchar(nms[i])) nms[i] else NULL
     if (is.null(new_col)) next
-    node  <- args[[i]]
-    fn    <- if (is.call(node)) as.character(node[[1]]) else ""
-    cargs <- if (is.call(node)) as.list(node)[-1] else list()
 
     # n() → count
     if (fn == "n" && length(cargs) == 0) {
@@ -432,6 +425,21 @@ handle_slice_head <- function(args, df_name, group_by = NULL) {
   n_val  <- if (!is.null(n_node)) as.character(n_node) else "."
   list(lines = paste0("// slice_head(n = ", n_val, "): use 'sample' if needed"),
        warnings = character(0))
+}
+
+handle_slice <- function(args, df_name, group_by = NULL)
+  list(lines = "// slice: no microdata equivalent (positional row selection)",
+       warnings = character(0))
+
+handle_slice_tail <- function(args, df_name, group_by = NULL)
+  list(lines = "// slice_tail: no microdata equivalent", warnings = character(0))
+
+# slice_sample(n=) / slice_sample(prop=) → the sample command (reuses the
+# sample_n / sample_frac handlers so all sampling paths stay consistent).
+handle_slice_sample <- function(args, df_name, group_by = NULL) {
+  if (!is.null(args[["n"]]))    return(handle_sample_n(list(n = args[["n"]]), df_name))
+  if (!is.null(args[["prop"]])) return(handle_sample_frac(list(size = args[["prop"]]), df_name))
+  list(lines = "// slice_sample: needs n= or prop=", warnings = character(0))
 }
 
 # ── regression models ─────────────────────────────────────────────────────────
@@ -855,7 +863,7 @@ handle_aov <- function(args, df_name) {
 
 handle_t_test <- function(args, df_name) {
   x_node <- args[[1]]
-  fn_x   <- if (is.call(x_node)) as.character(x_node[[1]]) else ""
+  fn_x   <- if (is.call(x_node)) .callee_name(x_node) else ""
 
   # t.test(income ~ sex, data=df) — formula form
   if (fn_x == "~") {
@@ -871,7 +879,7 @@ handle_t_test <- function(args, df_name) {
            (if (is.name(x_node)) as.character(x_node) else NULL)
 
   # t.test(df$x, df$y) — two-sample
-  y_node <- args[["y"]] %||% args[[2]]
+  y_node <- args[["y"]] %||% (if (length(args) >= 2) args[[2]] else NULL)
   if (!is.null(y_node)) {
     y_col <- col_from_node(y_node, df_name) %||%
              (if (is.name(y_node)) as.character(y_node) else NULL)
@@ -961,7 +969,8 @@ handle_survfit <- function(args, df_name) {
   by_str <- if (length(s$groups) > 0)
     paste0(", by(", paste(s$groups, collapse = " "), ")")
   else ""
-  list(lines = paste0("kaplan-meier ", s$time, " ", s$event, by_str), warnings = character(0))
+  # microdata: `kaplan-meier hendelse-var tid-var` = event first, time second
+  list(lines = paste0("kaplan-meier ", s$event, " ", s$time, by_str), warnings = character(0))
 }
 
 handle_coxph <- function(args, df_name) {
@@ -973,8 +982,26 @@ handle_coxph <- function(args, df_name) {
                 warnings = character(0)))
   if (length(s$groups) == 0)
     return(list(lines = "// coxph: no predictors found", warnings = character(0)))
-  list(lines = paste0("cox ", s$time, " ", s$event, " ", paste(s$groups, collapse = " ")),
+  # microdata: `cox hendelse-var tid-var` = event first, time second
+  list(lines = paste0("cox ", s$event, " ", s$time, " ", paste(s$groups, collapse = " ")),
        warnings = character(0))
+}
+
+# survival::survreg(Surv(time, event) ~ x, dist = "weibull") → weibull event time x
+handle_survreg <- function(args, df_name) {
+  f_node <- args[["formula"]] %||% args[[1]]
+  if (is.null(f_node)) return(NULL)
+  dist_node <- args[["dist"]]
+  dist <- if (!is.null(dist_node) && is.character(dist_node)) dist_node else "weibull"
+  if (dist != "weibull")
+    return(list(lines = paste0("// survreg: only dist='weibull' maps to microdata (got '", dist, "')"),
+                warnings = character(0)))
+  s <- .parse_surv_formula(f_node)
+  if (is.null(s))
+    return(list(lines = "// survreg: expected Surv(time, event) ~ x formula",
+                warnings = character(0)))
+  grp <- if (length(s$groups) > 0) paste0(" ", paste(s$groups, collapse = " ")) else ""
+  list(lines = paste0("weibull ", s$event, " ", s$time, grp), warnings = character(0))
 }
 
 # ── panel / RDD / oaxaca regression ──────────────────────────────────────────
@@ -992,7 +1019,7 @@ handle_rdrobust <- function(args, df_name) {
   c_node <- args[["c"]] %||% args[["cutoff"]]
   opts   <- character(0)
   if (!is.null(c_node) && is.numeric(c_node) && c_node != 0)
-    opts <- c(opts, paste0("cutoff(", c_node, ")"))
+    opts <- c(opts, paste0("cutoff(", format(c_node, scientific = FALSE, trim = TRUE), ")"))
   cmd <- paste0("rdd ", y, " ", x)
   if (length(opts)) cmd <- paste0(cmd, ", ", paste(opts, collapse = " "))
   list(lines = cmd, warnings = character(0))
@@ -1217,10 +1244,12 @@ handle_sample_frac <- function(args, df_name, group_by = NULL) {
   s_node <- args[["size"]] %||% (if (length(args) >= 1) args[[1]] else NULL)
   if (is.null(s_node))
     return(list(lines = "// sample_frac: missing size argument", warnings = character(0)))
-  pct <- tryCatch(as.numeric(s_node) * 100, error = function(e) NULL)
-  if (!is.null(pct))
-    return(list(lines = paste0("sample ", pct), warnings = character(0)))
-  list(lines = "// sample_frac: could not compute percentage", warnings = character(0))
+  # microdata `sample` takes a fraction in (0,1) directly — not a percentage.
+  frac <- tryCatch(format(as.numeric(s_node), scientific = FALSE, trim = TRUE),
+                   error = function(e) NULL)
+  if (!is.null(frac))
+    return(list(lines = paste0("sample ", frac), warnings = character(0)))
+  list(lines = "// sample_frac: could not parse fraction", warnings = character(0))
 }
 
 # ── count ─────────────────────────────────────────────────────────────────────
@@ -1240,7 +1269,7 @@ handle_count <- function(args, df_name, group_by = NULL) {
 DPLYR_DISPATCH <- list(
   filter    = handle_filter,
   mutate    = handle_mutate,
-  transmute = handle_mutate,
+  transmute = handle_transmute,
   select    = handle_select,
   rename    = handle_rename,
   summarise = handle_summarise,
@@ -1248,9 +1277,12 @@ DPLYR_DISPATCH <- list(
   arrange   = handle_arrange,
   drop_na   = handle_drop_na,
   distinct  = handle_distinct,
-  slice_head = handle_slice_head,
-  slice_max  = handle_slice_head,
-  slice_min  = handle_slice_head,
+  slice       = handle_slice,
+  slice_head  = handle_slice_head,
+  slice_tail  = handle_slice_tail,
+  slice_max   = handle_slice_head,
+  slice_min   = handle_slice_head,
+  slice_sample = handle_slice_sample,
   # tidy helpers
   count        = handle_count,
   sample_n     = handle_sample_n,
@@ -1285,6 +1317,7 @@ STANDALONE_DISPATCH <- list(
   # survival
   coxph       = function(args, df_name) handle_coxph(args, df_name),
   survfit     = function(args, df_name) handle_survfit(args, df_name),
+  survreg     = function(args, df_name) handle_survreg(args, df_name),
   # statistical tests
   cor         = function(args, df_name) handle_cor(args, df_name),
   t.test      = function(args, df_name) handle_t_test(args, df_name),

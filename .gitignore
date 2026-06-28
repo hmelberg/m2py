@@ -7,9 +7,12 @@ __pycache__/
 *.pyo
 .pytest_cache/
 
-# Test files
-test_*.py
-run_test.py
+# Scratch test files in repo root only (committed tests live in tests/)
+/test_*.py
+/run_test.py
+
+# Local working notes (not tracked)
+Notater og mulige issues.md
 
 # Editor / IDE
 .claude/
@@ -24,6 +27,8 @@ Thumbs.db
 
 # Local env
 .env
+.venv/
+venv/
 .netlify/
 
 # Generated static data export (build_static_data.py).

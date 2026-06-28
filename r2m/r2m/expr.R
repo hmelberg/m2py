@@ -5,6 +5,33 @@
 
 `%||%` <- function(a, b) if (!is.null(a) && length(a) > 0) a else b
 
+#' Bare callee name of a call node, as a single string.
+#' Handles namespaced calls: pkg::fun(...) / pkg:::fun(...) -> "fun".
+#' as.character(node[[1]]) on a namespaced call returns c("::","pkg","fun")
+#' (length 3), which crashes any downstream `if (fn == ...)` under R >= 4.2.
+.callee_name <- function(node) {
+  if (!is.call(node)) return("")
+  head <- node[[1]]
+  if (is.call(head) && length(head) == 3) {
+    op <- as.character(head[[1]])
+    if (length(op) == 1 && op %in% c("::", ":::"))
+      return(as.character(head[[3]]))
+    return("")  # other complex callee, e.g. (f)() or obj$method()
+  }
+  nm <- as.character(head)
+  if (length(nm) == 1) nm else ""
+}
+
+#' TRUE when the call node is namespaced (pkg::fun / pkg:::fun).
+#' Used to disambiguate stats::df (F-density) from a user's data frame `df`.
+.callee_is_namespaced <- function(node) {
+  if (!is.call(node)) return(FALSE)
+  head <- node[[1]]
+  is.call(head) && length(head) == 3 &&
+    length(as.character(head[[1]])) == 1 &&
+    as.character(head[[1]]) %in% c("::", ":::")
+}
+
 # ── distribution-function helpers ─────────────────────────────────────────────
 # Returns TRUE when lower.tail is TRUE (the default) or absent.
 .lower_tail <- function(args) {
@@ -48,7 +75,7 @@ MICRODATA_FUNCS <- c(
 #' Returns character or NULL.
 col_from_node <- function(node, df_name = "df") {
   if (!is.call(node)) return(NULL)
-  fn <- as.character(node[[1]])
+  fn <- .callee_name(node)
   if (fn == "$") {
     if (is.name(node[[2]]) && as.character(node[[2]]) == df_name) {
       return(as.character(node[[3]]))  # symbol on RHS of $ is the column name
@@ -69,9 +96,14 @@ translate_expr <- function(node, df_name = "df") {
   if (is.null(node)) return(NULL)
 
   # --- literals ---
+  # NA of any type (NA, NA_real_, NA_integer_, NA_character_) → microdata missing.
+  # Must precede the type-specific branches below, which would otherwise emit
+  # "0" (logical NA) or NA_character_ (numeric NA).
+  if (is.atomic(node) && length(node) == 1 && is.na(node)) return(".")
   if (is.character(node)) return(paste0("'", node, "'"))
   if (is.logical(node))   return(if (isTRUE(node)) "1" else "0")
-  if (is.numeric(node))   return(as.character(node))
+  # format(scientific=FALSE) so large integers like 500000 don't become "5e+05"
+  if (is.numeric(node))   return(format(node, scientific = FALSE, trim = TRUE))
 
   # --- bare names ---
   if (is.name(node)) {
@@ -88,7 +120,7 @@ translate_expr <- function(node, df_name = "df") {
   }
 
   if (!is.call(node)) return(NULL)
-  fn   <- as.character(node[[1]])
+  fn   <- .callee_name(node)
   args <- as.list(node)[-1]  # named list of arguments
 
   # --- df$col / df[["col"]] → column name ---
@@ -133,7 +165,7 @@ translate_expr <- function(node, df_name = "df") {
   if (fn == "!") {
     inner <- args[[1]]
     # !is.na(x) → (!sysmiss(x))
-    if (is.call(inner) && as.character(inner[[1]]) %in% c("is.na", "is.null")) {
+    if (is.call(inner) && .callee_name(inner) %in% c("is.na", "is.null")) {
       v <- translate_expr(as.list(inner)[-1][[1]], df_name)
       if (!is.null(v)) return(paste0("(!sysmiss(", v, "))"))
     }
@@ -146,7 +178,7 @@ translate_expr <- function(node, df_name = "df") {
   if (fn == "%in%") {
     col <- translate_expr(args[[1]], df_name)
     vals_node <- args[[2]]
-    if (!is.null(col) && is.call(vals_node) && as.character(vals_node[[1]]) == "c") {
+    if (!is.null(col) && is.call(vals_node) && .callee_name(vals_node) == "c") {
       vals <- sapply(as.list(vals_node)[-1], translate_expr, df_name = df_name)
       if (!any(sapply(vals, is.null)))
         return(paste0("inlist(", col, ", ", paste(vals, collapse = ", "), ")"))
@@ -372,7 +404,10 @@ translate_expr <- function(node, df_name = "df") {
   # --- probability: F-distribution ---
   # Safe to translate pf/qf unconditionally; stats::df required for density
   # (bare "df" collides with the user's data-frame variable).
-  if (fn %in% c("pf", "qf", "stats::df")) {
+  # bare "df" collides with the user's data frame, so the F-density is only
+  # recognized when explicitly namespaced (stats::df).
+  is_fdensity <- (fn == "df" && .callee_is_namespaced(node))
+  if (fn %in% c("pf", "qf") || is_fdensity) {
     x   <- translate_expr(args[[1]], df_name)
     v1n <- args[["df1"]] %||% (if (length(args) >= 2) args[[2]] else NULL)
     v2n <- args[["df2"]] %||% (if (length(args) >= 3) args[[3]] else NULL)
@@ -382,7 +417,7 @@ translate_expr <- function(node, df_name = "df") {
       lt  <- .lower_tail(args)
       ncp <- .ncp_expr(args, df_name)
       if (!is.null(v1) && !is.null(v2)) {
-        if (fn == "stats::df")
+        if (is_fdensity)
           return(if (!is.null(ncp)) .mk("nFden", x, v1, v2, ncp) else .mk("Fden", x, v1, v2))
         if (fn == "pf" && !is.null(ncp))
           return(if (lt) .mk("nF", x, v1, v2, ncp) else .mk("nFtail", x, v1, v2, ncp))
@@ -444,18 +479,23 @@ translate_expr <- function(node, df_name = "df") {
   # --- row-wise functions ---
   if (fn %in% c("pmax", "pmin")) {
     fn_m <- if (fn == "pmax") "rowmax" else "rowmin"
-    clean <- args[!names(args) %in% "na.rm"]   # drop na.rm
+    # names(args) is NULL when every arg is positional; %||% guards the filter
+    # so all args aren't silently dropped (which produced "rowmax()").
+    nms   <- names(args) %||% rep("", length(args))
+    clean <- args[nms != "na.rm"]   # drop na.rm
     parts <- sapply(clean, translate_expr, df_name = df_name)
     if (!any(sapply(parts, is.null)))
       return(paste0(fn_m, "(", paste(unlist(parts), collapse = ", "), ")"))
   }
-  if (fn %in% c("paste", "paste0")) {
+  if (fn %in% c("paste", "paste0", "str_c")) {
     sep_node <- args[["sep"]]
-    sep_str  <- if (fn == "paste0") ""
-                else if (!is.null(sep_node) && is.character(sep_node)) sep_node
+    sep_str  <- if (fn %in% c("paste0", "str_c")) {  # str_c default sep is ""
+                  if (!is.null(sep_node) && is.character(sep_node)) sep_node else ""
+                } else if (!is.null(sep_node) && is.character(sep_node)) sep_node
                 else " "
     # translate positional (non-keyword) args only
-    val_args <- args[!names(args) %in% c("sep", "collapse")]
+    nms_p    <- names(args) %||% rep("", length(args))
+    val_args <- args[!(nms_p %in% c("sep", "collapse"))]
     parts    <- sapply(val_args, translate_expr, df_name = df_name)
     if (!any(sapply(parts, is.null))) {
       if (nzchar(sep_str)) {
@@ -493,13 +533,22 @@ translate_expr <- function(node, df_name = "df") {
     inner <- args[[1]]
     parts <- NULL
     if (is.call(inner)) {
-      ifn <- as.character(inner[[1]])
+      ifn <- .callee_name(inner)
       if (ifn == "cbind") {
         tr <- sapply(as.list(inner)[-1], translate_expr, df_name = df_name)
         if (!any(sapply(tr, is.null))) parts <- unlist(tr)
-      } else if (ifn == "[" && length(as.list(inner)) >= 3) {
-        col_arg <- as.list(inner)[[3]]
-        if (is.call(col_arg) && as.character(col_arg[[1]]) == "c") {
+      } else if (ifn == "[") {
+        # df[, c(...)] has an empty (missing) row-index arg. Touching that
+        # missing symbol errors, so test by index and skip it before binding.
+        il <- as.list(inner)
+        col_arg <- NULL
+        for (i in seq_along(il)[-(1:2)]) {
+          if (identical(il[[i]], quote(expr = ))) next
+          if (is.call(il[[i]]) && .callee_name(il[[i]]) == "c") {
+            col_arg <- il[[i]]; break
+          }
+        }
+        if (!is.null(col_arg)) {
           cnames <- sapply(as.list(col_arg)[-1], function(a)
             if (is.character(a)) a else if (is.name(a)) as.character(a) else NULL)
           if (!any(sapply(cnames, is.null))) parts <- unlist(cnames)

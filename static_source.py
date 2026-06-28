@@ -150,7 +150,13 @@ class StaticDataSource:
             seen.add(d["key"])
             if limit:
                 if d.get("kind") == "person":
-                    d = dict(d, limit=int(limit))
+                    # Bound by id, not LIMIT: parquet row order is unguaranteed,
+                    # so LIMIT n could pick a person set inconsistent with the
+                    # entity tables (which filter ref_col <= n). WHERE id <= n
+                    # makes the person universe exactly {1..n} by construction.
+                    id_col = TABLE_KEYS.get(d["table"], ("unit_id", None))[0]
+                    extra = f"{id_col} <= {int(limit)}"
+                    d = dict(d, where=(f"{d['where']} AND {extra}" if d.get("where") else extra))
                 elif d.get("kind") == "entity" and d.get("ref_col"):
                     # keep entity rows consistent with the limited person universe
                     extra = f"{d['ref_col']} <= {int(limit)}"

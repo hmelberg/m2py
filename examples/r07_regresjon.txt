@@ -1,0 +1,25 @@
+# Eksempel: regresjon — lineær og logistisk
+# lm() -> regress, glm(family=binomial) -> logit.
+
+#micro
+require no.ssb.fdb:54 as fd
+create-dataset folk
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/BEFOLKNING_FOEDSELS_AAR_MND as fodt
+
+#r
+library(dplyr)
+
+folk <- folk |>
+  mutate(
+    alder = 2022 - floor(fodt / 100),
+    mann  = ifelse(kjonn == 1, 1, 0)
+  )
+
+# Lineær regresjon av inntekt på alder og kjønn
+lm(inntekt ~ alder + mann, data = folk)
+
+# Logistisk regresjon: sannsynlighet for høy inntekt
+folk <- folk |> mutate(hoyinntekt = ifelse(inntekt > 600000, 1, 0))
+glm(hoyinntekt ~ alder + mann, family = binomial(), data = folk)

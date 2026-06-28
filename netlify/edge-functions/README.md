@@ -1,19 +1,22 @@
 # Edge Functions — lokal testing
 
+AI-endepunkter (se `netlify.toml` for path-mapping):
+
+- `dm-vurder` → `/api/dm-vurder` — personvern-/dataminimerings-vurdering av et script
+- `kode-svar` → `/api/kode-svar` — AI-assistent som genererer/forklarer microdata-kode
+- `kode-svar-v2` → `/api/kode-svar-v2` — eksperimentell 2-stegs variant: en
+  «variabel-velger»-modell (env `PICKER_MODEL`, standard rask Haiku) plukker
+  relevante variabler som vises med full kodeliste i generasjons-prompten;
+  klienten kjører én auto-rettingsrunde mot lokal Pyodide-validering. v1
+  (`kode-svar`) er urørt, og v2 degraderer til v1-lik oppførsel hvis velgeren feiler.
+- `tolk-resultat` → `/api/tolk-resultat` — tolker output fra en kjøring
+
 ## Forutsetninger
 
-1. Installer Netlify CLI:
-   ```
-   npm install -g netlify-cli
-   ```
-
-2. Sett API-nøkkel og andre env-vars:
-   ```
-   cp .env.example .env
-   # Rediger .env og fyll inn ANTHROPIC_API_KEY
-   ```
-
-   Tilsvarende variabler må også settes i Netlify-konsollen før prod-deploy.
+1. Installer Netlify CLI: `npm install -g netlify-cli`
+2. Sett env-vars: `cp .env.example .env`, fyll inn `ANTHROPIC_API_KEY` og
+   `M2PY_ACCESS_TOKEN` (delt token for lokal/admin-tilgang). Samme variabler må
+   settes i Netlify-konsollen før prod-deploy.
 
 ## Start lokal dev-server
 
@@ -23,12 +26,19 @@ netlify dev
 
 Server starter typisk på `http://localhost:8888`.
 
-## Test dm-quick med curl
+## Auth
+
+Alle tre endepunktene krever `Authorization: Bearer <token>` (felles
+`_lib/auth.ts`-gate: token-sjekk → metode → body-grense → rate-limit → Anvil-
+validering, med konstant-tid-sammenligning og positiv-cache). Bruk det delte
+`M2PY_ACCESS_TOKEN` lokalt, eller et gyldig brukertoken fra Anvil.
+
+## Test dm-vurder med curl
 
 ```bash
-curl -N -X POST http://localhost:8888/api/dm-quick \
+curl -N -X POST http://localhost:8888/api/dm-vurder \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:8888" \
+  -H "Authorization: Bearer $M2PY_ACCESS_TOKEN" \
   -d '{
     "script": "// personvern: formål: Studere inntektsforskjeller\nimport all from BEFOLKNING\nkeep if alder >= 18\nsummarize INNTEKT, by(kommune)"
   }'
@@ -36,37 +46,30 @@ curl -N -X POST http://localhost:8888/api/dm-quick \
 
 Forventet output: en strøm av `data: {"type":"text","text":"..."}`-linjer,
 deretter en `data: {"type":"done","inputTokens":...,"outputTokens":...}`-linje.
+Innholdet er norsk markdown (Klassifisering, Samlet vurdering, Observasjoner).
 
-Innholdet skal være norsk markdown med seksjonene Klassifisering,
-Samlet vurdering, og evt. Observasjoner.
+## Feil-scenarioer
 
-## Test feil-scenarioer
+- Mangler/ugyldig token → 401
+- Feil metode (ikke POST) → 405
+- For stor body (`content-length` over grensen) → 413
+- For mange kall fra samme IP → 429 (med `Retry-After`)
 
-Avvist origin (403):
-```bash
-curl -X POST http://localhost:8888/api/dm-quick \
-  -H "Content-Type: application/json" \
-  -d '{"script":"test"}' \
-  -w "\n%{http_code}\n"
+## Struktur
+
+- `dm-vurder.ts`, `kode-svar.ts`, `tolk-resultat.ts` — endepunktene
+- `_lib/auth.ts` — felles request-gate (auth + rate-limit + body-guard)
+- `_lib/rate-limit.ts` — per-IP token-bucket (Netlify Blobs; failer åpent)
+- `_lib/anthropic.ts` — Anthropic streaming-klient (timeout + 429/529-retry)
+- `_lib/parse-script-context.ts` — personvern-kommentarer + språk-deteksjon
+- `prompts/` — kildefiler for prompt-tekstene (duplisert som TypeScript-
+  konstanter i endepunkt-filene siden Deno Deploy ikke bundler .md i runtime;
+  oppdater begge stedene ved endring)
+
+## Tester
+
 ```
-
-For stor body (413):
-```bash
-python3 -c "print('x' * 60000)" > /tmp/big.txt
-curl -X POST http://localhost:8888/api/dm-quick \
-  -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:8888" \
-  -d "{\"script\":\"$(cat /tmp/big.txt)\"}" \
-  -w "\n%{http_code}\n"
+deno check *.ts _lib/*.ts
+deno test --allow-all _lib/
 ```
-
-(NB: origin-sjekk og body-grense legges til i Tasks 11–12.)
-
-## Edge Function-struktur
-
-- `dm-quick.ts` — kjapp vurdering, streamer til klient
-- `_lib/parse-script-context.ts` — parser for personvern-kommentarer + språk-deteksjon
-- `_lib/anthropic.ts` — tynn Anthropic streaming-klient
-- `prompts/` — kildefiler for prompt-tekstene (innholdet er duplisert som
-  TypeScript-konstanter i `dm-quick.ts` siden Deno Deploy ikke bundler .md
-  filer automatisk; oppdater begge stedene ved endring)
+(kjøres også i CI via `.github/workflows/edge-tests.yml`)

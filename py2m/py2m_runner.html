@@ -545,15 +545,21 @@ _json.dumps({"script": _r.script(), "warnings": list(_r.warnings)})
       return;
     }
 
-    // Render with warning lines highlighted
+    // Render with action-needed lines highlighted (warnings + any `//` line
+    // flagging something untranslated / with no equivalent — so they stand out
+    // from the translated commands rather than blending in as plain comments).
+    const ACTION_RE = /^\/\/\s*(WARNING|UNTRANSLATED|NOTE)|no microdata equivalent|cannot|could not/i;
     outEl.innerHTML = '';
+    let actionCount = 0;
     for (const line of combined.split('\n')) {
       const span = document.createElement('span');
-      if (line.startsWith('// WARNING:')) span.className = 'warn';
+      if (ACTION_RE.test(line)) { span.className = 'warn'; if (line.trim()) actionCount++; }
       span.textContent = line + '\n';
       outEl.appendChild(span);
     }
-    setRight('Translated.');
+    setRight(actionCount > 0
+      ? `Translated — ${actionCount} line${actionCount === 1 ? '' : 's'} need attention (highlighted).`
+      : 'Translated.');
 
   } catch(e) {
     outEl.textContent = '// ERROR: ' + (e.message || String(e));

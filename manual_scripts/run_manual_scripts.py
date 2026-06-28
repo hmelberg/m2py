@@ -40,7 +40,10 @@ def run_one_script(script_path: Path, meta_path) -> dict:
         result['output'] = output or ''
         result['duration_s'] = time.time() - start
 
-        feil = [l for l in (output or '').splitlines() if 'FEIL' in l.upper()]
+        # Match the actual error-line prefix ("FEIL: …" / "FEIL PÅ KOMMANDO …"),
+        # not any line that merely CONTAINS "feil" — base64 figure payloads can
+        # coincidentally include the substring and trip a false positive.
+        feil = [l for l in (output or '').splitlines() if l.strip().upper().startswith('FEIL')]
         result['feil_lines'] = feil
         result['status'] = 'PARTIAL' if feil else 'OK'
 
@@ -101,4 +104,11 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    import sys
+    _results = main()
+    _crash = sum(1 for r in _results if r['status'] == 'CRASH')
+    _partial = sum(1 for r in _results if r['status'] == 'PARTIAL')
+    # Baseline is all-OK; any crash or partial is a regression -> fail CI.
+    if _crash or _partial:
+        print(f"\nFAIL: {_crash} crashed, {_partial} partial (baseline is 17 OK / 0 PARTIAL / 0 CRASH).")
+        sys.exit(1)

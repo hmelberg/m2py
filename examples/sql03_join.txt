@@ -1,0 +1,23 @@
+-- JOIN: koble to tabeller på felles nøkkel (fnr).
+
+CREATE OR REPLACE TABLE personer AS
+SELECT * FROM (VALUES
+  (1, 'Mann',   25, 'Oslo'),
+  (2, 'Kvinne', 34, 'Bergen'),
+  (3, 'Mann',   52, 'Oslo'),
+  (4, 'Kvinne', 41, 'Trondheim')
+) AS t(fnr, kjonn, alder, kommune);
+
+CREATE OR REPLACE TABLE jobber AS
+SELECT * FROM (VALUES
+  (1, 'Lærer',      550000),
+  (2, 'Lege',       900000),
+  (3, 'Snekker',    600000),
+  (4, 'Sykepleier', 520000)
+) AS t(fnr, yrke, lonn);
+
+-- Personer med yrke og lønn.
+SELECT p.fnr, p.kjonn, p.alder, p.kommune, j.yrke, j.lonn
+FROM personer p
+JOIN jobber j USING (fnr)
+ORDER BY j.lonn DESC;

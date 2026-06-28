@@ -1,4 +1,8 @@
-const CACHE = 'm2py-v3';
+// IMPORTANT: bump CACHE whenever PRECACHE_URLS (or any precached asset) changes,
+// otherwise clients keep serving the stale cache. The Pyodide version string is
+// duplicated across this file (PRECACHE_URLS below), index.html, and
+// py2m/py2m_runner.html — update all of them together when upgrading Pyodide.
+const CACHE = 'm2py-v5';
 const CDN_HOSTS = new Set([
   'cdn.jsdelivr.net',
   'cdn.plot.ly',
@@ -56,6 +60,12 @@ self.addEventListener('fetch', e => {
     e.respondWith(staleWhileRevalidate(e.request));
     return;
   }
+
+  // App-shell assets (index.html, app.css, js/*.js, command_help.js,
+  // widgets/forklar-widgets.js) intentionally fall through to plain
+  // network/HTTP-cache — they are NOT precached or runtime-cached here.
+  // If you ever add the shell to the SW for offline support, add index.html
+  // alongside its css/js and bump CACHE.
 });
 
 async function cacheFirst(req) {
@@ -64,7 +74,10 @@ async function cacheFirst(req) {
   if (hit) return hit;
   try {
     const res = await fetch(req);
-    if (res && (res.ok || res.type === 'opaque')) {
+    // Cache only real, inspectable responses. Opaque (cross-origin no-cors)
+    // responses are padded to a large fixed size in the quota (~7MB each) — and
+    // our CDN (jsdelivr) sends CORS, so res.ok is the right gate.
+    if (res && res.ok) {
       cache.put(req, res.clone()).catch(() => {});
     }
     return res;
@@ -83,6 +96,11 @@ async function staleWhileRevalidate(req) {
   const network = fetch(req).then(res => {
     if (res && res.ok) cache.put(key, res.clone()).catch(() => {});
     return res;
-  }).catch(() => hit);
-  return hit || network;
+  });
+  // Never resolve to undefined (that breaks respondWith). If we have a cached
+  // copy, serve it and let the network revalidate in the background; otherwise
+  // return the network promise — if it rejects, respondWith yields a normal
+  // network error rather than an undefined response.
+  if (hit) { network.catch(() => {}); return hit; }
+  return network;
 }

@@ -1,5 +1,6 @@
 import { streamAnthropic } from "./_lib/anthropic.ts";
-import { checkRateLimit } from "./_lib/rate-limit.ts";
+import { gate } from "./_lib/auth.ts";
+import { abbrevType, cleanDescription, extractValidPeriod, renderLabels } from "./_lib/catalog-format.ts";
 
 // ====================================================================
 // kode-svar — "Spør raskt": single-shot, no-repair code assistant.
@@ -624,6 +625,11 @@ const INFERENCE_RULES = `\
 
 Når spørsmålet gjelder **effekt, årsak, virkning eller sammenheng**: still deg i rollen som ekspert på kvasi-eksperimentelle metoder i observasjonsdata. Velg den enkleste metoden som identifikasjonsstrategien tillater, og oppgi den sentrale antakelsen.
 
+**Analytisk strategi — tenk gjennom dette FØR metodevalg:**
+- **Konfunderende variabler.** En rå forskjell er sjelden svaret. Kjør først den enkle sammenligningen, deretter en justert modell som kontrollerer for de bakenforliggende faktorene som er RELEVANTE FOR NETTOPP DETTE SPØRSMÅLET og som finnes i katalogen — ikke en fast liste. (Alder, kjønn og utdanning er bare mulige eksempler; for mange spørsmål er noen av dem irrelevante.) Vis hvordan estimatet flytter seg fra rått til justert, og si i en kommentar hvilke du kontrollerer for og hvorfor.
+- **Heterogenitet.** Effekter varierer ofte mellom grupper. Ta med ÉN grov, godt befolket oppdeling der det er naturlig (interaksjon \`a##b\` eller analyse innen undergrupper) — men hold gruppene grove nok til å overleve personvernreglene (≥ 1000 i populasjon, unngå små celler; se personvern-blokken). Foreslå dypere oppdelinger i prosa heller enn å sprenge utvalget.
+- **Variabelvalg og avtrykk i registeret.** Den mest åpenbare variabelen er ikke alltid den beste — verken konseptuelt eller statistisk. Spør: hvilket avtrykk setter fenomenet i registrene? Den direkte etiketterte variabelen kan (a) være konseptuelt forurenset (f.eks. «arv» som også fanger gaver) eller (b) dekke få personer. Et konstruert mål bygd fra beslektede variabler — datoer, hendelser, familiepekere, tilhørende stønader (f.eks. «året etter siste forelders død» som arvetidspunkt, eller sykdomsrelaterte ytelser som signal på sykdom) — kan være både renere og dekke langt flere. Vei det etiketterte målet mot et indirekte/proxy-mål på BÅDE gyldighet og antall enheter, og oppgi proxyens sentrale antakelse.
+
 **Faktor- og interaksjonssyntaks** (regress, regress-panel, logit, probit, poisson, negative-binomial, mlogit):
 - \`i.var\` — kategorisk → dummyer (referansekategori droppes). \`c.var\` — behandle kategorisk som kontinuerlig.
 - \`a#b\` — interaksjon; \`a##b\` — full kryssing (hovedeffekter + interaksjon). \`c.x#c.y\` for to metriske.
@@ -650,6 +656,29 @@ Når spørsmålet gjelder **effekt, årsak, virkning eller sammenheng**: still d
 **Visualisering:** \`coefplot\` etter regress/logit/probit/poisson.
 
 Personvern (T9): regresjonskonstanten skjules hvis kategorikombinasjoner gir < 5 enheter — hold kategoriene grove.`;
+
+const VISUALIZATION_RULES = `\
+## Visualisering — vis resultater som figurer, ikke bare tall
+
+Tall og figurer utfyller hverandre. Når et resultat egner seg grafisk, lag GJERNE
+både tabellen/regresjonen OG en figur i samme script. Tilgjengelige plott (full
+syntaks står i kommando-referansen — her er bare når du bør gripe til dem):
+- \`barchart (stat) var [, over(grp) by(grp) stack horizontal]\` — grafisk versjon
+  av \`tabulate\`/\`summarize\`. \`count\`/\`percent\` for kategoriske (kun ÉN variabel);
+  \`mean\`/\`median\`/\`sum\`/\`min\`/\`max\`/\`sd\` for numeriske. \`over(grp)\` viser
+  statistikken FORDELT på grupper — det naturlige verktøyet for å vise heterogenitet
+  (f.eks. \`barchart (mean) lonn, over(kjonn)\`); \`over(a, b)\` krysser to grupper;
+  \`stack\` komprimerer mange kategorier til én søyle per gruppe.
+- \`boxplot var [, over(grp)]\` — fordeling/spredning per gruppe.
+- \`histogram var [, discrete]\` — fordeling for én variabel (bruk \`, discrete\` for
+  kategoriske). NB: \`scatter\` finnes IKKE (T4).
+- \`coefplot <regresjon …>\` — koeffisienter med konfidensintervall etter
+  regress/logit/probit/poisson.
+- \`hexbin xvar yvar [, gridsize() groups()]\` — tetthet for to variabler.
+
+Figurer følger de SAMME personvernreglene som tabeller (grove grupper, ingen små
+celler). Ikke lag figurer bare for syns skyld — velg den som faktisk gjør
+resultatet lettere å lese, og presenter helst tall og figur sammen.`;
 
 const MISSING_VALUES = `\
 ## Missing-verdier — KRITISK for inntekt, trygd og stønader
@@ -693,6 +722,7 @@ const RULE_BLOCKS = [
   DATE_QUIRKS,
   PRIVACY_RULES,
   INFERENCE_RULES,
+  VISUALIZATION_RULES,
   MISSING_VALUES,
   NPR_RULES,
   OUTPUT_INSTRUCTION,
@@ -703,97 +733,159 @@ const RULE_BLOCKS = [
 //    module scope so warm invocations reuse them; the rendered prefix is
 //    byte-stable across instances, so Anthropic's cache hits across requests.
 
-let _cachedPrefix: string | null = null;
+export type GenMode = "microdata" | "python" | "r";
+
+export function coerceMode(m: unknown): GenMode {
+  return m === "python" || m === "r" ? m : "microdata";
+}
+
+const SYSTEM_INTRO_PY = `\
+Du er en ekspert-assistent som skriver PYTHON-kode for å analysere norske
+registerdata fra microdata.no. Du svarer på norsk og engelsk, i brukerens språk.
+Data hentes fra microdata.no-variabler via en \`#micro\`-blokk (se under) og
+analyseres med pandas/statsmodels osv. Lag et komplett, kjørbart script: (a) en
+\`#micro\`-blokk som importerer KUN variabler som finnes i katalogen nedenfor
+(aldri finn opp variabelnavn), (b) en \`#python\`-blokk som gjør analysen. Bruk
+eksakte variabelnavn fra katalogen.`;
+
+const SYSTEM_INTRO_R = `\
+Du er en ekspert-assistent som skriver R-kode for å analysere norske registerdata
+fra microdata.no. Du svarer på norsk og engelsk, i brukerens språk. Data hentes
+fra microdata.no-variabler via en \`#micro\`-blokk (se under) og analyseres med
+tidyverse/base R. Lag et komplett, kjørbart script: (a) en \`#micro\`-blokk som
+importerer KUN variabler som finnes i katalogen nedenfor (aldri finn opp
+variabelnavn), (b) en \`#r\`-blokk som gjør analysen. Bruk eksakte variabelnavn.`;
+
+const LANG_PREAMBLE_PY = `\
+## Python-miljø
+
+Skriv idiomatisk Python. Forhåndslastet: pandas, numpy, scipy, statsmodels,
+matplotlib, seaborn, plotly. Trenger du andre pakker, installer med
+\`import micropip; await micropip.install("pakke")\`. Du står fritt til å velge
+verktøy: pandas/statsmodels for analyse, matplotlib/seaborn/plotly for figurer.`;
+
+const LANG_PREAMBLE_R = `\
+## R-miljø
+
+Skriv idiomatisk R. tidyverse (dplyr, ggplot2, tidyr, …) og base R er
+tilgjengelig. Trenger du andre pakker, installer med \`webr::install("pakke")\`.
+Du står fritt til å velge verktøy: dplyr/base for analyse, ggplot2 for figurer.`;
+
+const MICRO_IMPORT_BRIDGE = `\
+## Last microdata-data inn i Python/R (#micro-bro)
+
+Registerdata hentes i en \`#micro\`-blokk med microdata.no sin import-syntaks, og
+blir tilgjengelig som en DataFrame (Python) / data.frame (R):
+
+\`\`\`
+#micro
+require no.ssb.fdb:53 as fd
+create-dataset folk
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+
+#python
+folk.groupby("kjonn")["inntekt"].agg(["mean", "median", "count"])
+\`\`\`
+
+Regler:
+- Datasett-navnet (\`folk\`) blir variabelen i Python/R; kolonnene er import-
+  ALIASENE (\`kjonn\`, \`inntekt\`), ikke de rå variabelnavnene.
+- Missing blir NaN (Python) / NA (R).
+- Importér KUN i \`#micro\`-blokken; all bearbeiding/analyse skjer i
+  \`#python\`/\`#r\`-blokken. Importér gjerne flere variabler i samme datasett og
+  koble/filtrer videre i pandas/dplyr.
+- Import-kommando avhenger av temporalitet (se Databank-oppsett): \`Fast\` uten
+  dato, \`Tverrsnitt\`/\`Akkumulert\` med ÉN dato innenfor variabelens gyldige
+  datoer. Feil dato gir importfeil — dette gjelder fortsatt i \`#micro\`.`;
+
+const INFERENCE_STRATEGY_PYR = `\
+## Analytisk strategi (effekt-/sammenligningsspørsmål)
+
+- **Konfunderende variabler.** Vis først den enkle sammenligningen, deretter en
+  justert modell (statsmodels \`ols\`/\`logit\` eller R \`lm\`/\`glm\`) som kontrollerer
+  for de bakenforliggende faktorene som er RELEVANTE for nettopp dette spørsmålet
+  og finnes i katalogen — ikke en fast liste. Vis hvordan estimatet flytter seg
+  fra rått til justert.
+- **Heterogenitet.** Effekter varierer mellom grupper; ta med ÉN grov, godt
+  befolket oppdeling (interaksjon eller stratifisert analyse) der det er naturlig.
+- **Variabelvalg og avtrykk i registeret.** Den mest åpenbare variabelen er ikke
+  alltid den beste — verken konseptuelt eller for antall enheter. Vurder også
+  indirekte/proxy-mål bygd fra datoer, hendelser, familiepekere eller stønader
+  (f.eks. «året etter siste forelders død» som arvetidspunkt), og oppgi proxyens
+  antakelse.`;
+
+const OUTPUT_PY = `\
+## Svarformat
+
+Svar i markdown, på brukerens språk. Gi en kort forklaring (1–3 setninger),
+deretter ÉN kjørbar kodeblokk med \`#micro\` (datainnlasting) etterfulgt av
+\`#python\` (analysen), i en \`\`\`python-blokk. Bruk eksakte variabelnavn fra
+katalogen. Presenter gjerne både tall og figur (matplotlib/seaborn/plotly). Ikke
+pakk svaret i JSON.`;
+
+const OUTPUT_R = `\
+## Svarformat
+
+Svar i markdown, på brukerens språk. Gi en kort forklaring (1–3 setninger),
+deretter ÉN kjørbar kodeblokk med \`#micro\` (datainnlasting) etterfulgt av \`#r\`
+(analysen), i en \`\`\`r-blokk. Bruk eksakte variabelnavn fra katalogen. Presenter
+gjerne både tall og figur (ggplot2). Ikke pakk svaret i JSON.`;
+
+// Shared data-knowledge blocks reused for Python/R (microdata-DSL analysis
+// blocks are intentionally excluded; the #micro bridge + OUTPUT_* frame that
+// only #micro is used for import and the analysis is pandas/R).
+const PYR_SHARED_BLOCKS = [
+  DATABANK_CHEATSHEET,
+  DATASET_STRUCTURE,
+  RELATIONS_LINKS,
+  PSEUDONYM_RULES,
+  TYPE_RULES,
+  DATE_QUIRKS,
+  PRIVACY_RULES,
+  MISSING_VALUES,
+  NPR_RULES,
+  INFERENCE_STRATEGY_PYR,
+];
+
+interface PrefixParts {
+  catalogBlock?: string;
+  kommuneBlock?: string;
+  commandBlock?: string;
+  functionBlock?: string;
+}
+
+// Pure prefix assembly. microdata uses the exact legacy composition (byte-stable
+// v1 parity). python/r use shared data blocks + language preamble + #micro bridge
+// and omit the microdata command/function reference and analysis grammar.
+export function assemblePrefix(mode: GenMode, parts: PrefixParts): string {
+  const cat = parts.catalogBlock ?? "";
+  const kom = parts.kommuneBlock ?? "";
+  if (mode === "python" || mode === "r") {
+    const isPy = mode === "python";
+    const blocks = [
+      isPy ? SYSTEM_INTRO_PY : SYSTEM_INTRO_R,
+      isPy ? LANG_PREAMBLE_PY : LANG_PREAMBLE_R,
+      MICRO_IMPORT_BRIDGE,
+      ...PYR_SHARED_BLOCKS,
+      isPy ? OUTPUT_PY : OUTPUT_R,
+      cat,
+      kom,
+    ];
+    return blocks.filter((s) => s && s.length > 0).join("\n\n");
+  }
+  // microdata (default) — identical to the legacy buildCachedPrefix join.
+  return [RULE_BLOCKS, cat, kom, parts.commandBlock ?? "", parts.functionBlock ?? "", CANONICAL_EXAMPLES]
+    .filter((s) => s && s.length > 0)
+    .join("\n\n");
+}
+
+const _cachedPrefix: Record<GenMode, string | null> = { microdata: null, python: null, r: null };
 
 const DATABANK_ALIAS: Record<string, string> = {
   "no.ssb.fdb": "db",
   "no.fhi.npr": "fnpr",
 };
-
-// "Numerisk (heltall)"/"Numerisk (desimaltall)" → "num"; "Alfanumerisk" → "alfa".
-// The type-class drives the numeric-vs-string rules; data_type adds date format.
-function abbrevType(microdataDatatype: string, dataType: string): string {
-  const mdt = microdataDatatype.toLowerCase();
-  let cls = "";
-  if (mdt.startsWith("alfa")) cls = "alfa";
-  else if (mdt.startsWith("num")) cls = "num";
-  else cls = (microdataDatatype || dataType || "").trim();
-  // Surface integer/date formats too (matters for the date-quirk rules).
-  const dt = dataType.toLowerCase();
-  if (dt.startsWith("date")) return `${cls || "num"}·${dataType}`;
-  return cls || dataType;
-}
-
-// Pull the validity window out of the description's "Gyldighetsperiode: ..."
-// clause (more reliable here than the truncated `available_years` array).
-//
-// CRITICAL: for Tverrsnitt/Akkumulert variables with a FULL start AND end date
-// (YYYY-MM-DD on both sides) the runtime validates import dates against an
-// ANNUAL grid that recurs on the START date's month-day, for every year from
-// start-year to end-year inclusive (see `_valid_import_dates_for` in m2py.py).
-// The end date's own month-day is NOT a valid import date. So we surface the
-// first and last VALID import dates — both on the start month-day — instead of
-// a bare year span, so the model emits a grid date instead of guessing a
-// month-day (e.g. -11-01). Forløp is NOT grid-validated: it uses `import-event
-// <fra> to <til>` over a free range, so we show the true window dates verbatim.
-// Returns "2015-02-16…2025-02-16" (annual grid), "2011-01-01…2017-12-31" (free
-// Forløp window), "1993–2023"/"1993–" (coarse year span), or "" (fixed/∞/none).
-function extractValidPeriod(description: string, temporalitet = ""): string {
-  // Full date window on both ends.
-  const full = description.match(
-    /Gyldighetsperiode:\s*(\d{4})-(\d{2}-\d{2})\s*[–—-]\s*(\d{4})-(\d{2}-\d{2})/i,
-  );
-  if (full) {
-    const [, startYear, startMD, endYear, endMD] = full;
-    const temp = temporalitet.toLowerCase();
-    // Tverrsnitt → annual snapshot grid on the START month-day.
-    if (temp === "tverrsnitt") {
-      return `${startYear}-${startMD}…${endYear}-${startMD}`;
-    }
-    // Akkumulert = value accrued UP TO the date, so the intuitive/primary date
-    // is the period-END month-day each year (full-year income on ÅR-12-31, or
-    // ÅR-09-30 for a Q3-cutoff series). ÅR-01-01 also validates but means the
-    // prior year's total, so we surface the year-end grid.
-    if (temp === "akkumulert") {
-      return `${startYear}-${endMD}…${endYear}-${endMD}`;
-    }
-    // Forløp / other → true window (any date in range is valid for import-event).
-    return `${startYear}-${startMD}…${endYear}-${endMD}`;
-  }
-  // Year-only / open-ended: no date-grid validation; show the coarse year span.
-  const m = description.match(/Gyldighetsperiode:\s*([0-9]{4})[^.]*?(?:[–—-]\s*([0-9]{4}))?/i);
-  if (!m) return "";
-  const start = m[1];
-  const end = m[2];
-  if (description.includes("Gyldighetsperiode") && /∞/.test(description) && !end) {
-    return `${start}–`;   // explicit open-ended
-  }
-  if (start && end) return `${start}–${end}`;
-  if (start) return `${start}–`;
-  return "";
-}
-
-// Strip the structured boilerplate tail ("Enhetstype: … Temporalitet: …
-// Gyldighetsperiode: …") so only the human-readable description remains.
-function cleanDescription(description: string, shortTitle: string): string {
-  let d = (description || "").trim();
-  const cut = d.search(/\s*(Enhetstype:|Temporalitet:|Gyldighetsperiode:)/i);
-  if (cut >= 0) d = d.slice(0, cut).trim();
-  d = d.replace(/\s+/g, " ").trim();
-  if (!d) d = (shortTitle || "").trim();
-  if (d.length > 200) d = d.slice(0, 197) + "...";
-  return d;
-}
-
-// Inline enum labels only for low-cardinality variables; big codelists
-// (e.g. 399 kommuner) would blow the token budget, so skip them.
-function renderLabels(labels: unknown): string {
-  if (!labels || typeof labels !== "object") return "";
-  const entries = Object.entries(labels as Record<string, unknown>);
-  if (entries.length === 0 || entries.length > 12) return "";
-  const parts = entries.map(([k, val]) => `${k}=${String(val)}`);
-  return ` {${parts.join(", ")}}`;
-}
 
 function renderCatalog(meta: unknown): string {
   const variables = (meta as { variables?: Record<string, Record<string, unknown>> })?.variables;
@@ -820,6 +912,12 @@ function renderCatalog(meta: unknown): string {
     "samme register og deler vanligvis enhetstype og temporalitet — bruk prefikset",
     "til å finne beslektede variabler, og les beskrivelsene i samme prefiks-klynge",
     "for å forstå hva registeret dekker.",
+    "",
+    "ARBEIDSMÅTE: katalogen er stor. Identifiser FØRST hvilke(t) register-prefiks",
+    "(klynge) som er relevant for spørsmålet, les den klyngen nøye, og velg",
+    "variabler derfra — i stedet for å skumme hele listen. Husk at den mest",
+    "åpenbare variabelen ikke alltid er den beste; vurder også indirekte mål",
+    "(datoer, hendelser, stønader, familiepekere) som fanger fenomenet.",
     "",
     "Radformat: `NAVN [type, temporalitet, enhetstype, gyldig-datoer] — beskrivelse {verdier}`",
     "- type: `alfa` = alfanumerisk (streng — ingen numeriske operasjoner);",
@@ -1108,11 +1206,12 @@ async function fetchText(origin: string, path: string): Promise<string> {
   return await res.text();
 }
 
-async function buildCachedPrefix(origin: string): Promise<string> {
-  if (_cachedPrefix !== null) return _cachedPrefix;
+export async function buildCachedPrefix(origin: string, mode: GenMode = "microdata"): Promise<string> {
+  const cached = _cachedPrefix[mode];
+  if (cached !== null) return cached;
+
   let catalogBlock = "";
   let kommuneBlock = "";
-  let commandBlock = "";
   try {
     const metaText = await fetchText(origin, "/variable_metadata.json");
     const meta = JSON.parse(metaText);
@@ -1121,23 +1220,26 @@ async function buildCachedPrefix(origin: string): Promise<string> {
   } catch (_e) {
     catalogBlock = "";   // degrade: rules-only prompt is still usable
   }
-  try {
-    const cmdText = await fetchText(origin, "/command_help.js");
-    commandBlock = renderCommands(cmdText);
-  } catch (_e) {
-    commandBlock = "";
-  }
+
+  // command/function reference is microdata-only.
+  let commandBlock = "";
   let functionBlock = "";
-  try {
-    const fnText = await fetchText(origin, "/functions.py");
-    functionBlock = renderFunctions(fnText);
-  } catch (_e) {
-    functionBlock = "";
+  if (mode === "microdata") {
+    try {
+      commandBlock = renderCommands(await fetchText(origin, "/command_help.js"));
+    } catch (_e) {
+      commandBlock = "";
+    }
+    try {
+      functionBlock = renderFunctions(await fetchText(origin, "/functions.py"));
+    } catch (_e) {
+      functionBlock = "";
+    }
   }
-  _cachedPrefix = [RULE_BLOCKS, catalogBlock, kommuneBlock, commandBlock, functionBlock, CANONICAL_EXAMPLES]
-    .filter((s) => s && s.length > 0)
-    .join("\n\n");
-  return _cachedPrefix;
+
+  const prefix = assemblePrefix(mode, { catalogBlock, kommuneBlock, commandBlock, functionBlock });
+  _cachedPrefix[mode] = prefix;
+  return prefix;
 }
 
 // ====================================================================
@@ -1145,63 +1247,8 @@ async function buildCachedPrefix(origin: string): Promise<string> {
 // ====================================================================
 
 export default async (request: Request): Promise<Response> => {
-  const ANVIL_VALIDATE_URL = Deno.env.get("M2PY_ANVIL_VALIDATE_URL")
-    ?? "https://mdataapi.anvil.app/_/api/auth/me";
-  const sharedToken = Deno.env.get("M2PY_ACCESS_TOKEN");
-
-  const authHeader = request.headers.get("authorization") ?? "";
-  const presentedToken = authHeader.startsWith("Bearer ")
-    ? authHeader.slice(7).trim()
-    : "";
-
-  if (!presentedToken) {
-    return new Response("Unauthorized: missing token", { status: 401 });
-  }
-
-  let authenticated = false;
-  if (sharedToken && presentedToken === sharedToken) {
-    authenticated = true;
-  }
-  if (!authenticated) {
-    try {
-      const anvilResp = await fetch(ANVIL_VALIDATE_URL, {
-        method: "GET",
-        headers: { "Authorization": `Bearer ${presentedToken}` },
-      });
-      if (anvilResp.ok) {
-        const data = await anvilResp.json();
-        if (data && (data.user || data.principal_kind === "service_token" || data.principal_kind === "anonymous")) {
-          authenticated = true;
-        }
-      }
-    } catch (_e) {
-      // network error to Anvil — treat as unauthorized rather than crashing
-    }
-  }
-  if (!authenticated) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
-  if (request.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
-
-  const MAX_BODY_BYTES = 50_000;
-  const contentLength = parseInt(request.headers.get("content-length") ?? "0", 10);
-  if (contentLength > MAX_BODY_BYTES) {
-    return new Response("Payload too large", { status: 413 });
-  }
-
-  const ip = request.headers.get("x-nf-client-connection-ip")
-    ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-    ?? "";
-  const rate = await checkRateLimit("kode-svar", ip);
-  if (!rate.allowed) {
-    return new Response("Rate limited", {
-      status: 429,
-      headers: { "Retry-After": String(rate.retryAfterSeconds) },
-    });
-  }
+  const gateResp = await gate(request, { endpoint: "kode-svar", maxBodyBytes: 50_000 });
+  if (gateResp) return gateResp;
 
   let body: RequestBody;
   try {

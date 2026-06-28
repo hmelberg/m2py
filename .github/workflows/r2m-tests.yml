@@ -1,0 +1,24 @@
+name: r2m tests
+
+on:
+  push:
+    paths:
+      - 'r2m/**'
+      - '.github/workflows/r2m-tests.yml'
+  pull_request:
+    paths:
+      - 'r2m/**'
+      - '.github/workflows/r2m-tests.yml'
+
+jobs:
+  r2m:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          # The r2m translator is pure base R — no package install needed.
+          use-public-rspm: true
+      - name: Run r2m test suite
+        working-directory: r2m
+        run: Rscript test_r2m.R

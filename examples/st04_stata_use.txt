@@ -1,0 +1,18 @@
+* Eksempel: Stata – use (bytte mellom datasett)
+* Første blokk oppretter to datasett: 'folk' og 'folk2'.
+* Andre blokk demonstrerer 'use NAME' for å bytte aktivt datasett.
+
+#micro
+require no.ssb.fdb:54 as fd
+create-dataset folk
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+create-dataset folk2
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+
+#stata
+use folk
+summarize inntekt
+use folk2
+tabulate kjonn

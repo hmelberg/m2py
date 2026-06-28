@@ -195,8 +195,13 @@ def _df_fillna(value, ctx: Ctx) -> Optional[list]:
     fill = ctx.tr.translate(fill_node)
     if fill is None:
         return None
-    # We don't know column names at translation time — emit a comment placeholder
-    return [f"# replace [each col] = {fill} if sysmiss([each col])  (df.fillna)"]
+    # Column names are unknown at translation time, so a df-wide fillna can't be
+    # expanded. Emit a loud UNTRANSLATED marker rather than a fake command line.
+    return [
+        "// UNTRANSLATED: df.fillna() over all columns — apply per column "
+        "(df['col'] = df['col'].fillna(...)) so each can become "
+        "'replace col = ... if sysmiss(col)'"
+    ]
 
 
 # ── col= extractors ───────────────────────────────────────────────────────────
@@ -232,17 +237,30 @@ def _destring(col: str, value, ctx: Ctx) -> Optional[list]:
         astype = steps[-1]
         if astype.args:
             arg = astype.args[0]
+            # Source column: the value .astype() was called on (df['src'].astype(...)).
+            # Falls back to the target when the source can't be resolved (e.g. an
+            # in-place df['x'].astype(...)), preserving previous behaviour.
+            src_col = _astype_source_col(value, ctx) or col
             if isinstance(arg, ast.Name):
                 if arg.id in ("float", "int"):
                     return [f"destring {col}"]
                 if arg.id == "str":
-                    return [f"generate {col} = string({col})"]
+                    return [f"generate {col} = string({src_col})"]
             if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
                 if any(t in arg.value.lower() for t in ("float", "int")):
                     return [f"destring {col}"]
                 if arg.value.lower() in ("str", "string", "object"):
-                    return [f"generate {col} = string({col})"]
+                    return [f"generate {col} = string({src_col})"]
     return None
+
+
+def _astype_source_col(value, ctx: Ctx) -> Optional[str]:
+    """For df['src'].astype(...), return the source column name 'src', else None."""
+    if not (isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Attribute)
+            and value.func.attr == "astype"):
+        return None
+    return _col_name(value.func.value, ctx.df_name, ctx.tr)
 
 
 # ── expr-stmt extractors ──────────────────────────────────────────────────────
@@ -1006,20 +1024,6 @@ def _value_counts(value, ctx: Ctx) -> Optional[list]:
 
 
 @REGISTRY.expr
-def _series_hist(value, ctx: Ctx) -> Optional[list]:
-    """df['col'].hist() → histogram col  (explicit series-hist pattern)"""
-    root, steps = decompose(value)
-    if not is_df_root(root, ctx.df_name) or len(steps) < 2:
-        return None
-    if not (isinstance(steps[-1], MethodStep) and steps[-1].name == "hist"):
-        return None
-    col_step = steps[-2]
-    col = str_const(col_step.key) if isinstance(col_step, SubscriptStep) else None
-    if col:
-        return [f"histogram {col}"]
-    return None
-
-
 @REGISTRY.expr
 def _normaltest(value, ctx: Ctx) -> Optional[list]:
     """scipy.stats.normaltest(df['col']) → normaltest col"""

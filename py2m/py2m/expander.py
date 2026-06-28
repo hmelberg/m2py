@@ -108,6 +108,47 @@ def try_np_where(target: str, value_node, translator: ExprTranslator) -> Optiona
     return lines
 
 
+# ── Series.where / Series.mask → generate + replace if ───────────────────────
+
+def _is_series_where_mask(node):
+    """Return (kind, series_node, cond_node, other_node) for s.where/s.mask, else None.
+    Excludes np.where/pd.* (handled elsewhere)."""
+    if not isinstance(node, ast.Call):
+        return None
+    f = node.func
+    if (isinstance(f, ast.Attribute) and f.attr in ("where", "mask")
+            and len(node.args) >= 2):
+        if isinstance(f.value, ast.Name) and f.value.id in ("np", "pd"):
+            return None
+        return (f.attr, f.value, node.args[0], node.args[1])
+    return None
+
+
+def try_where_mask(target: str, value_node, translator: ExprTranslator) -> Optional[list]:
+    """
+    df['target'] = df['a'].where(cond, other)  → keep a where cond, else other
+        generate target = other
+        replace target = a if cond
+    df['target'] = df['a'].mask(cond, other)   → other where cond, else a
+        generate target = a
+        replace target = other if cond
+    """
+    m = _is_series_where_mask(value_node)
+    if m is None:
+        return None
+    kind, series_node, cond_node, other_node = m
+    series = translator.translate(series_node)
+    cond   = translator.translate(cond_node)
+    other  = translator.translate(other_node)
+    if series is None or cond is None or other is None:
+        return None
+    if kind == "where":
+        return [f"generate {target} = {other}",
+                f"replace {target} = {series} if {cond}"]
+    return [f"generate {target} = {series}",
+            f"replace {target} = {other} if {cond}"]
+
+
 # ── .map({k: v}) → generate + replace if ────────────────────────────────────
 
 def _is_df_col_map(node, df_name: str):
@@ -181,6 +222,36 @@ def _is_pd_cut(node) -> bool:
     )
 
 
+def _inf_kind(node) -> Optional[str]:
+    """Detect an infinity bin edge at the AST level.
+
+    Recognises np.inf / numpy.inf / math.inf, float('inf'), and their negations
+    (-np.inf, -float('inf'), float('-inf')). Returns 'inf', '-inf', or None.
+    """
+    # -X  → negate the inner result
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        inner = _inf_kind(node.operand)
+        if inner == "inf":
+            return "-inf"
+        if inner == "-inf":
+            return "inf"
+        return None
+    # np.inf / numpy.inf / math.inf  (attribute access ending in 'inf')
+    if isinstance(node, ast.Attribute) and node.attr == "inf":
+        return "inf"
+    # float('inf') / float('-inf')
+    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+            and node.func.id == "float" and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)):
+        s = node.args[0].value.strip().lower()
+        if s in ("inf", "+inf", "infinity"):
+            return "inf"
+        if s in ("-inf", "-infinity"):
+            return "-inf"
+    return None
+
+
 def try_pd_cut(target: str, value_node, df_name: str, translator: ExprTranslator) -> Optional[list]:
     """
     df['target'] = pd.cut(df['col'], bins=[b0,b1,b2], labels=[l1,l2], right=True)
@@ -219,6 +290,12 @@ def try_pd_cut(target: str, value_node, df_name: str, translator: ExprTranslator
         return None
     bins = []
     for b in bins_node.elts:
+        inf = _inf_kind(b)
+        if inf is not None:
+            # Sentinel that the cond builder recognises (translator returns
+            # None for np.inf / float('inf'), which would otherwise fail here).
+            bins.append(inf)
+            continue
         t = translator.translate(b)
         if t is None:
             return None
@@ -758,35 +835,10 @@ def _parse_agg_arg(agg_arg, translator: ExprTranslator) -> Optional[list]:
     return specs if specs else None
 
 
-def _parse_named_agg_keywords(keywords) -> Optional[list]:
-    """
-    Parse .agg(out_col=('src_col', 'stat'), ...) from a list of AST keyword nodes.
-    Returns list of (src_col, stat, target_col) tuples, or None.
-    """
-    specs = []
-    for kw in keywords:
-        if kw.arg is None:   # **kwargs spread — bail out
-            return None
-        tgt = kw.arg
-        val = kw.value
-        if not isinstance(val, ast.Tuple) or len(val.elts) < 2:
-            return None
-        col_node, stat_node = val.elts[0], val.elts[1]
-        if not (isinstance(col_node, ast.Constant) and isinstance(col_node.value, str)):
-            return None
-        if not (isinstance(stat_node, ast.Constant) and isinstance(stat_node.value, str)):
-            return None
-        stat = _stat_alias(stat_node.value)
-        if stat is None:
-            return None
-        specs.append((col_node.value, stat, tgt))
-    return specs if specs else None
-
-
 def _parse_named_agg_kwargs(kwargs: dict) -> Optional[list]:
     """
-    Like _parse_named_agg_keywords but takes the {str: ast_node} dict produced
-    by the chain decomposer (MethodStep.kwargs).
+    Parse named-agg kwargs .agg(out=('src','stat'), …) from the {str: ast_node}
+    dict produced by the chain decomposer (MethodStep.kwargs).
     """
     specs = []
     for tgt, val in kwargs.items():
@@ -804,40 +856,24 @@ def _parse_named_agg_kwargs(kwargs: dict) -> Optional[list]:
     return specs if specs else None
 
 
-def _extract_by_vars(groupby_call, translator: ExprTranslator) -> Optional[list]:
-    """Extract the list of groupby variable names from df.groupby(...)."""
-    if not groupby_call.args:
-        return None
-    by_node = groupby_call.args[0]
-    if isinstance(by_node, ast.Constant) and isinstance(by_node.value, str):
-        return [by_node.value]
-    if isinstance(by_node, (ast.List, ast.Tuple)):
-        result = []
-        for elt in by_node.elts:
-            if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
-                result.append(elt.value)
-            else:
-                return None
-        return result if result else None
-    return None
-
-
 def _stat_alias(name: str) -> Optional[str]:
     """Map pandas aggregation name to microdata stat keyword."""
+    # Only exact microdata statistics are mapped. 'var', 'first' and 'last'
+    # have NO microdata equivalent (aggregate supports: mean, min, max, median,
+    # count, sum, semean, sebinomial, sd, percent, iqr, gini) and must NOT be
+    # silently substituted with a different statistic — they return None so the
+    # caller emits an UNTRANSLATED/warning.
     _MAP = {
         "mean": "mean", "average": "mean",
         "sum": "sum",
         "count": "count", "size": "count",
-        "std": "sd", "std": "sd",
-        "var": "sd",   # approximate: use sd
+        "std": "sd",
         "median": "median",
         "min": "min",
         "max": "max",
         "sem": "semean",
         "iqr": "iqr",
         "gini": "gini",
-        "first": "min",  # approximate
-        "last": "max",   # approximate
     }
     return _MAP.get(name.lower())
 

@@ -31,9 +31,23 @@ translate <- function(r_code, df_name = "df") {
     df_name    = df_name,
     current_df = NULL,
     known_dfs  = character(0),
+    seed       = NULL,      # most recent set.seed() value, for `sample`
     lines      = character(0),
     warnings   = character(0)
   )
+}
+
+# Append the captured (or default) seed to a seedless `sample X` line — microdata
+# requires `sample count|fraction seed`, and m2py rejects a seedless sample.
+.inject_sample_seed <- function(result, state) {
+  if (is.null(result) || is.null(result$lines)) return(result)
+  needs <- grepl("^sample [^ ]+$", result$lines)
+  if (!any(needs)) return(result)
+  result$lines[needs] <- paste0(result$lines[needs], " ", state$seed %||% "1")
+  if (is.null(state$seed))
+    result$warnings <- c(result$warnings,
+      "// sample: ingen set.seed() funnet — bruker seed=1; legg til set.seed() for reproduserbarhet")
+  result
 }
 
 .append <- function(state, lines = NULL, warnings = NULL) {
@@ -44,8 +58,10 @@ translate <- function(r_code, df_name = "df") {
 
 # Emit "use <df_var>" when switching active dataset; updates current_df.
 .ensure_active <- function(df_var, state) {
-  if (!is.null(state$current_df) && !is.null(df_var) &&
-      nzchar(df_var) && state$current_df != df_var)
+  # The initial active dataset is df_name (no `use` emitted yet), so treat a
+  # NULL current_df as df_name — switching away from it must emit `use`.
+  cur <- state$current_df %||% state$df_name
+  if (!is.null(cur) && !is.null(df_var) && nzchar(df_var) && cur != df_var)
     state <- .append(state, lines = paste0("use ", df_var))
   state$current_df <- df_var
   state
@@ -103,7 +119,16 @@ translate <- function(r_code, df_name = "df") {
     }
   )
   if (is.null(exprs) || length(exprs) == 0) return(state)
-  for (i in seq_along(exprs)) state <- .translate_stmt(exprs[[i]], state)
+  for (i in seq_along(exprs)) {
+    # One statement that errors inside a handler must not abort the whole
+    # translation — degrade it to a warning and continue with the rest.
+    state <- tryCatch(
+      .translate_stmt(exprs[[i]], state),
+      error = function(e) .append(state, warnings = paste0(
+        "// SKIPPED (translator error): ", deparse(exprs[[i]])[1],
+        " — ", conditionMessage(e)))
+    )
+  }
   state
 }
 
@@ -112,7 +137,7 @@ translate <- function(r_code, df_name = "df") {
 .translate_stmt <- function(expr, state) {
   if (!is.call(expr)) return(state)
 
-  fn <- tryCatch(as.character(expr[[1]]), error = function(e) "")
+  fn <- .callee_name(expr)
 
   if (fn %in% c("<-", "=", "->", "<<-"))
     return(.translate_assign(expr, state, fn))
@@ -123,6 +148,14 @@ translate <- function(r_code, df_name = "df") {
   if (fn %in% c("library", "require", "source", "setwd", "options",
                 "install.packages"))
     return(state)
+
+  # set.seed(N): capture the seed for a later `sample` (emits nothing itself)
+  if (fn == "set.seed") {
+    seed_args <- as.list(expr)[-1]
+    sv <- if (length(seed_args) >= 1) translate_expr(seed_args[[1]], state$df_name) else NULL
+    if (!is.null(sv)) state$seed <- sv
+    return(state)
+  }
 
   # ggplot2 chain: ggplot(...) + geom_*() + ...
   if (fn == "+" && .is_ggplot_chain(expr)) {
@@ -143,6 +176,11 @@ translate <- function(r_code, df_name = "df") {
   if (!is.null(result))
     return(.append(state, lines = result$lines, warnings = result$warnings))
 
+  # Base-R data verbs used as a bare statement (no assignment)
+  dz <- .desugar_base_verb(expr)
+  if (!is.null(dz))
+    return(.run_pipe_steps(NULL, dz$src, dz$steps, state))
+
   # Desugared native pipe used as a statement: summarise(group_by(df, g), ...)
   chain <- .unroll_dplyr(expr)
   if (!is.null(chain))
@@ -161,7 +199,7 @@ translate <- function(r_code, df_name = "df") {
 
   # df$col / df[["col"]] / df["col"]
   if (is.call(lhs)) {
-    lhs_fn <- tryCatch(as.character(lhs[[1]]), error = function(e) "")
+    lhs_fn <- .callee_name(lhs)
     if (lhs_fn %in% c("$", "[[", "[")) {
       eff_df <- tryCatch(as.character(lhs[[2]]), error = function(e) NULL) %||% df_name
       col    <- col_from_node(lhs, eff_df)
@@ -181,7 +219,7 @@ translate <- function(r_code, df_name = "df") {
 # ── column assignment: df$col <- rhs ─────────────────────────────────────────
 
 .translate_col_assign <- function(col, rhs, df_var, state) {
-  fn    <- if (is.call(rhs)) tryCatch(as.character(rhs[[1]]), error = function(e) "") else ""
+  fn    <- if (is.call(rhs)) .callee_name(rhs) else ""
   cargs <- if (is.call(rhs)) as.list(rhs)[-1] else list()
 
   if (fn %in% c("ifelse", "if_else")) {
@@ -231,6 +269,66 @@ translate <- function(r_code, df_name = "df") {
 
 # ── dataframe assignment: df2 <- rhs ─────────────────────────────────────────
 
+# Desugar a base-R data verb into its dplyr-pipe equivalent so it reuses the
+# existing pipe machinery (clone-on-new-name, group_by, seed, joins).
+# Returns list(src, steps) of synthetic dplyr call nodes, or NULL.
+.desugar_base_verb <- function(expr) {
+  fn   <- .callee_name(expr)
+  args <- as.list(expr)[-1]
+  .src_name <- function(node) if (is.name(node)) as.character(node) else NULL
+
+  if (fn == "subset") {
+    src  <- .src_name(args[["x"]] %||% (if (length(args) >= 1) args[[1]] else NULL))
+    cond <- args[["subset"]] %||% (if (length(args) >= 2) args[[2]] else NULL)
+    if (is.null(src) || is.null(cond)) return(NULL)
+    steps <- list(as.call(list(as.name("filter"), cond)))
+    sel <- args[["select"]] %||% (if (length(args) >= 3) args[[3]] else NULL)
+    if (!is.null(sel)) steps <- c(steps, list(as.call(list(as.name("select"), sel))))
+    return(list(src = src, steps = steps))
+  }
+
+  if (fn == "transform") {
+    src <- .src_name(if (length(args) >= 1) args[[1]] else NULL)
+    if (is.null(src)) return(NULL)
+    mut_args <- args[-1]
+    if (length(mut_args) == 0) return(NULL)
+    return(list(src = src, steps = list(as.call(c(list(as.name("mutate")), mut_args)))))
+  }
+
+  if (fn == "aggregate") {
+    f_node <- args[["formula"]] %||% (if (length(args) >= 1) args[[1]] else NULL)
+    data_n <- .src_name(args[["data"]])
+    fun_n  <- if (!is.null(args[["FUN"]])) .callee_name_or_name(args[["FUN"]]) else "mean"
+    if (is.null(f_node) || !is.call(f_node) || .callee_name(f_node) != "~" || is.null(data_n))
+      return(NULL)
+    y <- if (is.name(f_node[[2]])) as.character(f_node[[2]]) else return(NULL)
+    groups <- .formula_terms(f_node[[3]])
+    gb  <- as.call(c(list(as.name("group_by")), lapply(groups, as.name)))
+    agg <- as.call(c(list(as.name("summarise")),
+                     setNames(list(as.call(list(as.name(fun_n), as.name(y)))), y)))
+    return(list(src = data_n, steps = list(gb, agg)))
+  }
+
+  if (fn == "merge") {
+    src <- .src_name(if (length(args) >= 1) args[[1]] else NULL)
+    y   <- if (length(args) >= 2) args[[2]] else NULL
+    if (is.null(src) || is.null(y)) return(NULL)
+    join_args <- list(as.name("left_join"), y)
+    if (!is.null(args[["by"]])) join_args <- c(join_args, list(by = args[["by"]]))
+    return(list(src = src, steps = list(as.call(join_args))))
+  }
+
+  NULL
+}
+
+# Bare name of a function-valued argument: FUN = mean (a symbol) or FUN = "mean".
+.callee_name_or_name <- function(node) {
+  if (is.character(node)) return(node)
+  if (is.name(node))      return(as.character(node))
+  if (is.call(node))      return(.callee_name(node))
+  "mean"
+}
+
 .translate_df_assign <- function(lhs_name, rhs, state) {
   df_name <- state$df_name
 
@@ -239,7 +337,7 @@ translate <- function(r_code, df_name = "df") {
     src <- as.character(rhs)
     if (src != lhs_name) {
       state <- .register_df(lhs_name, state)
-      state <- .append(state, lines = paste0("clone-dataset ", lhs_name))
+      state <- .append(state, lines = paste0("clone-dataset ", src, " ", lhs_name))
     }
     return(state)
   }
@@ -252,7 +350,7 @@ translate <- function(r_code, df_name = "df") {
     return(state)
   }
   if (!is.call(rhs)) return(state)
-  rhs_fn <- tryCatch(as.character(rhs[[1]]), error = function(e) "")
+  rhs_fn <- .callee_name(rhs)
 
   # Magrittr or native pipe (only magrittr survives as |>/%%>%% in the AST)
   if (rhs_fn %in% c("|>", "%>%"))
@@ -261,6 +359,11 @@ translate <- function(r_code, df_name = "df") {
   # Base-R bracket filter: df2 <- df[cond, ]
   if (rhs_fn == "[")
     return(.translate_bracket_filter(lhs_name, rhs, state))
+
+  # Base-R data verbs (subset / transform / aggregate / merge) → dplyr pipe
+  dz <- .desugar_base_verb(rhs)
+  if (!is.null(dz))
+    return(.run_pipe_steps(lhs_name, dz$src, dz$steps, state))
 
   # ggplot2 chain assigned: p <- ggplot(...) + geom_*()
   if (rhs_fn == "+" && .is_ggplot_chain(rhs)) {
@@ -301,7 +404,7 @@ translate <- function(r_code, df_name = "df") {
   cond_node <- if (length(rhs_args) >= 2) rhs_args[[2]] else NULL
 
   if (src_df != lhs_name) {
-    state <- .append(state, lines = c(paste0("clone-dataset ", lhs_name),
+    state <- .append(state, lines = c(paste0("clone-dataset ", src_df, " ", lhs_name),
                                       paste0("use ", lhs_name)))
     state <- .register_df(lhs_name, state)
     state$current_df <- lhs_name
@@ -334,7 +437,7 @@ DPLYR_VERBS <- c(
 )
 
 .unroll_dplyr <- function(expr) {
-  fn_clean <- tryCatch(sub("^.*::", "", as.character(expr[[1]])), error = function(e) "")
+  fn_clean <- .callee_name(expr)
   if (!(fn_clean %in% DPLYR_VERBS)) return(NULL)
 
   all_args <- as.list(expr)[-1]          # named list of args
@@ -358,7 +461,7 @@ DPLYR_VERBS <- c(
   }
 
   if (is.call(data_arg)) {
-    inner_fn <- tryCatch(sub("^.*::", "", as.character(data_arg[[1]])), error = function(e) "")
+    inner_fn <- .callee_name(data_arg)
     if (inner_fn %in% DPLYR_VERBS) {
       inner <- .unroll_dplyr(data_arg)
       if (!is.null(inner))
@@ -372,7 +475,7 @@ DPLYR_VERBS <- c(
 # ── pipe chain — flatten magrittr/native (when not yet desugared) ─────────────
 
 .flatten_pipe <- function(expr) {
-  fn <- tryCatch(as.character(expr[[1]]), error = function(e) "")
+  fn <- .callee_name(expr)
   if (fn %in% c("|>", "%>%"))
     c(.flatten_pipe(expr[[2]]), list(expr[[3]]))
   else
@@ -396,10 +499,11 @@ DPLYR_VERBS <- c(
 
   # Clone if assigning to a new name
   if (!is.null(target_df) && !is.null(src_df) && target_df != src_df) {
-    state <- .append(state, lines = c(paste0("clone-dataset ", target_df),
+    state <- .append(state, lines = c(paste0("clone-dataset ", src_df, " ", target_df),
                                       paste0("use ", target_df)))
     state <- .register_df(target_df, state)
     state$current_df <- target_df
+    eff_df <- target_df  # subsequent steps operate on the clone, not the source
   } else if (!is.null(src_df)) {
     state <- .ensure_active(src_df, state)
   }
@@ -408,8 +512,7 @@ DPLYR_VERBS <- c(
 
   for (step in steps) {
     if (!is.call(step)) next
-    fn_raw   <- tryCatch(as.character(step[[1]]), error = function(e) "")
-    fn_clean <- sub("^.*::", "", fn_raw)
+    fn_clean <- .callee_name(step)
     sargs    <- as.list(step)[-1]
 
     if (fn_clean == "group_by") {
@@ -421,11 +524,12 @@ DPLYR_VERBS <- c(
     if (fn_clean == "ungroup") { group_by_str <- NULL; next }
 
     result <- dispatch_dplyr(fn_clean, sargs, eff_df, group_by_str)
+    result <- .inject_sample_seed(result, state)
 
     if (!is.null(result)) {
       state <- .append(state, lines = result$lines, warnings = result$warnings)
     } else {
-      result2 <- dispatch_standalone(fn_raw, sargs, eff_df)
+      result2 <- dispatch_standalone(fn_clean, sargs, eff_df)
       if (!is.null(result2))
         state <- .append(state, lines = result2$lines, warnings = result2$warnings)
       else
@@ -437,66 +541,5 @@ DPLYR_VERBS <- c(
   state
 }
 
-# ── expanders (ifelse / case_when / recode) ───────────────────────────────────
-
-.expand_ifelse <- function(col, cargs, df_name) {
-  if (length(cargs) < 3)
-    return(list(lines = character(0),
-                warnings = paste0("// ifelse: too few args for ", col)))
-  cond <- translate_expr(cargs[[1]], df_name)
-  tval <- translate_expr(cargs[[2]], df_name)
-  fval <- translate_expr(cargs[[3]], df_name)
-  if (is.null(cond) || is.null(tval) || is.null(fval))
-    return(list(lines = character(0),
-                warnings = paste0("// ifelse: untranslatable expression for ", col)))
-  list(
-    lines    = c(paste0("generate ", col, " = ", fval),
-                 paste0("replace ",  col, " = ", tval, " if ", cond)),
-    warnings = character(0)
-  )
-}
-
-.expand_case_when <- function(col, cargs, df_name) {
-  lines <- paste0("generate ", col, " = .")
-  warns <- character(0)
-  for (cw in cargs) {
-    if (!is.call(cw) ||
-        tryCatch(as.character(cw[[1]]), error = function(e) "") != "~") next
-    cond_node <- cw[[2]]
-    val_node  <- cw[[3]]
-    val <- translate_expr(val_node, df_name)
-    if (is.null(val)) {
-      warns <- c(warns, paste0("// case_when: untranslatable value for ", col)); next
-    }
-    is_default <- (is.name(cond_node) && as.character(cond_node) %in% c("TRUE", "T")) ||
-                  (is.logical(cond_node) && isTRUE(cond_node))
-    if (is_default) {
-      lines <- c(lines, paste0("replace ", col, " = ", val, " if sysmiss(", col, ")"))
-    } else {
-      cond <- translate_expr(cond_node, df_name)
-      if (!is.null(cond))
-        lines <- c(lines, paste0("replace ", col, " = ", val, " if ", cond))
-      else
-        warns <- c(warns, paste0("// case_when: untranslatable condition for ", col))
-    }
-  }
-  list(lines = lines, warnings = warns)
-}
-
-.expand_recode <- function(col, pairs, df_name) {
-  nms <- names(pairs)
-  if (is.null(nms) || !any(nzchar(nms)))
-    return(list(lines = character(0),
-                warnings = paste0("// recode: no named pairs for ", col)))
-  pair_strs <- character(0)
-  for (j in seq_along(pairs)) {
-    if (!nzchar(nms[j])) next
-    val <- translate_expr(pairs[[j]], df_name)
-    if (is.null(val))
-      return(list(lines = character(0),
-                  warnings = paste0("// recode: untranslatable value for ", col)))
-    pair_strs <- c(pair_strs, paste0("(", nms[j], "=", val, ")"))
-  }
-  list(lines = paste0("recode ", col, " ", paste(pair_strs, collapse = " ")),
-       warnings = character(0))
-}
+# Expanders (.expand_ifelse / .expand_case_when / .expand_recode) live in
+# expanders.R — the single shared source used by both commands.R and this file.

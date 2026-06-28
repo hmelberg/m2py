@@ -148,6 +148,12 @@ class ExprTranslator:
         if isinstance(v, (int, float)):
             return repr(v)
         if isinstance(v, str):
+            # microdata string literals are single-quoted with no documented
+            # escape mechanism. A value containing a single quote would produce
+            # malformed output (e.g. 'O'Brien'), so signal untranslatable
+            # rather than emit something broken.
+            if "'" in v:
+                return None
             return f"'{v}'"
         return None
 
@@ -174,6 +180,12 @@ class ExprTranslator:
     def _t_Attribute(self, node) -> Optional[str]:
         # df['col'].dt.year  /  df.col.dt.month  etc.
         if isinstance(node.value, ast.Attribute) and node.value.attr == "dt":
+            # (d2 - d1).dt.days → d2 - d1  (microdata dates are integer days)
+            if node.attr == "days":
+                inner = node.value.value
+                if isinstance(inner, ast.BinOp) and isinstance(inner.op, ast.Sub):
+                    return self.translate(inner)
+                return None
             func = self._DT_FUNC.get(node.attr)
             if func is not None:
                 col = self.translate(node.value.value)
@@ -363,6 +375,17 @@ class ExprTranslator:
                     if old is not None and new_ is not None:
                         return f"subinstr({col}, {old}, {new_}, .)"
 
+            # col.dt.strftime('%Y-%m-%d') → isoformatdate(col)  (ISO format only)
+            if (func.attr == "strftime"
+                    and isinstance(func.value, ast.Attribute)
+                    and func.value.attr == "dt"
+                    and args and isinstance(args[0], ast.Constant)
+                    and args[0].value == "%Y-%m-%d"):
+                col = self.translate(func.value.value)
+                if col is not None:
+                    return f"isoformatdate({col})"
+            # other strftime formats have no microdata equivalent → UNTRANSLATED
+
             # col.str.contains(sub) → no microdata equivalent (returns None → UNTRANSLATED)
 
             # stats.dist.method(x, ...) → microdata distribution function
@@ -396,6 +419,13 @@ class ExprTranslator:
                 if attr in ("notna", "notnull"):
                     a = self.translate(args[0]) if args else None
                     return f"(!sysmiss({a}))" if a else None
+                # pd.qcut(col, n, labels=False) → quantile(col, n) — rank into n groups
+                if attr == "qcut" and len(args) >= 2:
+                    col = self.translate(args[0])
+                    n = self.translate(args[1])
+                    if col is not None and n is not None:
+                        return f"quantile({col}, {n})"
+                    return None
 
             # scipy.special.logit(x)
             if mod == "special" and attr == "logit":
@@ -485,7 +515,8 @@ class ExprTranslator:
             if isinstance(step, AttrStep) and step.name == "str":
                 i += 1  # repeated .str accessor between chained methods — skip
             elif isinstance(step, MethodStep):
-                col_expr = self._apply_str_method(col_expr, step.name, step.args)
+                col_expr = self._apply_str_method(col_expr, step.name, step.args,
+                                                  getattr(step, "kwargs", None))
                 if col_expr is None:
                     return None
                 i += 1
@@ -520,7 +551,24 @@ class ExprTranslator:
             return root.id
         return None
 
-    def _apply_str_method(self, col_expr: str, method: str, args: list) -> Optional[str]:
+    def _apply_str_method(self, col_expr: str, method: str, args: list,
+                          kwargs: dict = None) -> Optional[str]:
+        # df['a'].str.cat(df['b'], sep=' ') → rowconcat(a, ' ', b)
+        if method == "cat":
+            others = [self.translate(a) for a in args]
+            if not others or any(o is None for o in others):
+                return None
+            sep = None
+            if kwargs and "sep" in kwargs:
+                sep = self.translate(kwargs["sep"])
+                if sep is None:
+                    return None
+            parts = [col_expr]
+            for o in others:
+                if sep is not None:
+                    parts.append(sep)
+                parts.append(o)
+            return f"rowconcat({', '.join(parts)})"
         if method == "lower":
             return f"lower({col_expr})"
         if method == "upper":
@@ -560,9 +608,12 @@ class ExprTranslator:
             try:
                 lo = int(ast.literal_eval(key.lower)) if key.lower else 0
                 hi = int(ast.literal_eval(key.upper)) if key.upper else None
-                if hi is not None:
+                # microdata substr needs both bounds and a known length; an
+                # open-ended or negative slice can't be expressed, so signal
+                # untranslatable (None) rather than silently dropping it.
+                if hi is not None and lo >= 0 and hi >= 0:
                     return f"substr({col_expr}, {lo + 1}, {hi - lo})"
-                return col_expr  # str[i:] with no upper bound — return as-is
+                return None
             except (ValueError, TypeError):
                 pass
         return None

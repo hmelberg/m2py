@@ -255,7 +255,8 @@ def build_person_wide(
 
     df = pd.DataFrame(cols)
     if latent_structure:
-        df = apply_latent_structure(df, engine, on_report=on_report)
+        _ry = int(str(as_of)[:4]) if as_of else None
+        df = apply_latent_structure(df, engine, on_report=on_report, ref_year=_ry)
     return df
 
 
@@ -467,6 +468,10 @@ def build_person_year_dynamic(
         # tillegg til døde. Slik blir 0 aldri forvekslet med «ingen record».
         for c in ("INNTEKT_WLONN", "DAGPENGER", "UFORETRYGD", "ALDERSPENSJON", "INNTEKT_WSAMINNT"):
             df_y.loc[gone | (df_y[c] == 0), c] = np.nan
+        # Døde / ikke-fødte har heller ikke formue eller bosted — registeret
+        # returnerer ingen record etter dødsdato. Sett dem til MISSING i stedet
+        # for å videreføre fjorårets verdi (ellers «bor» og «eier» døde personer).
+        df_y.loc[gone, ["SKATT_NETTOFORMUE", "BOSATT_KOMMUNE"]] = np.nan
         frames.append(df_y)
 
     return pd.concat(frames, ignore_index=True)
@@ -1171,6 +1176,7 @@ def apply_latent_structure(
     person_df: pd.DataFrame,
     engine: MockDataEngine,
     on_report=None,
+    ref_year: Optional[int] = None,
 ) -> pd.DataFrame:
     """Reorder eligible quantity columns to induce broad cross-correlation while
     preserving every marginal exactly. Returns a new DataFrame.
@@ -1195,7 +1201,10 @@ def apply_latent_structure(
         "family": _factor_normal(uids, "family_factor_v1"),
     }
     if "BEFOLKNING_FOEDSELS_AAR_MND" in df.columns:
-        age = 2023 - (pd.to_numeric(df["BEFOLKNING_FOEDSELS_AAR_MND"], errors="coerce") // 100)
+        # Referanseår for alders-latenten må følge bygginga, ikke være hardkodet
+        # (ellers er alderen ~5–8 år for høy for bygg som dekker 2015–2018).
+        _ref_y = ref_year if ref_year else max(DEFAULT_YEARS)
+        age = _ref_y - (pd.to_numeric(df["BEFOLKNING_FOEDSELS_AAR_MND"], errors="coerce") // 100)
         factors["age"] = _standardize(age.fillna(age.median()).values)
     else:
         factors["age"] = np.zeros(n)
@@ -1314,7 +1323,10 @@ def valid_import_dates(valid_from: Optional[str], valid_to: Optional[str],
     dates = [f"{y:04d}-{fm}-{fd}" for y in range(fy_i, ty_i + 1)]
     if temporalitet == "Akkumulert" and (tm, td) != (fm, fd):
         dates += [f"{y:04d}-{tm}-{td}" for y in range(fy_i, ty_i + 1)]
-    return dates
+    # Clamp to the validity window: the last year's start-month-day can fall
+    # AFTER valid_to (and an Akkumulert end-month-day in the first year can fall
+    # BEFORE valid_from). A discontinued variable must not offer such dates.
+    return [d for d in dates if valid_from <= d <= valid_to]
 
 
 def is_valid_import_date(date: str, valid_from: Optional[str], valid_to: Optional[str],
@@ -1531,7 +1543,8 @@ def build_all(
     else:
         tables["person"] = build_person(engine, constant_vars, on_skip=on_skip)
         if latent_structure:
-            tables["person"] = apply_latent_structure(tables["person"], engine)
+            tables["person"] = apply_latent_structure(
+                tables["person"], engine, ref_year=max(years))
 
     if on_progress:
         on_progress("person_year")
