@@ -77,7 +77,15 @@ scope — point the offline script at a parquet/CSV extract you already have
 boolean, `substr`, `int`, `sysmiss`/`missing`, `string`/`lower`/`upper`/`length`,
 `log`/`exp`/`sqrt`/`abs`/`round`/`min`/`max`, `np.where`. Anything outside this
 set is emitted as a `# UNTRANSLATED` comment — **never silently-wrong code**.
-List the gaps for a script with `m2py_translate.unsupported(script)`.
+
+**Options** are guarded by a per-verb allow-list (`HANDLED_OPTIONS`): a verb
+honours `by()` (collapse/aggregate/summarize/tabulate), `outer_join`/`on()`
+(merge), `gini`/`iqr` (summarize), `missing` (tabulate), `force` (destring), and
+the `if` condition everywhere. Any *other* option on a line — e.g. tabulate
+`cellpct`/`nolabels`/`sig`, destring `dpcomma` — makes the line `# UNTRANSLATED`
+rather than being silently ignored. Two-way `tabulate x y` is supported (via
+args). List all gaps (unknown verb, expression, or option) for a script with
+`m2py_translate.unsupported(script)`.
 
 ## Architecture
 
