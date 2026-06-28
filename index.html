@@ -6395,29 +6395,6 @@ def _exec_pyodide_block(code, g, show_commands=False):
         _m2py_flush_pyplot_figs()
 
 # ── Shared DuckDB executor (used by the hybrid segment loop for #duckdb) ──
-import js as _duck_js
-import duckdb_bridge as _duck_db
-from pyodide.ffi import to_js as _duck_to_js
-
-# Pyodide shim: pandas' to_parquet lazily runs patch_pyarrow(), which calls
-# pyarrow.unregister_extension_type('arrow.py_extension_type') and raises
-# ArrowKeyError in the Pyodide pyarrow build. Make unregister lenient, then
-# pre-import the module so df.to_parquet(engine='pyarrow') works.
-import pyarrow as _duck_pa
-if not getattr(_duck_pa, "_m2py_unreg_patched", False):
-    _duck_oru = _duck_pa.unregister_extension_type
-    def _duck_safe_unreg(name, _o=_duck_oru):
-        try:
-            return _o(name)
-        except Exception:
-            return None
-    _duck_pa.unregister_extension_type = _duck_safe_unreg
-    _duck_pa._m2py_unreg_patched = True
-    try:
-        import pandas.core.arrays.arrow.extension_types as _duck_pet
-    except Exception:
-        pass
-
 def _duck_concise(_msg):
     _best = ""
     for _l in str(_msg).split("\\n"):
@@ -6433,6 +6410,30 @@ def _duck_concise(_msg):
     return _best
 
 async def _run_duck_sql(_sql):
+    # DuckDB-only imports are lazy: duckdb_bridge + pyarrow are loaded on demand
+    # (only when a #duckdb segment runs), so they must NOT be imported at core
+    # top level — that would break every non-DuckDB run with ModuleNotFoundError.
+    import js as _duck_js
+    import duckdb_bridge as _duck_db
+    from pyodide.ffi import to_js as _duck_to_js
+    # Pyodide shim: pandas' to_parquet lazily runs patch_pyarrow(), which calls
+    # pyarrow.unregister_extension_type('arrow.py_extension_type') and raises
+    # ArrowKeyError in the Pyodide pyarrow build. Make unregister lenient, then
+    # pre-import the module so df.to_parquet(engine='pyarrow') works.
+    import pyarrow as _duck_pa
+    if not getattr(_duck_pa, "_m2py_unreg_patched", False):
+        _duck_oru = _duck_pa.unregister_extension_type
+        def _duck_safe_unreg(name, _o=_duck_oru):
+            try:
+                return _o(name)
+            except Exception:
+                return None
+        _duck_pa.unregister_extension_type = _duck_safe_unreg
+        _duck_pa._m2py_unreg_patched = True
+        try:
+            import pandas.core.arrays.arrow.extension_types as _duck_pet
+        except Exception:
+            pass
     # A segment with only SQL comments (e.g. a leading --/ /* */ note before the
     # first block marker) has no real SQL — skip it so it doesn't reach DuckDB.
     if not _duck_db._scrub(_sql).strip():
