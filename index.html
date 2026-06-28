@@ -7458,31 +7458,58 @@ has and "int" in (m.get_microdata_functions() or {})
         py.globals.set('_ss_src', script);
         var raw = await py.runPythonAsync(`
 import json as _json, io as _io, contextlib as _ctxlib
+from m2py import MicroInterpreter as _MI, MicroParser as _MP
 import m2py_translate as _mt
+
+# Data source (quick win): replay ONLY the data-acquisition lines
+# (require/create-dataset/use/import) in the emulator -> raw mock datasets WITH
+# the imported columns and NO transforms, so the translated code applies the
+# transforms exactly once. (Later: real / remote data replaces this source.)
+_acq = {"require", "create-dataset", "use", "import", "import-event"}
+_p = _MP()
+_acq_lines = []
+for _ln in _ss_src.splitlines():
+    try: _ins = _p.parse_line(_ln)
+    except Exception: _ins = None
+    if _ins and _ins.get("command") in _acq:
+        _acq_lines.append(_ln)
+_e = _MI()
+_emu_err = None
+try:
+    _e.run_script("\\n".join(_acq_lines))
+except Exception as _ex:
+    _emu_err = repr(_ex)
+_datasets = {}
+for _k, _v in (getattr(_e, "datasets", {}) or {}).items():
+    try: _datasets[_k] = _v.copy()
+    except Exception: _datasets[_k] = _v
+
+# Translate the FULL script and run it on that data.
 _code = _mt.translate(_ss_src, backend="pandas", source_path=None, allow_emulated=True)
-_ns = {}
+_ns = {"datasets": _datasets}
 _buf = _io.StringIO()
 _err = None
 try:
     with _ctxlib.redirect_stdout(_buf):
         exec(_code, _ns)
-except Exception as _e:
-    _err = repr(_e)
+except Exception as _e2:
+    _err = repr(_e2)
 _df = _ns.get("df")
 _html = ""
 if _df is not None:
-    try:
-        _html = _df.head(50).to_html(border=0)
-    except Exception:
-        _html = "<pre>" + str(_df)[:5000] + "</pre>"
+    try: _html = _df.head(50).to_html(border=0)
+    except Exception: _html = "<pre>" + str(_df)[:5000] + "</pre>"
 _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
-             "n": (None if _df is None else int(len(_df))), "err": _err})
+             "n": (None if _df is None else int(len(_df))),
+             "err": _err, "emu_err": _emu_err, "datasets": sorted(_datasets.keys())})
 `);
         var res = JSON.parse(raw);
         var head = '<div style="padding:6px 8px;font-size:12px;opacity:.7">SafeStat &middot; lokal kjøring'
+          + (res.datasets && res.datasets.length ? ' &middot; data: ' + res.datasets.join(', ') : '')
           + (res.n === null ? '' : ' &middot; ' + res.n + ' rader')
-          + ' &middot; <em>remote (compute-to-data) kommer</em></div>';
+          + ' &middot; <em>mock-data (emulator) &middot; remote kommer</em></div>';
         var bodyHtml = '';
+        if (res.emu_err) bodyHtml += '<pre class="transl-warn" style="opacity:.75">Data-bygging (emulator): ' + escapeHtmlOutput(res.emu_err) + '</pre>';
         if (res.err) bodyHtml += '<pre class="error">' + escapeHtmlOutput(res.err) + '</pre>';
         if (res.out && res.out.trim()) bodyHtml += '<pre>' + escapeHtmlOutput(res.out) + '</pre>';
         if (res.html) bodyHtml += res.html;
