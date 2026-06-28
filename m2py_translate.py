@@ -256,26 +256,6 @@ def _track(tracker, active, instr):
     # so the merged vars don't create a spurious common join column.
 
 
-def _merge_parts(args, opts):
-    """Resolve a merge instruction to (name, key, how, select).
-
-    Handles the list forms ``merge X on K`` / ``merge X, on(K)`` and the
-    into-form ``merge a b into X on K``. ``how`` follows the emulator: outer when
-    the ``outer_join`` option is set, else left. ``select`` is the column subset
-    to bring from the right frame (into-form), or None for all columns.
-    """
-    how = "outer" if opts.get("outer_join") else "left"
-    if isinstance(args, dict):                      # merge a b into X on K
-        return args.get("into"), args.get("on") or opts.get("on"), how, args.get("vars")
-    name = args[0]
-    key = opts.get("on")
-    if "on" in args:
-        i = args.index("on")
-        if i + 1 < len(args):
-            key = args[i + 1]
-    return name, key, how, None
-
-
 def _expr_polars_ok(expr):
     """An expression is fine for the polars backend if exprcompile maps it
     natively OR every function it calls is a known microdata function / numpy —

@@ -70,5 +70,24 @@ artifacts:
 
 For everything in scope (data shaping, recode, merge, reshape, collapse), the
 translator matches the emulator command-for-command, and the few real
-discrepancies found have been fixed. The residual gap is the deliberately
-out-of-scope import/`require`/family-linkage layer.
+discrepancies found have been fixed.
+
+## Update — implicit merge-key resolution (2026-06-28)
+
+The largest remaining category above (NameError/KeyError from **family /
+`require` cross-entity linkage**) is no longer out of scope. The translator now
+resolves each `merge`'s join key at translate time through the **same resolver
+the emulator uses** (`m2py_runtime/keys.py:resolve_merge_key`) and bakes an
+explicit `left_on`/`right_on`. A static `KeyTracker` tracks each dataset's
+columns + collapse key and the `import`-declared `alias → path` map, so
+same-entity (`PERSONID_1`), collapse-then-merge, and person-ref FNR links
+(mother/sibling/owner → `PERSONID_1`) all resolve. Into-form merges go through
+`ops.merge_into`, mirroring the emulator's column handling. Key choice is proven
+to match the emulator in `tests/test_key_resolution.py`; end-to-end value parity
+in `tests/test_merge_into.py`. Real example check: the sibling script
+`merge snittlønn_søsken ant_søsken into bosatte on søskennr` bakes
+`left_on='søskennr', right_on='søskennr'`, matching the emulator's explicit `on`.
+
+The genuinely residual gap is now only the raw `import`/`require` data
+acquisition itself (Anvil holds that data, or the opt-in `allow_emulated`
+emulator fallback synthesises a base population for testing).

@@ -67,7 +67,7 @@ crosses the network, not the data.
 | Labels (no-op on data) | `define-labels`, `assign-labels`, `drop-labels`, `list-labels` |
 | Shaping | `generate`, `replace`, `recode`, `keep`, `drop`, `rename`, `destring`, `reshape-to-panel`, `reshape-from-panel` |
 | Aggregation | `collapse`, `aggregate` |
-| Merge | `merge` |
+| Merge | `merge X on K` (symmetric), `merge vars into TARGET on K` (into-form, via `merge_into`); join key resolved + baked at translate time |
 | Analysis (side output) | `summarize`, `tabulate`, `correlate`, `normaltest`, `ci`, `anova`, `hausman`, `summarize-panel`, `tabulate-panel`, `transitions-panel` |
 | Regression (coef table) | `regress`, `logit`, `probit`, `poisson`, `negative-binomial` |
 | Panel / IV (coef table) | `regress-panel` (fe/re/be/pooled), `regress-panel-diff` (diff-in-diff), `ivregress` (2SLS) |
@@ -128,6 +128,39 @@ Coverage on the repo's real `manual_scripts/` + `examples/`: **186/187 (99%)**
 of these verbs translate. `import`/session plumbing is intentionally out of
 scope — point the offline script at a parquet/CSV extract you already have
 (e.g. one DuckDB mode built).
+
+**Implicit merge keys.** microdata merges implicitly on the entity/relative key;
+pandas and polars need an explicit join column. The translator resolves each
+`merge`'s key *at translate time* and bakes a literal `left_on`/`right_on`,
+using the **same resolver the emulator uses** (`m2py_runtime/keys.py:
+resolve_merge_key`, which the emulator's merge handler also calls — single source
+of truth). A static `KeyTracker` walk maintains each dataset's columns and its
+collapse key, and builds an `alias → registry-path` map from the script's own
+`import` lines so cross-entity **person-ref FNR linkage** (mother/father/owner →
+`PERSONID_1`) is detected without a live catalog. The two merge forms are
+emitted distinctly: `merge X on K` updates the active frame (symmetric key);
+`merge vars into TARGET` updates the target via `ops.merge_into`, which mirrors
+the emulator's dedup/suffix/drop column handling (always a left-join). When a key
+can't be resolved, the line is baked with a best guess and flagged
+`# TODO: verify join key` — never silently wrong. This brings family / sibling /
+job-to-person linkage scripts (previously out of scope) into coverage; e.g.
+`merge snittlønn_søsken ant_søsken into bosatte on søskennr` bakes
+`left_on='søskennr', right_on='søskennr'`.
+
+**Input resolution + emulator fallback.** In in-memory mode the emitted program
+resolves each input dataset through a `_load(name)` helper: it returns
+`datasets[name]` when the caller provides it, else — only when the runtime
+`allow_emulated` flag is set — synthesises a base population via the emulator
+(`ops.emulate_import`), else raises `KeyError`. `translate(..., allow_emulated=)`
+sets that flag's default in the emitted file; an Anvil caller can still override
+it before running. This lets a generated script run end-to-end for testing before
+real data is wired in, while never silently faking data in production.
+
+**In the app.** The hamburger menu's **“Vis offline Python”** (pandas / polars)
+translates the current script and shows the standalone program in the output
+pane — the artifact you hand to Anvil. (polars translation needs the `polars`
+package, which isn't always available in the browser; pandas always works there,
+and polars runs fine offline.)
 
 **Expressions** (for `generate`/`replace`/`if`): **all 85 microdata functions are
 supported.** The polars `exprcompile` maps the element-wise ones natively (stays
