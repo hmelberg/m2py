@@ -7487,6 +7487,24 @@ has and "int" in (m.get_microdata_functions() or {})
           outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: henter ' + _fetches.length + ' datakilde(r)…</div>';
           await Promise.all(_fetches);
         }
+        var _pkgFor = [
+          { re: /^\s*(cox|kaplan-meier|kaplan_meier|weibull)\b/im, pkg: 'lifelines' },
+          { re: /^\s*(regress-panel|ivregress)\b/im,              pkg: 'linearmodels' },
+          { re: /^\s*rdd\b/im,                                     pkg: 'rdrobust' },
+        ];
+        var _need = _pkgFor.filter(function(p){ return p.re.test(script); }).map(function(p){ return p.pkg; });
+        for (var _pi = 0; _pi < _need.length; _pi++) {
+          var _pkg = _need[_pi];
+          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: installerer ' + _pkg + '…</div>';
+          try {
+            py.globals.set('_ss_pkg', _pkg);
+            await py.runPythonAsync('import micropip as _mp\nawait _mp.install(_ss_pkg)');
+          } catch (e) {
+            outputArea.innerHTML = '<pre class="error">SafeStat: kunne ikke installere «' + _pkg
+              + '» (kreves for dette scriptet) i nettleseren: ' + escapeHtmlOutput(String(e && e.message ? e.message : e)) + '</pre>';
+            return;
+          }
+        }
         py.globals.set('_ss_src', _localScript);
         var raw = await py.runPythonAsync(`
 import json as _json, io as _io, contextlib as _ctxlib
