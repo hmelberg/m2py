@@ -71,7 +71,15 @@ crosses the network, not the data.
 
 Analysis and plot verbs honour a trailing `if <cond>` (rows are filtered for the
 computation via the `keep` op, without changing the working frame), and they
-match the emulator's per-verb statistics. In particular **`summarize`** mirrors
+match the emulator's per-verb statistics. **`correlate`** matches the emulator:
+by default rows with any missing value are dropped (listwise) before Pearson
+correlation; `pairwise` keeps them (pairwise correlation); `covariance` returns
+the covariance matrix (`sig`/`obs` text/extra-column variants are deferred).
+**`tabulate`** mirrors the emulator's (inconsistent) missing handling — a one-way
+table keeps the missing category by default and drops it with `missing`, while a
+two-way table drops it by default and keeps it with `missing`; the long output
+omits zero-count combinations that the emulator's wide crosstab shows explicitly.
+In particular **`summarize`** mirrors
 the emulator's two paths exactly (verified against `StatsEngine`): ungrouped →
 `mean, std, count, p1, p25, p50, p75, p99` (percentiles incl. median, no min/max);
 grouped (`by`) → `mean, std, min, max, count`; `gini`/`iqr` append in either path.

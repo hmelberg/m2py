@@ -49,7 +49,7 @@ HANDLED_OPTIONS = {
     # two-way is via args, not an option; freq just shows counts (always on)
     "tabulate": {"by", "missing", "freq", "chi2", "top", "bottom",
                  "cellpct", "rowpct", "colpct", "cell", "row", "col"},
-    "correlate": set(),
+    "correlate": {"pairwise", "covariance"},   # sig/obs (text/extra cols) deferred
     "regress": set(),
     # plots
     "histogram": {"bin", "nbins", "discrete", "percent", "density", "freq", "normal"},
@@ -176,7 +176,9 @@ def _emit_analysis(instr, backend, idx):
                 f"chi2={bool(opts.get('chi2'))!r}, "
                 f"top={opts.get('top')!r}, bottom={opts.get('bottom')!r})")
     elif cmd == "correlate":
-        call = f"ops.correlate({var}, vars={vars_!r})"
+        call = (f"ops.correlate({var}, vars={vars_!r}, "
+                f"pairwise={bool(opts.get('pairwise'))!r}, "
+                f"covariance={bool(opts.get('covariance'))!r})")
     elif cmd == "regress":
         if not vars_:
             return None

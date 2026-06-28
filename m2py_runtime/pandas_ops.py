@@ -221,8 +221,10 @@ def tabulate(df, vars, by=None, missing=False,
     """Frequency table: counts of each combination of ``vars`` (one-way for a
     single variable, cross-tab for two), optionally within ``by`` groups.
 
-    Missing/null key values are dropped by default, kept when ``missing`` is set.
-    Percentage columns (0-100), each computed within the ``by`` group when given:
+    Missing/null handling mirrors the emulator's (inconsistent) behaviour: a
+    one-way table KEEPS the missing category by default and drops it with
+    ``missing``; a two-way table DROPS missing by default and keeps it with
+    ``missing``. Percentage columns (0-100), within the ``by`` group when given:
       - ``cellpct``: share of the whole table
       - ``rowpct``:  share within the first variable (``vars[0]``)
       - ``colpct``:  share within the second variable (``vars[1]``, or the only
@@ -235,7 +237,10 @@ def tabulate(df, vars, by=None, missing=False,
     head/tail the table rows; ``top(n)``; bare ``top`` -> 10). Columns: the
     grouping variables, ``n``, then any extras."""
     keys = ([by] if by and by in df.columns else []) + list(vars)
-    out = df.groupby(keys, dropna=not missing).size().reset_index(name="n")
+    # emulator: one-way value_counts(dropna=not dropna) where dropna='missing'
+    # not set -> drop iff `missing`; two-way crosstab(dropna=...) -> drop iff not.
+    drop = missing if len(vars) == 1 else not missing
+    out = df.groupby(keys, dropna=drop).size().reset_index(name="n")
     grp = [by] if by and by in df.columns else []
     first = vars[0]
     second = vars[1] if len(vars) > 1 else vars[0]
@@ -266,12 +271,17 @@ def tabulate(df, vars, by=None, missing=False,
     return out
 
 
-def correlate(df, vars):
+def correlate(df, vars, pairwise=False, covariance=False):
     """Pearson correlation matrix for numeric ``vars`` as a frame whose first
-    column ``variable`` labels each row."""
+    column ``variable`` labels each row. Matching the emulator: by default rows
+    with any missing value are dropped (listwise); ``pairwise`` keeps them and
+    correlates pairwise; ``covariance`` returns the covariance matrix instead."""
     vars = _numeric_vars(df, vars)
-    c = df[vars].corr()
-    return c.reset_index(names="variable")
+    sub = df[vars]
+    if not pairwise:
+        sub = sub.dropna()
+    m = sub.cov() if covariance else sub.corr(method="pearson")
+    return m.reset_index(names="variable")
 
 
 # ── plots (terminal; return a plotly Figure) ─────────────────────────────────

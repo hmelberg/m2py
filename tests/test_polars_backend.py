@@ -411,6 +411,54 @@ def test_unsupported_expression_is_marked_not_silently_wrong():
     assert T.unsupported(script) == ["generate w = wordcount(a)"]
 
 
+def _stats_oracle(cmd, df, args, opts):
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+    return m2py.MicroInterpreter(metadata_path=None).stats_engine.execute(
+        cmd, df, args, opts)
+
+
+_MISS_DF = pd.DataFrame({"g": [1, 1, 2, 2, 2, 3, 3, np.nan], "h": [1, 2, 1, 2, 1, 2, 1, 1]})
+
+
+@pytest.mark.parametrize("opts,missing,keeps_nan", [
+    ({}, False, True),                 # one-way default KEEPS missing (emu quirk)
+    ({"missing": True}, True, False),  # one-way `missing` DROPS it
+])
+def test_tabulate_oneway_missing_matches_emulator(opts, missing, keeps_nan):
+    emu = _stats_oracle("tabulate", _MISS_DF, ["g"], opts)
+    emu_counts = {("NaN" if pd.isna(k) else k): int(v)
+                  for k, v in emu.items() if k != "Total"}
+    res, _ = _run_analysis("tabulate g" + (", missing" if missing else ""),
+                           _MISS_DF, "pandas")
+    mine = {("NaN" if pd.isna(r["g"]) else r["g"]): int(r["n"])
+            for _, r in res.iterrows()}
+    assert mine == emu_counts
+    assert ("NaN" in mine) == keeps_nan
+
+
+def test_tabulate_twoway_default_drops_missing_like_emulator():
+    emu = _stats_oracle("tabulate", _MISS_DF, ["g", "h"], {})
+    expected = {(gi, hi): int(emu.loc[gi, hi]) for gi in emu.index if gi != "Total"
+                for hi in emu.columns if hi != "Total" and int(emu.loc[gi, hi]) > 0}
+    res, _ = _run_analysis("tabulate g h", _MISS_DF, "pandas")
+    mine = {(r["g"], r["h"]): int(r["n"]) for _, r in res.iterrows()}
+    assert mine == expected                       # non-NaN cells match; NaN dropped
+
+
+@pytest.mark.parametrize("opts,kw", [
+    ({}, {}),
+    ({"pairwise": True}, {"pairwise": True}),
+    ({"covariance": True}, {"covariance": True}),
+])
+def test_correlate_matches_emulator(opts, kw):
+    from m2py_runtime import pandas_ops as po
+    df = pd.DataFrame({"a": [1.0, 2, 3, 4, 5, np.nan], "b": [2.0, 4, 5, 4, 5, 6],
+                       "c": [1.0, 1, 2, np.nan, 3, 3]})
+    emu = _stats_oracle("correlate", df, ["a", "b", "c"], opts)
+    mine = po.correlate(df, ["a", "b", "c"], **kw).set_index("variable")
+    assert np.allclose(emu.values, mine.loc[emu.index, emu.columns].values, equal_nan=True)
+
+
 def test_tabulate_percentages_are_correct():
     # x in {1,2}, y in {1,2}; counts (1,1)=2 (1,2)=1 (2,1)=1 (2,2)=1, total 5
     df = pd.DataFrame({"x": [1, 1, 1, 2, 2], "y": [1, 1, 2, 1, 2]})
@@ -525,7 +573,7 @@ def test_summarize_if_condition_matches_emulator():
     "tabulate g, nolabels",        # formatting option not implemented
     "tabulate g, rowsort",         # sort option not implemented
     "destring x, dpcomma",         # decimal-comma changes values
-    "correlate a b, covariance",   # covariance variant not implemented
+    "correlate a b, sig",          # significance text table not implemented
     "barchart x, mean",            # bare stat flag (use parenthesised (mean))
     "piechart x, percent",         # bare percent flag (use (percent))
     "scatter a b, lfit",           # regression-line overlay (scatter not mopped up)

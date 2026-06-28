@@ -151,8 +151,8 @@ def tabulate(lf, vars, by=None, missing=False,
                      chi2=chi2, top=top, bottom=bottom)
 
 
-def correlate(lf, vars):
-    return _analysis(lf, "correlate", vars)
+def correlate(lf, vars, pairwise=False, covariance=False):
+    return _analysis(lf, "correlate", vars, pairwise=pairwise, covariance=covariance)
 
 
 def regress(lf, dep, indep):
