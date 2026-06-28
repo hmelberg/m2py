@@ -166,6 +166,30 @@ def translate(script, backend="pandas", source_path="df"):
     return "\n".join(header + [""] + body + [""] + footer) + "\n"
 
 
+def run(script, datasets, backend="polars", active=None):
+    """Translate ``script`` and execute it locally, returning the resulting
+    DataFrame (pandas for backend="pandas", polars for "polars").
+
+    ``datasets`` is a dict of name -> pandas.DataFrame; ``active`` names the
+    working dataset (defaults to the first). This mirrors what an offline worker
+    / Anvil endpoint does: receive the microdata script as a string, translate
+    it, and execute the generated code. Convenience for local testing.
+    """
+    if active is None:
+        active = next(iter(datasets))
+    code = translate(script, backend=backend, source_path=None)
+    if backend == "polars":
+        import polars as pl
+        ns = {"data": pl.LazyFrame(datasets[active]), "pl": pl,
+              "datasets": {k: pl.LazyFrame(v) for k, v in datasets.items()}}
+        exec(code, ns)
+        return ns["df"]
+    import pandas as pd
+    ns = {"df": datasets[active].copy(), "pd": pd, "datasets": dict(datasets)}
+    exec(code, ns)
+    return ns["df"]
+
+
 def unsupported(script):
     """Return the list of script lines that would be emitted UNTRANSLATED for
     the polars backend (verb unknown or expression uncompilable)."""

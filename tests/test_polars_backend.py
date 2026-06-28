@@ -209,3 +209,12 @@ def test_unsupported_expression_is_marked_not_silently_wrong():
     code = T.translate(script, backend="polars", source_path=None)
     assert "UNTRANSLATED" in code
     assert T.unsupported(script) == ["generate w = wordcount(a)"]
+
+
+def test_run_helper_both_backends():
+    df = pd.DataFrame({"kommune": [1, 2, 1, 2], "inntekt": [10.0, 20, 30, 40]})
+    script = "collapse (mean) inntekt -> snitt, by(kommune)"
+    out_pl = T.run(script, {"df": df}, backend="polars").to_pandas()
+    out_pd = T.run(script, {"df": df}, backend="pandas")
+    _assert_same(out_pl, out_pd, "run", script)
+    assert sorted(out_pd["snitt"].tolist()) == [20.0, 30.0]
