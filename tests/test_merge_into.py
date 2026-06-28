@@ -105,3 +105,16 @@ def test_allow_emulated_default_baked_into_header():
     code = t.translate(MISSING, backend="pandas", source_path=None,
                        allow_emulated=True)
     assert "allow_emulated = globals().get('allow_emulated', True)" in code
+
+
+def test_manifest_key_resolves_merge():
+    from m2py_runtime.manifest import Manifest
+    man = Manifest.from_dict({"datasets": {
+        "persons": {"source": "p.parquet", "keys": ["id"]},
+        "income":  {"source": "i.parquet", "keys": ["id"]},
+    }})
+    code = t.translate(
+        "use income\nmerge wage into persons",
+        backend="pandas", source_path=None, manifest=man)
+    assert "left_on='id', right_on='id'" in code
+    assert "# TODO" not in code            # resolved, not flagged

@@ -164,19 +164,33 @@ class KeyTracker:
 
     DEFAULT_KEY = "PERSONID_1"
 
-    def __init__(self):
+    def __init__(self, manifest=None):
         self.cols = {}            # name (None = implicit frame) -> set[str]
         self.collapse_key = {}    # name -> str
         self.alias_path = {}      # alias -> registry path
+        self.declared_key = {}    # name -> str (manifest keys[0])
+        self.manifest = manifest
 
     def ensure(self, name):
         if name not in self.cols:
-            self.cols[name] = {self.DEFAULT_KEY}
+            m = self.manifest
+            if m is not None and m.has(name):
+                keys = m.keys(name)
+                self.cols[name] = set(m.variables(name)) | set(keys)
+                if keys:
+                    self.declared_key[name] = keys[0]
+            else:
+                self.cols[name] = {self.DEFAULT_KEY}
         return self.cols[name]
 
     def create(self, name):
-        self.cols[name] = {self.DEFAULT_KEY}
+        self.cols.pop(name, None)
         self.collapse_key.pop(name, None)
+        self.ensure(name)
+
+    def _key(self, name):
+        """Current key for a dataset: collapse key, else manifest-declared."""
+        return self.collapse_key.get(name) or self.declared_key.get(name)
 
     def add_cols(self, name, cols):
         self.ensure(name).update(c for c in cols if c)
@@ -215,8 +229,8 @@ class KeyTracker:
             source_cols=self.cols[active],
             target_cols=self.cols[into],
             on_var=on_var,
-            src_collapse_key=self.collapse_key.get(active),
-            tgt_collapse_key=self.collapse_key.get(into),
+            src_collapse_key=self._key(active),
+            tgt_collapse_key=self._key(into),
             is_person_ref=self.is_person_ref,
         )
 
@@ -742,7 +756,8 @@ def _expand_loops(script):
     return "\n".join(out)
 
 
-def translate(script, backend="pandas", source_path="df", allow_emulated=False):
+def translate(script, backend="pandas", source_path="df", allow_emulated=False,
+              manifest=None):
     """Return a runnable Python program (string) for ``script``.
 
     ``source_path`` names the input parquet stem ("df" -> df.parquet). Pass
@@ -796,7 +811,7 @@ def translate(script, backend="pandas", source_path="df", allow_emulated=False):
     active = None          # None = the implicit single working frame (df/lf)
     known = set()          # dataset names that already have an emitted variable
     used_implicit = False  # did any command actually read the implicit frame?
-    tracker = KeyTracker()  # per-dataset cols + key, for baking merge join keys
+    tracker = KeyTracker(manifest)   # per-dataset cols + key, for baking merge join keys
 
     def cur():
         nonlocal used_implicit
