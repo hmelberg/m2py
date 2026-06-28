@@ -139,3 +139,17 @@ def test_runs_end_to_end_from_manifest(tmp_path):
     exec(code, ns)
     out = ns["df"].sort_values("id").reset_index(drop=True)
     assert out["wage"].tolist() == [100, 200, 300]   # joined on id from the manifest
+
+
+def test_require_alias_resolves_from_manifest():
+    from m2py_runtime.manifest import Manifest
+    man = Manifest.from_dict({"datasets": {
+        "no.ssb/persons": {"source": "p.parquet", "keys": ["id"]},
+        "no.ssb/income":  {"source": "i.parquet", "keys": ["id"]},
+    }})
+    code = t.translate(
+        "require no.ssb/persons as persons\n"
+        "require no.ssb/income as income\n"
+        "use income\nmerge wage into persons",
+        backend="pandas", source_path=None, manifest=man)
+    assert "left_on='id', right_on='id'" in code and "# TODO" not in code
