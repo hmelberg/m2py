@@ -171,6 +171,14 @@ def correlate(lf, vars, pairwise=False, covariance=False):
     return _analysis(lf, "correlate", vars, pairwise=pairwise, covariance=covariance)
 
 
+def summarize_panel(lf, vars=None, gini=False, iqr=False):
+    return _analysis(lf, "summarize_panel", vars, gini=gini, iqr=iqr)
+
+
+def tabulate_panel(lf, var1, missing=False, rowpct=False, colpct=False):
+    return _analysis(lf, "tabulate_panel", var1, missing=missing, rowpct=rowpct, colpct=colpct)
+
+
 def normaltest(lf, vars=None):
     return _analysis(lf, "normaltest", vars)
 

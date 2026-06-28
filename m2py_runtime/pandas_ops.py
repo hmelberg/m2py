@@ -357,6 +357,33 @@ def hausman(df, dep, indep, key=None):
                           "p": float(1 - chi2_dist.cdf(chi2, len(common)))}])
 
 
+def summarize_panel(df, vars=None, gini=False, iqr=False):
+    """``summarize`` per time period: mean/std/min/max/count of each numeric
+    variable within each ``tid`` (+ gini/iqr). Returns a tidy frame
+    ``[tid, variable, mean, std, min, max, count, ...]``."""
+    if "tid" not in df.columns:
+        raise ValueError("summarize-panel requires a 'tid' column")
+    vars = [v for v in _numeric_vars(df, vars) if v != "tid"]
+    recs = []
+    for tid_val, sub in df.groupby("tid"):
+        for v in vars:
+            s = sub[v]
+            r = {"tid": tid_val, "variable": v, "mean": s.mean(), "std": s.std(),
+                 "min": s.min(), "max": s.max(), "count": s.count()}
+            r.update(_extra_stat_cols(s, gini, iqr))
+            recs.append(r)
+    return pd.DataFrame(recs)
+
+
+def tabulate_panel(df, var1, missing=False, rowpct=False, colpct=False):
+    """Frequency of ``var1`` across time periods (``var1`` rows × ``tid``).
+    Counts of each ``(var1, tid)``; rowpct is within ``var1``, colpct within
+    ``tid`` — same as a two-way ``tabulate var1 tid``."""
+    if "tid" not in df.columns:
+        raise ValueError("tabulate-panel requires a 'tid' column")
+    return tabulate(df, [var1, "tid"], missing=missing, rowpct=rowpct, colpct=colpct)
+
+
 def tabulate(df, vars, by=None, missing=False,
              cellpct=False, rowpct=False, colpct=False,
              chi2=False, top=None, bottom=None):

@@ -923,6 +923,36 @@ def test_normaltest_ci_anova_match_emulator():
     assert np.isclose(float(emu["F"].iloc[0]), mf, atol=1e-4)
 
 
+def test_panel_tables_match_emulator():
+    from m2py_runtime import pandas_ops as po
+    rng = np.random.default_rng(0)
+    rows = []
+    for i in range(60):
+        for t in (2018, 2019, 2020):
+            rows.append({"unit_id": i, "tid": t, "inntekt": rng.normal(5, 1),
+                         "kjonn": int(rng.integers(1, 3))})
+    df = pd.DataFrame(rows)
+    eng = m2py.MicroInterpreter(metadata_path=None).stats_engine
+    m2py.M2PY_DISCLOSURE_CONTROL = "0"
+
+    # summarize-panel: emulator returns multiindex (var, stat) indexed by tid
+    emu = eng.execute("summarize-panel", df, ["inntekt"], {})
+    mine, _ = _run_analysis("summarize-panel inntekt", df, "pandas")
+    minep, _ = _run_analysis("summarize-panel inntekt", df, "polars")
+    mi = mine.set_index("tid")
+    for t in (2018, 2019, 2020):
+        assert np.isclose(mi.loc[t, "mean"], emu.loc[t, ("inntekt", "mean")])
+        assert np.isclose(mi.loc[t, "std"], emu.loc[t, ("inntekt", "std")])
+    assert np.allclose(mine.sort_values("tid")["mean"], minep.sort_values("tid")["mean"])
+
+    # tabulate-panel: counts per (kjonn, tid) == crosstab(kjonn, tid)
+    emu = eng.execute("tabulate-panel", df, ["kjonn"], {})
+    mine, _ = _run_analysis("tabulate-panel kjonn", df, "pandas")
+    mc = {(int(r["kjonn"]), int(r["tid"])): int(r["n"]) for _, r in mine.iterrows()}
+    ec = {(int(k), int(t)): int(emu.loc[k, t]) for k in emu.index for t in emu.columns}
+    assert mc == ec
+
+
 def test_hausman_matches_emulator():
     pytest.importorskip("linearmodels")
     import re

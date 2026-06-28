@@ -66,7 +66,7 @@ crosses the network, not the data.
 | Shaping | `generate`, `replace`, `recode`, `keep`, `drop`, `rename`, `destring`, `reshape-to-panel`, `reshape-from-panel` |
 | Aggregation | `collapse`, `aggregate` |
 | Merge | `merge` |
-| Analysis (side output) | `summarize`, `tabulate`, `correlate`, `normaltest`, `ci`, `anova`, `hausman` |
+| Analysis (side output) | `summarize`, `tabulate`, `correlate`, `normaltest`, `ci`, `anova`, `hausman`, `summarize-panel`, `tabulate-panel` |
 | Regression (coef table) | `regress`, `logit`, `probit`, `poisson`, `negative-binomial` |
 | Panel / IV (coef table) | `regress-panel` (fe/re/be/pooled), `regress-panel-diff` (diff-in-diff), `ivregress` (2SLS) |
 | Other models | `mlogit` (multinomial), `rdd` (regression discontinuity, sharp/fuzzy) |

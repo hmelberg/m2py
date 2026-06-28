@@ -47,7 +47,8 @@ SURVIVAL = {"cox": "cox", "kaplan-meier": "kaplan_meier", "weibull": "weibull"}
 # panel & IV regression (analysis verbs, linearmodels/statsmodels)
 PANEL_IV = {"regress-panel", "regress-panel-diff", "ivregress"}
 ANALYSIS = ({"summarize", "tabulate", "correlate", "mlogit", "rdd",
-             "normaltest", "ci", "anova", "hausman"}
+             "normaltest", "ci", "anova", "hausman",
+             "summarize-panel", "tabulate-panel"}
             | set(REGRESSION) | set(SURVIVAL) | PANEL_IV)
 # PLOT verbs build a plotly Figure (terminal, like analysis). Offline they are
 # written to an HTML file; in-memory (tests) the figure object is left in scope.
@@ -75,6 +76,9 @@ HANDLED_OPTIONS = {
     "correlate": {"pairwise", "covariance"},   # sig/obs (text/extra cols) deferred
     "normaltest": set(),
     "ci": {"level"},
+    "summarize-panel": {"gini", "iqr"},
+    # tabulate-panel: tid is the columns; summarize()-volume variant deferred
+    "tabulate-panel": {"missing", "rowpct", "colpct", "row", "col"},
     "anova": set(),
     "hausman": set(),
     # regression family: noconstant only; or/irr/robust/exposure/level deferred
@@ -283,6 +287,17 @@ def _emit_analysis(instr, backend, idx):
         call = (f"ops.correlate({var}, vars={vars_!r}, "
                 f"pairwise={bool(opts.get('pairwise'))!r}, "
                 f"covariance={bool(opts.get('covariance'))!r})")
+    elif cmd == "summarize-panel":
+        call = (f"ops.summarize_panel({var}, vars={vars_!r}, "
+                f"gini={bool(opts.get('gini'))!r}, iqr={bool(opts.get('iqr'))!r})")
+    elif cmd == "tabulate-panel":
+        if not vars_:
+            return None
+        cell = bool(opts.get("rowpct") or opts.get("row"))
+        col = bool(opts.get("colpct") or opts.get("col"))
+        call = (f"ops.tabulate_panel({var}, var1={vars_[0]!r}, "
+                f"missing={bool(opts.get('missing'))!r}, "
+                f"rowpct={cell!r}, colpct={col!r})")
     elif cmd == "normaltest":
         call = f"ops.normaltest({var}, vars={vars_!r})"
     elif cmd == "ci":
