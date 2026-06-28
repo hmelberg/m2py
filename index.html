@@ -7527,13 +7527,22 @@ try:
 except Exception as _e2:
     _err = repr(_e2)
 _df = _ns.get("df")
+_figs = []
+for _k in sorted(_ns):
+    if _k.startswith("fig_"):
+        _f = _ns[_k]
+        try:
+            _figs.append(_f.to_json())
+        except Exception:
+            pass
 _html = ""
 if _df is not None:
     try: _html = _df.head(50).to_html(border=0)
     except Exception: _html = "<pre>" + str(_df)[:5000] + "</pre>"
 _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
              "n": (None if _df is None else int(len(_df))),
-             "err": _err, "emu_err": _emu_err, "datasets": sorted(_datasets.keys())})
+             "err": _err, "emu_err": _emu_err, "datasets": sorted(_datasets.keys()),
+             "figs": _figs})
 `);
         var res = JSON.parse(raw);
         var head = '<div style="padding:6px 8px;font-size:12px;opacity:.7">SafeStat &middot; lokal kjøring'
@@ -7545,10 +7554,22 @@ _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
         if (res.err) bodyHtml += '<pre class="error">' + escapeHtmlOutput(res.err) + '</pre>';
         if (res.out && res.out.trim()) bodyHtml += '<pre>' + escapeHtmlOutput(res.out) + '</pre>';
         if (res.html) bodyHtml += res.html;
+        var _figIds = [];
+        (res.figs || []).forEach(function(_fj, _i){
+          var _id = 'ssfig_' + _i;
+          _figIds.push({ id: _id, json: _fj });
+          bodyHtml += '<div class="plotly-container" id="' + _id + '" style="margin-top:8px"></div>';
+        });
         if (!bodyHtml) bodyHtml = '<pre style="opacity:.6">(ingen output)</pre>';
         outputArea.innerHTML = head + bodyHtml
           + '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">Generert Python (pandas)</summary><pre class="offline-code"></pre></details>';
         outputArea.querySelector('details pre').textContent = res.code;
+        _figIds.forEach(function(_f){
+          try {
+            var _spec = JSON.parse(_f.json);
+            Plotly.newPlot(document.getElementById(_f.id), _spec.data, _spec.layout, {responsive:true});
+          } catch (e) { console.warn('safestat plot', e); }
+        });
         var _tt = document.getElementById('safestatTargetToggle');
         if (_tt) _tt.addEventListener('click', function(e){
           e.preventDefault();
