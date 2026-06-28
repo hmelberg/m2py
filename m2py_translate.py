@@ -849,11 +849,13 @@ def translate(script, backend="pandas", source_path="df", allow_emulated=False,
         if cmd == "require":
             src = a.get("source") if isinstance(a, dict) else None
             alias = a.get("alias") if isinstance(a, dict) else None
-            if src and tracker.manifest is not None and tracker.manifest.has(src):
-                # alias is how the script refers to it; mirror the manifest entry
+            bound = bool(src and alias and tracker.manifest is not None
+                         and tracker.manifest.has(src))
+            if bound:
                 tracker.declared_key[alias] = (tracker.manifest.keys(src)[:1] or [None])[0]
                 tracker.cols[alias] = set(tracker.manifest.variables(src)) | set(tracker.manifest.keys(src))
-            body.append(f"# require {src} as {alias} (bound from manifest)")
+            suffix = " (bound from manifest)" if bound else ""
+            body.append(f"# require {line.strip()}{suffix}")
             continue
 
         # ---- dataset/session management (switch active / create variables) ----
