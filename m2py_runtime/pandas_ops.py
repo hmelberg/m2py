@@ -192,8 +192,19 @@ def summarize(df, vars=None, by=None, gini=False, iqr=False):
     return pd.DataFrame([_row(df[v], {"variable": v}) for v in vars])
 
 
+def _chi2_stats(sub, v1, v2, dropna):
+    """(chi2, p, dof) for the v1×v2 contingency of ``sub``; NaN if degenerate."""
+    from scipy.stats import chi2_contingency
+    ct = pd.crosstab(sub[v1], sub[v2], dropna=dropna)
+    if ct.shape[0] < 2 or ct.shape[1] < 2:
+        return (np.nan, np.nan, np.nan)
+    chi2, p, dof, _ = chi2_contingency(ct)
+    return (float(chi2), float(p), float(dof))
+
+
 def tabulate(df, vars, by=None, missing=False,
-             cellpct=False, rowpct=False, colpct=False):
+             cellpct=False, rowpct=False, colpct=False,
+             chi2=False, top=None, bottom=None):
     """Frequency table: counts of each combination of ``vars`` (one-way for a
     single variable, cross-tab for two), optionally within ``by`` groups.
 
@@ -203,7 +214,11 @@ def tabulate(df, vars, by=None, missing=False,
       - ``rowpct``:  share within the first variable (``vars[0]``)
       - ``colpct``:  share within the second variable (``vars[1]``, or the only
         variable for a one-way table)
-    Columns: the grouping variables, ``n``, then any requested ``*pct``."""
+    ``chi2`` (two-way only) adds constant ``chi2``/``chi2_p``/``chi2_dof`` columns
+    (per ``by`` group), using scipy's chi-square test of independence — computed
+    on the full table, before any top/bottom row limit.
+    ``top``/``bottom`` keep the n highest/lowest-frequency rows (``top(n)``; bare
+    ``top`` -> 10). Columns: the grouping variables, ``n``, then any extras."""
     keys = ([by] if by and by in df.columns else []) + list(vars)
     out = df.groupby(keys, dropna=not missing).size().reset_index(name="n")
     grp = [by] if by and by in df.columns else []
@@ -216,6 +231,24 @@ def tabulate(df, vars, by=None, missing=False,
         out["rowpct"] = 100.0 * out["n"] / out.groupby(grp + [first])["n"].transform("sum")
     if colpct:
         out["colpct"] = 100.0 * out["n"] / out.groupby(grp + [second])["n"].transform("sum")
+    if chi2 and len(vars) >= 2:
+        if grp:
+            stats = {k: _chi2_stats(sub, first, second, not missing)
+                     for k, sub in df.groupby(by)}
+            for i, col in enumerate(("chi2", "chi2_p", "chi2_dof")):
+                out[col] = out[by].map(lambda k, i=i: stats.get(k, (np.nan,) * 3)[i])
+        else:
+            out["chi2"], out["chi2_p"], out["chi2_dof"] = _chi2_stats(
+                df, first, second, not missing)
+    if top is not None or bottom is not None:
+        from m2py import _parse_count_option
+        if top is not None:
+            out = out.sort_values("n", ascending=False, kind="stable").head(
+                _parse_count_option(top))
+        else:
+            out = out.sort_values("n", ascending=True, kind="stable").head(
+                _parse_count_option(bottom))
+        out = out.reset_index(drop=True)
     return out
 
 

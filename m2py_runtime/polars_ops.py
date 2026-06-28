@@ -144,9 +144,11 @@ def summarize(lf, vars=None, by=None, gini=False, iqr=False):
 
 
 def tabulate(lf, vars, by=None, missing=False,
-             cellpct=False, rowpct=False, colpct=False):
+             cellpct=False, rowpct=False, colpct=False,
+             chi2=False, top=None, bottom=None):
     return _analysis(lf, "tabulate", vars, by, missing=missing,
-                     cellpct=cellpct, rowpct=rowpct, colpct=colpct)
+                     cellpct=cellpct, rowpct=rowpct, colpct=colpct,
+                     chi2=chi2, top=top, bottom=bottom)
 
 
 def correlate(lf, vars):

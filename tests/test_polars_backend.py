@@ -188,6 +188,10 @@ def _run_analysis(script, df, backend):
     "tabulate g y, rowpct",
     "tabulate g y, colpct",
     "tabulate g y, freq rowpct",
+    "tabulate g y, chi2",
+    "tabulate g, top(2)",
+    "tabulate g, bottom(1)",
+    "tabulate g y, chi2 top(3)",
     "correlate y x",
 ])
 def test_analysis_pandas_polars_agree(script):
@@ -236,6 +240,27 @@ def test_tabulate_percentages_are_correct():
     assert np.isclose(res["cellpct"].sum(), 100.0)
 
 
+def test_tabulate_chi2_matches_scipy():
+    stats = pytest.importorskip("scipy.stats")
+    rng = np.random.default_rng(0)
+    df = pd.DataFrame({"x": rng.integers(1, 4, 200), "y": rng.integers(1, 3, 200)})
+    res, _ = _run_analysis("tabulate x y, chi2", df, "polars")
+    chi2, p, dof, _ = stats.chi2_contingency(pd.crosstab(df["x"], df["y"]))
+    assert np.isclose(res["chi2"].iloc[0], chi2)
+    assert np.isclose(res["chi2_p"].iloc[0], p)
+    assert res["chi2_dof"].iloc[0] == dof
+
+
+def test_tabulate_top_bottom_by_frequency():
+    df = pd.DataFrame({"k": [1] * 10 + [2] * 5 + [3] * 3 + [4] * 1})
+    top, _ = _run_analysis("tabulate k, top(2)", df, "pandas")
+    assert top["k"].tolist() == [1, 2] and top["n"].tolist() == [10, 5]
+    bot, _ = _run_analysis("tabulate k, bottom(2)", df, "pandas")
+    assert bot["k"].tolist() == [4, 3] and bot["n"].tolist() == [1, 3]
+    bare, _ = _run_analysis("tabulate k, top", df, "pandas")  # bare -> default 10
+    assert len(bare) == 4
+
+
 def test_summarize_gini_matches_emulator_definition():
     df = pd.DataFrame({"inntekt": [10.0, 20, 30, 40, 100]})
     res, _ = _run_analysis("summarize inntekt, gini iqr", df, "pandas")
@@ -245,7 +270,7 @@ def test_summarize_gini_matches_emulator_definition():
 
 @pytest.mark.parametrize("script", [
     "tabulate g, nolabels",        # formatting option not implemented
-    "tabulate g y, chi2",          # chi-square option not implemented
+    "tabulate g, rowsort",         # sort option not implemented
     "destring x, dpcomma",         # decimal-comma changes values
     "correlate a b, covariance",   # covariance variant not implemented
 ])

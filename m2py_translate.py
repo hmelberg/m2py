@@ -43,7 +43,7 @@ HANDLED_OPTIONS = {
     "merge": {"on", "outer_join"},
     "summarize": {"by", "gini", "iqr"},
     # two-way is via args, not an option; freq just shows counts (always on)
-    "tabulate": {"by", "missing", "freq",
+    "tabulate": {"by", "missing", "freq", "chi2", "top", "bottom",
                  "cellpct", "rowpct", "colpct", "cell", "row", "col"},
     "correlate": set(),
     "regress": set(),
@@ -148,7 +148,9 @@ def _emit_analysis(instr, backend, idx):
         col = bool(opts.get("colpct") or opts.get("col"))
         call = (f"ops.tabulate({var}, vars={vars_!r}, by={opts.get('by')!r}, "
                 f"missing={bool(opts.get('missing'))!r}, "
-                f"cellpct={cell!r}, rowpct={row!r}, colpct={col!r})")
+                f"cellpct={cell!r}, rowpct={row!r}, colpct={col!r}, "
+                f"chi2={bool(opts.get('chi2'))!r}, "
+                f"top={opts.get('top')!r}, bottom={opts.get('bottom')!r})")
     elif cmd == "correlate":
         call = f"ops.correlate({var}, vars={vars_!r})"
     elif cmd == "regress":

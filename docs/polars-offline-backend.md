@@ -80,12 +80,14 @@ set is emitted as a `# UNTRANSLATED` comment — **never silently-wrong code**.
 
 **Options** are guarded by a per-verb allow-list (`HANDLED_OPTIONS`): a verb
 honours `by()` (collapse/aggregate/summarize/tabulate), `outer_join`/`on()`
-(merge), `gini`/`iqr` (summarize), `missing` + `cellpct`/`rowpct`/`colpct` +
-`freq` (tabulate), `force` (destring), and the `if` condition everywhere. Any
-*other* option on a line — e.g. tabulate `nolabels`/`chi2`/`rowsort`, destring
-`dpcomma` — makes the line `# UNTRANSLATED` rather than being silently ignored.
-Two-way `tabulate x y` is supported (via args); percentages are added as `0-100`
-columns computed within any `by` group. List all gaps (unknown verb, expression, or option) for a script with
+(merge), `gini`/`iqr` (summarize), `missing`/`freq`/`cellpct`/`rowpct`/`colpct`/
+`chi2`/`top`/`bottom` (tabulate), `force` (destring), and the `if` condition
+everywhere. Any *other* option on a line — e.g. tabulate `nolabels`/`rowsort`/
+`summarize()`, correlate `sig`, destring `dpcomma` — makes the line
+`# UNTRANSLATED` rather than being silently ignored. Two-way `tabulate x y` is
+supported (via args); percentages are `0-100` columns within any `by` group;
+`chi2` adds `chi2`/`chi2_p`/`chi2_dof` (scipy chi-square, two-way); `top(n)`/
+`bottom(n)` keep the n highest/lowest-frequency rows (bare `top` -> 10). List all gaps (unknown verb, expression, or option) for a script with
 `m2py_translate.unsupported(script)`.
 
 ## Architecture
