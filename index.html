@@ -73,6 +73,9 @@
               <button type="button" data-example="sql09_micro_then_sql.txt" data-mode="duckdb">SQL &mdash; #micro &rarr; DuckDB (hybrid)</button>
               <button type="button" data-example="sql10_py_then_sql.txt" data-mode="duckdb">SQL &mdash; #py &rarr; DuckDB (hybrid)</button>
             </div>
+            <div class="examples-section" data-section-mode="safestat">
+              <button type="button" data-example="safestat01_url_csv.txt" data-mode="safestat">SafeStat &mdash; CSV fra URL</button>
+            </div>
             <button type="button" id="menuWebExamples">Flere eksempler p&#229; web</button>
           </div>
         </div>
@@ -391,7 +394,7 @@
       </button>
       <div style="width:1px;height:20px;background:var(--border);margin:0 6px;flex-shrink:0"></div>
       <div class="mode-dropdown-wrap">
-        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" title="Velg modus (Microdata, Python, R, Statx, jamovi, DuckDB)">
+        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" title="Velg modus (Microdata, Python, R, Statx, jamovi, DuckDB, SafeStat)">
           <span id="editorModeLabel">Microdata</span>
           <span class="chevron">▲</span>
         </button>
@@ -7450,12 +7453,62 @@ has and "int" in (m.get_microdata_functions() or {})
     // data source is wired in, inputs fall back to the emulator (allow_emulated)
     // so the pipeline runs end-to-end; scripts that reference imported variable
     // values will report a missing column until real data is provided.
+    var safeStatTarget = 'local';   // 'local' | 'remote' (remote = compute-to-data, placeholder)
+
     async function runSafeStatScript(script, ctx) {
       var py = (ctx && ctx.py) || await loadPyodideAndM2py();
+      if (safeStatTarget === 'remote') {
+        outputArea.innerHTML = '<pre class="transl-warn">SafeStat (remote / compute-to-data): '
+          + 'ikke implementert ennå — scriptet ville blitt sendt til en server som '
+          + 'kjører på data du ikke ser, og bare resultatet returneres. Bruk «local» foreløpig.</pre>';
+        return;
+      }
       outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: oversetter til pandas og kjører lokalt…</div>';
       try {
         await loadTranslator(py);                 // ensures m2py_runtime + m2py_translate on the FS
-        py.globals.set('_ss_src', script);
+        // Pyodide can't pd.read_csv(url); fetch require'd URLs in JS, write to the
+        // FS, and rewrite the script's require lines to the local path so the
+        // emitted read_source() reads a local file.
+        var _reqRe = /^\s*require\s+(https?:\/\/\S+\.(?:csv|parquet))\s+as\s+(\w+)/gim;
+        var _m, _fetches = [];
+        var _localScript = script;
+        while ((_m = _reqRe.exec(script)) !== null) {
+          (function(url, alias){
+            _fetches.push(fetch(url).then(function(r){
+              if (!r.ok) throw new Error('require ' + url + ' -> HTTP ' + r.status);
+              return r.arrayBuffer();
+            }).then(function(buf){
+              var path = '/home/pyodide/_safestat/' + alias + url.slice(url.lastIndexOf('.'));
+              py.FS.mkdirTree('/home/pyodide/_safestat');
+              py.FS.writeFile(path, new Uint8Array(buf));
+              // rewrite this require's URL to the local path
+              _localScript = _localScript.replace(url, path);
+            }));
+          })(_m[1], _m[2]);
+        }
+        if (_fetches.length) {
+          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: henter ' + _fetches.length + ' datakilde(r)…</div>';
+          await Promise.all(_fetches);
+        }
+        var _pkgFor = [
+          { re: /^\s*(cox|kaplan-meier|kaplan_meier|weibull)\b/im, pkg: 'lifelines' },
+          { re: /^\s*(regress-panel|ivregress)\b/im,              pkg: 'linearmodels' },
+          { re: /^\s*rdd\b/im,                                     pkg: 'rdrobust' },
+        ];
+        var _need = _pkgFor.filter(function(p){ return p.re.test(script); }).map(function(p){ return p.pkg; });
+        for (var _pi = 0; _pi < _need.length; _pi++) {
+          var _pkg = _need[_pi];
+          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: installerer ' + _pkg + '…</div>';
+          try {
+            py.globals.set('_ss_pkg', _pkg);
+            await py.runPythonAsync('import micropip as _mp\nawait _mp.install(_ss_pkg)');
+          } catch (e) {
+            outputArea.innerHTML = '<pre class="error">SafeStat: kunne ikke installere «' + _pkg
+              + '» (kreves for dette scriptet) i nettleseren: ' + escapeHtmlOutput(String(e && e.message ? e.message : e)) + '</pre>';
+            return;
+          }
+        }
+        py.globals.set('_ss_src', _localScript);
         var raw = await py.runPythonAsync(`
 import json as _json, io as _io, contextlib as _ctxlib
 from m2py import MicroInterpreter as _MI, MicroParser as _MP
@@ -7495,28 +7548,55 @@ try:
 except Exception as _e2:
     _err = repr(_e2)
 _df = _ns.get("df")
+_figs = []
+for _k in sorted(_ns):
+    if _k.startswith("fig_"):
+        _f = _ns[_k]
+        try:
+            _figs.append(_f.to_json())
+        except Exception:
+            pass
 _html = ""
 if _df is not None:
     try: _html = _df.head(50).to_html(border=0)
     except Exception: _html = "<pre>" + str(_df)[:5000] + "</pre>"
 _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
              "n": (None if _df is None else int(len(_df))),
-             "err": _err, "emu_err": _emu_err, "datasets": sorted(_datasets.keys())})
+             "err": _err, "emu_err": _emu_err, "datasets": sorted(_datasets.keys()),
+             "figs": _figs})
 `);
         var res = JSON.parse(raw);
         var head = '<div style="padding:6px 8px;font-size:12px;opacity:.7">SafeStat &middot; lokal kjøring'
           + (res.datasets && res.datasets.length ? ' &middot; data: ' + res.datasets.join(', ') : '')
           + (res.n === null ? '' : ' &middot; ' + res.n + ' rader')
-          + ' &middot; <em>mock-data (emulator) &middot; remote kommer</em></div>';
+          + ' &middot; <a href="#" id="safestatTargetToggle" style="opacity:.8">mål: ' + safeStatTarget + '</a></div>';
         var bodyHtml = '';
         if (res.emu_err) bodyHtml += '<pre class="transl-warn" style="opacity:.75">Data-bygging (emulator): ' + escapeHtmlOutput(res.emu_err) + '</pre>';
         if (res.err) bodyHtml += '<pre class="error">' + escapeHtmlOutput(res.err) + '</pre>';
         if (res.out && res.out.trim()) bodyHtml += '<pre>' + escapeHtmlOutput(res.out) + '</pre>';
         if (res.html) bodyHtml += res.html;
+        var _figIds = [];
+        (res.figs || []).forEach(function(_fj, _i){
+          var _id = 'ssfig_' + _i;
+          _figIds.push({ id: _id, json: _fj });
+          bodyHtml += '<div class="plotly-container" id="' + _id + '" style="margin-top:8px"></div>';
+        });
         if (!bodyHtml) bodyHtml = '<pre style="opacity:.6">(ingen output)</pre>';
         outputArea.innerHTML = head + bodyHtml
           + '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">Generert Python (pandas)</summary><pre class="offline-code"></pre></details>';
         outputArea.querySelector('details pre').textContent = res.code;
+        _figIds.forEach(function(_f){
+          try {
+            var _spec = JSON.parse(_f.json);
+            Plotly.newPlot(document.getElementById(_f.id), _spec.data, _spec.layout, {responsive:true});
+          } catch (e) { console.warn('safestat plot', e); }
+        });
+        var _tt = document.getElementById('safestatTargetToggle');
+        if (_tt) _tt.addEventListener('click', function(e){
+          e.preventDefault();
+          safeStatTarget = (safeStatTarget === 'local') ? 'remote' : 'local';
+          runSafeStatScript(script, ctx);
+        });
       } catch (e) {
         outputArea.innerHTML = '<pre class="error">SafeStat-feil: '
           + escapeHtmlOutput(String(e && e.message ? e.message : e)) + '</pre>';
