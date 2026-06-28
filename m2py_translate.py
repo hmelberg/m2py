@@ -34,7 +34,7 @@ PREDICT_BINARY = {"logit-predict", "probit-predict", "mlogit-predict"}
 TRANSFORM = {
     "generate", "replace", "recode", "keep", "drop", "rename", "destring",
     "collapse", "aggregate", "merge", "reshape-to-panel", "reshape-from-panel",
-    "ivregress-predict", "regress-panel-predict",
+    "clone-variables", "ivregress-predict", "regress-panel-predict",
 } | set(PREDICT)
 # ANALYSIS verbs compute a side result and PRINT it; the working frame is
 # unchanged (matching the emulator, where summarize/tabulate/regress don't alter
@@ -60,7 +60,7 @@ PLOT = {"histogram", "barchart", "scatter", "boxplot",
 # dataset/session verbs — handled by the translate loop (they switch the active
 # dataset / create variables), not by the per-frame emitters.
 SESSION = {"create-dataset", "use", "clone-dataset", "delete-dataset",
-           "rename-dataset"}
+           "rename-dataset", "clone-units"}
 # label verbs are display-only in the emulator (the data keeps its codes), so
 # they are no-ops on the offline data — recorded as comments, not flagged.
 LABELS = {"define-labels", "assign-labels", "drop-labels", "list-labels"}
@@ -75,6 +75,7 @@ HANDLED_OPTIONS = {
     "generate": set(), "replace": set(), "recode": set(), "rename": set(),
     "keep": set(), "drop": set(),
     "destring": {"force"},                 # always coerces == force semantics
+    "clone-variables": {"prefix", "suffix"},
     "reshape-to-panel": set(),
     "reshape-from-panel": set(),
     "collapse": {"by"}, "aggregate": {"by"},
@@ -236,6 +237,12 @@ def _emit(instr, backend, frame=None, known=()):
                 f"expression={args['expression']!r}, cond={cond!r})")
     if cmd == "rename":
         return f"{var} = ops.rename({var}, old={args['old']!r}, new={args['new']!r})"
+    if cmd == "clone-variables":
+        pairs = args.get("pairs") if isinstance(args, dict) else None
+        if not pairs:
+            return None
+        return (f"{var} = ops.clone_variables({var}, pairs={pairs!r}, "
+                f"prefix={opts.get('prefix', '')!r}, suffix={opts.get('suffix', '')!r})")
     if cmd == "destring":
         return f"{var} = ops.destring({var}, vars={args['vars']!r})"
     if cmd == "recode":
@@ -632,6 +639,9 @@ def translate(script, backend="pandas", source_path="df"):
             elif cmd == "clone-dataset" and len(a) >= 2:
                 sv, dv = _dsvar(backend, a[0]), _dsvar(backend, a[1])
                 body.append(f"{dv} = {sv}" if backend == "polars" else f"{dv} = {sv}.copy()")
+                known.add(a[1])
+            elif cmd == "clone-units" and len(a) >= 2:
+                body.append(f"{_dsvar(backend, a[1])} = ops.clone_units({_dsvar(backend, a[0])})")
                 known.add(a[1])
             elif cmd == "rename-dataset" and len(a) >= 2:
                 body.append(f"{_dsvar(backend, a[1])} = {_dsvar(backend, a[0])}")

@@ -196,6 +196,25 @@ def rename(df, old, new):
     return df.rename(columns={old: new})
 
 
+def clone_variables(df, pairs, prefix="", suffix=""):
+    """Copy columns: each ``(old, new)`` adds a copy of ``old`` named ``new``
+    (default ``<old>_clone``), or ``<prefix><old><suffix>`` when given."""
+    out = df.copy()
+    for old, new in pairs:
+        if old in out.columns:
+            actual = f"{prefix}{old}{suffix}" if (prefix or suffix) else new
+            out[actual] = out[old]
+    return out
+
+
+def clone_units(df):
+    """New one-column dataset of the (deduplicated) entity key — like the
+    emulator's clone-units."""
+    from m2py import _get_df_key_col
+    key = _get_df_key_col(df) or "unit_id"
+    return df[[key]].drop_duplicates().reset_index(drop=True)
+
+
 def destring(df, vars):
     """Coerce string columns to numeric (non-parseable values -> NaN)."""
     out = df.copy()

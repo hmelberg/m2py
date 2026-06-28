@@ -966,6 +966,40 @@ def test_labels_are_noop_keeping_codes_like_emulator():
     assert set(out_pd["k"]) == {1, 2}                   # codes, not label strings
 
 
+def test_clone_variables_and_units_match_emulator():
+    df = pd.DataFrame({"unit_id": [1, 1, 2, 2, 3], "a": [10.0, 20, 30, 40, 50],
+                       "b": [1, 2, 3, 4, 5]})
+
+    def emu(script, ds="df"):
+        m2py.M2PY_DISCLOSURE_CONTROL = "0"
+        it = m2py.MicroInterpreter(metadata_path=None)
+        it.datasets["df"] = df.copy()
+        it.active_name = "df"
+        for ln in script.splitlines():
+            it._execute_instruction(it.parser.parse_line(ln))
+        return it.datasets[ds]
+
+    # clone-variables: each token -> <token>_clone
+    e = emu("clone-variables a b")
+    m = T.run("clone-variables a b", {"df": df}, "pandas")
+    mp = T.run("clone-variables a b", {"df": df}, "polars").to_pandas()
+    assert list(m.columns) == ["unit_id", "a", "b", "a_clone", "b_clone"]
+    assert _reshape_norm(e).equals(_reshape_norm(m))
+    assert _reshape_norm(m).equals(_reshape_norm(mp))
+
+    # clone-variables with prefix
+    e = emu("clone-variables a, prefix(ny_)")
+    m = T.run("clone-variables a, prefix(ny_)", {"df": df}, "pandas")
+    assert "ny_a" in m.columns and _reshape_norm(e).equals(_reshape_norm(m))
+
+    # clone-units: new dataset = deduped entity key
+    script = "use df\nclone-units df units\nuse units"
+    e = emu(script, "units")
+    out = T.run(script, {"df": df}, "pandas", active="df")
+    assert out["unit_id"].tolist() == [1, 2, 3]
+    assert _reshape_norm(e).equals(_reshape_norm(out))
+
+
 def test_session_verbs_not_flagged():
     for v in ("create-dataset A", "use A", "clone-dataset A B",
               "rename-dataset A B", "delete-dataset A"):

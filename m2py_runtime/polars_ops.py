@@ -150,6 +150,23 @@ def rename(lf, old, new):
     return lf.rename({old: new})
 
 
+def clone_variables(lf, pairs, prefix="", suffix=""):
+    pl = _pl()
+    names = lf.collect_schema().names()
+    cols = []
+    for old, new in pairs:
+        if old in names:
+            actual = f"{prefix}{old}{suffix}" if (prefix or suffix) else new
+            cols.append(pl.col(old).alias(actual))
+    return lf.with_columns(cols) if cols else lf
+
+
+def clone_units(lf):
+    pl = _pl()
+    from . import pandas_ops as pdo
+    return pl.from_pandas(pdo.clone_units(lf.collect().to_pandas())).lazy()
+
+
 def destring(lf, vars):
     pl = _pl()
     return lf.with_columns(
