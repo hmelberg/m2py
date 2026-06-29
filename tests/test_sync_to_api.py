@@ -66,3 +66,32 @@ def test_build_manifest_without_runtime_dir(tmp_path):
     rels = {rel for _, rel in manifest}
     assert "protect.py" in rels
     assert not any(rel.startswith("m2py_runtime/") for rel in rels)
+
+
+def test_report_only_main_writes_nothing(tmp_path, capsys):
+    src = tmp_path / "m2py"; src.mkdir()
+    prot = tmp_path / "protect"; prot.mkdir()
+    (prot / "protect.py").write_text("protect\n")
+    _make_src(src)
+    dest = tmp_path / "server_code"; dest.mkdir()
+    (dest / "m2py.py").write_text("SERVER-EDITED emulator\n")  # drift on m2py.py
+
+    rc = s.main(["--source", str(src), "--protect", str(prot), "--dest", str(dest)])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    # report-only: nothing copied — protect.py still absent at dest
+    assert not (dest / "protect.py").exists()
+    assert not (dest / "m2py_translate.py").exists()
+    # clobber-safety warning shown for drifted m2py.py
+    assert "WARNING" in out and "m2py.py" in out
+    assert "Report-only" in out
+
+
+def test_main_returns_2_on_missing_source(tmp_path, capsys):
+    src = tmp_path / "m2py"; src.mkdir()
+    prot = tmp_path / "protect"; prot.mkdir()  # protect.py absent -> missing_source
+    _make_src(src)
+    dest = tmp_path / "server_code"; dest.mkdir()
+    rc = s.main(["--source", str(src), "--protect", str(prot), "--dest", str(dest)])
+    assert rc == 2

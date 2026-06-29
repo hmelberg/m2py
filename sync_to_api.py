@@ -55,3 +55,62 @@ def compute_status(manifest, dest_root: Path):
         out.append({"name": rel, "source": src, "dest": dest,
                     "source_md5": s_md5, "dest_md5": d_md5, "status": status})
     return out
+
+
+_MARK = {"match": "=", "drift": "~", "missing_dest": "+", "missing_source": "!"}
+
+
+def format_report(statuses) -> str:
+    lines = ["Sync status (source -> server_code):"]
+    for st in statuses:
+        lines.append(f"  [{_MARK[st['status']]}] {st['name']:34} {st['status']}")
+    drifted_m2py = any(st["name"] == "m2py.py" and st["status"] == "drift"
+                       for st in statuses)
+    if drifted_m2py:
+        lines.append("")
+        lines.append("  WARNING: server_code/m2py.py differs from source. The server "
+                     "copy may carry Anvil-local edits — verify it is import-clean "
+                     "before --apply (it would be overwritten).")
+    return "\n".join(lines)
+
+
+def apply_sync(statuses):
+    """Copy source -> dest for drift/missing_dest entries. Never deletes."""
+    copied = []
+    for st in statuses:
+        if st["status"] in ("drift", "missing_dest"):
+            st["dest"].parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(st["source"], st["dest"])
+            copied.append(st["name"])
+    return copied
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description="Sync engine files into microdata-api/server_code.")
+    ap.add_argument("--apply", action="store_true",
+                    help="copy drift/missing files (default: report only)")
+    ap.add_argument("--source", default=str(HERE))
+    ap.add_argument("--protect", default=str(PROTECT_ROOT))
+    ap.add_argument("--dest", default=str(DEST_ROOT))
+    args = ap.parse_args(argv)
+
+    manifest = build_manifest(Path(args.source), Path(args.protect))
+    statuses = compute_status(manifest, Path(args.dest))
+    print(format_report(statuses))
+
+    if any(st["status"] == "missing_source" for st in statuses):
+        print("\nERROR: one or more source files are missing — aborting.", file=sys.stderr)
+        return 2
+
+    pending = [st for st in statuses if st["status"] in ("drift", "missing_dest")]
+    if args.apply:
+        copied = apply_sync(statuses)
+        print(f"\nApplied: copied {len(copied)} file(s): {', '.join(copied) or '(none)'}")
+    else:
+        print(f"\nReport-only. {len(pending)} file(s) would change. "
+              f"Re-run with --apply to copy.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
