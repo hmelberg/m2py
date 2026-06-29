@@ -28,8 +28,10 @@
     async function jamoviAddRow() {
       if (!window.activeDatasetName) return;
       var py = await M.loadPyodideAndM2py();
-      await py.runPythonAsync('import pandas as _pd\n_df = e.datasets[e.active_name]\n_ni = (int(_df.index.max())+1) if len(_df) else 0\n_df.loc[_ni] = _pd.NA');
-      renderDataView();
+      // append an all-missing row at the end with a fresh index, return its id
+      var newId = await py.runPythonAsync('import pandas as _pd\n_df = e.datasets[e.active_name]\n_ni = (int(_df.index.max())+1) if len(_df) else 0\n_df.loc[_ni] = _pd.NA\n_ni');
+      // re-render and bring the new (empty) row into view + highlight it
+      renderDataView(typeof newId === 'number' ? newId : Number(newId));
     }
     async function jamoviDeleteRow() {
       if (!jamoviDataTable) { alert('Åpne Data-fanen først.'); return; }
@@ -658,7 +660,7 @@
     }
 
     // Data tab: read-only preview of the active dataset (first rows, from the engine).
-    async function renderDataView() {
+    async function renderDataView(focusRowId) {
       var wrap = jamoviSingletonCard('jamoviDataCard', 'Data');
       jamoviDataTable = null;
       if (!window.activeDatasetName) {
@@ -723,6 +725,16 @@
           movableColumns: true, selectableRows: 1, placeholder: '(ingen data)'
         });
         jamoviDataTable.on('cellEdited', function(cell) { jamoviWriteBack(cell); });
+        if (focusRowId !== undefined && focusRowId !== null) {
+          jamoviDataTable.on('tableBuilt', function() {
+            try {
+              jamoviDataTable.setPageToRow(focusRowId).then(function() {
+                jamoviDataTable.scrollToRow(focusRowId, 'center', false);
+                jamoviDataTable.selectRow(focusRowId);
+              }).catch(function(){});
+            } catch (e) { /* row may be beyond the display cap */ }
+          });
+        }
       } catch (e) { if (loading.parentNode) loading.textContent = 'Kunne ikke laste data: ' + (e.message || e); }
     }
 
