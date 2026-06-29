@@ -149,12 +149,13 @@ resolve_source() seam.
 """
 from __future__ import annotations
 
-# One seeded public source. Replace the URL with a real public CSV you control.
+# One seeded public source: a public hospital teaching dataset (synthetic;
+# cols: lnr, lopenr, innDato, utDato, tilstand_1_1, fodselsar, kjonn; ~100k rows).
 _SOURCES = {
-    "demo_public_csv": {
-        "source_id": "demo_public_csv",
+    "hospital_public_csv": {
+        "source_id": "hospital_public_csv",
         "kind": "url",
-        "location": "https://raw.githubusercontent.com/mwaskom/seaborn-data/master/penguins.csv",
+        "location": "https://raw.githubusercontent.com/hmelberg/health-analytics-using-python/refs/heads/master/hospital.csv",
         "level": "public",
         "status": "active",
     },
@@ -273,12 +274,12 @@ In the Anvil server console: `anvil.server.call` is not needed; instead hit the 
 ```bash
 curl -s -X POST "https://mdataapi.anvil.app/_/api/run_extended" \
   -H "Content-Type: application/json" \
-  -d '{"script":"create-dataset demo\ntabulate species","sources":[{"alias":"demo","source_id":"demo_public_csv"}]}'
+  -d '{"script":"create-dataset demo\ntabulate kjonn","sources":[{"alias":"demo","source_id":"hospital_public_csv"}]}'
 # -> {"task_id":"...","mode":"async"}
 curl -s "https://mdataapi.anvil.app/_/api/task_status?task_id=<id>"
 # -> {"status":"completed","result":{"code":...,"results":[...],"figs":[],...}}
 ```
-Expected: `result.results` contains an HTML frequency table of `species` from the real penguins CSV — proving the translator ran on server-fetched real data and returned the client-render shape. (Adjust the script's variable to a real column of whatever public CSV you seeded.)
+Expected: `result.results` contains an HTML frequency table of `kjonn` (sex) from the real ~100k-row hospital CSV — proving the translator ran on server-fetched real data and returned the client-render shape. (`hospital.csv` columns: `lnr, lopenr, innDato, utDato, tilstand_1_1, fodselsar, kjonn`; try `tabulate tilstand_1_1` for a many-category diagnosis table.)
 
 - [ ] **Step 4: Confirm `/run` and `/query` still work** (regression): a quick existing-endpoint call returns as before.
 
