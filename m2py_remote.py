@@ -51,7 +51,7 @@ def run_remote(script, *, datasets, backend="pandas", policy=None, raw=False):
         if k.startswith("result_"):
             results.append(_render_result(adapter.suppress(ns[k], spec)))
 
-    df = ns.get("df")
+    df = ns.get("df")  # translator footer materializes the final active frame as `df`
     html = ""
     if df is not None:
         try:

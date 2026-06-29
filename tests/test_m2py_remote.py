@@ -18,6 +18,7 @@ def test_run_remote_returns_client_contract_keys():
     assert set(res) == {"code", "out", "html", "n", "err", "figs", "results"}
     assert res["err"] is None, res["err"]
     assert res["results"], "expected at least one rendered result"
+    assert res["n"] == 9   # translator footer materialized df = df_demo (9 rows)
 
 
 def test_run_remote_public_keeps_small_counts():
@@ -32,3 +33,5 @@ def test_run_remote_protected_suppresses_small_counts():
     # protected => n=3 row suppressed to NaN; the surviving count 6 still shows
     assert ">6<" in html or "6.0" in html
     assert "NaN" in html  # suppressed cell renders as NaN
+    # the suppressed count must be GONE, not merely NaN-tokened elsewhere
+    assert ">3<" not in html and "3.0" not in html
