@@ -93,7 +93,7 @@
           </div>
         </div>
         <button type="button" id="menuForklar" title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">Kj&#248;r skrittvis</button>
-        <div class="topbar-examples-wrap" style="position:relative">
+        <div class="topbar-examples-wrap" id="offlineMenuWrap" style="position:relative;display:none">
           <button type="button" id="menuOfflineBtn" title="Oversett microdata-scriptet til frittst&#229;ende Python (pandas/polars) som kan kj&#248;res utenfor nettleseren, f.eks. p&#229; Anvil">Vis offline Python</button>
           <div class="examples-dropdown" id="offlineSubmenu">
             <div class="examples-dropdown-title">Offline Python</div>
@@ -117,6 +117,7 @@
         </button>
         <button type="button" id="menuRunnerMode" style="display:none">Kjøremodus: Microdata</button>
         <button type="button" id="menuToggleOutputMode" style="display:none">Output-modus: String</button>
+        <button type="button" id="menuToggleSafestatOutput" style="display:none">SafeStat-output: Formatert</button>
         <button type="button" id="menuShowIndividata" title="Når PÅ: klikk på datasett-navnet i sidemenyen for å åpne en tabellvisning av rådataene (sorter, filtrer, bla). Når AV: dataset-navnet er inaktivt." style="display:flex;align-items:center;gap:8px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
             <rect x="3" y="4" width="18" height="16" rx="2"/>
@@ -1875,6 +1876,10 @@
         if (adminSec) {
           adminSec.style.display = (window.mdAuth && window.mdAuth.user && window.mdAuth.user.is_admin) ? '' : 'none';
         }
+        const offlineWrap = document.getElementById('offlineMenuWrap');
+        if (offlineWrap) {
+          offlineWrap.style.display = (window.mdAuth && window.mdAuth.user && window.mdAuth.user.is_admin) ? '' : 'none';
+        }
       }
       function updateLoginMenuVisibility() {
         const btn = document.getElementById('btnLoginWithCode');
@@ -2269,6 +2274,21 @@
         updateOutputMenuLabels();
         dropdown.classList.remove('open');
       });
+
+      (function(){
+        var b = document.getElementById('menuToggleSafestatOutput');
+        if (!b) return;
+        function lbl(){ b.textContent = 'SafeStat-output: ' + (safeStatFormat === 'raw' ? 'Rå' : 'Formatert'); }
+        lbl();
+        b.addEventListener('click', function(){
+          safeStatFormat = (safeStatFormat === 'raw') ? 'formatted' : 'raw';
+          lbl();
+        });
+        window.mdUpdateSafestatToggle = function(){
+          b.style.display = (activeEditorMode === 'safestat') ? '' : 'none';
+          lbl();
+        };
+      })();
 
       // Hent/Vis individata-bryter: når PÅ er datasett-navnet i sidebar
       // klikkbart og åpner en Tabulator-modal med selve datatabellen.
@@ -3355,6 +3375,7 @@
       var oBtn = document.getElementById('oversettBtn');
       if (oBtn) oBtn.style.display = _shows ? '' : 'none';
       if (typeof updateModeGuiBar==='function') updateModeGuiBar();
+      if (window.mdUpdateSafestatToggle) window.mdUpdateSafestatToggle();
     }
 
     function updateModeGuiBar() {
@@ -5370,6 +5391,36 @@ json.dumps(out)
       });
     }
 
+    function mdRenderPlotlyFigure(div, spec) {
+      if (typeof Plotly === 'undefined') return;
+      var staticEl = document.getElementById('plotStatic');
+      var seabornEl = document.getElementById('plotSeaborn');
+      var staticPlot = !!(staticEl && staticEl.checked);
+      var seabornStyle = !!(seabornEl && seabornEl.checked);
+      div.className = 'plotly-container' + (seabornStyle ? ' seaborn-style' : '');
+      var data = spec.data || [];
+      var styles = getComputedStyle(document.body);
+      var bgCode = (styles.getPropertyValue('--bg-code') || '#faf8f5').trim();
+      var textColor = (styles.getPropertyValue('--text') || '#1a1b26').trim();
+      var borderColor = (styles.getPropertyValue('--border') || '#e4e2dd').trim();
+      var baseLayout = {
+        autosize: false, width: 480, height: 300,
+        margin: { t: 40, r: 40, b: 50, l: 50 },
+        paper_bgcolor: bgCode, plot_bgcolor: bgCode,
+        font: { color: textColor, family: 'DejaVu Sans, Arial, sans-serif', size: 12 },
+        xaxis: { gridcolor: borderColor, zerolinecolor: borderColor, linecolor: borderColor, tickfont: { color: textColor } },
+        yaxis: { gridcolor: borderColor, zerolinecolor: borderColor, linecolor: borderColor, tickfont: { color: textColor } }
+      };
+      if (seabornStyle) {
+        Object.assign(baseLayout, {
+          template: 'plotly_white',
+          colorway: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+        });
+      }
+      var layout = Object.assign(baseLayout, spec.layout || {});
+      Plotly.newPlot(div, data, layout, { responsive: true, autosizable: true, staticPlot: staticPlot }).catch(function(){});
+    }
+
     function renderOutput(raw, asHtml, suppress) {
       const parts = parseOutput(raw);
       if (asHtml) {
@@ -5492,37 +5543,8 @@ json.dumps(out)
               try {
                 const spec = JSON.parse(p.payload);
                 const div = document.createElement('div');
-                div.className = 'plotly-container' + (document.getElementById('plotSeaborn').checked ? ' seaborn-style' : '');
                 frag.appendChild(div);
-                const data = spec.data || [];
-                const staticPlot = document.getElementById('plotStatic').checked;
-                const seabornStyle = document.getElementById('plotSeaborn').checked;
-                const PLOT_DEFAULT_WIDTH = 480;
-                const PLOT_DEFAULT_HEIGHT = 300;
-                const styles = getComputedStyle(document.body);
-                const bgCode = (styles.getPropertyValue('--bg-code') || '#faf8f5').trim();
-                const textColor = (styles.getPropertyValue('--text') || '#1a1b26').trim();
-                const borderColor = (styles.getPropertyValue('--border') || '#e4e2dd').trim();
-                const baseLayout = {
-                  autosize: false,
-                  width: PLOT_DEFAULT_WIDTH,
-                  height: PLOT_DEFAULT_HEIGHT,
-                  margin: { t: 40, r: 40, b: 50, l: 50 },
-                  paper_bgcolor: bgCode,
-                  plot_bgcolor: bgCode,
-                  font: { color: textColor, family: 'DejaVu Sans, Arial, sans-serif', size: 12 },
-                  xaxis: { gridcolor: borderColor, zerolinecolor: borderColor, linecolor: borderColor, tickfont: { color: textColor } },
-                  yaxis: { gridcolor: borderColor, zerolinecolor: borderColor, linecolor: borderColor, tickfont: { color: textColor } }
-                };
-                if (seabornStyle) {
-                  Object.assign(baseLayout, {
-                    template: 'plotly_white',
-                    colorway: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
-                  });
-                }
-                const layout = Object.assign(baseLayout, spec.layout || {});
-                const config = { responsive: true, autosizable: true, staticPlot: staticPlot };
-                Plotly.newPlot(div, data, layout, config).catch(function(){});
+                mdRenderPlotlyFigure(div, spec);
               } catch (e) {
                 const pre = document.createElement('pre');
                 pre.className = 'embed-placeholder';
@@ -7453,6 +7475,7 @@ has and "int" in (m.get_microdata_functions() or {})
     // data source is wired in, inputs fall back to the emulator (allow_emulated)
     // so the pipeline runs end-to-end; scripts that reference imported variable
     // values will report a missing column until real data is provided.
+    var safeStatFormat = 'formatted'; // 'formatted' | 'raw'
     var safeStatTarget = 'local';   // 'local' | 'remote' (remote = compute-to-data, placeholder)
 
     async function runSafeStatScript(script, ctx) {
@@ -7509,6 +7532,7 @@ has and "int" in (m.get_microdata_functions() or {})
           }
         }
         py.globals.set('_ss_src', _localScript);
+        py.globals.set('_ss_raw', safeStatFormat === 'raw');
         var raw = await py.runPythonAsync(`
 import json as _json, io as _io, contextlib as _ctxlib
 from m2py import MicroInterpreter as _MI, MicroParser as _MP
@@ -7538,7 +7562,7 @@ for _k, _v in (getattr(_e, "datasets", {}) or {}).items():
     except Exception: _datasets[_k] = _v
 
 # Translate the FULL script and run it on that data.
-_code = _mt.translate(_ss_src, backend="pandas", source_path=None, allow_emulated=True)
+_code = _mt.translate(_ss_src, backend="pandas", source_path=None, allow_emulated=True, print_results=_ss_raw)
 _ns = {"datasets": _datasets}
 _buf = _io.StringIO()
 _err = None
@@ -7556,6 +7580,19 @@ for _k in sorted(_ns):
             _figs.append(_f.to_json())
         except Exception:
             pass
+_results = []
+for _k in sorted(_ns):
+    if _k.startswith("result_"):
+        _r = _ns[_k]
+        try:
+            if hasattr(_r, "to_html"):
+                _results.append(_r.to_html(border=0, classes="output-table"))
+            elif hasattr(_r, "summary"):
+                _results.append("<pre>" + str(_r.summary()) + "</pre>")
+            else:
+                _results.append("<pre>" + str(_r) + "</pre>")
+        except Exception:
+            _results.append("<pre>" + str(_r)[:5000] + "</pre>")
 _html = ""
 if _df is not None:
     try: _html = _df.head(50).to_html(border=0)
@@ -7563,18 +7600,29 @@ if _df is not None:
 _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
              "n": (None if _df is None else int(len(_df))),
              "err": _err, "emu_err": _emu_err, "datasets": sorted(_datasets.keys()),
-             "figs": _figs})
+             "figs": _figs, "results": _results})
 `);
         var res = JSON.parse(raw);
         var head = '<div style="padding:6px 8px;font-size:12px;opacity:.7">SafeStat &middot; lokal kjøring'
           + (res.datasets && res.datasets.length ? ' &middot; data: ' + res.datasets.join(', ') : '')
           + (res.n === null ? '' : ' &middot; ' + res.n + ' rader')
           + ' &middot; <a href="#" id="safestatTargetToggle" style="opacity:.8">mål: ' + safeStatTarget + '</a></div>';
+        var _hasAnalysis = (res.results && res.results.length) || (res.figs && res.figs.length);
         var bodyHtml = '';
         if (res.emu_err) bodyHtml += '<pre class="transl-warn" style="opacity:.75">Data-bygging (emulator): ' + escapeHtmlOutput(res.emu_err) + '</pre>';
         if (res.err) bodyHtml += '<pre class="error">' + escapeHtmlOutput(res.err) + '</pre>';
-        if (res.out && res.out.trim()) bodyHtml += '<pre>' + escapeHtmlOutput(res.out) + '</pre>';
-        if (res.html) bodyHtml += res.html;
+        if (safeStatFormat === 'raw') {
+          if (res.out && res.out.trim()) bodyHtml += '<pre>' + escapeHtmlOutput(res.out) + '</pre>';
+        } else {
+          (res.results || []).forEach(function(h){ bodyHtml += '<div class="safestat-result">' + h + '</div>'; });
+          if (res.out && res.out.trim()) bodyHtml += '<pre style="opacity:.7">' + escapeHtmlOutput(res.out) + '</pre>';
+        }
+        // working dataframe: inline when it IS the result (no analysis), else collapsible
+        if (res.html) {
+          bodyHtml += _hasAnalysis
+            ? '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">Datasett (df, ' + (res.n||0) + ' rader)</summary>' + res.html + '</details>'
+            : res.html;
+        }
         var _figIds = [];
         (res.figs || []).forEach(function(_fj, _i){
           var _id = 'ssfig_' + _i;
@@ -7588,7 +7636,7 @@ _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
         _figIds.forEach(function(_f){
           try {
             var _spec = JSON.parse(_f.json);
-            Plotly.newPlot(document.getElementById(_f.id), _spec.data, _spec.layout, {responsive:true});
+            mdRenderPlotlyFigure(document.getElementById(_f.id), _spec);
           } catch (e) { console.warn('safestat plot', e); }
         });
         var _tt = document.getElementById('safestatTargetToggle');
