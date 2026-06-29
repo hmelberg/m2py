@@ -7508,6 +7508,7 @@ has and "int" in (m.get_microdata_functions() or {})
       outputArea.innerHTML = head + bodyHtml
         + '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">Generert Python (pandas)</summary><pre class="offline-code"></pre></details>';
       outputArea.querySelector('details pre').textContent = res.code;
+      try { window.lastDatasetInfo = res.datasetInfo || {}; updateSidebarDatasets(res.datasetInfo || {}); } catch (e) { console.warn('safestat sidebar', e); }
       _figIds.forEach(function(_f){
         try {
           var _spec = JSON.parse(_f.json);
@@ -7708,10 +7709,17 @@ _html = ""
 if _df is not None:
     try: _html = _df.head(50).to_html(border=0)
     except Exception: _html = "<pre>" + str(_df)[:5000] + "</pre>"
+_dsinfo = {}
+for _k, _v in list(_ns.items()):
+    if _k.startswith("df_") and hasattr(_v, "columns"):
+        try:
+            _dsinfo[_k[3:]] = {"columns": [str(c) for c in _v.columns], "dtypes": {str(c): str(_v[c].dtype) for c in _v.columns}, "nrows": int(len(_v))}
+        except Exception:
+            pass
 _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
              "n": (None if _df is None else int(len(_df))),
              "err": _err, "emu_err": _emu_err, "datasets": sorted(_datasets.keys()),
-             "figs": _figs, "results": _results})
+             "figs": _figs, "results": _results, "datasetInfo": _dsinfo})
 `);
         var res = JSON.parse(raw);
         renderSafeStatResult(res, script, ctx, 'lokal kjøring');
