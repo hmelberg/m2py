@@ -7478,6 +7478,50 @@ has and "int" in (m.get_microdata_functions() or {})
     var safeStatFormat = 'formatted'; // 'formatted' | 'raw'
     var safeStatTarget = 'local';   // 'local' | 'remote' (remote = compute-to-data, placeholder)
 
+    function renderSafeStatResult(res, script, ctx, sourceLabel) {
+      var head = '<div style="padding:6px 8px;font-size:12px;opacity:.7">SafeStat &middot; ' + sourceLabel
+        + (res.datasets && res.datasets.length ? ' &middot; data: ' + res.datasets.join(', ') : '')
+        + (res.n === null || res.n === undefined ? '' : ' &middot; ' + res.n + ' rader')
+        + ' &middot; <a href="#" id="safestatTargetToggle" style="opacity:.8">mål: ' + safeStatTarget + '</a></div>';
+      var _hasAnalysis = (res.results && res.results.length) || (res.figs && res.figs.length);
+      var bodyHtml = '';
+      if (res.emu_err) bodyHtml += '<pre class="transl-warn" style="opacity:.75">Data-bygging (emulator): ' + escapeHtmlOutput(res.emu_err) + '</pre>';
+      if (res.err) bodyHtml += '<pre class="error">' + escapeHtmlOutput(res.err) + '</pre>';
+      if (safeStatFormat === 'raw') {
+        if (res.out && res.out.trim()) bodyHtml += '<pre>' + escapeHtmlOutput(res.out) + '</pre>';
+      } else {
+        (res.results || []).forEach(function(h){ bodyHtml += '<div class="safestat-result">' + h + '</div>'; });
+        if (res.out && res.out.trim()) bodyHtml += '<pre style="opacity:.7">' + escapeHtmlOutput(res.out) + '</pre>';
+      }
+      if (res.html) {
+        bodyHtml += _hasAnalysis
+          ? '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">Datasett (df, ' + (res.n||0) + ' rader)</summary>' + res.html + '</details>'
+          : res.html;
+      }
+      var _figIds = [];
+      (res.figs || []).forEach(function(_fj, _i){
+        var _id = 'ssfig_' + _i;
+        _figIds.push({ id: _id, json: _fj });
+        bodyHtml += '<div class="plotly-container" id="' + _id + '" style="margin-top:8px"></div>';
+      });
+      if (!bodyHtml) bodyHtml = '<pre style="opacity:.6">(ingen output)</pre>';
+      outputArea.innerHTML = head + bodyHtml
+        + '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">Generert Python (pandas)</summary><pre class="offline-code"></pre></details>';
+      outputArea.querySelector('details pre').textContent = res.code;
+      _figIds.forEach(function(_f){
+        try {
+          var _spec = JSON.parse(_f.json);
+          mdRenderPlotlyFigure(document.getElementById(_f.id), _spec);
+        } catch (e) { console.warn('safestat plot', e); }
+      });
+      var _tt = document.getElementById('safestatTargetToggle');
+      if (_tt) _tt.addEventListener('click', function(e){
+        e.preventDefault();
+        safeStatTarget = (safeStatTarget === 'local') ? 'remote' : 'local';
+        runSafeStatScript(script, ctx);
+      });
+    }
+
     async function runSafeStatScript(script, ctx) {
       var py = (ctx && ctx.py) || await loadPyodideAndM2py();
       if (safeStatTarget === 'remote') {
@@ -7603,48 +7647,7 @@ _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
              "figs": _figs, "results": _results})
 `);
         var res = JSON.parse(raw);
-        var head = '<div style="padding:6px 8px;font-size:12px;opacity:.7">SafeStat &middot; lokal kjøring'
-          + (res.datasets && res.datasets.length ? ' &middot; data: ' + res.datasets.join(', ') : '')
-          + (res.n === null ? '' : ' &middot; ' + res.n + ' rader')
-          + ' &middot; <a href="#" id="safestatTargetToggle" style="opacity:.8">mål: ' + safeStatTarget + '</a></div>';
-        var _hasAnalysis = (res.results && res.results.length) || (res.figs && res.figs.length);
-        var bodyHtml = '';
-        if (res.emu_err) bodyHtml += '<pre class="transl-warn" style="opacity:.75">Data-bygging (emulator): ' + escapeHtmlOutput(res.emu_err) + '</pre>';
-        if (res.err) bodyHtml += '<pre class="error">' + escapeHtmlOutput(res.err) + '</pre>';
-        if (safeStatFormat === 'raw') {
-          if (res.out && res.out.trim()) bodyHtml += '<pre>' + escapeHtmlOutput(res.out) + '</pre>';
-        } else {
-          (res.results || []).forEach(function(h){ bodyHtml += '<div class="safestat-result">' + h + '</div>'; });
-          if (res.out && res.out.trim()) bodyHtml += '<pre style="opacity:.7">' + escapeHtmlOutput(res.out) + '</pre>';
-        }
-        // working dataframe: inline when it IS the result (no analysis), else collapsible
-        if (res.html) {
-          bodyHtml += _hasAnalysis
-            ? '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">Datasett (df, ' + (res.n||0) + ' rader)</summary>' + res.html + '</details>'
-            : res.html;
-        }
-        var _figIds = [];
-        (res.figs || []).forEach(function(_fj, _i){
-          var _id = 'ssfig_' + _i;
-          _figIds.push({ id: _id, json: _fj });
-          bodyHtml += '<div class="plotly-container" id="' + _id + '" style="margin-top:8px"></div>';
-        });
-        if (!bodyHtml) bodyHtml = '<pre style="opacity:.6">(ingen output)</pre>';
-        outputArea.innerHTML = head + bodyHtml
-          + '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">Generert Python (pandas)</summary><pre class="offline-code"></pre></details>';
-        outputArea.querySelector('details pre').textContent = res.code;
-        _figIds.forEach(function(_f){
-          try {
-            var _spec = JSON.parse(_f.json);
-            mdRenderPlotlyFigure(document.getElementById(_f.id), _spec);
-          } catch (e) { console.warn('safestat plot', e); }
-        });
-        var _tt = document.getElementById('safestatTargetToggle');
-        if (_tt) _tt.addEventListener('click', function(e){
-          e.preventDefault();
-          safeStatTarget = (safeStatTarget === 'local') ? 'remote' : 'local';
-          runSafeStatScript(script, ctx);
-        });
+        renderSafeStatResult(res, script, ctx, 'lokal kjøring');
       } catch (e) {
         outputArea.innerHTML = '<pre class="error">SafeStat-feil: '
           + escapeHtmlOutput(String(e && e.message ? e.message : e)) + '</pre>';
