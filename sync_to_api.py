@@ -1,6 +1,9 @@
 """Sync canonical engine files from the m2py repo (and the sibling protect repo)
 into the microdata-api Anvil app's server_code/, with an md5 drift report.
 
+Each synced file is written with a GENERATED_HEADER prepended so the destination
+carries provenance and md5 comparisons detect raw-source drift correctly.
+
 Report-only by default; pass --apply to copy. Never deletes; only overwrites
 files named in the manifest. Run before pushing microdata-api so Anvil deploys
 current engine code.
@@ -9,13 +12,27 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import shutil
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent                       # m2py repo root
 PROTECT_ROOT = HERE.parent / "protect"
 DEST_ROOT = HERE.parent / "microdata-api" / "server_code"
+
+GENERATED_HEADER = (
+    "# ============================================================================\n"
+    "# GENERATED COPY — DO NOT EDIT HERE.\n"
+    "# Source of truth: the m2py repo. This file is produced by sync_to_api.py.\n"
+    "# Edit the engine in the m2py repo and re-run that script; direct edits here\n"
+    "# are overwritten on the next sync.\n"
+    "# ============================================================================\n"
+)
+GENERATED_HEADER_BYTES = GENERATED_HEADER.encode("utf-8")
+
+
+def _desired_bytes(src: Path) -> bytes:
+    """The exact bytes a synced copy must contain: the header followed by source."""
+    return GENERATED_HEADER_BYTES + src.read_bytes()
 
 
 def _md5(path: Path) -> str:
@@ -26,6 +43,7 @@ def build_manifest(source_root: Path, protect_root: Path):
     """Return [(abs_source_path, dest_relpath), ...]."""
     entries = [
         (source_root / "m2py.py", "m2py.py"),
+        (source_root / "functions.py", "functions.py"),
         (source_root / "m2py_translate.py", "m2py_translate.py"),
         (source_root / "m2py_remote.py", "m2py_remote.py"),
         (source_root / "m2py_protection.py", "m2py_protection.py"),
@@ -42,7 +60,7 @@ def compute_status(manifest, dest_root: Path):
     out = []
     for src, rel in manifest:
         dest = dest_root / rel
-        s_md5 = _md5(src) if src.exists() else None
+        s_md5 = hashlib.md5(_desired_bytes(src)).hexdigest() if src.exists() else None
         d_md5 = _md5(dest) if dest.exists() else None
         if s_md5 is None:
             status = "missing_source"
@@ -75,12 +93,12 @@ def format_report(statuses) -> str:
 
 
 def apply_sync(statuses):
-    """Copy source -> dest for drift/missing_dest entries. Never deletes."""
+    """Write header+source -> dest for drift/missing_dest entries. Never deletes."""
     copied = []
     for st in statuses:
         if st["status"] in ("drift", "missing_dest"):
             st["dest"].parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(st["source"], st["dest"])
+            st["dest"].write_bytes(_desired_bytes(st["source"]))
             copied.append(st["name"])
     return copied
 

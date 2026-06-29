@@ -5,6 +5,7 @@ import sync_to_api as s
 
 def _make_src(root: Path):
     (root / "m2py.py").write_text("emulator v1\n")
+    (root / "functions.py").write_text("functions\n")
     (root / "m2py_translate.py").write_text("translator\n")
     (root / "m2py_remote.py").write_text("remote\n")
     (root / "m2py_protection.py").write_text("protection\n")
@@ -21,7 +22,7 @@ def test_build_manifest_lists_fixed_files_and_runtime(tmp_path):
     _make_src(src)
     manifest = s.build_manifest(src, prot)
     rels = {rel for _, rel in manifest}
-    assert {"m2py.py", "m2py_translate.py", "m2py_remote.py",
+    assert {"m2py.py", "functions.py", "m2py_translate.py", "m2py_remote.py",
             "m2py_protection.py", "protect.py",
             "m2py_runtime/__init__.py", "m2py_runtime/pandas_ops.py"} == rels
 
@@ -32,9 +33,9 @@ def test_compute_status_detects_match_drift_missing(tmp_path):
     (prot / "protect.py").write_text("protect\n")
     _make_src(src)
     dest = tmp_path / "server_code"; dest.mkdir()
-    # match: identical m2py.py
-    (dest / "m2py.py").write_text("emulator v1\n")
-    # drift: different translator
+    # match: dest contains header + source content
+    (dest / "m2py.py").write_text(s.GENERATED_HEADER + "emulator v1\n")
+    # drift: different translator content
     (dest / "m2py_translate.py").write_text("OLD translator\n")
     # everything else absent -> missing_dest
     manifest = s.build_manifest(src, prot)
@@ -105,23 +106,38 @@ def test_apply_copies_drift_and_missing_only(tmp_path, capsys):
     (prot / "protect.py").write_text("protect\n")
     _make_src(src)
     dest = tmp_path / "server_code"; dest.mkdir()
-    (dest / "m2py.py").write_text("emulator v1\n")          # match (identical)
+    # match: dest already has header + source
+    (dest / "m2py.py").write_text(s.GENERATED_HEADER + "emulator v1\n")
     (dest / "m2py_translate.py").write_text("OLD\n")        # drift
-    # protect.py + remote + protection + runtime/* are missing_dest
 
     rc = s.main(["--apply", "--source", str(src), "--protect", str(prot), "--dest", str(dest)])
     out = capsys.readouterr().out
     assert rc == 0
 
-    # drifted file now matches source
-    assert (dest / "m2py_translate.py").read_text() == "translator\n"
-    # missing files were created, including nested runtime dir
-    assert (dest / "protect.py").read_text() == "protect\n"
+    # drifted file now has header + source content
+    assert (dest / "m2py_translate.py").read_text() == s.GENERATED_HEADER + "translator\n"
+    # missing files were created with header prepended
+    assert (dest / "protect.py").read_text() == s.GENERATED_HEADER + "protect\n"
     assert (dest / "m2py_remote.py").exists()
     assert (dest / "m2py_protection.py").exists()
-    assert (dest / "m2py_runtime" / "pandas_ops.py").read_text() == "ops\n"
+    assert (dest / "m2py_runtime" / "pandas_ops.py").read_text() == s.GENERATED_HEADER + "ops\n"
     # after apply, a fresh status shows all match
     manifest = s.build_manifest(src, prot)
     statuses = s.compute_status(manifest, dest)
     assert all(st["status"] == "match" for st in statuses)
     assert "Applied: copied" in out
+
+
+def test_apply_writes_generated_header(tmp_path, capsys):
+    """Every synced file must begin with GENERATED_HEADER."""
+    src = tmp_path / "m2py"; src.mkdir()
+    prot = tmp_path / "protect"; prot.mkdir()
+    (prot / "protect.py").write_text("protect\n")
+    _make_src(src)
+    dest = tmp_path / "server_code"; dest.mkdir()
+
+    s.main(["--apply", "--source", str(src), "--protect", str(prot), "--dest", str(dest)])
+
+    assert (dest / "protect.py").read_text().startswith(s.GENERATED_HEADER)
+    assert (dest / "m2py.py").read_text().startswith(s.GENERATED_HEADER)
+    assert (dest / "functions.py").read_text().startswith(s.GENERATED_HEADER)
