@@ -1,4 +1,5 @@
-from m2py_protection import resolve_policy, PUBLIC, PROTECTED, SENSITIVE
+import pandas as pd
+from m2py_protection import resolve_policy, PUBLIC, PROTECTED, SENSITIVE, PandasProtect
 
 
 def test_resolve_policy_public_is_all_pass():
@@ -24,10 +25,6 @@ def test_resolve_policy_most_restrictive_wins():
 
 def test_resolve_policy_empty_defaults_public():
     assert resolve_policy([])["level"] == PUBLIC
-
-
-import pandas as pd
-from m2py_protection import PandasProtect
 
 
 def test_suppress_nans_small_counts_in_freq_table():
