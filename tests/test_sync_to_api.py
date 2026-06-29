@@ -54,3 +54,15 @@ def test_compute_status_flags_missing_source(tmp_path):
     manifest = s.build_manifest(src, prot)
     statuses = {d["name"]: d["status"] for d in s.compute_status(manifest, dest)}
     assert statuses["protect.py"] == "missing_source"
+
+
+def test_build_manifest_without_runtime_dir(tmp_path):
+    src = tmp_path / "m2py"; src.mkdir()
+    prot = tmp_path / "protect"; prot.mkdir()
+    (prot / "protect.py").write_text("protect\n")
+    # NOTE: no m2py_runtime dir, and the fixed source files need not exist for
+    # build_manifest (it only assembles paths, does not read them).
+    manifest = s.build_manifest(src, prot)
+    rels = {rel for _, rel in manifest}
+    assert "protect.py" in rels
+    assert not any(rel.startswith("m2py_runtime/") for rel in rels)

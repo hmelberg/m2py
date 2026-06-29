@@ -31,8 +31,10 @@ def build_manifest(source_root: Path, protect_root: Path):
         (source_root / "m2py_protection.py", "m2py_protection.py"),
         (protect_root / "protect.py", "protect.py"),
     ]
-    for p in sorted((source_root / "m2py_runtime").glob("*.py")):
-        entries.append((p, f"m2py_runtime/{p.name}"))
+    runtime = source_root / "m2py_runtime"
+    if runtime.is_dir():
+        for p in sorted(runtime.glob("*.py")):
+            entries.append((p, f"m2py_runtime/{p.name}"))
     return entries
 
 
