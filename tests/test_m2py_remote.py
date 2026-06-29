@@ -15,7 +15,7 @@ def _data():
 
 def test_run_remote_returns_client_contract_keys():
     res = run_remote(SCRIPT, datasets=_data(), policy=resolve_policy([PUBLIC]))
-    assert set(res) == {"code", "out", "html", "n", "err", "figs", "results"}
+    assert set(res) == {"code", "out", "html", "n", "err", "figs", "results", "datasetInfo"}
     assert res["err"] is None, res["err"]
     assert res["results"], "expected at least one rendered result"
     assert res["n"] == 9   # translator footer materialized df = df_demo (9 rows)
@@ -35,3 +35,13 @@ def test_run_remote_protected_suppresses_small_counts():
     assert "NaN" in html  # suppressed cell renders as NaN
     # the suppressed count must be GONE, not merely NaN-tokened elsewhere
     assert ">3<" not in html and "3.0" not in html
+
+
+def test_run_remote_returns_dataset_info():
+    res = run_remote(SCRIPT, datasets=_data(), policy=resolve_policy([PUBLIC]))
+    di = res["datasetInfo"]
+    # named frame df_demo -> dataset "demo" with its schema + row count
+    assert "demo" in di
+    assert di["demo"]["columns"] == ["grp"]
+    assert di["demo"]["nrows"] == 9
+    assert "grp" in di["demo"]["dtypes"]
