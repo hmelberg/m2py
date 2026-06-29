@@ -97,3 +97,31 @@ def test_main_returns_2_on_missing_source(tmp_path, capsys):
     dest = tmp_path / "server_code"; dest.mkdir()
     rc = s.main(["--source", str(src), "--protect", str(prot), "--dest", str(dest)])
     assert rc == 2
+
+
+def test_apply_copies_drift_and_missing_only(tmp_path, capsys):
+    src = tmp_path / "m2py"; src.mkdir()
+    prot = tmp_path / "protect"; prot.mkdir()
+    (prot / "protect.py").write_text("protect\n")
+    _make_src(src)
+    dest = tmp_path / "server_code"; dest.mkdir()
+    (dest / "m2py.py").write_text("emulator v1\n")          # match (identical)
+    (dest / "m2py_translate.py").write_text("OLD\n")        # drift
+    # protect.py + remote + protection + runtime/* are missing_dest
+
+    rc = s.main(["--apply", "--source", str(src), "--protect", str(prot), "--dest", str(dest)])
+    out = capsys.readouterr().out
+    assert rc == 0
+
+    # drifted file now matches source
+    assert (dest / "m2py_translate.py").read_text() == "translator\n"
+    # missing files were created, including nested runtime dir
+    assert (dest / "protect.py").read_text() == "protect\n"
+    assert (dest / "m2py_remote.py").exists()
+    assert (dest / "m2py_protection.py").exists()
+    assert (dest / "m2py_runtime" / "pandas_ops.py").read_text() == "ops\n"
+    # after apply, a fresh status shows all match
+    manifest = s.build_manifest(src, prot)
+    statuses = s.compute_status(manifest, dest)
+    assert all(st["status"] == "match" for st in statuses)
+    assert "Applied: copied" in out
