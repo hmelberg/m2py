@@ -7476,16 +7476,91 @@ has and "int" in (m.get_microdata_functions() or {})
     // so the pipeline runs end-to-end; scripts that reference imported variable
     // values will report a missing column until real data is provided.
     var safeStatFormat = 'formatted'; // 'formatted' | 'raw'
-    var safeStatTarget = 'local';   // 'local' | 'remote' (remote = compute-to-data, placeholder)
+    var safeStatTarget = 'local';   // 'local' | 'remote' (remote = compute-to-data via /run_extended)
+
+    function renderSafeStatResult(res, script, ctx, sourceLabel) {
+      var head = '<div style="padding:6px 8px;font-size:12px;opacity:.7">SafeStat &middot; ' + sourceLabel
+        + (res.datasets && res.datasets.length ? ' &middot; data: ' + res.datasets.join(', ') : '')
+        + (res.n === null || res.n === undefined ? '' : ' &middot; ' + res.n + ' rader')
+        + ' &middot; <a href="#" id="safestatTargetToggle" style="opacity:.8">mål: ' + safeStatTarget + '</a></div>';
+      var _hasAnalysis = (res.results && res.results.length) || (res.figs && res.figs.length);
+      var bodyHtml = '';
+      if (res.emu_err) bodyHtml += '<pre class="transl-warn" style="opacity:.75">Data-bygging (emulator): ' + escapeHtmlOutput(res.emu_err) + '</pre>';
+      if (res.err) bodyHtml += '<pre class="error">' + escapeHtmlOutput(res.err) + '</pre>';
+      if (safeStatFormat === 'raw') {
+        if (res.out && res.out.trim()) bodyHtml += '<pre>' + escapeHtmlOutput(res.out) + '</pre>';
+      } else {
+        (res.results || []).forEach(function(h){ bodyHtml += '<div class="safestat-result">' + h + '</div>'; });
+        if (res.out && res.out.trim()) bodyHtml += '<pre style="opacity:.7">' + escapeHtmlOutput(res.out) + '</pre>';
+      }
+      if (res.html) {
+        bodyHtml += _hasAnalysis
+          ? '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">Datasett (df, ' + (res.n||0) + ' rader)</summary>' + res.html + '</details>'
+          : res.html;
+      }
+      var _figIds = [];
+      (res.figs || []).forEach(function(_fj, _i){
+        var _id = 'ssfig_' + _i;
+        _figIds.push({ id: _id, json: _fj });
+        bodyHtml += '<div class="plotly-container" id="' + _id + '" style="margin-top:8px"></div>';
+      });
+      if (!bodyHtml) bodyHtml = '<pre style="opacity:.6">(ingen output)</pre>';
+      outputArea.innerHTML = head + bodyHtml
+        + '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">Generert Python (pandas)</summary><pre class="offline-code"></pre></details>';
+      outputArea.querySelector('details pre').textContent = res.code;
+      _figIds.forEach(function(_f){
+        try {
+          var _spec = JSON.parse(_f.json);
+          mdRenderPlotlyFigure(document.getElementById(_f.id), _spec);
+        } catch (e) { console.warn('safestat plot', e); }
+      });
+      var _tt = document.getElementById('safestatTargetToggle');
+      if (_tt) _tt.addEventListener('click', function(e){
+        e.preventDefault();
+        safeStatTarget = (safeStatTarget === 'local') ? 'remote' : 'local';
+        runSafeStatScript(script, ctx);
+      });
+    }
+
+    async function runSafeStatRemote(script, ctx) {
+      var apiBase = (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app').replace(/\/+$/, '');
+      var token = window.mdAuth && window.mdAuth.token;
+      // remote: `require <source_id> as <alias>` binds a REGISTERED source (not a URL).
+      var sources = [], _m, _re = /^\s*require\s+(\S+)\s+as\s+(\w+)/gim;
+      while ((_m = _re.exec(script)) !== null) sources.push({ alias: _m[2], source_id: _m[1] });
+      var headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: sender til server (compute-to-data)…</div>';
+      try {
+        var sub = await fetch(apiBase + '/_/api/run_extended', {
+          method: 'POST', headers: headers,
+          body: JSON.stringify({ script: script, sources: sources, backend: 'pandas', raw: safeStatFormat === 'raw' })
+        }).then(function(r){ return r.json(); });
+        if (!sub || sub.error || !sub.task_id) {
+          outputArea.innerHTML = '<pre class="error">SafeStat remote: ' + escapeHtmlOutput((sub && sub.error) || 'uventet svar') + '</pre>';
+          return;
+        }
+        var taskId = sub.task_id;
+        for (var i = 0; i < 80; i++) {
+          await new Promise(function(r){ setTimeout(r, 1500); });
+          var st = await fetch(apiBase + '/_/api/run_extended_status?task_id=' + encodeURIComponent(taskId))
+            .then(function(r){ return r.json(); });
+          if (st.status === 'completed') { renderSafeStatResult(st.result || {}, script, ctx, 'remote &middot; compute-to-data'); return; }
+          if (st.status === 'failed' || st.status === 'killed') {
+            outputArea.innerHTML = '<pre class="error">SafeStat remote feilet: ' + escapeHtmlOutput(st.error || st.status) + '</pre>';
+            return;
+          }
+          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: kjører på server… (' + (i + 1) + ')</div>';
+        }
+        outputArea.innerHTML = '<pre class="error">SafeStat remote: tidsavbrudd (ingen svar fra server)</pre>';
+      } catch (e) {
+        outputArea.innerHTML = '<pre class="error">SafeStat remote-feil: ' + escapeHtmlOutput(String(e && e.message ? e.message : e)) + '</pre>';
+      }
+    }
 
     async function runSafeStatScript(script, ctx) {
+      if (safeStatTarget === 'remote') { await runSafeStatRemote(script, ctx); return; }
       var py = (ctx && ctx.py) || await loadPyodideAndM2py();
-      if (safeStatTarget === 'remote') {
-        outputArea.innerHTML = '<pre class="transl-warn">SafeStat (remote / compute-to-data): '
-          + 'ikke implementert ennå — scriptet ville blitt sendt til en server som '
-          + 'kjører på data du ikke ser, og bare resultatet returneres. Bruk «local» foreløpig.</pre>';
-        return;
-      }
       outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: oversetter til pandas og kjører lokalt…</div>';
       try {
         await loadTranslator(py);                 // ensures m2py_runtime + m2py_translate on the FS
@@ -7603,48 +7678,7 @@ _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
              "figs": _figs, "results": _results})
 `);
         var res = JSON.parse(raw);
-        var head = '<div style="padding:6px 8px;font-size:12px;opacity:.7">SafeStat &middot; lokal kjøring'
-          + (res.datasets && res.datasets.length ? ' &middot; data: ' + res.datasets.join(', ') : '')
-          + (res.n === null ? '' : ' &middot; ' + res.n + ' rader')
-          + ' &middot; <a href="#" id="safestatTargetToggle" style="opacity:.8">mål: ' + safeStatTarget + '</a></div>';
-        var _hasAnalysis = (res.results && res.results.length) || (res.figs && res.figs.length);
-        var bodyHtml = '';
-        if (res.emu_err) bodyHtml += '<pre class="transl-warn" style="opacity:.75">Data-bygging (emulator): ' + escapeHtmlOutput(res.emu_err) + '</pre>';
-        if (res.err) bodyHtml += '<pre class="error">' + escapeHtmlOutput(res.err) + '</pre>';
-        if (safeStatFormat === 'raw') {
-          if (res.out && res.out.trim()) bodyHtml += '<pre>' + escapeHtmlOutput(res.out) + '</pre>';
-        } else {
-          (res.results || []).forEach(function(h){ bodyHtml += '<div class="safestat-result">' + h + '</div>'; });
-          if (res.out && res.out.trim()) bodyHtml += '<pre style="opacity:.7">' + escapeHtmlOutput(res.out) + '</pre>';
-        }
-        // working dataframe: inline when it IS the result (no analysis), else collapsible
-        if (res.html) {
-          bodyHtml += _hasAnalysis
-            ? '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">Datasett (df, ' + (res.n||0) + ' rader)</summary>' + res.html + '</details>'
-            : res.html;
-        }
-        var _figIds = [];
-        (res.figs || []).forEach(function(_fj, _i){
-          var _id = 'ssfig_' + _i;
-          _figIds.push({ id: _id, json: _fj });
-          bodyHtml += '<div class="plotly-container" id="' + _id + '" style="margin-top:8px"></div>';
-        });
-        if (!bodyHtml) bodyHtml = '<pre style="opacity:.6">(ingen output)</pre>';
-        outputArea.innerHTML = head + bodyHtml
-          + '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">Generert Python (pandas)</summary><pre class="offline-code"></pre></details>';
-        outputArea.querySelector('details pre').textContent = res.code;
-        _figIds.forEach(function(_f){
-          try {
-            var _spec = JSON.parse(_f.json);
-            mdRenderPlotlyFigure(document.getElementById(_f.id), _spec);
-          } catch (e) { console.warn('safestat plot', e); }
-        });
-        var _tt = document.getElementById('safestatTargetToggle');
-        if (_tt) _tt.addEventListener('click', function(e){
-          e.preventDefault();
-          safeStatTarget = (safeStatTarget === 'local') ? 'remote' : 'local';
-          runSafeStatScript(script, ctx);
-        });
+        renderSafeStatResult(res, script, ctx, 'lokal kjøring');
       } catch (e) {
         outputArea.innerHTML = '<pre class="error">SafeStat-feil: '
           + escapeHtmlOutput(String(e && e.message ? e.message : e)) + '</pre>';
