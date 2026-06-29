@@ -86,6 +86,8 @@ def test_report_only_main_writes_nothing(tmp_path, capsys):
     # clobber-safety warning shown for drifted m2py.py
     assert "WARNING" in out and "m2py.py" in out
     assert "Report-only" in out
+    # the drifted m2py.py must NOT be overwritten in report-only mode (clobber-safety)
+    assert (dest / "m2py.py").read_text() == "SERVER-EDITED emulator\n"
 
 
 def test_main_returns_2_on_missing_source(tmp_path, capsys):
