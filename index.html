@@ -7482,7 +7482,7 @@ has and "int" in (m.get_microdata_functions() or {})
       var head = '<div style="padding:6px 8px;font-size:12px;opacity:.7">SafeStat &middot; ' + sourceLabel
         + (res.datasets && res.datasets.length ? ' &middot; data: ' + res.datasets.join(', ') : '')
         + (res.n === null || res.n === undefined ? '' : ' &middot; ' + res.n + ' rader')
-        + ' &middot; <a href="#" id="safestatTargetToggle" style="opacity:.8">mål: ' + safeStatTarget + '</a></div>';
+        + '</div>';
       var _hasAnalysis = (res.results && res.results.length) || (res.figs && res.figs.length);
       var bodyHtml = '';
       if (res.emu_err) bodyHtml += '<pre class="transl-warn" style="opacity:.75">Data-bygging (emulator): ' + escapeHtmlOutput(res.emu_err) + '</pre>';
@@ -7514,32 +7514,23 @@ has and "int" in (m.get_microdata_functions() or {})
           mdRenderPlotlyFigure(document.getElementById(_f.id), _spec);
         } catch (e) { console.warn('safestat plot', e); }
       });
-      var _tt = document.getElementById('safestatTargetToggle');
-      if (_tt) _tt.addEventListener('click', function(e){
-        e.preventDefault();
-        safeStatTarget = (safeStatTarget === 'local') ? 'remote' : 'local';
-        runSafeStatScript(script, ctx);
-      });
     }
 
-    async function runSafeStatRemote(script, ctx) {
+    async function runSafeStatRemote(script, ctx, sources, reason) {
       var apiBase = (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app').replace(/\/+$/, '');
       var token = window.mdAuth && window.mdAuth.token;
-      // remote: `require <source_id> as <alias>` binds a REGISTERED source (not a URL).
-      var sources = [], _m, _re = /^\s*require\s+(\S+)\s+as\s+(\w+)/gim;
-      while ((_m = _re.exec(script)) !== null) sources.push({ alias: _m[2], source_id: _m[1] });
+      sources = sources || [];
       var headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = 'Bearer ' + token;
-      outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: sender til server (compute-to-data)…</div>';
+      outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: sender til server (' + escapeHtmlOutput(reason || 'server-kjøring') + ')…</div>';
       try {
-        var sub = await fetch(apiBase + '/_/api/run_extended', {
+        var resp = await fetch(apiBase + '/_/api/run_extended', {
           method: 'POST', headers: headers,
           body: JSON.stringify({ script: script, sources: sources, backend: 'pandas', raw: safeStatFormat === 'raw' })
-        }).then(function(r){ return r.json(); });
-        if (!sub || sub.error || !sub.task_id) {
-          outputArea.innerHTML = '<pre class="error">SafeStat remote: ' + escapeHtmlOutput((sub && sub.error) || 'uventet svar') + '</pre>';
-          return;
-        }
+        });
+        if (resp.status === 401) { outputArea.innerHTML = '<pre class="error">SafeStat: server-kjøring krever innlogging. Logg inn og prøv igjen.</pre>'; return; }
+        var sub = await resp.json();
+        if (!sub || sub.error || !sub.task_id) { outputArea.innerHTML = '<pre class="error">SafeStat remote: ' + escapeHtmlOutput((sub && sub.error) || 'uventet svar') + '</pre>'; return; }
         var taskId = sub.task_id;
         for (var i = 0; i < 80; i++) {
           await new Promise(function(r){ setTimeout(r, 1500); });
@@ -7601,7 +7592,10 @@ has and "int" in (m.get_microdata_functions() or {})
     }
 
     async function runSafeStatScript(script, ctx) {
-      if (safeStatTarget === 'remote') { await runSafeStatRemote(script, ctx); return; }
+      var derived = await deriveSafeStatExecutor(script);
+      if (derived.error) { outputArea.innerHTML = '<pre class="error">SafeStat: ' + escapeHtmlOutput(derived.error) + '</pre>'; return; }
+      if (derived.executor === 'remote') { await runSafeStatRemote(derived.cleanScript, ctx, derived.sources, derived.reason); return; }
+      var script = derived.localScript;   // public-name refs rewritten to their URL; exec() stripped
       var py = (ctx && ctx.py) || await loadPyodideAndM2py();
       outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: oversetter til pandas og kjører lokalt…</div>';
       try {
