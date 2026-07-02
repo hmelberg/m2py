@@ -21,10 +21,30 @@ def test_build_manifest_lists_fixed_files_and_runtime(tmp_path):
     (prot / "protect.py").write_text("protect\n")
     _make_src(src)
     manifest = s.build_manifest(src, prot)
-    rels = {rel for _, rel in manifest}
+    rels = {rel for _, rel, _ in manifest}
     assert {"m2py.py", "functions.py", "m2py_translate.py", "m2py_remote.py",
             "m2py_protection.py", "protect.py",
             "m2py_runtime/__init__.py", "m2py_runtime/pandas_ops.py"} == rels
+
+
+def test_build_manifest_includes_safepy_package(tmp_path):
+    src = tmp_path / "m2py"; src.mkdir()
+    prot = tmp_path / "protect"; prot.mkdir()
+    (prot / "protect.py").write_text("protect\n")
+    _make_src(src)
+    sp = tmp_path / "safepy" / "safepy"; sp.mkdir(parents=True)
+    (sp / "__init__.py").write_text("safepy init\n")
+    (sp / "api.py").write_text("api\n")
+    ad = sp / "adapters"; ad.mkdir()
+    (ad / "__init__.py").write_text("adapters init\n")
+    manifest = s.build_manifest(src, prot, sp)
+    rels = {rel for _, rel, _ in manifest}
+    assert {"safepy/__init__.py", "safepy/api.py",
+            "safepy/adapters/__init__.py"} <= rels
+    # safepy files carry the safepy provenance header, m2py files the m2py one
+    headers = {rel: h for _, rel, h in manifest}
+    assert "the safepy repo" in headers["safepy/api.py"]
+    assert "the m2py repo" in headers["m2py.py"]
 
 
 def test_compute_status_detects_match_drift_missing(tmp_path):
@@ -64,9 +84,11 @@ def test_build_manifest_without_runtime_dir(tmp_path):
     # NOTE: no m2py_runtime dir, and the fixed source files need not exist for
     # build_manifest (it only assembles paths, does not read them).
     manifest = s.build_manifest(src, prot)
-    rels = {rel for _, rel in manifest}
+    rels = {rel for _, rel, _ in manifest}
     assert "protect.py" in rels
     assert not any(rel.startswith("m2py_runtime/") for rel in rels)
+    # no safepy_root given -> no safepy entries
+    assert not any(rel.startswith("safepy/") for rel in rels)
 
 
 def test_report_only_main_writes_nothing(tmp_path, capsys):
