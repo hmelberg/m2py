@@ -25,4 +25,6 @@ def test_from_sources_protected_suppresses_small_counts(tmp_path):
     html = res["results"][0]
     assert "NaN" in html
     assert ">3<" not in html and "3.0" not in html
-    assert ">6<" in html or "6.0" in html
+    # surviving count 6 rounds to 10 (shared preset: min_n=5, round_to=10)
+    assert ">6<" not in html and "6.0" not in html
+    assert "10" in html
