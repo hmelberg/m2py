@@ -7629,6 +7629,56 @@ has and "int" in (m.get_microdata_functions() or {})
       return true;
     }
 
+    // Microdata-modus, katalog-først (D2 i plan-integration.md): kjente
+    // databanker fra den lokale katalogen (no.ssb.fdb, no.fhi.npr, …) —
+    // require-mål normaliseres ved å stryke :versjon før sammenligning.
+    function microdataKnownDatabanks() {
+      var banks = new Set();
+      try {
+        var vars = (microdataCatalog && microdataCatalog.variables) || {};
+        Object.keys(vars).forEach(function (k) {
+          var b = vars[k] && vars[k].databank;
+          if (b) { banks.add(String(b)); banks.add(String(b).split(':')[0]); }
+        });
+      } catch (e) {}
+      return banks;
+    }
+    function microdataTargetKnown(target, banks) {
+      return banks.has(target) || banks.has(String(target).split(':')[0]);
+    }
+
+    // Microdata-modus: bare requires som navngir kilder UTENFOR den lokale
+    // SSB-katalogen ruter scriptet til serveren (legacy m2py-DSL-motoren via
+    // runSafeStatRemote uten dialect). Katalog-kjente kilder og scripts uten
+    // require kjører lokalt på den syntetiske motoren som før (require er
+    // no-op lokalt). Returnerer true når kjøringen er håndtert.
+    async function maybeRunRemoteMicrodata(script, ctx) {
+      if (!microdataCatalog || !microdataCatalog.variables) return false; // uten katalog: lokal som før
+      var re = /^\s*require\s+(\S+)\s+as\s+\w+/gim;
+      var targets = [], m;
+      while ((m = re.exec(script)) !== null) targets.push(m[1]);
+      if (!targets.length) return false;
+      var banks = microdataKnownDatabanks();
+      var unknown = targets.filter(function (t) { return !microdataTargetKnown(t, banks); });
+      if (!unknown.length) return false;                 // alle katalog-kjente: lokal
+      if (unknown.length !== targets.length) {
+        outputArea.innerHTML = '<pre class="error">Kan ikke kombinere SSB-katalogkilder og serverkilder i samme skript (ennå). Bruk enten bare katalogkilder (lokal kjøring) eller bare serverkilder.</pre>';
+        return true;
+      }
+      if (unknown.some(function (t) { return /^https?:\/\//i.test(t); })) {
+        outputArea.innerHTML = '<pre class="error">URL-kilder støttes ikke i microdata-modus (ennå) — bruk SafeStat-modus, eller registrer kilden på serveren.</pre>';
+        return true;
+      }
+      var derived = await deriveSafeStatExecutor(script);
+      if (derived.error) { outputArea.innerHTML = '<pre class="error">' + escapeHtmlOutput(derived.error) + '</pre>'; return true; }
+      // Serverregistrerte kilder kjøres alltid på serveren i microdata-modus:
+      // den lokale motoren kan ikke lese serverdata (require er no-op).
+      // dialect 'm2py' = den reserverte DSL-motoren (samme som utelatt).
+      await runSafeStatRemote(derived.cleanScript, ctx, derived.sources,
+        derived.reason === 'lokal' ? 'navngitt kilde' : derived.reason, 'm2py');
+      return true;
+    }
+
     async function runSafeStatScript(script, ctx) {
       var derived = await deriveSafeStatExecutor(script);
       if (derived.error) { outputArea.innerHTML = '<pre class="error">SafeStat: ' + escapeHtmlOutput(derived.error) + '</pre>'; return; }
@@ -7966,6 +8016,8 @@ options(width = 200)
         // direktiv scriptet til serveren (safepy). Uten direktiv kjøres lokalt som før.
         var _remoteDialect = { python: 'pandas', r: 'r', duckdb: 'duckdb' }[activeEditorMode];
         if (_remoteDialect && await maybeRunRemote(effectiveScript, _ctx, _remoteDialect)) return;
+        // Microdata-modus, katalog-først: server-kilder ruter til legacy m2py-motoren
+        if (activeEditorMode === 'microdata' && await maybeRunRemoteMicrodata(effectiveScript, _ctx)) return;
         if (_mr.runSelf) { await _mr.runSelf(effectiveScript, _ctx); return; }
         if (_mr.preRun)  await _mr.preRun(effectiveScript, _ctx);
         const catalogJson = microdataCatalog && microdataCatalog.variables
@@ -8120,6 +8172,18 @@ for _seg in _segments:
           && /^[ \t]*(?:#|--|\/\/)[ \t]*require\s+(?!https?:\/\/)\S+\s+as\s+\w+/im.test(rawScript)) {
         setStatus(rightStatus, 'Skrittvis kj\u00f8ring st\u00f8ttes ikke for navngitte kilder (server-kj\u00f8ring). Bruk Kj\u00f8r.', true);
         return;
+      }
+      // Microdata-modus: samme vern for serverkilder (m\u00e5l utenfor katalogen)
+      if (activeEditorMode === 'microdata' && microdataCatalog && microdataCatalog.variables) {
+        var _fkRe = /^\s*require\s+(\S+)\s+as\s+\w+/gim, _fkM;
+        var _fkBanks = null;
+        while ((_fkM = _fkRe.exec(rawScript)) !== null) {
+          _fkBanks = _fkBanks || microdataKnownDatabanks();
+          if (!microdataTargetKnown(_fkM[1], _fkBanks)) {
+            setStatus(rightStatus, 'Skrittvis kj\u00f8ring st\u00f8ttes ikke for serverkilder. Bruk Kj\u00f8r.', true);
+            return;
+          }
+        }
       }
       const snapshotScript = rawScript;
       scriptInput.value = '';
