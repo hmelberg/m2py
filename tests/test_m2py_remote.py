@@ -27,14 +27,15 @@ def test_run_remote_public_keeps_small_counts():
     assert ">3<" in res["results"][0] or "3.0" in res["results"][0]
 
 
-def test_run_remote_protected_suppresses_small_counts():
+def test_run_remote_protected_suppresses_and_rounds_counts():
     res = run_remote(SCRIPT, datasets=_data(), policy=resolve_policy([PROTECTED]))
     html = res["results"][0]
-    # protected => n=3 row suppressed to NaN; the surviving count 6 still shows
-    assert ">6<" in html or "6.0" in html
-    assert "NaN" in html  # suppressed cell renders as NaN
-    # the suppressed count must be GONE, not merely NaN-tokened elsewhere
+    # protected => n=3 suppressed to NaN; surviving n=6 rounds to 10 (shared
+    # preset: safepy "standard" tier -> min_n=5, round_to=10)
+    assert "NaN" in html
     assert ">3<" not in html and "3.0" not in html
+    assert ">6<" not in html and "6.0" not in html
+    assert "10" in html
 
 
 def test_run_remote_returns_dataset_info():
@@ -45,3 +46,54 @@ def test_run_remote_returns_dataset_info():
     assert di["demo"]["columns"] == ["grp"]
     assert di["demo"]["nrows"] == 9
     assert "grp" in di["demo"]["dtypes"]
+
+
+# ── raw-data leak protections (stage 2a) ────────────────────────────────────
+
+def _xy_data(n=30):
+    return {"demo": pd.DataFrame({"x": range(n), "y": range(n), "grp": [1, 2] * (n // 2)})}
+
+
+def test_protected_refuses_raw_data_plots():
+    script = "create-dataset demo\nscatter x y"
+    res = run_remote(script, datasets=_xy_data(), policy=resolve_policy([PROTECTED]))
+    assert res["err"] and "scatter" in res["err"]
+    assert res["figs"] == [] and res["results"] == []
+
+
+def test_protected_refuses_histogram_but_public_allows_it():
+    script = "create-dataset demo\nhistogram x"
+    prot = run_remote(script, datasets=_xy_data(), policy=resolve_policy([PROTECTED]))
+    assert prot["err"] and "histogram" in prot["err"]
+    pub = run_remote(script, datasets=_xy_data(), policy=resolve_policy([PUBLIC]))
+    assert pub["err"] is None and len(pub["figs"]) == 1
+
+
+def test_protected_allows_aggregate_barchart():
+    script = "create-dataset demo\nbarchart grp"
+    res = run_remote(script, datasets=_xy_data(), policy=resolve_policy([PROTECTED]))
+    assert res["err"] is None, res["err"]
+    assert len(res["figs"]) == 1
+
+
+def test_raw_plot_verb_inside_comment_is_not_refused():
+    script = "create-dataset demo\n// scatter x y er ikke en kommando\ntabulate grp"
+    res = run_remote(script, datasets=_xy_data(), policy=resolve_policy([PROTECTED]))
+    assert res["err"] is None, res["err"]
+
+
+def test_protected_omits_raw_html_preview():
+    res = run_remote(SCRIPT, datasets=_data(), policy=resolve_policy([PROTECTED]))
+    assert res["html"] == ""            # df.head(50) would leak raw rows
+    assert res["n"] == 9                # row count (metadata) is still fine
+    pub = run_remote(SCRIPT, datasets=_data(), policy=resolve_policy([PUBLIC]))
+    assert pub["html"] != ""
+
+
+def test_protected_forces_raw_mode_off():
+    # raw=True echoes raw result objects to stdout -> must be forced off
+    res = run_remote(SCRIPT, datasets=_data(),
+                     policy=resolve_policy([PROTECTED]), raw=True)
+    assert res["err"] is None, res["err"]
+    assert ">3<" not in res["results"][0]
+    assert "3" not in res["out"].replace("Opprettet", "")  # no raw echo of the small count
