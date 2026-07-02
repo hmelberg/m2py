@@ -7517,25 +7517,29 @@ has and "int" in (m.get_microdata_functions() or {})
       });
     }
 
-    async function runSafeStatRemote(script, ctx, sources, reason) {
-      var apiBase = (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app').replace(/\/+$/, '');
+    async function runSafeStatRemote(script, ctx, sources, reason, dialect) {
+      var apiBase = (window.mdAuth && window.mdAuth.apiBase) ? window.mdAuth.apiBase()
+        : (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app').replace(/\/+$/, '');
       var token = window.mdAuth && window.mdAuth.token;
       sources = sources || [];
       var headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = 'Bearer ' + token;
+      var body = { script: script, sources: sources, backend: 'pandas', raw: safeStatFormat === 'raw' };
+      if (dialect) body.dialect = dialect;   // pandas/polars/r/duckdb -> safepy-motoren; utelatt = m2py-DSL
       outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: sender til server (' + escapeHtmlOutput(reason || 'server-kjøring') + ')…</div>';
       try {
         var resp = await fetch(apiBase + '/_/api/run_extended', {
           method: 'POST', headers: headers,
-          body: JSON.stringify({ script: script, sources: sources, backend: 'pandas', raw: safeStatFormat === 'raw' })
+          body: JSON.stringify(body)
         });
         if (resp.status === 401) { outputArea.innerHTML = '<pre class="error">SafeStat: server-kjøring krever innlogging. Logg inn og prøv igjen.</pre>'; return; }
         var sub = await resp.json();
         if (!sub || sub.error || !sub.task_id) { outputArea.innerHTML = '<pre class="error">SafeStat remote: ' + escapeHtmlOutput((sub && sub.error) || 'uventet svar') + '</pre>'; return; }
         var taskId = sub.task_id;
+        var pollHeaders = token ? { 'Authorization': 'Bearer ' + token } : {};
         for (var i = 0; i < 80; i++) {
           await new Promise(function(r){ setTimeout(r, 1500); });
-          var st = await fetch(apiBase + '/_/api/run_extended_status?task_id=' + encodeURIComponent(taskId))
+          var st = await fetch(apiBase + '/_/api/run_extended_status?task_id=' + encodeURIComponent(taskId), { headers: pollHeaders })
             .then(function(r){ return r.json(); });
           if (st.status === 'completed') { renderSafeStatResult(st.result || {}, script, ctx, 'remote &middot; compute-to-data'); return; }
           if (st.status === 'failed' || st.status === 'killed') {
@@ -7550,14 +7554,26 @@ has and "int" in (m.get_microdata_functions() or {})
       }
     }
 
-    // Inspect a SafeStat script's `require` lines and decide where it runs.
-    // require <X> as <alias> [, exec(local|remote)]
-    async function deriveSafeStatExecutor(script) {
-      var apiBase = (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app').replace(/\/+$/, '');
-      var re = /^\s*require\s+(\S+)\s+as\s+(\w+)(?:\s*,\s*exec\(\s*(local|remote)\s*\))?/gim;
+    // Inspect a script's `require` lines and decide where it runs.
+    //   require <X> as <alias> [, exec(local|remote)]
+    // Dialekt-moduser (python/r/duckdb) skriver direktivet som kommentar
+    // (# / -- / //) siden `require` ikke er gyldig i språket selv.
+    async function deriveSafeStatExecutor(script, opts) {
+      var apiBase = (window.mdAuth && window.mdAuth.apiBase) ? window.mdAuth.apiBase()
+        : (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app').replace(/\/+$/, '');
+      var token = window.mdAuth && window.mdAuth.token;
+      // I dialekt-moduser står require som kommentar; i safestat-modus er en
+      // kommentert require nettopp utkommentert og skal IKKE tolkes.
+      var commentDirectives = !!(opts && opts.commentDirectives);
+      var re = commentDirectives
+        ? /^[ \t]*(?:#|--|\/\/)[ \t]*require\s+(\S+)\s+as\s+(\w+)(?:\s*,\s*exec\(\s*(local|remote)\s*\))?/gim
+        : /^\s*require\s+(\S+)\s+as\s+(\w+)(?:\s*,\s*exec\(\s*(local|remote)\s*\))?/gim;
       // strip every `, exec(...)` so the translator never sees the option
       var cleanScript = script.replace(/(\brequire\b[^\n]*?)\s*,\s*exec\(\s*(?:local|remote)\s*\)/gi, '$1');
       var localScript = cleanScript;
+      // remoteScript: require-linjene fjernet helt — brukes av dialekt-moduser
+      // der direktivet bare er metadata (serveren binder alias -> kilde selv).
+      var remoteScript = script.replace(/^[ \t]*(?:#|--|\/\/)[ \t]*require\s+\S+\s+as\s+\w+[^\n]*\n?/gim, '');
       var executor = 'local', reason = 'lokal', sources = [], m;
       var refs = [];
       while ((m = re.exec(script)) !== null) refs.push({ raw: m[1], alias: m[2], exec: m[3] || null });
@@ -7567,9 +7583,11 @@ has and "int" in (m.get_microdata_functions() or {})
           info = { public: true, default_exec: 'local', location: ref.raw };
         } else {
           try {
-            info = await fetch(apiBase + '/_/api/source_info?id=' + encodeURIComponent(ref.raw)).then(function(r){ return r.json(); });
+            // Ikke-offentlige kilder svarer 404 for anonyme kall, så send token når vi har det.
+            var siHeaders = token ? { 'Authorization': 'Bearer ' + token } : {};
+            info = await fetch(apiBase + '/_/api/source_info?id=' + encodeURIComponent(ref.raw), { headers: siHeaders }).then(function(r){ return r.json(); });
           } catch (e) { return { error: 'source_info feilet for «' + ref.raw + '»: ' + (e.message || e) }; }
-          if (!info || info.error) return { error: 'ukjent kilde: «' + ref.raw + '»' };
+          if (!info || info.error) return { error: 'ukjent kilde: «' + ref.raw + '» (ikke-offentlige kilder krever innlogging)' };
         }
         var refExec;
         if (!info.public) {
@@ -7589,7 +7607,26 @@ has and "int" in (m.get_microdata_functions() or {})
         }
         sources.push({ alias: ref.alias, source_id: isUrl ? null : ref.raw });
       }
-      return { executor: executor, cleanScript: cleanScript, localScript: localScript, sources: sources, reason: reason, error: null };
+      return { executor: executor, cleanScript: cleanScript, localScript: localScript, remoteScript: remoteScript, sources: sources, reason: reason, error: null };
+    }
+
+    // Dialekt-moduser (python/r/duckdb): et require-direktiv som navngir en
+    // registrert kilde ruter hele scriptet til serveren (safepy STRICT-motoren).
+    // URL-requires og scripts uten require kjører lokalt som før.
+    // Returnerer true når kjøringen er håndtert (remote eller feilmelding vist).
+    async function maybeRunRemote(script, ctx, dialect) {
+      if (!/^[ \t]*(?:#|--|\/\/)[ \t]*require\s+\S+\s+as\s+\w+/im.test(script)) return false;
+      var derived = await deriveSafeStatExecutor(script, { commentDirectives: true });
+      if (derived.error) { outputArea.innerHTML = '<pre class="error">' + escapeHtmlOutput(derived.error) + '</pre>'; return true; }
+      var named = derived.sources.filter(function(s){ return s.source_id; });
+      if (!named.length) return false;   // kun URL-requires: lokal kjøring som før
+      if (named.length !== derived.sources.length) {
+        outputArea.innerHTML = '<pre class="error">Server-kjøring kan ikke kombinere navngitte kilder og URL-kilder (ennå). Bruk bare navngitte kilder.</pre>';
+        return true;
+      }
+      await runSafeStatRemote(derived.remoteScript, ctx, named,
+        derived.reason === 'lokal' ? 'navngitt kilde' : derived.reason, dialect);
+      return true;
     }
 
     async function runSafeStatScript(script, ctx) {
@@ -7925,6 +7962,10 @@ options(width = 200)
           : getShowCommandsDefault();
         var _mr = currentMode();
         var _ctx = { py: py, rightStatus: rightStatus, showCommands: _showCmds };
+        // Compute-to-data: i python/r/duckdb-modus ruter et `# require <navn> as <alias>`-
+        // direktiv scriptet til serveren (safepy). Uten direktiv kjøres lokalt som før.
+        var _remoteDialect = { python: 'pandas', r: 'r', duckdb: 'duckdb' }[activeEditorMode];
+        if (_remoteDialect && await maybeRunRemote(effectiveScript, _ctx, _remoteDialect)) return;
         if (_mr.runSelf) { await _mr.runSelf(effectiveScript, _ctx); return; }
         if (_mr.preRun)  await _mr.preRun(effectiveScript, _ctx);
         const catalogJson = microdataCatalog && microdataCatalog.variables

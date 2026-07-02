@@ -227,6 +227,7 @@
         get token() { return state.token; },
         get user() { return state.user; },
         get isLoggedIn() { return !!state.token; },
+        apiBase,
         showLogin,
         showLoginCodeStep,
         hideLogin,

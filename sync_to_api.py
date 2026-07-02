@@ -17,50 +17,69 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent                       # m2py repo root
 PROTECT_ROOT = HERE.parent / "protect"
+SAFEPY_ROOT = HERE.parent / "safepy" / "safepy"              # the package dir, not repo root
 DEST_ROOT = HERE.parent / "microdata-api" / "server_code"
 
-GENERATED_HEADER = (
-    "# ============================================================================\n"
-    "# GENERATED COPY — DO NOT EDIT HERE.\n"
-    "# Source of truth: the m2py repo. This file is produced by sync_to_api.py.\n"
-    "# Edit the engine in the m2py repo and re-run that script; direct edits here\n"
-    "# are overwritten on the next sync.\n"
-    "# ============================================================================\n"
-)
+
+def _generated_header(repo: str) -> str:
+    return (
+        "# ============================================================================\n"
+        "# GENERATED COPY — DO NOT EDIT HERE.\n"
+        f"# Source of truth: the {repo} repo. This file is produced by sync_to_api.py.\n"
+        f"# Edit the engine in the {repo} repo and re-run that script; direct edits here\n"
+        "# are overwritten on the next sync.\n"
+        "# ============================================================================\n"
+    )
+
+
+GENERATED_HEADER = _generated_header("m2py")
 GENERATED_HEADER_BYTES = GENERATED_HEADER.encode("utf-8")
 
 
-def _desired_bytes(src: Path) -> bytes:
+def _desired_bytes(src: Path, header: str = GENERATED_HEADER) -> bytes:
     """The exact bytes a synced copy must contain: the header followed by source."""
-    return GENERATED_HEADER_BYTES + src.read_bytes()
+    return header.encode("utf-8") + src.read_bytes()
 
 
 def _md5(path: Path) -> str:
     return hashlib.md5(path.read_bytes()).hexdigest()
 
 
-def build_manifest(source_root: Path, protect_root: Path):
-    """Return [(abs_source_path, dest_relpath), ...]."""
+def build_manifest(source_root: Path, protect_root: Path,
+                   safepy_root: Path | None = None):
+    """Return [(abs_source_path, dest_relpath, header), ...]."""
+    h_m2py = _generated_header("m2py")
+    h_protect = _generated_header("protect")
+    h_safepy = _generated_header("safepy")
     entries = [
-        (source_root / "m2py.py", "m2py.py"),
-        (source_root / "functions.py", "functions.py"),
-        (source_root / "m2py_translate.py", "m2py_translate.py"),
-        (source_root / "m2py_remote.py", "m2py_remote.py"),
-        (source_root / "m2py_protection.py", "m2py_protection.py"),
-        (protect_root / "protect.py", "protect.py"),
+        (source_root / "m2py.py", "m2py.py", h_m2py),
+        (source_root / "functions.py", "functions.py", h_m2py),
+        (source_root / "m2py_translate.py", "m2py_translate.py", h_m2py),
+        (source_root / "m2py_remote.py", "m2py_remote.py", h_m2py),
+        (source_root / "m2py_protection.py", "m2py_protection.py", h_m2py),
+        # protect.py keeps the m2py header it has always carried: changing it
+        # would show as drift on every deployment that predates per-repo headers.
+        (protect_root / "protect.py", "protect.py", h_m2py),
     ]
     runtime = source_root / "m2py_runtime"
     if runtime.is_dir():
         for p in sorted(runtime.glob("*.py")):
-            entries.append((p, f"m2py_runtime/{p.name}"))
+            entries.append((p, f"m2py_runtime/{p.name}", h_m2py))
+    if safepy_root is not None and safepy_root.is_dir():
+        for p in sorted(safepy_root.glob("*.py")):
+            entries.append((p, f"safepy/{p.name}", h_safepy))
+        adapters = safepy_root / "adapters"
+        if adapters.is_dir():
+            for p in sorted(adapters.glob("*.py")):
+                entries.append((p, f"safepy/adapters/{p.name}", h_safepy))
     return entries
 
 
 def compute_status(manifest, dest_root: Path):
     out = []
-    for src, rel in manifest:
+    for src, rel, header in manifest:
         dest = dest_root / rel
-        s_md5 = hashlib.md5(_desired_bytes(src)).hexdigest() if src.exists() else None
+        s_md5 = hashlib.md5(_desired_bytes(src, header)).hexdigest() if src.exists() else None
         d_md5 = _md5(dest) if dest.exists() else None
         if s_md5 is None:
             status = "missing_source"
@@ -70,7 +89,7 @@ def compute_status(manifest, dest_root: Path):
             status = "match"
         else:
             status = "drift"
-        out.append({"name": rel, "source": src, "dest": dest,
+        out.append({"name": rel, "source": src, "dest": dest, "header": header,
                     "source_md5": s_md5, "dest_md5": d_md5, "status": status})
     return out
 
@@ -98,7 +117,7 @@ def apply_sync(statuses):
     for st in statuses:
         if st["status"] in ("drift", "missing_dest"):
             st["dest"].parent.mkdir(parents=True, exist_ok=True)
-            st["dest"].write_bytes(_desired_bytes(st["source"]))
+            st["dest"].write_bytes(_desired_bytes(st["source"], st["header"]))
             copied.append(st["name"])
     return copied
 
@@ -109,10 +128,11 @@ def main(argv=None) -> int:
                     help="copy drift/missing files (default: report only)")
     ap.add_argument("--source", default=str(HERE))
     ap.add_argument("--protect", default=str(PROTECT_ROOT))
+    ap.add_argument("--safepy", default=str(SAFEPY_ROOT))
     ap.add_argument("--dest", default=str(DEST_ROOT))
     args = ap.parse_args(argv)
 
-    manifest = build_manifest(Path(args.source), Path(args.protect))
+    manifest = build_manifest(Path(args.source), Path(args.protect), Path(args.safepy))
     statuses = compute_status(manifest, Path(args.dest))
     print(format_report(statuses))
 
