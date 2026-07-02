@@ -8113,6 +8113,14 @@ for _seg in _segments:
         setStatus(rightStatus, 'Ingen kode \u00e5 forklare.', true);
         return;
       }
+      // Compute-to-data: navngitte kilder kj\u00f8res p\u00e5 server (maybeRunRemote);
+      // skrittvis kj\u00f8ring er kun lokal \u2014 gi tydelig beskjed i stedet for en
+      // forvirrende lokal feil.
+      if ({ python: 1, r: 1, duckdb: 1 }[activeEditorMode]
+          && /^[ \t]*(?:#|--|\/\/)[ \t]*require\s+(?!https?:\/\/)\S+\s+as\s+\w+/im.test(rawScript)) {
+        setStatus(rightStatus, 'Skrittvis kj\u00f8ring st\u00f8ttes ikke for navngitte kilder (server-kj\u00f8ring). Bruk Kj\u00f8r.', true);
+        return;
+      }
       const snapshotScript = rawScript;
       scriptInput.value = '';
       prepareForklarOutputPane();
@@ -8135,6 +8143,7 @@ for _seg in _segments:
       const myAbort = explainAbortRef;
       document.body.classList.add('forklar-session');
       setRunButtonsUi('running');
+      let py = null;   // funksjons-scopet: finally-blokken trenger den også
       try {
         if (typeof speechSynthesis !== 'undefined' && speechSynthesis.getVoices && speechSynthesis.getVoices().length === 0) {
           await new Promise(function(resolve) {
@@ -8149,7 +8158,7 @@ for _seg in _segments:
             setTimeout(fin, 400);
           });
         }
-        const py = activeEditorMode !== 'r' ? await loadPyodideAndM2py() : null;
+        py = activeEditorMode !== 'r' ? await loadPyodideAndM2py() : null;
         let stdout = '';
         let stderr = '';
         let forklarChunkCapture = false;
