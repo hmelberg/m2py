@@ -929,6 +929,19 @@
     }
     body[data-theme="dark"] .ai-error { color: #fca5a5; }
 
+    /* Web AI mode: streamed progress lines + source manifest (Task 13). */
+    .ai-progress {
+      display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px;
+      font-size: 12px; color: var(--text-muted);
+    }
+    .ai-progress-line { opacity: 0.85; }
+    .ai-sources {
+      margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border);
+      font-size: 12px; color: var(--text-muted); line-height: 1.6;
+    }
+    .ai-sources a { color: var(--accent); word-break: break-all; }
+    .ai-repair-note { font-size: 12.5px; color: var(--text-muted); font-style: italic; }
+
     .ai-input-area {
       flex-shrink: 0; padding: 10px 12px 12px 12px; border-top: 1px solid var(--border);
       background: var(--sidebar-bg);
@@ -967,6 +980,8 @@
     .ai-send-fast-btn:hover:not(:disabled) { filter: brightness(1.1); }
     .ai-send-v2-btn { opacity: 0.85; }
     .ai-send-v2-btn:hover { opacity: 1; }
+    .ai-send-web-btn { border-color: #2b6cb0; background: #2b6cb0; }
+    .ai-send-web-btn:hover:not(:disabled) { filter: brightness(1.1); }
     .ai-abort-btn {
       height: 32px; padding: 0 9px; border: 1px solid #c0392b; background: transparent;
       color: #c0392b; border-radius: 8px; cursor: pointer; display: inline-flex;

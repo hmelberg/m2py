@@ -253,6 +253,7 @@
         <button type="button" class="ai-send-fast-btn ai-send-v2-btn" id="aiSendV2Btn"
           title="Eksperimentell: 2-stegs variabelvalg + auto-retting (kan være tregere)"
           aria-label="Send (eksperimentell)">Send⚗︎</button>
+        <button type="button" class="ai-send-fast-btn ai-send-web-btn" id="aiSendWebBtn" style="display:none;" title="Web: finn åpne data og generer script (kun admin; python/r/duckdb-modus)" aria-label="Send (web)">Web</button>
       </div>
     </div>
   </aside>
@@ -567,8 +568,8 @@
         </div>
         <div class="settings-field">
           <label>AI-svar</label>
-          <button type="button" class="btn btn-secondary" id="menuAiMode" title="Velg om Send-knappen bruker rask AI (enkelt svar) eller Anvil-AI (full vurdering med reparasjonsloop)">AI-svar: Rask</button>
-          <p class="settings-hint">Velg om Send-knappen bruker rask AI (enkelt svar) eller Anvil-AI (full vurdering med reparasjonsloop).</p>
+          <button type="button" class="btn btn-secondary" id="menuAiMode" title="Sykler Send-knappen mellom rask AI (enkelt svar), Anvil-AI (full vurdering med reparasjonsloop) og — for admin i python/r/duckdb-modus — Web (agentisk websøk + generering med auto-kjøring og reparasjon)">AI-svar: Rask</button>
+          <p class="settings-hint">Sykler mellom rask AI (enkelt svar), Anvil-AI (full vurdering med reparasjonsloop) og — kun for admin, i python/r/duckdb-modus — Web (websøk etter data + generering, med auto-kjøring og inntil 3 reparasjonsrunder).</p>
         </div>
       </div>
       <div class="settings-buttons">
@@ -2857,6 +2858,12 @@
       return 10000;
     }
 
+    // Web-modus (connect/load-direktiver): samme token-kilde som ai-chat.js
+    // bruker for Authorization-header (window.mdAuth.token, satt av login.js).
+    function getAuthToken() {
+      return (window.mdAuth && window.mdAuth.token) || null;
+    }
+
     // ── Datakilde: dynamisk (generer) vs statisk (DuckDB-WASM + Parquet) ──────
     const DATA_SOURCE_KEY = 'microdata_data_source';
     const STATIC_TABLES = ['person', 'person_year', 'jobb', 'kjoretoy', 'kurs',
@@ -3050,6 +3057,10 @@
         if (dcCellEl) dcCellEl.value = getDcThreshold('dc_tabulate_low_cell');
         if (dcAffEl)  dcAffEl.value  = getDcThreshold('dc_min_affected');
         if (dcSumEl)  dcSumEl.value  = getDcThreshold('dc_min_summarize');
+        // AI-svar-knappen (menuAiMode) sin visning avhenger av admin-status og
+        // editor-modus, som kan ha endret seg siden forrige gang panelet var
+        // åpent — la ai-chat.js oppdatere etiketten før dialogen vises.
+        if (window.mdRefreshAiModeLabel) window.mdRefreshAiModeLabel();
         overlay.classList.add('open');
       }
       function closeSettings() { overlay.classList.remove('open'); }
@@ -3359,6 +3370,9 @@
       // Refresh the GitHub save indicator: hide the floppy when the bound file's
       // extension no longer matches the active mode (cross-IIFE via window).
       if (window.mdGithubRefreshIndicator) window.mdGithubRefreshIndicator();
+      // Web send button is only shown in python/r/duckdb modes (admin-gated);
+      // re-check eligibility now that the mode changed (cross-IIFE via window).
+      if (window.mdSyncWebBtnVisibility) window.mdSyncWebBtnVisibility();
     }
 
     function updateModeButtonsUi() {
@@ -6223,6 +6237,30 @@ json.dumps(out)
       }
     }
 
+    // Web-modus: connect/load-direktiver — bygger et Python-forspill som binder
+    // hentede filer (allerede skrevet til Pyodide-FS) inn i e.datasets/_g FØR
+    // segment-løkken kjører. Ingen-op (tom streng) når det ikke er noen loads.
+    // `loads` her er [{alias, format, path}] — path peker til FS-plassering.
+    function buildWebDataLoaderPreamble(loads) {
+      if (!loads || !loads.length) return '';
+      return `
+# ── Web-modus: connect/load-direktiver — materialiser hentede filer ──
+for _wl in json.loads(${JSON.stringify(JSON.stringify(loads))}):
+    _wl_alias = _wl["alias"]; _wl_fmt = _wl["format"]; _wl_path = _wl["path"]
+    if _wl_fmt == "html":
+        with open(_wl_path, encoding="utf-8") as _wl_f:
+            _g[_wl_alias] = _wl_f.read()
+    else:
+        if _wl_fmt == "parquet":
+            _wl_df = pd.read_parquet(_wl_path)
+        elif _wl_fmt == "json":
+            _wl_df = pd.read_json(_wl_path)
+        else:
+            _wl_df = pd.read_csv(_wl_path)
+        to_microdata(_wl_df, name=_wl_alias, make_active=False)
+`;
+    }
+
     function getInterpreterCorePython(catalogArg, pageBase, segmentsStrForInit) {
       const segAssign = segmentsStrForInit != null
         ? `_segments = json.loads(${JSON.stringify(segmentsStrForInit)})\n`
@@ -6921,6 +6959,27 @@ json.dumps(out)
       }
 
       if (!webRShelter) webRShelter = await new webR.Shelter();
+
+      // Web-modus: connect/load-direktiver — hent kilder og bind dem inn i R
+      // FØR koden kjører (ingen-op når scriptet ikke har direktiver).
+      var _loadsR = await window.DataLoader.resolveAndFetchLoads(src, { authToken: getAuthToken() });
+      if (_loadsR.length && _loadsR.some(function (l) { return l.format === 'json'; })) {
+        try { await webR.installPackages(['jsonlite'], { quiet: true }); } catch (e) {
+          console.warn('R jsonlite install error:', e);
+        }
+      }
+      for (var _ri = 0; _ri < _loadsR.length; _ri++) {
+        var _lr = _loadsR[_ri];
+        if (_lr.format === 'parquet') throw new Error('parquet støttes ikke i R-modus ennå (' + _lr.alias + ')');
+        var _rp = '/home/web_user/_webdata_' + _lr.alias + '.' + _lr.format;
+        await webR.FS.writeFile(_rp, _lr.bytes);
+        var _rcode = _lr.format === 'json'
+          ? _lr.alias + ' <- jsonlite::fromJSON(' + JSON.stringify(_rp) + ')'
+          : _lr.format === 'html'
+          ? _lr.alias + ' <- paste(readLines(' + JSON.stringify(_rp) + ', warn = FALSE), collapse = "\\n")'
+          : _lr.alias + ' <- read.csv(' + JSON.stringify(_rp) + ', check.names = FALSE)';
+        await webR.evalRVoid(_rcode);
+      }
 
       const normalized = normalizeBlockMarkers(src, 'r');
       var hasMarkers = /^##\s*(r|microdata|micro|pyodide|python)\s*$/im.test(normalized);
@@ -7946,6 +8005,12 @@ options(width = 200)
         setStatus(leftStatus, 'Load failed: ' + (e && e.message ? e.message : String(e)), true);
       });
 
+    // Web AI mode (Task 13, js/ai-chat.js runScriptAndCaptureError): the Kjør
+    // click handler below has no return value of its own, so the auto-run/
+    // repair loop clicks the button and polls this getter to know when the
+    // run has settled before inspecting #outputArea for a `pre.error` node.
+    window.mdIsScriptRunning = function () { return scriptRunInProgress; };
+
     btnRun.addEventListener('click', async () => {
       if (scriptRunInProgress) {
         performRunInterrupt();
@@ -8020,6 +8085,24 @@ options(width = 200)
         if (activeEditorMode === 'microdata' && await maybeRunRemoteMicrodata(effectiveScript, _ctx)) return;
         if (_mr.runSelf) { await _mr.runSelf(effectiveScript, _ctx); return; }
         if (_mr.preRun)  await _mr.preRun(effectiveScript, _ctx);
+        // Web-modus: connect/load-direktiver — hent kildene og skriv dem til
+        // Pyodide-FS her; selve bindingen inn i e.datasets/_g skjer i
+        // buildWebDataLoaderPreamble() (kjøres som del av runCode under).
+        // Ingen-op når scriptet ikke har load-direktiver (tom liste).
+        var _pyLoads = [];
+        if (activeEditorMode === 'python' || activeEditorMode === 'duckdb') {
+          var _rawLoads = await window.DataLoader.resolveAndFetchLoads(effectiveScript, { authToken: getAuthToken() });
+          if (activeEditorMode === 'duckdb') {
+            var _htmlLoad = _rawLoads.find(function (l) { return l.format === 'html'; });
+            if (_htmlLoad) throw new Error('html-kilder støttes ikke i duckdb-modus (' + _htmlLoad.alias + ') — bruk python/r');
+          }
+          if (_rawLoads.length) py.FS.mkdirTree('/home/pyodide/_webdata');
+          _pyLoads = _rawLoads.map(function (l) {
+            var _path = '/home/pyodide/_webdata/' + l.alias + '.' + l.format;
+            py.FS.writeFile(_path, l.bytes);
+            return { alias: l.alias, format: l.format, path: _path };
+          });
+        }
         const catalogJson = microdataCatalog && microdataCatalog.variables
           ? JSON.stringify(microdataCatalog.variables)
           : null;
@@ -8045,7 +8128,7 @@ options(width = 200)
           } catch (e) { console.warn('pyarrow ensure:', e); }
         }
         const segmentsStr = JSON.stringify(segments);
-        const runCode = getInterpreterCorePython(catalogArg, pageBase, segmentsStr) + `
+        const runCode = getInterpreterCorePython(catalogArg, pageBase, segmentsStr) + buildWebDataLoaderPreamble(_pyLoads) + `
 import asyncio as _asyncio
 # ── Statisk datakilde: pre-fetch alle importer via DuckDB-WASM (JS) før kjøring ──
 if getattr(_m2py_mod, 'M2PY_DATA_SOURCE', 'dynamic') == 'static' and getattr(e, 'static_source', None) is not None:
@@ -8656,6 +8739,8 @@ def _run_microdata_chunk(_code):
 
   </script>
   <script src="js/login.js"></script>
+  <script src="js/data-directives.js"></script>
+  <script src="js/data-loader.js"></script>
   <script src="js/ai-chat.js"></script>
   <script src="js/github-storage.js"></script>
 

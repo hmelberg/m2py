@@ -12,10 +12,36 @@
         history: [],   // {role, html|text, raw}
         get apiBase() { return (localStorage.getItem(LS_KEY_BASE) || DEFAULT_BASE).replace(/\/+$/, ''); },
         get apiKey()  { return localStorage.getItem(LS_KEY_APIKEY) || ''; },
-        // AI mode: 'fast' = rask edge-funksjon, 'anvil' = full vurdering via Anvil-API
-        get anvilMode() { return localStorage.getItem(LS_KEY_AIMODE) === 'anvil'; },
-        set anvilMode(v) { localStorage.setItem(LS_KEY_AIMODE, v ? 'anvil' : 'fast'); },
+        // AI mode: 'fast' = rask edge-funksjon, 'anvil' = full vurdering via
+        // Anvil-API. Web (agentisk web-søk + generering; admin-only,
+        // python/r/duckdb) is NOT part of this menu cycle — it has its own
+        // dedicated send button (aiSendWebBtn) and never touches md_ai_mode;
+        // see webModeEligible()/syncWebBtnVisibility() below. A legacy 'web'
+        // value from before that button existed collapses to 'fast' here.
+        get aiMode() {
+          const v = localStorage.getItem(LS_KEY_AIMODE);
+          return v === 'anvil' ? v : 'fast';
+        },
+        set aiMode(v) { localStorage.setItem(LS_KEY_AIMODE, v); },
+        get anvilMode() { return this.aiMode === 'anvil'; },   // back-compat: existing callers keep working
       };
+
+      // Web mode is admin-only and only meaningful in python/r/duckdb editor
+      // modes (there's no `# connect`/`# load` story for microdata). It is
+      // surfaced only via its own send button (syncWebBtnVisibility() shows/
+      // hides #aiSendWebBtn); it is never reachable via the fast/anvil menu
+      // cycle, so there's no "silently falls back" case to handle anymore.
+      function webModeEligible() {
+        const auth = window.mdAuth;
+        const isAdmin = !!(auth && auth.user && auth.user.is_admin);
+        const mode = (typeof activeEditorMode !== 'undefined' && activeEditorMode) ? activeEditorMode : 'microdata';
+        return isAdmin && (mode === 'python' || mode === 'r' || mode === 'duckdb');
+      }
+      // Kept for back-compat with existing call sites (menu label + cycle);
+      // now just mirrors state.aiMode since 'web' is no longer a cycle value.
+      function effectiveAiMode() {
+        return state.aiMode;
+      }
 
       const md = (window.markdownit ? window.markdownit({ breaks: true, linkify: true }) : null);
 
@@ -23,7 +49,7 @@
       const dom = {};
       function cacheDom() {
         ['aiToggleBtn','aiSidebar','aiCloseBtn','aiSettingsBtn','aiClearBtn',
-         'aiThread','aiInput','aiSendFastBtn','aiSendV2Btn','aiAbortBtn',
+         'aiThread','aiInput','aiSendFastBtn','aiSendV2Btn','aiSendWebBtn','aiAbortBtn',
          'aiIncludeScript','menuAiMode',
          'aiSettingsBackdrop','aiCfgBaseUrl','aiCfgApiKey','aiCfgSave','aiCfgCancel',
          'aiCfgLoggedIn','aiCfgLoggedOut','aiCfgUserEmail','aiCfgUserMeta',
@@ -467,6 +493,7 @@
         }
         state.sending = true;
         if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = true;
+        if (dom.aiSendWebBtn) dom.aiSendWebBtn.disabled = true;
 
         // Clear empty state on first message
         if (state.history.length === 0) dom.aiThread.innerHTML = '';
@@ -499,6 +526,7 @@
             if (dom.aiAbortBtn) dom.aiAbortBtn.style.display = 'none';
             state.sending = false;
             if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = false;
+            if (dom.aiSendWebBtn) dom.aiSendWebBtn.disabled = false;
             dom.aiInput.focus();
           }
           return;
@@ -570,6 +598,7 @@
         } finally {
           state.sending = false;
           if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = false;
+          if (dom.aiSendWebBtn) dom.aiSendWebBtn.disabled = false;
           dom.aiInput.focus();
         }
       }
@@ -949,6 +978,281 @@
         state.history.push({ role: 'assistant', meta: { intent: 'tolkning' } });
       }
 
+      // ── Web mode: /api/data-svar (agentic web search + generation, admin-only) ──
+      // SSE contract (netlify/edge-functions/data-svar.ts):
+      //   {type:'progress', text}  — live tool-call labels (search_catalog/table_metadata/probe)
+      //   {type:'text', text}      — markdown chunks (explanation + one fenced script)
+      //   {type:'sources', sources:[{url, ok, cors, viaProxy}]} — deterministic probe manifest
+      //   {type:'error', message}
+      // Consume one SSE response, dispatching parsed events to onEvent. Mirrors the
+      // inline reader loops in runFastQuery/streamKodeSvarV2/runInterpretQuery above
+      // (not factored out into a shared helper there, to avoid touching working code);
+      // this is the equivalent for the new Web-mode path.
+      async function consumeSse(resp, onEvent) {
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let nl;
+          while ((nl = buffer.indexOf('\n\n')) >= 0) {
+            const event = buffer.slice(0, nl);
+            buffer = buffer.slice(nl + 2);
+            const dataLine = event.split('\n').find(l => l.startsWith('data:'));
+            if (!dataLine) continue;
+            let obj;
+            try { obj = JSON.parse(dataLine.slice(5).trim()); }
+            catch (_) { continue; }   // ignore non-JSON keep-alive lines
+            onEvent(obj);
+          }
+        }
+      }
+
+      // One question/repair round-trip to /api/data-svar. Renders progress lines
+      // live, streams markdown into a bubble (reusing streamRenderMd — the same
+      // throttled live-markdown renderer runFastQuery/runFastQueryV2 use), and
+      // appends a ✅/⚠️ source list once the `sources` event arrives. thinkingNode
+      // is the wrap created by appendThinking() — the "assistant bubble" container
+      // pattern already used everywhere else in this file (see runFastQuery et al.).
+      async function runWebAnswer(question, thinkingNode, repair, round) {
+        const t0 = Date.now();
+        thinkingNode.innerHTML = '';
+        const progressBox = document.createElement('div');
+        progressBox.className = 'ai-progress';
+        thinkingNode.appendChild(progressBox);
+        const bubble = document.createElement('div');
+        bubble.className = 'ai-bubble';
+        thinkingNode.appendChild(bubble);
+
+        const auth = window.mdAuth;
+        const token = auth && auth.token;
+        if (!token) throw new Error('Web-modus krever innlogging.');
+        const mode = (typeof activeEditorMode !== 'undefined' && activeEditorMode) ? activeEditorMode : 'python';
+
+        const resp = await fetch('/api/data-svar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({
+            question,
+            mode,
+            script: (dom.scriptInput && dom.scriptInput.value) || '',
+            repair: repair ? { script: repair.script, error: repair.error, round } : undefined,
+          }),
+        });
+        if (resp.status === 401) {
+          if (auth) { auth.logout(); auth.showLogin(); }
+          throw new Error('Innloggingen er utløpt. Logg inn på nytt.');
+        }
+        if (resp.status === 403) throw new Error('Web-modus er kun tilgjengelig for admin.');
+        if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status + ' ' + (await resp.text()));
+
+        let markdown = '';
+        let sources = null;
+        let _lastRender = 0;
+        await consumeSse(resp, (ev) => {
+          if (ev.type === 'progress') {
+            const line = document.createElement('div');
+            line.className = 'ai-progress-line';
+            line.textContent = '⏳ ' + ev.text;
+            progressBox.appendChild(line);
+            scrollToBottom();
+          } else if (ev.type === 'text') {
+            markdown += ev.text;
+            const _now = Date.now();
+            if (_now - _lastRender > 70) {
+              _lastRender = _now;
+              streamRenderMd(bubble, markdown);   // existing live markdown renderer
+              scrollToBottom();
+            }
+          } else if (ev.type === 'sources') {
+            sources = ev.sources;
+          } else if (ev.type === 'error') {
+            throw new Error(ev.message || 'ukjent feil');
+          }
+        });
+
+        streamRenderMd(bubble, markdown);
+        attachCodeBlockActions(bubble);
+        bubble._rawMd = markdown;
+        attachResponseInsertBar(thinkingNode, markdown);
+
+        if (sources && sources.length) {
+          const list = document.createElement('div');
+          list.className = 'ai-sources';
+          list.innerHTML = '<b>Kilder:</b> ' + sources.map(s =>
+            (s.ok ? '✅ ' : '⚠️ ') +
+            '<a href="' + escapeHtml(s.url) + '" target="_blank" rel="noopener">' +
+            escapeHtml(s.url.replace(/^https?:\/\//, '').slice(0, 60)) + '</a>' +
+            (s.viaProxy ? ' (via proxy)' : '')
+          ).join(' · ');
+          thinkingNode.appendChild(list);
+        }
+        return { markdown, latency: Date.now() - t0 };
+      }
+
+      // Pull the first fenced code block matching the current editor mode's
+      // language out of a Web-mode answer (```python / ```r / ```sql — see
+      // MODE_PY/MODE_R/MODE_DUCK svarformat in data-svar-prompt.ts). Falls back
+      // to the first fenced block of any language so an odd/missing tag doesn't
+      // silently drop a real script.
+      const WEB_FENCE_LANGS = { python: ['python', 'py'], r: ['r'], duckdb: ['sql', 'duckdb'] };
+      function extractWebScriptBlock(textMd, mode) {
+        if (!textMd) return '';
+        const wanted = WEB_FENCE_LANGS[mode] || WEB_FENCE_LANGS.python;
+        const re = /```(\w*)\s*\n([\s\S]*?)```/g;
+        let m, fallback = '';
+        while ((m = re.exec(textMd)) !== null) {
+          const lang = (m[1] || '').toLowerCase();
+          const body = (m[2] || '').trim();
+          if (!body) continue;
+          if (wanted.indexOf(lang) >= 0) return body;
+          if (!fallback) fallback = body;
+        }
+        return fallback;
+      }
+
+      // Replace the editor content with the generated script (mirrors the
+      // existing "Sett inn" response-action button in attachResponseInsertBar).
+      function insertScriptIntoEditor(script) {
+        if (!dom.scriptInput) return;
+        dom.scriptInput.value = script;
+        dom.scriptInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      // Run the script currently in the editor via the SAME path the Kjør
+      // button uses (index.html's btnRun click handler — it dispatches on
+      // activeEditorMode, handles local/remote execution, and renders
+      // output/errors into #outputArea). That handler has no return value or
+      // promise of its own, so this is a v1 compromise: click the button, wait
+      // for the run to settle via window.mdIsScriptRunning() (a one-line getter
+      // exposed by index.html for exactly this purpose), then read the error
+      // back out of #outputArea's `pre.error` node (also index.html's existing
+      // error-rendering convention — see the catch-block in btnRun's handler).
+      // Returns null on success, or the error text on failure.
+      //
+      // Staleness note (checked against index.html's btnRun handler): every
+      // run path — the python/duckdb try/catch (renderOutput on success,
+      // `pre.error` in the catch block) and R's runSelf -> runHybridR ->
+      // renderROutputParts — rewrites #outputArea for THIS run before its own
+      // `finally` flips scriptRunInProgress back to false. So whenever the
+      // poll loop below observes mdIsScriptRunning() === false, #outputArea
+      // already reflects this run's outcome, never a stale previous round's —
+      // no pre-run snapshot of the error text is needed. That guarantee only
+      // covers the "settled" case, though: if we hit the 180s ceiling while
+      // mdIsScriptRunning() is still true, the run handler hasn't written
+      // anything for this run yet, so #outputArea may still hold the previous
+      // round's error. In that case we return a distinct, honest timeout
+      // message instead of reading `.error` — this ends the repair loop as a
+      // failure and leaves the script in the editor, rather than reporting a
+      // false success or feeding a stale error into the next repair round.
+      async function runScriptAndCaptureError() {
+        const btn = document.getElementById('btnRun');
+        const outputArea = document.getElementById('outputArea');
+        if (!btn) return 'Fant ikke Kjør-knappen.';
+        if (typeof window.mdIsScriptRunning !== 'function') {
+          return 'Kan ikke sjekke kjørestatus (mdIsScriptRunning mangler).';
+        }
+        let waited = 0;
+        while (btn.disabled && waited < 20000) { await sleep(200); waited += 200; }
+        if (btn.disabled) return 'Kjør-knappen er ikke klar (miljøet laster fortsatt).';
+        btn.click();
+        await sleep(50);   // let the click handler's async body flip the running flag
+        const start = Date.now();
+        while (window.mdIsScriptRunning() && Date.now() - start < 180000) {
+          await sleep(150);
+        }
+        if (window.mdIsScriptRunning()) {
+          return 'Kjøringen var ikke ferdig etter 180 sekunder — overvåking avbrutt.';
+        }
+        const errEl = outputArea && outputArea.querySelector('pre.error');
+        return errEl ? errEl.textContent : null;
+      }
+
+      // Auto-run + repair loop (max 3 rounds): extract → insert → run → on
+      // failure, POST the script+error back as `repair` and try again.
+      async function webAnswerWithRepair(question, thinkingNode) {
+        const mode = (typeof activeEditorMode !== 'undefined' && activeEditorMode) ? activeEditorMode : 'python';
+        let round = 0, lastError = null, script = null;
+        let result = await runWebAnswer(question, thinkingNode, null, 0);
+        while (true) {
+          script = extractWebScriptBlock(result.markdown, mode);
+          if (!script) return;   // prose-only answer (e.g. honest "fant ikke data") — already rendered, nothing to run
+          insertScriptIntoEditor(script);
+          try {
+            lastError = await runScriptAndCaptureError();
+            if (!lastError) return;   // success
+          } catch (e) { lastError = (e && e.message) ? e.message : String(e); }
+          round++;
+          if (round > 3) {
+            const giveUp = document.createElement('div');
+            giveUp.className = 'ai-msg ai-msg-assistant';
+            giveUp.innerHTML = '<div class="ai-bubble ai-error"></div>';
+            giveUp.querySelector('.ai-bubble').textContent =
+              'Kunne ikke få scriptet til å kjøre etter 3 reparasjonsrunder. Siste feil:\n\n' + lastError +
+              '\n\nScriptet står i editoren — juster gjerne manuelt.';
+            dom.aiThread.appendChild(giveUp);
+            scrollToBottom();
+            return;
+          }
+          const roundNote = document.createElement('div');
+          roundNote.className = 'ai-msg ai-msg-assistant';
+          roundNote.innerHTML = '<div class="ai-bubble ai-repair-note"></div>';
+          roundNote.querySelector('.ai-bubble').textContent =
+            '⚙️ Reparasjonsrunde ' + round + ' — retter: ' + String(lastError).slice(0, 120);
+          dom.aiThread.appendChild(roundNote);
+          scrollToBottom();
+          const repairNode = appendThinking();
+          try {
+            result = await runWebAnswer(question, repairNode, { script, error: lastError }, round);
+          } catch (e) {
+            // A thrown error here (401, SSE `error` event, network drop) must land
+            // in THIS round's own bubble (repairNode) — not bubble up to
+            // sendWebMessage's outer catch, which would target thinkingNode
+            // (round 0) and wipe out the already-rendered first answer. Stop the
+            // loop on failure; the previous answer(s) stay intact.
+            appendError(repairNode, '✗ ' + ((e && e.message) ? e.message : String(e)));
+            return;
+          }
+        }
+      }
+
+      // Full send flow for Web mode: auth gate, user bubble, thinking node,
+      // then the answer+auto-run+repair loop. Mirrors sendMessage()'s
+      // boilerplate (see above) but dispatches to runWebAnswer/webAnswerWithRepair
+      // instead of the fast/anvil API paths.
+      async function sendWebMessage() {
+        if (state.sending) return;
+        const text = dom.aiInput.value.trim();
+        if (!text) return;
+        const auth = window.mdAuth;
+        if (!(auth && auth.token)) {
+          if (auth) auth.showLogin();
+          return;
+        }
+        state.sending = true;
+        if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = true;
+        if (dom.aiSendWebBtn) dom.aiSendWebBtn.disabled = true;
+        if (state.history.length === 0) dom.aiThread.innerHTML = '';
+        appendUserMessage(text);
+        state.history.push({ role: 'user', text });
+        dom.aiInput.value = '';
+        autoresize();
+        const thinkingNode = appendThinking();
+        try {
+          await webAnswerWithRepair(text, thinkingNode);
+          state.history.push({ role: 'assistant', meta: { intent: 'web' } });
+        } catch (e) {
+          appendError(thinkingNode, '✗ ' + ((e && e.message) ? e.message : String(e)));
+        } finally {
+          state.sending = false;
+          if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = false;
+          if (dom.aiSendWebBtn) dom.aiSendWebBtn.disabled = false;
+          dom.aiInput.focus();
+        }
+      }
+
       // Pull the first ```microdata / ``` code block that looks like a
       // microdata script out of streamed markdown.
       function extractFirstMicrodataBlock(textMd) {
@@ -1101,6 +1405,8 @@
         if (offlineWrap) {
           offlineWrap.style.display = (user && user.is_admin) ? '' : 'none';
         }
+        // Admin status just (re)synced — re-check dedicated Web send button eligibility.
+        if (window.mdSyncWebBtnVisibility) window.mdSyncWebBtnVisibility();
       }
 
       function openSettings() {
@@ -1161,10 +1467,18 @@
         }
 
         // Send uses the AI mode chosen in the hamburger menu: fast edge-fn or
-        // full Anvil-path (sendMessage(fast) — fast=true => rask).
-        function sendCurrent() { sendMessage(!state.anvilMode); }
+        // full Anvil-path. Web mode is never reached through this path — it
+        // has its own dedicated button (aiSendWebBtn) below.
+        function sendCurrent() {
+          sendMessage(!state.anvilMode);
+        }
         if (dom.aiSendFastBtn) dom.aiSendFastBtn.addEventListener('click', sendCurrent);
         if (dom.aiSendV2Btn) dom.aiSendV2Btn.addEventListener('click', () => sendMessage(true, true));
+        // Web is a dedicated send button (admin-only, python/r/duckdb), not a
+        // hidden state of the fast/anvil menu cycler — see syncWebBtnVisibility().
+        // It consumes the same textarea/state.sending discipline as the other
+        // send buttons; sendWebMessage() itself does its own auth/sending gate.
+        if (dom.aiSendWebBtn) dom.aiSendWebBtn.addEventListener('click', () => { sendWebMessage(); });
         if (dom.aiAbortBtn) dom.aiAbortBtn.addEventListener('click', () => { if (state.abortCtrl) state.abortCtrl.abort(); });
         dom.aiInput.addEventListener('input', autoresize);
         dom.aiInput.addEventListener('keydown', (e) => {
@@ -1174,21 +1488,37 @@
           }
         });
 
-        // AI-modus-bryter i hamburgermenyen
+        // Shows/hides the dedicated Web send button: admin + python/r/duckdb only.
+        // Called after login/user fetch (refreshUserPanel), on editor-mode changes
+        // (see switchEditorMode() in index.html), and once here at init.
+        function syncWebBtnVisibility() {
+          if (!dom.aiSendWebBtn) return;
+          dom.aiSendWebBtn.style.display = webModeEligible() ? '' : 'none';
+        }
+        window.mdSyncWebBtnVisibility = syncWebBtnVisibility;
+        syncWebBtnVisibility();
+
+        // AI-modus-bryter i hamburgermenyen — sykler fast ↔ anvil. Web is not
+        // part of this cycle; it has its own send button (see above).
         function updateAiModeLabel() {
-          if (dom.menuAiMode) {
-            dom.menuAiMode.textContent = 'AI-svar: ' + (state.anvilMode ? 'Anvil (full vurdering)' : 'Rask');
-          }
+          if (!dom.menuAiMode) return;
+          const eff = effectiveAiMode();
+          const label = eff === 'anvil' ? 'Anvil (full vurdering)' : 'Rask';
+          dom.menuAiMode.textContent = 'AI-svar: ' + label;
         }
         if (dom.menuAiMode) {
           dom.menuAiMode.addEventListener('click', () => {
-            state.anvilMode = !state.anvilMode;
+            state.aiMode = effectiveAiMode() === 'fast' ? 'anvil' : 'fast';
             updateAiModeLabel();
             const dd = document.getElementById('hamburgerDropdown');
             if (dd) dd.classList.remove('open');
           });
         }
         updateAiModeLabel();
+        // Exposed so index.html's general settings dialog (which hosts this
+        // button) can refresh the label right before it opens — eligibility
+        // (admin/editor mode) may have changed since the label was last set.
+        window.mdRefreshAiModeLabel = updateAiModeLabel;
 
         // Keyboard shortcut Ctrl+I
         document.addEventListener('keydown', (e) => {
@@ -1237,6 +1567,7 @@
           const thinkingNode = appendThinking();
           state.sending = true;
           if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = true;
+          if (dom.aiSendWebBtn) dom.aiSendWebBtn.disabled = true;
           const ctrl = new AbortController();
           state.abortCtrl = ctrl;
           if (dom.aiAbortBtn) dom.aiAbortBtn.style.display = '';
@@ -1247,6 +1578,7 @@
               if (dom.aiAbortBtn) dom.aiAbortBtn.style.display = 'none';
               state.sending = false;
               if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = false;
+              if (dom.aiSendWebBtn) dom.aiSendWebBtn.disabled = false;
               if (dom.aiInput) dom.aiInput.focus();
             });
         };

@@ -10,6 +10,14 @@ AI-endepunkter (se `netlify.toml` for path-mapping):
   klienten kjører én auto-rettingsrunde mot lokal Pyodide-validering. v1
   (`kode-svar`) er urørt, og v2 degraderer til v1-lik oppførsel hvis velgeren feiler.
 - `tolk-resultat` → `/api/tolk-resultat` — tolker output fra en kjøring
+- `data-svar` → `/api/data-svar` — Web-modus (kun admin): agentisk tool-loop
+  (search_catalog/table_metadata/probe + web_search) som finner åpne data og
+  genererer python/r/duckdb-script med connect/load-direktiver. SSE-events:
+  progress/text/sources/done/error. Prompt-kilde: `prompts/data-svar.md`;
+  register: `data/data-sources.json`; evalsett: `docs/eval/data-svar-evalsett.md`.
+- `hent` → `/api/hent?url=…[&body=…]` — SSRF-herdet GET-proxy (kun admin).
+  Injiserer API-nøkler server-side for register-kilder (host-matchet);
+  `body` GET-innpakker POST-json (PxWeb v1 o.l.).
 
 ## Forutsetninger
 
@@ -17,6 +25,10 @@ AI-endepunkter (se `netlify.toml` for path-mapping):
 2. Sett env-vars: `cp .env.example .env`, fyll inn `ANTHROPIC_API_KEY` og
    `M2PY_ACCESS_TOKEN` (delt token for lokal/admin-tilgang). Samme variabler må
    settes i Netlify-konsollen før prod-deploy.
+   - `FRED_API_KEY` (valgfri) — server-side nøkkel `hent`/`data-svar` injiserer
+     for FRED-kilder i registeret (host-matchet, aldri sendt til klienten).
+   - `DATA_SVAR_MODEL` (valgfri) — override av modellen `data-svar` bruker
+     (standard: samme som `ANTHROPIC_MODEL`/`claude-sonnet-4-6`).
 
 ## Start lokal dev-server
 

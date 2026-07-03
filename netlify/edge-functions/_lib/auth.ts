@@ -46,6 +46,7 @@ export function clientIp(request: Request): string {
 export interface GateOptions {
   endpoint: string;
   maxBodyBytes: number;
+  allowedMethods?: string[];
 }
 
 export interface GateDeps {
@@ -59,6 +60,71 @@ export interface GateDeps {
   cache: Map<string, number>;
 }
 
+interface BaseCheckResult {
+  presentedToken: string;
+  failure: Response | null;
+}
+
+/**
+ * Steps 1-4 shared by runGate and runAdminGate: token presence, method check,
+ * content-length cap, and rate limit (in that order, before any expensive
+ * validation). Returns the extracted token plus a short-circuit Response when
+ * one of the checks fails, or `failure: null` when the caller should proceed
+ * to its own auth step.
+ */
+async function runBaseChecks(
+  request: Request,
+  opts: GateOptions,
+  checkRateLimit: GateDeps["checkRateLimit"],
+): Promise<BaseCheckResult> {
+  // 1. token presence (free)
+  const authHeader = request.headers.get("authorization") ?? "";
+  const presentedToken = authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+  if (!presentedToken) {
+    return {
+      presentedToken,
+      failure: new Response("Unauthorized: missing token", { status: 401 }),
+    };
+  }
+
+  // 2. method (free)
+  const allowed = opts.allowedMethods ?? ["POST"];
+  if (!allowed.includes(request.method)) {
+    return {
+      presentedToken,
+      failure: new Response("Method not allowed", { status: 405 }),
+    };
+  }
+
+  // 3. content-length guard (free)
+  const contentLength = parseInt(
+    request.headers.get("content-length") ?? "0",
+    10,
+  );
+  if (contentLength > opts.maxBodyBytes) {
+    return {
+      presentedToken,
+      failure: new Response("Payload too large", { status: 413 }),
+    };
+  }
+
+  // 4. rate-limit BEFORE the expensive Anvil validation (no amplification)
+  const rate = await checkRateLimit(opts.endpoint, clientIp(request));
+  if (!rate.allowed) {
+    return {
+      presentedToken,
+      failure: new Response("Rate limited", {
+        status: 429,
+        headers: { "Retry-After": String(rate.retryAfterSeconds) },
+      }),
+    };
+  }
+
+  return { presentedToken, failure: null };
+}
+
 /**
  * Core gate logic with injected dependencies (testable). Returns a Response to
  * short-circuit the request, or null when the caller should proceed.
@@ -68,37 +134,12 @@ export async function runGate(
   opts: GateOptions,
   deps: GateDeps,
 ): Promise<Response | null> {
-  // 1. token presence (free)
-  const authHeader = request.headers.get("authorization") ?? "";
-  const presentedToken = authHeader.startsWith("Bearer ")
-    ? authHeader.slice(7).trim()
-    : "";
-  if (!presentedToken) {
-    return new Response("Unauthorized: missing token", { status: 401 });
-  }
-
-  // 2. method (free)
-  if (request.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
-
-  // 3. content-length guard (free)
-  const contentLength = parseInt(
-    request.headers.get("content-length") ?? "0",
-    10,
+  const { presentedToken, failure } = await runBaseChecks(
+    request,
+    opts,
+    deps.checkRateLimit,
   );
-  if (contentLength > opts.maxBodyBytes) {
-    return new Response("Payload too large", { status: 413 });
-  }
-
-  // 4. rate-limit BEFORE the expensive Anvil validation (no amplification)
-  const rate = await deps.checkRateLimit(opts.endpoint, clientIp(request));
-  if (!rate.allowed) {
-    return new Response("Rate limited", {
-      status: 429,
-      headers: { "Retry-After": String(rate.retryAfterSeconds) },
-    });
-  }
+  if (failure) return failure;
 
   // 5. auth: cheap shared-token (constant-time) -> positive cache -> Anvil
   const now = deps.now();
@@ -162,5 +203,95 @@ export function gate(request: Request, opts: GateOptions): Promise<Response | nu
     validateToken: makeAnvilValidator(anvilUrl),
     now: () => Date.now(),
     cache: _authCache,
+  });
+}
+
+export interface UserInfo {
+  ok: boolean;
+  isAdmin: boolean;
+}
+
+/** Like makeAnvilValidator, but returns the user's admin flag too. */
+export function makeAnvilUserFetcher(
+  anvilUrl: string,
+  timeoutMs: number = ANVIL_TIMEOUT_MS,
+  fetchImpl: typeof fetch = fetch,
+): (token: string) => Promise<UserInfo> {
+  return async (token: string): Promise<UserInfo> => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const resp = await fetchImpl(anvilUrl, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${token}` },
+        signal: ctrl.signal,
+      });
+      if (!resp.ok) return { ok: false, isAdmin: false };
+      const data = await resp.json();
+      const ok = !!(data && (data.user || data.principal_kind === "service_token"));
+      const isAdmin = !!(data && data.user && data.user.is_admin === true);
+      return { ok, isAdmin };
+    } catch (_e) {
+      return { ok: false, isAdmin: false };
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
+export interface AdminGateDeps {
+  sharedToken?: string;
+  checkRateLimit: GateDeps["checkRateLimit"];
+  fetchUser: (token: string) => Promise<UserInfo>;
+  now: () => number;
+  cache: Map<string, { exp: number; isAdmin: boolean }>;
+}
+
+const _adminCache = new Map<string, { exp: number; isAdmin: boolean }>();
+
+/** Gate + admin requirement (data-svar, hent). Shared token counts as admin. */
+export async function runAdminGate(
+  request: Request,
+  opts: GateOptions,
+  deps: AdminGateDeps,
+): Promise<Response | null> {
+  const { presentedToken, failure } = await runBaseChecks(
+    request,
+    opts,
+    deps.checkRateLimit,
+  );
+  if (failure) return failure;
+
+  const now = deps.now();
+  let info: UserInfo | null = null;
+  if (deps.sharedToken && timingSafeEqual(presentedToken, deps.sharedToken)) {
+    info = { ok: true, isAdmin: true };
+  }
+  if (!info) {
+    const hit = deps.cache.get(presentedToken);
+    if (hit && hit.exp > now) info = { ok: true, isAdmin: hit.isAdmin };
+    else if (hit) deps.cache.delete(presentedToken);
+  }
+  if (!info) {
+    const fetched = await deps.fetchUser(presentedToken);
+    if (fetched.ok) {
+      deps.cache.set(presentedToken, { exp: now + AUTH_CACHE_TTL_MS, isAdmin: fetched.isAdmin });
+      info = fetched;
+    }
+  }
+  if (!info?.ok) return new Response("Unauthorized", { status: 401 });
+  if (!info.isAdmin) return new Response("Forbudt: krever admin", { status: 403 });
+  return null;
+}
+
+/** Env-wired admin gate used by data-svar and hent. */
+export function adminGate(request: Request, opts: GateOptions): Promise<Response | null> {
+  const anvilUrl = Deno.env.get("M2PY_ANVIL_VALIDATE_URL") ?? ANVIL_DEFAULT_URL;
+  return runAdminGate(request, opts, {
+    sharedToken: Deno.env.get("M2PY_ACCESS_TOKEN") ?? undefined,
+    checkRateLimit: defaultCheckRateLimit,
+    fetchUser: makeAnvilUserFetcher(anvilUrl),
+    now: () => Date.now(),
+    cache: _adminCache,
   });
 }

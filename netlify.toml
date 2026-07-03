@@ -51,3 +51,11 @@
 [[edge_functions]]
   function = "tolk-resultat"
   path = "/api/tolk-resultat"
+
+[[edge_functions]]
+  function = "hent"
+  path = "/api/hent"
+
+[[edge_functions]]
+  function = "data-svar"
+  path = "/api/data-svar"

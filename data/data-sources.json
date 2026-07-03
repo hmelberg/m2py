@@ -1,0 +1,96 @@
+[
+  {
+    "id": "ssb", "navn": "Statistisk sentralbyrå (PxWebApi 2)", "utgiver": "SSB",
+    "tillit": "offisiell", "tilgang": "pxweb",
+    "base_url": "https://data.ssb.no/api/pxwebapi/v2-beta/",
+    "sok_endepunkt": "https://data.ssb.no/api/pxwebapi/v2-beta/tables?query={q}&lang=no",
+    "cors": false,
+    "join_nokler": ["kommunenummer", "fylkesnummer", "år"],
+    "sporrings_url_mal": "https://data.ssb.no/api/pxwebapi/v2/tables/{id}/data?valueCodes[{var}]={koder}&outputFormat=csv",
+    "quirks": "GET med valueCodes per dimensjon; outputFormat=csv gir CSV direkte. Verifisert 2026-07-03: /v2-beta/.../data probet gjentatte ganger til å feile (bruk /v2/ uten -beta for selve datauttrekket — søk og /metadata funker fint på v2-beta); data-endepunktet sender ingen Access-Control-Allow-Origin, så uttrekk MÅ gå via /api/hent-proxy uansett hva denne cors-flagget sier andre steder i registeret."
+  },
+  {
+    "id": "eurostat", "navn": "Eurostat (dissemination API)", "utgiver": "Eurostat",
+    "tillit": "offisiell", "tilgang": "rest",
+    "base_url": "https://ec.europa.eu/eurostat/api/dissemination/",
+    "cors": true,
+    "join_nokler": ["geo (NUTS/ISO2)", "time"],
+    "sporrings_url_mal": "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/{dataset}/?format=SDMX-CSV&{dim}={kode}",
+    "quirks": "SDMX-CSV via format=SDMX-CSV; dimensjonsfiltre i sti/spørring"
+  },
+  {
+    "id": "worldbank", "navn": "World Bank Open Data", "utgiver": "Verdensbanken",
+    "tillit": "offisiell", "tilgang": "rest",
+    "base_url": "https://api.worldbank.org/v2/",
+    "cors": true,
+    "join_nokler": ["iso3c (land)", "date (år)"],
+    "sporrings_url_mal": "https://api.worldbank.org/v2/country/{land}/indicator/{id}?format=json&per_page=20000",
+    "quirks": "JSON er [meta, rader]; per_page må settes høyt; land som 'all' eller ISO-koder adskilt med ;"
+  },
+  {
+    "id": "oecd", "navn": "OECD SDMX", "utgiver": "OECD",
+    "tillit": "offisiell", "tilgang": "sdmx",
+    "base_url": "https://sdmx.oecd.org/public/rest/",
+    "cors": true,
+    "join_nokler": ["LOCATION (ISO3)", "TIME_PERIOD"],
+    "quirks": "SDMX-JSON/CSV; dataflow-id + nøkkel i sti; format=csvfile for CSV"
+  },
+  {
+    "id": "who", "navn": "WHO Global Health Observatory (OData)", "utgiver": "WHO",
+    "tillit": "offisiell", "tilgang": "rest",
+    "base_url": "https://ghoapi.azureedge.net/api/",
+    "cors": true,
+    "join_nokler": ["SpatialDim (ISO3)", "TimeDim (år)"],
+    "quirks": "OData: /api/{INDIKATORKODE}?$filter=...; JSON med value-liste"
+  },
+  {
+    "id": "owid", "navn": "Our World in Data (grapher-CSV)", "utgiver": "OWID",
+    "tillit": "etablert", "tilgang": "fil",
+    "base_url": "https://ourworldindata.org/grapher/",
+    "cors": true,
+    "join_nokler": ["Entity/Code (land)", "Year"],
+    "sporrings_url_mal": "https://ourworldindata.org/grapher/{slug}.csv",
+    "quirks": "enhver grapher-side har .csv; kolonner Entity, Code, Year, verdi; note: ikke alle slug-ID-er eksisterer (e.g. co2 != 404, life-expectancy OK) — probe før bruk"
+  },
+  {
+    "id": "fred", "navn": "FRED (St. Louis Fed)", "utgiver": "Federal Reserve",
+    "tillit": "etablert", "tilgang": "rest",
+    "base_url": "https://api.stlouisfed.org/fred/",
+    "cors": false,
+    "join_nokler": ["date"],
+    "sporrings_url_mal": "https://api.stlouisfed.org/fred/series/observations?series_id={id}&file_type=json",
+    "auth": { "type": "api_key", "env": "FRED_API_KEY", "plassering": "query:api_key" },
+    "quirks": "krever api_key (injiseres av /api/hent); file_type=json"
+  },
+  {
+    "id": "norgesbank", "navn": "Norges Bank (SDMX)", "utgiver": "Norges Bank",
+    "tillit": "offisiell", "tilgang": "sdmx",
+    "base_url": "https://data.norges-bank.no/api/",
+    "cors": true,
+    "join_nokler": ["TIME_PERIOD"],
+    "quirks": "SDMX; format=csv støttes på data-endepunktet"
+  },
+  {
+    "id": "datanorge", "navn": "data.norge.no (Felles datakatalog)", "utgiver": "Digdir",
+    "tillit": "offisiell", "tilgang": "ckan",
+    "base_url": "https://data.norge.no/",
+    "sok_endepunkt": "https://search.api.fellesdatakatalog.digdir.no/search",
+    "cors": true,
+    "quirks": "katalog over datasett fra offentlige etater; selve datafilene ligger hos utgiver (probe før bruk); søke-API: POST-body bruker felt 'q' (ikke 'query'), og filters.type.value='datasets' må settes — uten dette domineres treff av CONCEPT/andre entitetstyper"
+  },
+  {
+    "id": "githubraw", "navn": "GitHub raw-filer", "utgiver": "(varierer)",
+    "tillit": "funnet", "tilgang": "fil",
+    "base_url": "https://raw.githubusercontent.com/",
+    "cors": true,
+    "quirks": "discovery via web_search; ALLTID probe før bruk; tillit avhenger av repo-eier"
+  },
+  {
+    "id": "wikipedia", "navn": "Wikipedia (tabeller i artikler)", "utgiver": "Wikimedia",
+    "tillit": "etablert", "tilgang": "fil",
+    "base_url": "https://en.wikipedia.org/wiki/",
+    "cors": false,
+    "oppskrift": { "python": "# load /api/hent?url=<url-enkodet artikkel-URL> as raw_html  →  import micropip; await micropip.install('lxml'); tabeller = pd.read_html(io.StringIO(raw_html)); df = tabeller[i]" },
+    "quirks": "tabeller er load-bare via /api/hent + pd.read_html (lxml via micropip); velg riktig tabellindeks; no.wikipedia.org for norske artikler"
+  }
+]
