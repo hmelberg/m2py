@@ -1124,6 +1124,22 @@
       // back out of #outputArea's `pre.error` node (also index.html's existing
       // error-rendering convention — see the catch-block in btnRun's handler).
       // Returns null on success, or the error text on failure.
+      //
+      // Staleness note (checked against index.html's btnRun handler): every
+      // run path — the python/duckdb try/catch (renderOutput on success,
+      // `pre.error` in the catch block) and R's runSelf -> runHybridR ->
+      // renderROutputParts — rewrites #outputArea for THIS run before its own
+      // `finally` flips scriptRunInProgress back to false. So whenever the
+      // poll loop below observes mdIsScriptRunning() === false, #outputArea
+      // already reflects this run's outcome, never a stale previous round's —
+      // no pre-run snapshot of the error text is needed. That guarantee only
+      // covers the "settled" case, though: if we hit the 180s ceiling while
+      // mdIsScriptRunning() is still true, the run handler hasn't written
+      // anything for this run yet, so #outputArea may still hold the previous
+      // round's error. In that case we return a distinct, honest timeout
+      // message instead of reading `.error` — this ends the repair loop as a
+      // failure and leaves the script in the editor, rather than reporting a
+      // false success or feeding a stale error into the next repair round.
       async function runScriptAndCaptureError() {
         const btn = document.getElementById('btnRun');
         const outputArea = document.getElementById('outputArea');
@@ -1139,6 +1155,9 @@
         const start = Date.now();
         while (window.mdIsScriptRunning() && Date.now() - start < 180000) {
           await sleep(150);
+        }
+        if (window.mdIsScriptRunning()) {
+          return 'Kjøringen var ikke ferdig etter 180 sekunder — overvåking avbrutt.';
         }
         const errEl = outputArea && outputArea.querySelector('pre.error');
         return errEl ? errEl.textContent : null;
@@ -1178,7 +1197,17 @@
           dom.aiThread.appendChild(roundNote);
           scrollToBottom();
           const repairNode = appendThinking();
-          result = await runWebAnswer(question, repairNode, { script, error: lastError }, round);
+          try {
+            result = await runWebAnswer(question, repairNode, { script, error: lastError }, round);
+          } catch (e) {
+            // A thrown error here (401, SSE `error` event, network drop) must land
+            // in THIS round's own bubble (repairNode) — not bubble up to
+            // sendWebMessage's outer catch, which would target thinkingNode
+            // (round 0) and wipe out the already-rendered first answer. Stop the
+            // loop on failure; the previous answer(s) stay intact.
+            appendError(repairNode, '✗ ' + ((e && e.message) ? e.message : String(e)));
+            return;
+          }
         }
       }
 
