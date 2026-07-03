@@ -33,7 +33,9 @@ SPRÅK
 
 {{DETAIL_LEVEL}}
 
-OUTPUT (norsk, markdown)
+OUTPUT (markdown)
+
+{{OUTPUT_LANGUAGE}}
 
 ## Klassifisering
 Kategori: <A|B|C>

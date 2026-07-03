@@ -13,6 +13,7 @@ interface RequestBody {
   kontekst?: string;          // user-provided context text (free-form)
   språk?: "auto" | "microdata" | "python" | "r";
   detaljnivå?: "kort" | "lang";
+  ui_lang?: "no" | "en";   // rapportspråk (UI-språket); default norsk
   ønsker_revidert_script?: boolean;
   bruk_scrub?: boolean;       // la revidert script foreslå scrub-kommandoer
 }
@@ -180,7 +181,9 @@ SPRÅK
 
 {{DETAIL_LEVEL}}
 
-OUTPUT (norsk, markdown)
+OUTPUT (markdown)
+
+{{OUTPUT_LANGUAGE}}
 
 ## Klassifisering
 Kategori: <A|B|C>
@@ -385,6 +388,14 @@ export default async (request: Request): Promise<Response> => {
     ? directives.revider_script
     : (body.ønsker_revidert_script ?? false);
   const requestedLanguage = body.språk ?? "auto";
+  const uiLang = body.ui_lang === "en" ? "en" : "no";
+  const outputLanguage = uiLang === "en"
+    ? `Write the ENTIRE report in English. Translate the section headings exactly as:
+«Klassifisering» → «Classification», «Samlet vurdering» → «Overall assessment»,
+«Observasjoner» → «Observations», «Særlig sensitive variabler» → «Especially sensitive variables»,
+«Spørsmål til forsker» → «Questions for the researcher», «Revidert script» → «Revised script».
+If the revised-script section proposes no changes, write exactly: "No changes suggested."`
+    : "Skriv hele rapporten på norsk.";
   const effectiveLanguage = requestedLanguage === "auto" ? detected : requestedLanguage;
   const detailLevel = body.detaljnivå === "lang" ? DETAIL_LEVEL_LANG : DETAIL_LEVEL_KORT;
 
@@ -408,6 +419,7 @@ export default async (request: Request): Promise<Response> => {
     .replaceAll("{{SCRUB_REFERENCE}}", () => includeScrubRef ? SCRUB_REFERENCE + "\n" : "")
     .replaceAll("{{CONTEXT_SECTION}}", () => contextSection)
     .replaceAll("{{LANGUAGE}}", () => languageInstruction(requestedLanguage, detected))
+    .replaceAll("{{OUTPUT_LANGUAGE}}", () => outputLanguage)
     .replaceAll("{{DETAIL_LEVEL}}", () => detailLevel)
     .replaceAll("{{REVISION_BLOCK}}", () => revisionBlock)
     .replaceAll("{{SCRIPT}}", () => body.script);

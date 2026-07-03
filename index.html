@@ -1150,6 +1150,7 @@
           body: JSON.stringify({
             script,
             kontekst: options.kontekst || '',
+            ui_lang: window.M2PY_LANG === 'en' ? 'en' : 'no',
             språk: options.språk || 'auto',
             detaljnivå: options.detaljnivå || 'kort',
             ønsker_revidert_script: options.ønsker_revidert_script || false,
@@ -1215,7 +1216,7 @@
         let revisedScript = null;
         let revisedMatch = null;
 
-        const revisedMatchResult = accumulated.match(/\n##\s+Revidert script\s*\n([\s\S]+)$/i);
+        const revisedMatchResult = accumulated.match(/\n##\s+Revi(?:dert|sed) script\s*\n([\s\S]+)$/i);
         if (revisedMatchResult) {
           revisedMatch = revisedMatchResult;
           mainText = accumulated.slice(0, revisedMatchResult.index);
@@ -1263,7 +1264,8 @@
 
         replaceScriptBtn.onclick = () => {
           if (!revisedScript) return;
-          if (revisedScript.toLowerCase().includes('ingen endringer foreslås')) {
+          if (revisedScript.toLowerCase().includes('ingen endringer foreslås')
+              || revisedScript.toLowerCase().includes('no changes suggested')) {
             alert(t('AI fant ingen endringer å foreslå.'));
             return;
           }

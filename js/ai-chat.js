@@ -915,6 +915,7 @@
             script: payload.script || '',
             output: payload.output || '',
             språk: payload.lang || 'auto',
+            ui_lang: (window.M2PY_LANG === 'en') ? 'en' : 'no',
           }),
           signal,
         });
