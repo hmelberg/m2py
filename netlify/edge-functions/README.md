@@ -13,7 +13,11 @@ AI-endepunkter (se `netlify.toml` for path-mapping):
 - `data-svar` → `/api/data-svar` — Web-modus (kun admin): agentisk tool-loop
   (search_catalog/table_metadata/probe + web_search) som finner åpne data og
   genererer python/r/duckdb-script med connect/load-direktiver. SSE-events:
-  progress/text/sources/done/error. Prompt-kilde: `prompts/data-svar.md`;
+  progress/text/sources/continue/done/error. Fortsettelsesprotokoll: Netlify
+  har CPU-tak per invokasjon, så serveren kjører én API-tur per POST og
+  avslutter med `{type:"continue", state, probed}` når den ikke er ferdig;
+  klienten re-POSTer samme body pluss `resume:{state, probed}` til svaret
+  kommer. Prompt-kilde: `prompts/data-svar.md`;
   register: `data/data-sources.json`; evalsett: `docs/eval/data-svar-evalsett.md`.
 - `hent` → `/api/hent?url=…[&body=…]` — SSRF-herdet GET-proxy (kun admin).
   Injiserer API-nøkler server-side for register-kilder (host-matchet);

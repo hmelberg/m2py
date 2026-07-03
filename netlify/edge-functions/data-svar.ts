@@ -1,7 +1,7 @@
 // /api/data-svar — Web mode: agentic discovery + generation (admin-only).
 // Spec: docs/superpowers/specs/2026-07-03-web-data-svar-design.md
 import { adminGate } from "./_lib/auth.ts";
-import { runAgenticStream } from "./_lib/anthropic.ts";
+import { type AgenticResumeState, runAgenticStream } from "./_lib/anthropic.ts";
 import { loadRegistry, renderRegistryBlock } from "./_lib/registry.ts";
 import { searchCatalog } from "./_lib/tools/search-catalog.ts";
 import { tableMetadata } from "./_lib/tools/table-metadata.ts";
@@ -12,15 +12,31 @@ import {
 } from "./_lib/data-svar-prompt.ts";
 
 interface RepairBody { script: string; error: string; round: number; }
+interface ResumeBody { state?: AgenticResumeState; probed?: unknown; }
 interface RequestBody {
   question?: string;
   mode?: string;
   script?: string;
   repair?: RepairBody;
+  resume?: ResumeBody;
+}
+
+// Continuation protocol (see runAgenticStream): each invocation runs one API
+// turn and, if not finished, ends with {type:"continue", state, probed}; the
+// client re-POSTs the same body plus `resume: {state, probed}`. The loop
+// state that made 120k too small: tool results and hosted web_search blocks
+// ride along in `state.messages`, so resume bodies run to a few hundred kB.
+const MAX_BODY_BYTES = 2_000_000;
+
+function validResumeState(s: AgenticResumeState | undefined): s is AgenticResumeState {
+  return !!s && Array.isArray(s.messages) && s.messages.length >= 1 && s.messages.length <= 400 &&
+    Number.isInteger(s.turn) && s.turn >= 1 && s.turn <= 64 &&
+    Number.isInteger(s.clientCalls) && s.clientCalls >= 0 && s.clientCalls <= 200 &&
+    typeof s.usage === "object" && s.usage !== null;
 }
 
 export default async (request: Request): Promise<Response> => {
-  const gateResp = await adminGate(request, { endpoint: "data-svar", maxBodyBytes: 120_000 });
+  const gateResp = await adminGate(request, { endpoint: "data-svar", maxBodyBytes: MAX_BODY_BYTES });
   if (gateResp) return gateResp;
 
   let body: RequestBody;
@@ -30,6 +46,24 @@ export default async (request: Request): Promise<Response> => {
   const repair = body.repair;
   if (repair && (!repair.script || !repair.error || !(repair.round >= 1 && repair.round <= 3))) {
     return new Response("Invalid repair payload", { status: 400 });
+  }
+  let resumeState: AgenticResumeState | undefined;
+  if (body.resume) {
+    if (!validResumeState(body.resume.state)) {
+      return new Response("Invalid resume payload", { status: 400 });
+    }
+    const u = body.resume.state.usage as Record<string, unknown>;
+    resumeState = {
+      messages: body.resume.state.messages,
+      turn: body.resume.state.turn,
+      clientCalls: body.resume.state.clientCalls,
+      usage: {
+        inputTokens: Number(u.inputTokens) || 0,
+        outputTokens: Number(u.outputTokens) || 0,
+        cacheReadTokens: Number(u.cacheReadTokens) || 0,
+        cacheCreationTokens: Number(u.cacheCreationTokens) || 0,
+      },
+    };
   }
 
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
@@ -50,7 +84,16 @@ export default async (request: Request): Promise<Response> => {
   const system = buildDataSvarSystem(mode, renderRegistryBlock(registry));
 
   // Deterministic source manifest: collected from probe calls, not model text.
+  // On resume, re-seeded from the previous invocations' manifest so the final
+  // sources event covers the whole run.
   const probed: { url: string; ok: boolean; cors: boolean; viaProxy: boolean }[] = [];
+  if (body.resume && Array.isArray(body.resume.probed)) {
+    for (const p of (body.resume.probed as Record<string, unknown>[]).slice(0, 60)) {
+      if (p && typeof p.url === "string") {
+        probed.push({ url: p.url, ok: !!p.ok, cors: !!p.cors, viaProxy: !!p.viaProxy });
+      }
+    }
+  }
 
   const executeTool = async (name: string, input: Record<string, unknown>): Promise<string> => {
     if (name === "search_catalog") {
@@ -80,6 +123,8 @@ export default async (request: Request): Promise<Response> => {
     cacheTtl: "1h",
     maxTokens: 8192,
     maxClientToolCalls: 12,
+    resume: resumeState,
+    continueExtra: () => ({ probed }),
   });
 
   const stream = injectBeforeDone(inner, () =>

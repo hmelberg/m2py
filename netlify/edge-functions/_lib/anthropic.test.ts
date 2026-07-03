@@ -140,6 +140,7 @@ Deno.test("runAgenticStream: tool round-trip then final text", async () => {
     apiKey: "k", model: "m", system: "s", userContent: "q",
     tools: [{ name: "probe", description: "d", input_schema: { type: "object" } }],
     executeTool: (name, input) => { calls.push(`${name}:${input.url}`); return Promise.resolve('{"ok":true}'); },
+    turnsPerCall: 99,
     deps: { fetchImpl },
   }));
   assertEquals(calls, ["probe:https://x/d.csv"]);
@@ -167,6 +168,7 @@ Deno.test("runAgenticStream: hosted web_search/web_fetch surface as progress lab
   const events = await collectSse(runAgenticStream({
     apiKey: "k", model: "m", system: "s", userContent: "q", tools: [],
     executeTool: () => Promise.resolve(""),
+    turnsPerCall: 99,
     deps: { fetchImpl },
   }));
   const labels = events.filter((e) => e.type === "progress" && !e.replace).map((e) => e.text);
@@ -186,7 +188,7 @@ Deno.test("runAgenticStream: budget exhausts into forced generation", async () =
   let toolResults: string[] = [];
   const events = await collectSse(runAgenticStream({
     apiKey: "k", model: "m", system: "s", userContent: "q",
-    tools: [], maxClientToolCalls: 2,
+    tools: [], maxClientToolCalls: 2, turnsPerCall: 99,
     executeTool: () => { return Promise.resolve("data"); },
     deps: { fetchImpl: (( _u: string | URL | Request, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body ?? "{}"));
@@ -201,6 +203,37 @@ Deno.test("runAgenticStream: budget exhausts into forced generation", async () =
   // third call is over budget (max 2) -> its result is the budget message
   if (!toolResults[2]?.includes("budsjett")) throw new Error("ventet budsjett-melding: " + toolResults[2]);
   assertEquals(events.at(-1)?.type, "done");
+});
+
+Deno.test("runAgenticStream: default one turn per call — continue carries state, resume finishes", async () => {
+  const fetchImpl = apiTurns([
+    { stop_reason: "tool_use", usage: { input_tokens: 10, output_tokens: 5 },
+      content: [{ type: "tool_use", id: "tu1", name: "probe", input: { url: "https://x/d.csv" } }] },
+    { stop_reason: "end_turn", usage: { input_tokens: 20, output_tokens: 15 },
+      content: [{ type: "text", text: "ferdig svar" }] },
+  ]);
+  const base = {
+    apiKey: "k", model: "m", system: "s", userContent: "q", tools: [],
+    executeTool: () => Promise.resolve('{"ok":true}'),
+    continueExtra: () => ({ probed: [{ url: "https://x/d.csv", ok: true }] }),
+    deps: { fetchImpl },
+  };
+  // Invocation 1: one tool turn, then hands back state instead of looping on.
+  const ev1 = await collectSse(runAgenticStream(base));
+  const cont = ev1.at(-1)!;
+  assertEquals(cont.type, "continue");
+  const st = cont.state as { turn: number; clientCalls: number; messages: unknown[]; usage: Record<string, number> };
+  assertEquals(st.turn, 1);
+  assertEquals(st.clientCalls, 1);
+  assertEquals(st.messages.length, 3); // user q, assistant tool_use, user tool_result
+  assertEquals((cont.probed as { url: string }[])[0].url, "https://x/d.csv");
+  // Invocation 2: resumes from the state and finishes; usage summed across both.
+  const ev2 = await collectSse(runAgenticStream({ ...base, resume: st as never }));
+  assertEquals(ev2.filter((e) => e.type === "text")[0].text, "ferdig svar");
+  const done = ev2.at(-1)!;
+  assertEquals(done.type, "done");
+  assertEquals(done.inputTokens, 30);
+  assertEquals(done.outputTokens, 20);
 });
 
 Deno.test("runAgenticStream: API error surfaces as error event", async () => {
