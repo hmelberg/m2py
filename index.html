@@ -145,27 +145,27 @@
         </div>
       </div>
     </div>
-    <input type="text" class="script-name" id="scriptName" placeholder="Script navn" value="Script navn">
-    <button type="button" class="help-icon" id="helpBtn" aria-label="Hjelp" title="Hjelp" style="margin-left:auto">&#63;</button>
-    <button type="button" class="help-icon" id="clearOutputTopBtn" aria-label="Tøm output" title="Tøm output"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg></button>
+    <input type="text" class="script-name" id="scriptName" data-i18n-placeholder placeholder="Script navn" value="Script navn">
+    <button type="button" class="help-icon" id="helpBtn" data-i18n-aria data-i18n-title aria-label="Hjelp" title="Hjelp" style="margin-left:auto">&#63;</button>
+    <button type="button" class="help-icon" id="clearOutputTopBtn" data-i18n-aria data-i18n-title aria-label="Tøm output" title="Tøm output"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg></button>
     <div class="topbar-export-wrap">
-      <button type="button" class="export-icon" id="exportBtn" aria-label="Eksporter resultat" title="Eksporter resultat">&#8689;</button>
+      <button type="button" class="export-icon" id="exportBtn" data-i18n-aria data-i18n-title aria-label="Eksporter resultat" title="Eksporter resultat">&#8689;</button>
       <div class="export-dropdown" id="exportDropdown">
-        <div class="export-dropdown-title">Eksporter skriptresultatene</div>
-        <button type="button" id="exportCopy">Kopier til utklippstavlen</button>
-        <button type="button" id="exportPrint">Skriv ut</button>
+        <div class="export-dropdown-title" data-i18n>Eksporter skriptresultatene</div>
+        <button type="button" id="exportCopy" data-i18n>Kopier til utklippstavlen</button>
+        <button type="button" id="exportPrint" data-i18n>Skriv ut</button>
       </div>
     </div>
     <div class="topbar-theme-wrap">
-      <button type="button" class="theme-icon" id="themeBtn" aria-label="Tema" title="Tema og innstillinger"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0112 0v1"/></svg></button>
+      <button type="button" class="theme-icon" id="themeBtn" data-i18n-aria data-i18n-title aria-label="Tema" title="Tema og innstillinger"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0112 0v1"/></svg></button>
       <div class="theme-dropdown" id="themeDropdown">
-        <div class="theme-dropdown-title">Tema</div>
-        <label><input type="radio" name="theme" value="light" checked> Lys</label>
-        <label><input type="radio" name="theme" value="dark"> Mørk</label>
-        <label><input type="radio" name="theme" value="auto"> Som nettleser</label>
+        <div class="theme-dropdown-title" data-i18n>Tema</div>
+        <label><input type="radio" name="theme" value="light" checked> <span data-i18n>Lys</span></label>
+        <label><input type="radio" name="theme" value="dark"> <span data-i18n>Mørk</span></label>
+        <label><input type="radio" name="theme" value="auto"> <span data-i18n>Som nettleser</span></label>
       </div>
     </div>
-    <button type="button" class="ai-icon" id="aiToggleBtn" aria-label="AI assistent" title="AI assistent (Ctrl+I)">
+    <button type="button" class="ai-icon" id="aiToggleBtn" data-i18n-aria data-i18n-title aria-label="AI assistent" title="AI assistent (Ctrl+I)">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3z"/>
         <path d="M19 17l.7 2.3L22 20l-2.3.7L19 23l-.7-2.3L16 20l2.3-.7L19 17z"/>
@@ -180,13 +180,13 @@
         <button class="btn btn-primary btn-run" id="btnRun" type="button" disabled>
           <span class="btn-run-inner">
             <span class="btn-run-icon-slot" aria-hidden="true"><span class="btn-run-spinner"></span></span>
-            <span class="btn-run-label">Venter</span>
+            <span class="btn-run-label" data-i18n>Venter</span>
           </span>
         </button>
-        <button class="btn btn-primary btn-run" id="btnForklar" type="button" disabled title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">
+        <button class="btn btn-primary btn-run" id="btnForklar" type="button" disabled data-i18n-title title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">
           <span class="btn-run-inner">
             <span class="btn-run-icon-slot" aria-hidden="true"><span class="btn-forklar-icon">&#128266;</span></span>
-            <span class="btn-run-label">Kj&#248;r skrittvis</span>
+            <span class="btn-run-label" data-i18n>Kj&#248;r skrittvis</span>
           </span>
         </button>
         <span class="status" id="leftStatus"></span>
@@ -209,21 +209,21 @@
         <div class="output-scroll-wrap" id="outputScrollWrap">
           <div class="output-area" id="outputArea"></div>
         </div>
-        <button type="button" class="output-jump-last-btn" id="outputJumpLastBtn" title="Bla ned til resultat fra siste linje" aria-label="Bla ned til resultat fra siste linje"><span aria-hidden="true">&#8595;</span></button>
+        <button type="button" class="output-jump-last-btn" id="outputJumpLastBtn" data-i18n-title data-i18n-aria title="Bla ned til resultat fra siste linje" aria-label="Bla ned til resultat fra siste linje"><span aria-hidden="true">&#8595;</span></button>
       </div>
     </div>
       </div>
   <aside class="sidebar-right collapsed" id="sidebarRight">
     <div class="sidebar-header">
-      <h3>Datasett</h3>
-      <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" title="Lukk sidemeny" aria-label="Lukk">&#10005;</button>
+      <h3 data-i18n>Datasett</h3>
+      <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" data-i18n-title data-i18n-aria title="Lukk sidemeny" aria-label="Lukk">&#10005;</button>
       </div>
     <div class="sidebar-content" id="sidebarContent">
-      <div class="sidebar-empty" id="sidebarEmpty">Kjør et script for å se datasett.</div>
+      <div class="sidebar-empty" id="sidebarEmpty" data-i18n>Kjør et script for å se datasett.</div>
       <div id="sidebarDatasets"></div>
     </div>
   </aside>
-  <div class="sidebar-open-tab" id="sidebarOpenTab" title="Åpne sidemeny (datasett og variabler)" aria-label="Åpne sidemeny"><span>&#171;</span></div>
+  <div class="sidebar-open-tab" id="sidebarOpenTab" data-i18n-title data-i18n-aria title="Åpne sidemeny (datasett og variabler)" aria-label="Åpne sidemeny"><span>&#171;</span></div>
 
   <aside class="ai-sidebar" id="aiSidebar" aria-hidden="true">
     <div class="ai-header">
@@ -232,127 +232,127 @@
           <path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3z"/>
           <path d="M19 17l.7 2.3L22 20l-2.3.7L19 23l-.7-2.3L16 20l2.3-.7L19 17z"/>
         </svg>
-        AI assistent
+        <span data-i18n>AI assistent</span>
       </h3>
       <div class="ai-header-actions">
-        <button type="button" class="ai-icon-btn" id="aiClearBtn" title="Tøm samtale" aria-label="Tøm samtale">
+        <button type="button" class="ai-icon-btn" id="aiClearBtn" data-i18n-title data-i18n-aria title="Tøm samtale" aria-label="Tøm samtale">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg>
         </button>
-        <button type="button" class="ai-icon-btn" id="aiSettingsBtn" title="Innstillinger" aria-label="Innstillinger">
+        <button type="button" class="ai-icon-btn" id="aiSettingsBtn" data-i18n-title data-i18n-aria title="Innstillinger" aria-label="Innstillinger">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         </button>
-        <button type="button" class="ai-icon-btn" id="aiCloseBtn" title="Lukk" aria-label="Lukk">&#10005;</button>
+        <button type="button" class="ai-icon-btn" id="aiCloseBtn" data-i18n-title data-i18n-aria title="Lukk" aria-label="Lukk">&#10005;</button>
       </div>
     </div>
     <div class="ai-thread" id="aiThread"></div>
     <div class="ai-input-area">
       <label class="ai-include-row">
         <input type="checkbox" id="aiIncludeScript">
-        Inkluder skript fra editor (revider)
+        <span data-i18n>Inkluder skript fra editor (revider)</span>
       </label>
       <div class="ai-input-wrap">
-        <textarea id="aiInput" class="ai-input" rows="1"
+        <textarea id="aiInput" class="ai-input" rows="1" data-i18n-placeholder
           placeholder="Spør om noe... (Enter = send, Shift+Enter = ny linje)"></textarea>
-        <button type="button" class="ai-abort-btn" id="aiAbortBtn" style="display:none;" title="Avbryt pågående svar" aria-label="Avbryt">⏹ Avbryt</button>
-        <button type="button" class="ai-send-fast-btn" id="aiSendFastBtn"
+        <button type="button" class="ai-abort-btn" id="aiAbortBtn" style="display:none;" data-i18n data-i18n-title data-i18n-aria title="Avbryt pågående svar" aria-label="Avbryt">⏹ Avbryt</button>
+        <button type="button" class="ai-send-fast-btn" id="aiSendFastBtn" data-i18n-title
           title="Send spørsmål til AI (AI-modus velges i menyen)"
           aria-label="Send">Send</button>
-        <button type="button" class="ai-send-fast-btn ai-send-v2-btn" id="aiSendV2Btn"
+        <button type="button" class="ai-send-fast-btn ai-send-v2-btn" id="aiSendV2Btn" data-i18n-title
           title="Eksperimentell: 2-stegs variabelvalg + auto-retting (kan være tregere)"
           aria-label="Send (eksperimentell)">Send⚗︎</button>
-        <button type="button" class="ai-send-fast-btn ai-send-web-btn" id="aiSendWebBtn" style="display:none;" title="Web: finn åpne data og generer script (kun admin; python/r/duckdb-modus)" aria-label="Send (web)">Web</button>
+        <button type="button" class="ai-send-fast-btn ai-send-web-btn" id="aiSendWebBtn" style="display:none;" data-i18n-title title="Web: finn åpne data og generer script (kun admin; python/r/duckdb-modus)" aria-label="Send (web)">Web</button>
       </div>
     </div>
   </aside>
 
   <div class="ai-modal-backdrop" id="aiSettingsBackdrop">
     <div class="ai-modal">
-      <h3>Konto og innstillinger</h3>
+      <h3 data-i18n>Konto og innstillinger</h3>
 
       <div id="aiCfgLoggedIn" style="display:none;">
-        <div class="ai-modal-help" style="margin-bottom:6px;">Logget inn som</div>
+        <div class="ai-modal-help" style="margin-bottom:6px;" data-i18n>Logget inn som</div>
         <div id="aiCfgUserEmail" style="font-weight:600; margin-bottom:8px;"></div>
         <div id="aiCfgUserMeta" class="ai-modal-help" style="margin-bottom:14px;"></div>
         <div class="ai-modal-actions" style="margin-bottom:18px;">
-          <button type="button" class="ai-modal-btn" id="aiCfgLogout">Logg ut</button>
-          <button type="button" class="ai-modal-btn primary" id="aiCfgAdmin" style="display:none;">Åpne admin-panel</button>
+          <button type="button" class="ai-modal-btn" id="aiCfgLogout" data-i18n>Logg ut</button>
+          <button type="button" class="ai-modal-btn primary" id="aiCfgAdmin" style="display:none;" data-i18n>Åpne admin-panel</button>
         </div>
       </div>
 
       <div id="aiCfgLoggedOut">
-        <div class="ai-modal-help" style="margin-bottom:14px;">
+        <div class="ai-modal-help" style="margin-bottom:14px;" data-i18n>
           Du er ikke logget inn. AI-assistenten og online-lagring krever en konto.
         </div>
         <div class="ai-modal-actions" style="margin-bottom:18px;">
-          <button type="button" class="ai-modal-btn primary" id="aiCfgLogin">Logg inn</button>
+          <button type="button" class="ai-modal-btn primary" id="aiCfgLogin" data-i18n>Logg inn</button>
         </div>
       </div>
 
       <details style="margin-top:12px;">
-        <summary style="cursor:pointer; font-size:13px; color:var(--text-muted);">Avansert: API-base og service-token</summary>
+        <summary style="cursor:pointer; font-size:13px; color:var(--text-muted);" data-i18n>Avansert: API-base og service-token</summary>
         <div style="margin-top:10px;">
           <label for="aiCfgBaseUrl">API base-URL</label>
           <input type="text" id="aiCfgBaseUrl" placeholder="https://mdataapi.anvil.app">
-          <div class="ai-modal-help">Adressen til Anvil-appen som kjører API-et. Standard: https://mdataapi.anvil.app</div>
-          <label for="aiCfgApiKey">Service-token (kun for automatisering)</label>
-          <input type="password" id="aiCfgApiKey" placeholder="(la stå tom for vanlig bruk)">
-          <div class="ai-modal-help">Lagres lokalt. Sendes som <code>X-API-Key</code>. Brukes kun for skript / eval-harness.</div>
+          <div class="ai-modal-help" data-i18n>Adressen til Anvil-appen som kjører API-et. Standard: https://mdataapi.anvil.app</div>
+          <label for="aiCfgApiKey" data-i18n>Service-token (kun for automatisering)</label>
+          <input type="password" id="aiCfgApiKey" data-i18n-placeholder placeholder="(la stå tom for vanlig bruk)">
+          <div class="ai-modal-help" data-i18n-html>Lagres lokalt. Sendes som <code>X-API-Key</code>. Brukes kun for skript / eval-harness.</div>
         </div>
       </details>
 
       <div class="ai-modal-actions" style="margin-top:14px;">
-        <button type="button" class="ai-modal-btn" id="aiCfgCancel">Lukk</button>
-        <button type="button" class="ai-modal-btn primary" id="aiCfgSave">Lagre innstillinger</button>
+        <button type="button" class="ai-modal-btn" id="aiCfgCancel" data-i18n>Lukk</button>
+        <button type="button" class="ai-modal-btn primary" id="aiCfgSave" data-i18n>Lagre innstillinger</button>
       </div>
     </div>
   </div>
 
   <div class="ai-modal-backdrop" id="loginBackdrop">
     <div class="ai-modal" style="max-width:420px;">
-      <h3>Logg inn</h3>
+      <h3 data-i18n>Logg inn</h3>
       <div id="loginStep1">
-        <div class="ai-modal-help" style="margin-bottom:14px;">
+        <div class="ai-modal-help" style="margin-bottom:14px;" data-i18n-html>
           Skriv inn e-postadressen din. Vi sender en lenke du klikker for å logge inn.
           FHI-ansatte (<code>@fhi.no</code>) får full tilgang automatisk.
         </div>
-        <label for="loginEmail">E-post</label>
+        <label for="loginEmail" data-i18n>E-post</label>
         <input type="email" id="loginEmail" placeholder="navn@fhi.no" autocomplete="email">
-        <div class="ai-modal-help">Du får en kode på e-post som er gyldig i 30 dager.</div>
+        <div class="ai-modal-help" data-i18n>Du får en kode på e-post som er gyldig i 30 dager.</div>
         <div class="ai-modal-actions">
-          <button type="button" class="ai-modal-btn" id="loginCancel">Avbryt</button>
-          <button type="button" class="ai-modal-btn primary" id="loginSubmit">Send påloggings-lenke</button>
+          <button type="button" class="ai-modal-btn" id="loginCancel" data-i18n>Avbryt</button>
+          <button type="button" class="ai-modal-btn primary" id="loginSubmit" data-i18n>Send påloggings-lenke</button>
         </div>
         <div style="text-align: center; margin-top: 8px;">
-          <a href="#" id="loginSwitchToCode" style="font-size: 12px; color: var(--text-muted); text-decoration: underline;">Har du allerede en kode? Lim den inn her</a>
+          <a href="#" id="loginSwitchToCode" style="font-size: 12px; color: var(--text-muted); text-decoration: underline;" data-i18n>Har du allerede en kode? Lim den inn her</a>
         </div>
       </div>
       <div id="loginStep2" style="display:none;">
-        <p style="margin-bottom:12px;">✓ Vi har sendt en e-post til <strong id="loginSentEmail"></strong>.</p>
-        <div class="ai-modal-help" style="margin-bottom:14px;">
+        <p style="margin-bottom:12px;" data-i18n-html>✓ Vi har sendt en e-post til <strong id="loginSentEmail"></strong>.</p>
+        <div class="ai-modal-help" style="margin-bottom:14px;" data-i18n>
           Lim inn 3-ordskoden fra e-posten, eller klikk lenken for å logge inn direkte.
           Koden er gyldig i 30 dager og kan brukes på flere maskiner.
         </div>
-        <label for="loginCode">Kode</label>
+        <label for="loginCode" data-i18n>Kode</label>
         <input type="text" id="loginCode" placeholder="abacus-charity-twelve" autocomplete="off" spellcheck="false" style="font-family: monospace;">
         <div id="loginCodeError" style="color: var(--accent-danger, #d00); font-size: 12px; min-height: 1.2em; margin-top: 4px;"></div>
         <div class="ai-modal-actions" style="margin-top: 12px;">
-          <button type="button" class="ai-modal-btn" id="loginDone">Lukk</button>
-          <button type="button" class="ai-modal-btn primary" id="loginVerify">Logg inn</button>
+          <button type="button" class="ai-modal-btn" id="loginDone" data-i18n>Lukk</button>
+          <button type="button" class="ai-modal-btn primary" id="loginVerify" data-i18n>Logg inn</button>
         </div>
       </div>
       <div id="loginStep3" style="display:none;">
-        <p style="margin-bottom:12px;">⏳ Logger inn…</p>
+        <p style="margin-bottom:12px;" data-i18n>⏳ Logger inn…</p>
       </div>
     </div>
   </div>
 
   <div class="ai-modal-backdrop" id="welcomeBackdrop">
     <div class="ai-modal" style="max-width:600px;">
-      <h3 style="font-size:20px;">Velkommen!</h3>
-      <p style="margin:0 0 10px 0; font-size:16px; line-height:1.5;">
+      <h3 style="font-size:20px;" data-i18n>Velkommen!</h3>
+      <p style="margin:0 0 10px 0; font-size:16px; line-height:1.5;" data-i18n>
         Dette er en side der du kan øve på å kjøre analyser i microdata.no-stil.
       </p>
-      <div class="ai-modal-help" style="margin-bottom:14px; font-size:14px; line-height:1.5;">
+      <div class="ai-modal-help" style="margin-bottom:14px; font-size:14px; line-height:1.5;" data-i18n-html>
         Denne siden inneholder ikke ekte tall. Det er et hobbyprosjekt og er
         <strong>ikke</strong> laget av microdata.no selv. Den kommer uten garantier
         for at analysene er korrekt implementert.
@@ -367,10 +367,10 @@
                     color:var(--text-muted); margin-top:12px; text-transform:none;
                     letter-spacing:0;">
         <input type="checkbox" id="welcomeDontShow" style="margin:0;">
-        Ikke vis denne meldingen igjen
+        <span data-i18n>Ikke vis denne meldingen igjen</span>
       </label>
       <div class="ai-modal-actions">
-        <button type="button" class="ai-modal-btn" id="welcomeNextTip" style="font-size:14px; padding:8px 16px;">Vis et nytt tips</button>
+        <button type="button" class="ai-modal-btn" id="welcomeNextTip" style="font-size:14px; padding:8px 16px;" data-i18n>Vis et nytt tips</button>
         <button type="button" class="ai-modal-btn primary" id="welcomeOk" style="font-size:14px; padding:8px 16px;">OK</button>
       </div>
     </div>
@@ -378,24 +378,24 @@
   </div>
   <footer class="bottombar">
     <div class="bottombar-left">
-      <button type="button" class="bottombar-icon-btn" id="layoutStackedBtn" title="Stablevisning (kode over, output under)" aria-label="Stablevisning" aria-pressed="false">
+      <button type="button" class="bottombar-icon-btn" id="layoutStackedBtn" data-i18n-title data-i18n-aria title="Stablevisning (kode over, output under)" aria-label="Stablevisning" aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect class="icon-solid" x="4" y="4" width="16" height="7" rx="1"/>
           <rect class="icon-outline" x="4" y="13" width="16" height="7" rx="1"/>
         </svg>
       </button>
-      <button type="button" class="bottombar-icon-btn" id="layoutColumnsBtn" title="Kolonnevisning (kode og output side ved side)" aria-label="Kolonnevisning" aria-pressed="true">
+      <button type="button" class="bottombar-icon-btn" id="layoutColumnsBtn" data-i18n-title data-i18n-aria title="Kolonnevisning (kode og output side ved side)" aria-label="Kolonnevisning" aria-pressed="true">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect class="icon-solid" x="3" y="4" width="8" height="16" rx="1"/>
           <rect class="icon-outline" x="13" y="4" width="8" height="16" rx="1"/>
         </svg>
       </button>
-      <button type="button" class="bottombar-icon-btn" id="layoutOutputBtn" title="Skjul/vis inndatapanel (bare output)" aria-label="Skjul inndatapanel" aria-pressed="false">
+      <button type="button" class="bottombar-icon-btn" id="layoutOutputBtn" data-i18n-title data-i18n-aria title="Skjul/vis inndatapanel (bare output)" aria-label="Skjul inndatapanel" aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect class="icon-solid" x="4" y="4" width="16" height="16" rx="1"/>
         </svg>
       </button>
-      <button type="button" class="bottombar-icon-btn" id="csvToolBtn" title="CSV omkodingsverktøy" aria-label="CSV omkodingsverktøy">
+      <button type="button" class="bottombar-icon-btn" id="csvToolBtn" data-i18n-title data-i18n-aria title="CSV omkodingsverktøy" aria-label="CSV omkodingsverktøy">
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
           <path d="M4 8h12M13 5.5L16 8l-3 2.5"/>
           <path d="M20 16H8M11 13.5L8 16l3 2.5"/>
@@ -403,7 +403,7 @@
       </button>
       <div style="width:1px;height:20px;background:var(--border);margin:0 6px;flex-shrink:0"></div>
       <div class="mode-dropdown-wrap">
-        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" title="Velg modus (Microdata, Python, R, Statx, jamovi, DuckDB, SafeStat)">
+        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg modus (Microdata, Python, R, Statx, jamovi, DuckDB, SafeStat)">
           <span id="editorModeLabel">Microdata</span>
           <span class="chevron">▲</span>
         </button>
@@ -417,35 +417,35 @@
           <button type="button" data-mode="safestat">SafeStat</button>
         </div>
       </div>
-      <button type="button" class="btn btn-tolk" id="btnDmQuick" style="display:none;gap:6px" title="Vurder personvern: sjekk om scriptet henter mer detaljerte data enn n&#248;dvendig (dataminimering), og f&#229; forslag til &#229; aggregere/forenkle. Krever innlogging.">
+      <button type="button" class="btn btn-tolk" id="btnDmQuick" style="display:none;gap:6px" data-i18n-title title="Vurder personvern: sjekk om scriptet henter mer detaljerte data enn n&#248;dvendig (dataminimering), og f&#229; forslag til &#229; aggregere/forenkle. Krever innlogging.">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/></svg>
-        Vurder personvern
+        <span data-i18n>Vurder personvern</span>
       </button>
       <button type="button" class="oversett-btn" id="oversettBtn" style="display:none">Oversett</button>
     </div>
     <div class="bottombar-center">
-      <input type="text" class="bottombar-ask" id="topbarAsk" placeholder="Hva vil du undersøke?" aria-label="Spør AI" autocomplete="off" title="Skriv et spørsmål og trykk Enter — AI-panelet åpnes og svarer" style="display:none">
+      <input type="text" class="bottombar-ask" id="topbarAsk" data-i18n-placeholder data-i18n-aria data-i18n-title placeholder="Hva vil du undersøke?" aria-label="Spør AI" autocomplete="off" title="Skriv et spørsmål og trykk Enter — AI-panelet åpnes og svarer" style="display:none">
     </div>
     <div class="bottombar-right">
       <span class="status" id="rightStatus"></span>
-      <button type="button" class="btn btn-tolk" id="btnTolkFooter" style="display:none" title="Tolk resultatene (output) med AI i sidemenyen">Tolk resultat</button>
+      <button type="button" class="btn btn-tolk" id="btnTolkFooter" style="display:none" data-i18n data-i18n-title title="Tolk resultatene (output) med AI i sidemenyen">Tolk resultat</button>
       <button class="btn btn-primary btn-run" id="btnRunFooter" type="button" disabled>
         <span class="btn-run-inner">
           <span class="btn-run-icon-slot" aria-hidden="true"><span class="btn-run-spinner"></span></span>
-          <span class="btn-run-label">Venter</span>
+          <span class="btn-run-label" data-i18n>Venter</span>
         </span>
       </button>
-      <div class="forklar-dock" id="forklarDock" role="toolbar" aria-label="Forklar avspilling" aria-hidden="true">
-        <button type="button" class="forklar-dock-btn" id="forklarDockPrev" disabled title="Forrige blokk" aria-label="Forrige blokk">
+      <div class="forklar-dock" id="forklarDock" role="toolbar" data-i18n-aria aria-label="Forklar avspilling" aria-hidden="true">
+        <button type="button" class="forklar-dock-btn" id="forklarDockPrev" disabled data-i18n-title data-i18n-aria title="Forrige blokk" aria-label="Forrige blokk">
           <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
         </button>
-        <button type="button" class="forklar-dock-btn" id="forklarDockPlayPause" disabled title="Pause" aria-label="Pause forklaring">
+        <button type="button" class="forklar-dock-btn" id="forklarDockPlayPause" disabled data-i18n-aria title="Pause" aria-label="Pause forklaring">
           <svg class="forklar-dock-pp-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.75"/><g class="forklar-dock-pp-pause"><path d="M10 9v6M14 9v6" stroke="currentColor" stroke-width="1.75"/></g><path class="forklar-dock-pp-play" d="M10 8l7 4-7 4V8z" fill="currentColor"/></svg>
         </button>
-        <button type="button" class="forklar-dock-btn" id="forklarDockNext" disabled title="Neste" aria-label="Neste">
+        <button type="button" class="forklar-dock-btn" id="forklarDockNext" disabled data-i18n-title data-i18n-aria title="Neste" aria-label="Neste">
           <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
         </button>
-        <button type="button" class="forklar-dock-btn forklar-dock-btn--abort" id="forklarDockAbort" title="Avbryt forklaring" aria-label="Avbryt forklaring">
+        <button type="button" class="forklar-dock-btn forklar-dock-btn--abort" id="forklarDockAbort" data-i18n-title data-i18n-aria title="Avbryt forklaring" aria-label="Avbryt forklaring">
           <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
       </div>
@@ -455,156 +455,163 @@
   <div class="csv-tool-overlay" id="csvToolOverlay" role="dialog" aria-modal="true" aria-labelledby="csvToolTitle" aria-hidden="true">
     <div class="csv-tool-dialog">
       <div class="csv-tool-header">
-        <h2 class="csv-tool-title" id="csvToolTitle">CSV omkodingsverktøy</h2>
-        <button type="button" class="csv-tool-close" id="csvToolCloseBtn" title="Lukk" aria-label="Lukk">&#10005;</button>
+        <h2 class="csv-tool-title" id="csvToolTitle" data-i18n>CSV omkodingsverktøy</h2>
+        <button type="button" class="csv-tool-close" id="csvToolCloseBtn" data-i18n-title data-i18n-aria title="Lukk" aria-label="Lukk">&#10005;</button>
       </div>
       <div class="csv-tool-body" id="csvToolBody">
-        <p>Genererer et recode-uttrykk fra korrespondansetabell i opplastet csv-fil.</p>
-        <p>Formatet er basert på SSBs egne klassifikasjoner og kodelister: <a href="https://www.ssb.no/klass" target="_blank" rel="noopener noreferrer">ssb.no/klass</a> under «korrespondanser».</p>
-        <p>Tabellen må være en semikolon-separert csv-fil med følgende kolonner:<br>fra-kode, fra-navn, til-kode og til-navn</p>
-        <p>Tabellen må også inneholde en første linje som beskriver de etterfølgende kolonnene. Om denne inneholder de tre verdiene &lsquo;sourceCode&rsquo;, &lsquo;targetCode&rsquo; og &lsquo;targetName&rsquo;, så vil kolonnene under disse bli definert som hhv. fra-kode, fra-navn og til-kode. Om disse ikke er definert vil standardoppsettet fra over brukes. Kolonnen &lsquo;targetCode&rsquo; kan unnlates om du ikke vil sette en label på den omkodede verdien.</p>
-        <p><strong>Eksempel</strong></p>
-        <p>Utsnitt fra korrespondansetabell mellom økonomiske regioner og kommuner. Denne tabellen har kolonnene i standardoppsett.</p>
+        <p data-i18n>Genererer et recode-uttrykk fra korrespondansetabell i opplastet csv-fil.</p>
+        <p data-i18n-html>Formatet er basert på SSBs egne klassifikasjoner og kodelister: <a href="https://www.ssb.no/klass" target="_blank" rel="noopener noreferrer">ssb.no/klass</a> under «korrespondanser».</p>
+        <p data-i18n-html>Tabellen må være en semikolon-separert csv-fil med følgende kolonner:<br>fra-kode, fra-navn, til-kode og til-navn</p>
+        <p data-i18n>Tabellen må også inneholde en første linje som beskriver de etterfølgende kolonnene. Om denne inneholder de tre verdiene &lsquo;sourceCode&rsquo;, &lsquo;targetCode&rsquo; og &lsquo;targetName&rsquo;, så vil kolonnene under disse bli definert som hhv. fra-kode, fra-navn og til-kode. Om disse ikke er definert vil standardoppsettet fra over brukes. Kolonnen &lsquo;targetCode&rsquo; kan unnlates om du ikke vil sette en label på den omkodede verdien.</p>
+        <p><strong data-i18n>Eksempel</strong></p>
+        <p data-i18n>Utsnitt fra korrespondansetabell mellom økonomiske regioner og kommuner. Denne tabellen har kolonnene i standardoppsett.</p>
         <pre class="csv-tool-example">'sourceCode'	;	'sourceName'	;	'targetCode'	;	'targetName'
 '03001'	;	'Oslo'	;	'0301'	;	'Oslo'
 '11001'	;	'Dalane'	;	'1101'	;	'Eigersund'
 '11001'	;	'Dalane'	;	'1111'	;	'Sokndal'</pre>
-        <p>Dette vil generere recode-uttrykket</p>
+        <p data-i18n>Dette vil generere recode-uttrykket</p>
         <pre class="csv-tool-example">recode variable ('03001' = '0301' 'Oslo') ('11001' = '1101' 'Eigersund') ('11001' = '1111' 'Sokndal')</pre>
-        <p>Om du heller vil omkode fra kommuner til økonomiske regioner og invertere tabellen, kan da verdiene i den første linjen, sourceCode/sourceName og targetCode/targetName bytte plass, og resten av verdiene stå som før</p>
+        <p data-i18n>Om du heller vil omkode fra kommuner til økonomiske regioner og invertere tabellen, kan da verdiene i den første linjen, sourceCode/sourceName og targetCode/targetName bytte plass, og resten av verdiene stå som før</p>
         <pre class="csv-tool-example">'targetCode'	;	'targetName'	;	'sourceCode'	;	'sourceName'</pre>
-        <p>vil generere</p>
+        <p data-i18n>vil generere</p>
         <pre class="csv-tool-example">recode variable ('0301' = '03001' 'Oslo') ('1101' '1111' = '11001' 'Dalane')</pre>
         <div class="csv-tool-actions">
-          <button type="button" class="btn btn-primary" id="csvToolUploadBtn">Last opp csv</button>
-          <button type="button" class="btn btn-secondary" id="csvToolCopyBtn" disabled>Kopier recode</button>
+          <button type="button" class="btn btn-primary" id="csvToolUploadBtn" data-i18n>Last opp csv</button>
+          <button type="button" class="btn btn-secondary" id="csvToolCopyBtn" disabled data-i18n>Kopier recode</button>
         </div>
-        <label for="csvToolOutput" class="var-detail-section-title" style="display:block;margin-top:14px;">Generert recode</label>
-        <textarea id="csvToolOutput" class="csv-tool-out" readonly rows="6" placeholder="Last opp en fil for å generere recode-uttrykk her."></textarea>
+        <label for="csvToolOutput" class="var-detail-section-title" style="display:block;margin-top:14px;" data-i18n>Generert recode</label>
+        <textarea id="csvToolOutput" class="csv-tool-out" readonly rows="6" data-i18n-placeholder placeholder="Last opp en fil for å generere recode-uttrykk her."></textarea>
       </div>
       <div class="csv-tool-buttons">
-        <button type="button" class="btn btn-secondary" id="csvToolOkBtn">Lukk</button>
+        <button type="button" class="btn btn-secondary" id="csvToolOkBtn" data-i18n>Lukk</button>
       </div>
     </div>
   </div>
   <input type="file" id="csvToolFileInput" accept=".csv,text/csv,text/plain" style="display:none">
 
-  <div class="settings-overlay" id="settingsOverlay" role="dialog" aria-modal="true" aria-label="Innstillinger">
+  <div class="settings-overlay" id="settingsOverlay" role="dialog" aria-modal="true" data-i18n-aria aria-label="Innstillinger">
     <div class="settings-dialog">
-      <div class="settings-header"><h2>&#9881; Innstillinger</h2></div>
+      <div class="settings-header"><h2 data-i18n>&#9881; Innstillinger</h2></div>
       <div class="settings-body">
         <div class="settings-field">
-          <label for="settingImportLimit">Antall observasjoner ved import</label>
-          <input type="number" id="settingImportLimit" min="10" max="100000" step="100" value="10000">
-          <p class="settings-hint">Maks antall rader per import-kommando (10 – 100 000).</p>
+          <label for="settingLanguage">Spr&#229;k / Language</label>
+          <select id="settingLanguage">
+            <option value="no">Norsk</option>
+            <option value="en">English</option>
+          </select>
         </div>
         <div class="settings-field">
-          <label for="settingDecimals">Desimaler i tabeller</label>
+          <label for="settingImportLimit" data-i18n>Antall observasjoner ved import</label>
+          <input type="number" id="settingImportLimit" min="10" max="100000" step="100" value="10000">
+          <p class="settings-hint" data-i18n>Maks antall rader per import-kommando (10 – 100 000).</p>
+        </div>
+        <div class="settings-field">
+          <label for="settingDecimals" data-i18n>Desimaler i tabeller</label>
           <select id="settingDecimals">
             <option value="0">0</option>
             <option value="1">1</option>
-            <option value="2" selected>2 (standard)</option>
+            <option value="2" selected data-i18n>2 (standard)</option>
             <option value="3">3</option>
             <option value="4">4</option>
             <option value="5">5</option>
           </select>
-          <p class="settings-hint">Antall desimaler i tabellutdata. Tall mindre enn 1 f&#229;r automatisk ekstra desimaler for &#229; vise signifikante siffer.</p>
+          <p class="settings-hint" data-i18n>Antall desimaler i tabellutdata. Tall mindre enn 1 f&#229;r automatisk ekstra desimaler for &#229; vise signifikante siffer.</p>
         </div>
         <div class="settings-field">
-          <label for="settingLabelFormat">Etiketter i tabulate</label>
+          <label for="settingLabelFormat" data-i18n>Etiketter i tabulate</label>
           <select id="settingLabelFormat">
-            <option value="both" selected>Kode og etikett (standard)</option>
-            <option value="label">Bare etikett</option>
-            <option value="code">Bare kode</option>
+            <option value="both" selected data-i18n>Kode og etikett (standard)</option>
+            <option value="label" data-i18n>Bare etikett</option>
+            <option value="code" data-i18n>Bare kode</option>
           </select>
-          <p class="settings-hint">Standardvisning i <code>tabulate</code>. Kan overstyres per kommando med opsjonene <code>nolabels</code> / <code>novalues</code>, eller per script med <code>// m2py: label-format=both|label|code</code>.</p>
+          <p class="settings-hint" data-i18n-html>Standardvisning i <code>tabulate</code>. Kan overstyres per kommando med opsjonene <code>nolabels</code> / <code>novalues</code>, eller per script med <code>// m2py: label-format=both|label|code</code>.</p>
         </div>
         <div class="settings-field">
-          <label for="settingShowCommands">Kommando-echo i output (Python/R)</label>
+          <label for="settingShowCommands" data-i18n>Kommando-echo i output (Python/R)</label>
           <select id="settingShowCommands">
-            <option value="on" selected>P&#229; (standard)</option>
-            <option value="off">Av</option>
+            <option value="on" selected data-i18n>P&#229; (standard)</option>
+            <option value="off" data-i18n>Av</option>
           </select>
-          <p class="settings-hint">Om hver setning gjentas med <code>&gt;&gt;&gt;</code> rett over outputen den lager. Kan overstyres per script med <code>#options.show_commands=False</code>.</p>
+          <p class="settings-hint" data-i18n-html>Om hver setning gjentas med <code>&gt;&gt;&gt;</code> rett over outputen den lager. Kan overstyres per script med <code>#options.show_commands=False</code>.</p>
         </div>
         <div class="settings-field">
-          <label for="settingFontSize">Skriftstørrelse</label>
+          <label for="settingFontSize" data-i18n>Skriftstørrelse</label>
           <select id="settingFontSize">
-            <option value="small">Liten</option>
-            <option value="">Normal</option>
-            <option value="large">Stor</option>
-            <option value="xlarge">Ekstra stor</option>
+            <option value="small" data-i18n>Liten</option>
+            <option value="" data-i18n>Normal</option>
+            <option value="large" data-i18n>Stor</option>
+            <option value="xlarge" data-i18n>Ekstra stor</option>
           </select>
         </div>
         <div class="settings-field">
-          <label>Talehastighet – Kjør skrittvis</label>
+          <label data-i18n>Talehastighet – Kjør skrittvis</label>
           <div class="range-row">
             <input type="range" id="settingTtsRate" min="0.5" max="2.0" step="0.1" value="1.0">
             <span class="settings-range-val" id="settingTtsRateVal">1.0&times;</span>
           </div>
-          <p class="settings-hint">Hastigheten p&#229; opplesing av kommentarer (0.5 – 2.0).</p>
+          <p class="settings-hint" data-i18n>Hastigheten p&#229; opplesing av kommentarer (0.5 – 2.0).</p>
         </div>
         <div class="settings-field">
-          <label for="settingBlockPause">Pause mellom kommentarl&#248;se blokker (sekunder)</label>
+          <label for="settingBlockPause" data-i18n>Pause mellom kommentarl&#248;se blokker (sekunder)</label>
           <input type="number" id="settingBlockPause" min="0" max="10" step="0.1" value="1.0">
-          <p class="settings-hint">Ventetid etter blokker uten kommentarer i Kj&#248;r skrittvis. 0 = ingen pause.</p>
+          <p class="settings-hint" data-i18n>Ventetid etter blokker uten kommentarer i Kj&#248;r skrittvis. 0 = ingen pause.</p>
         </div>
         <div class="settings-field">
-          <label>Avsl&#248;ringskontroll</label>
-          <button type="button" class="btn btn-secondary" id="menuDisclosureControl" title="Når PÅ: matcher microdata.no — pseudonym-validering, type-sjekk, min populasjon 1000, små celler skjules, winsorisering, persentiler avrundes. Når AV: alle regler er slått av og du ser rå tall.">Avsl&#248;ringskontroll: AV</button>
-          <p class="settings-hint">N&#229;r P&#197;: matcher microdata.no &mdash; pseudonym-validering, type-sjekk, min populasjon 1000, sm&#229; celler skjules, winsorisering, persentiler avrundes. N&#229;r AV: alle regler er sl&#229;tt av og du ser r&#229; tall.</p>
+          <label data-i18n>Avsl&#248;ringskontroll</label>
+          <button type="button" class="btn btn-secondary" id="menuDisclosureControl" data-i18n-title title="Når PÅ: matcher microdata.no — pseudonym-validering, type-sjekk, min populasjon 1000, små celler skjules, winsorisering, persentiler avrundes. Når AV: alle regler er slått av og du ser rå tall.">Avsl&#248;ringskontroll: AV</button>
+          <p class="settings-hint" data-i18n>N&#229;r P&#197;: matcher microdata.no &mdash; pseudonym-validering, type-sjekk, min populasjon 1000, sm&#229; celler skjules, winsorisering, persentiler avrundes. N&#229;r AV: alle regler er sl&#229;tt av og du ser r&#229; tall.</p>
         </div>
         <div class="settings-field">
-          <label>Avsl&#248;ringsterskler</label>
+          <label data-i18n>Avsl&#248;ringsterskler</label>
           <div class="range-row" style="gap:6px;flex-wrap:wrap;">
-            <label for="settingDcMinPop" style="font-size:12px;flex:1 1 46%;">Min. populasjon (T1)
+            <label for="settingDcMinPop" style="font-size:12px;flex:1 1 46%;"><span data-i18n>Min. populasjon (T1)</span>
               <input type="number" id="settingDcMinPop" min="1" step="1" value="1000" style="width:100%;"></label>
-            <label for="settingDcLowCell" style="font-size:12px;flex:1 1 46%;">Min. cellefrekvens (T5)
+            <label for="settingDcLowCell" style="font-size:12px;flex:1 1 46%;"><span data-i18n>Min. cellefrekvens (T5)</span>
               <input type="number" id="settingDcLowCell" min="1" step="1" value="5" style="width:100%;"></label>
-            <label for="settingDcMinAffected" style="font-size:12px;flex:1 1 46%;">Min. p&#229;virkede rader (T6)
+            <label for="settingDcMinAffected" style="font-size:12px;flex:1 1 46%;"><span data-i18n>Min. p&#229;virkede rader (T6)</span>
               <input type="number" id="settingDcMinAffected" min="1" step="1" value="10" style="width:100%;"></label>
-            <label for="settingDcMinSummarize" style="font-size:12px;flex:1 1 46%;">Min. populasjon, statistikk (T7)
+            <label for="settingDcMinSummarize" style="font-size:12px;flex:1 1 46%;"><span data-i18n>Min. populasjon, statistikk (T7)</span>
               <input type="number" id="settingDcMinSummarize" min="1" step="1" value="10" style="width:100%;"></label>
           </div>
-          <p class="settings-hint">Tersklene microdata.no bruker. Mock-populasjonen er mindre enn ekte data, s&#229; standardene (1000/5/10/10) stopper ofte mer enn de ville p&#229; ekte register &mdash; senk dem her ved behov. Skaleres ikke automatisk. Gjelder bare n&#229;r avsl&#248;ringskontroll er P&#197;.</p>
+          <p class="settings-hint" data-i18n>Tersklene microdata.no bruker. Mock-populasjonen er mindre enn ekte data, s&#229; standardene (1000/5/10/10) stopper ofte mer enn de ville p&#229; ekte register &mdash; senk dem her ved behov. Skaleres ikke automatisk. Gjelder bare n&#229;r avsl&#248;ringskontroll er P&#197;.</p>
         </div>
         <div class="settings-field">
-          <label>Datakilde</label>
-          <button type="button" class="btn btn-secondary" id="menuDataSource" title="Dynamisk: variabler genereres på nytt ved hver kjøring (standard). Statisk: import laster fra ferdige, konsistente datafiler (static_data/*.parquet) via DuckDB-WASM. Variabler/datoer som ikke finnes statisk faller tilbake til generering. Kan også settes per script med // m2py: data-source=static.">Datakilde: Dynamisk</button>
-          <p class="settings-hint">Dynamisk = generer ved kjøring (standard). Statisk = last fra <code>static_data/*.parquet</code> (krever at filene er tilgjengelige). Per script: <code>// m2py: data-source=static</code>.</p>
+          <label data-i18n>Datakilde</label>
+          <button type="button" class="btn btn-secondary" id="menuDataSource" data-i18n-title title="Dynamisk: variabler genereres på nytt ved hver kjøring (standard). Statisk: import laster fra ferdige, konsistente datafiler (static_data/*.parquet) via DuckDB-WASM. Variabler/datoer som ikke finnes statisk faller tilbake til generering. Kan også settes per script med // m2py: data-source=static.">Datakilde: Dynamisk</button>
+          <p class="settings-hint" data-i18n-html>Dynamisk = generer ved kjøring (standard). Statisk = last fra <code>static_data/*.parquet</code> (krever at filene er tilgjengelige). Per script: <code>// m2py: data-source=static</code>.</p>
         </div>
         <div class="settings-field">
-          <label>AI-svar</label>
-          <button type="button" class="btn btn-secondary" id="menuAiMode" title="Sykler Send-knappen mellom rask AI (enkelt svar), Anvil-AI (full vurdering med reparasjonsloop) og — for admin i python/r/duckdb-modus — Web (agentisk websøk + generering med auto-kjøring og reparasjon)">AI-svar: Rask</button>
-          <p class="settings-hint">Sykler mellom rask AI (enkelt svar), Anvil-AI (full vurdering med reparasjonsloop) og — kun for admin, i python/r/duckdb-modus — Web (websøk etter data + generering, med auto-kjøring og inntil 3 reparasjonsrunder).</p>
+          <label data-i18n>AI-svar</label>
+          <button type="button" class="btn btn-secondary" id="menuAiMode" data-i18n-title title="Sykler Send-knappen mellom rask AI (enkelt svar), Anvil-AI (full vurdering med reparasjonsloop) og — for admin i python/r/duckdb-modus — Web (agentisk websøk + generering med auto-kjøring og reparasjon)">AI-svar: Rask</button>
+          <p class="settings-hint" data-i18n>Sykler mellom rask AI (enkelt svar), Anvil-AI (full vurdering med reparasjonsloop) og — kun for admin, i python/r/duckdb-modus — Web (websøk etter data + generering, med auto-kjøring og inntil 3 reparasjonsrunder).</p>
         </div>
       </div>
       <div class="settings-buttons">
-        <button type="button" class="btn btn-secondary" id="settingsCancelBtn">Avbryt</button>
-        <button type="button" class="btn btn-primary" id="settingsSaveBtn">Lagre</button>
+        <button type="button" class="btn btn-secondary" id="settingsCancelBtn" data-i18n>Avbryt</button>
+        <button type="button" class="btn btn-primary" id="settingsSaveBtn" data-i18n>Lagre</button>
       </div>
     </div>
   </div>
 
-  <div class="settings-overlay" id="uploadDataOverlay" role="dialog" aria-modal="true" aria-label="Last opp data">
+  <div class="settings-overlay" id="uploadDataOverlay" role="dialog" aria-modal="true" data-i18n-aria aria-label="Last opp data">
     <div class="settings-dialog" style="max-width:480px">
-      <div class="settings-header"><h2>Last opp data</h2></div>
+      <div class="settings-header"><h2 data-i18n>Last opp data</h2></div>
       <div class="settings-body">
         <div class="settings-field">
-          <label>Fil</label>
+          <label data-i18n>Fil</label>
           <input type="file" id="uploadDataFileInput" accept=".csv,.tsv,.tab,.xlsx,.xls,.json,.parquet,.dta,.sav,.feather,.sas7bdat">
           <p class="settings-hint" id="uploadDataFileHint"></p>
         </div>
         <div class="settings-field">
-          <label for="uploadDataName">Datasett-navn</label>
-          <input type="text" id="uploadDataName" placeholder="f.eks. mine_data">
-          <p class="settings-hint">Navnet datasettet f&#229;r i scriptet og sidepanelet.</p>
+          <label for="uploadDataName" data-i18n>Datasett-navn</label>
+          <input type="text" id="uploadDataName" data-i18n-placeholder placeholder="f.eks. mine_data">
+          <p class="settings-hint" data-i18n>Navnet datasettet f&#229;r i scriptet og sidepanelet.</p>
         </div>
         <div class="settings-field">
           <label for="uploadDataFormat">Format</label>
           <select id="uploadDataFormat">
             <option value="csv">CSV</option>
-            <option value="tsv">TSV (tab-separert)</option>
+            <option value="tsv" data-i18n>TSV (tab-separert)</option>
             <option value="excel">Excel (.xlsx / .xls)</option>
             <option value="json">JSON</option>
             <option value="parquet">Parquet</option>
@@ -626,43 +633,43 @@
         <div class="settings-field" id="uploadDataSepField">
           <label for="uploadDataSep">Separator</label>
           <select id="uploadDataSep">
-            <option value="," selected>Komma (,)</option>
-            <option value=";">Semikolon (;)</option>
+            <option value="," selected data-i18n>Komma (,)</option>
+            <option value=";" data-i18n>Semikolon (;)</option>
             <option value="&#9;">Tab</option>
             <option value="|">Pipe (|)</option>
           </select>
         </div>
         <div class="settings-field" id="uploadDataSheetField" style="display:none">
-          <label for="uploadDataSheet">Arknavn / nummer</label>
-          <input type="text" id="uploadDataSheet" placeholder="0 (f&#248;rste ark)" value="0">
-          <p class="settings-hint">Arknavn (tekst) eller indeks (0 = f&#248;rste).</p>
+          <label for="uploadDataSheet" data-i18n>Arknavn / nummer</label>
+          <input type="text" id="uploadDataSheet" data-i18n-placeholder placeholder="0 (f&#248;rste ark)" value="0">
+          <p class="settings-hint" data-i18n>Arknavn (tekst) eller indeks (0 = f&#248;rste).</p>
         </div>
-        <div id="uploadDataSizeWarn" style="display:none;padding:10px 12px;margin-top:8px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;font-size:13px;color:#92400e;">
+        <div id="uploadDataSizeWarn" style="display:none;padding:10px 12px;margin-top:8px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;font-size:13px;color:#92400e;" data-i18n>
           Filen er stor. Innlasting kan ta tid og bruke mye minne i nettleseren.
         </div>
       </div>
       <div class="settings-buttons">
-        <button type="button" class="btn btn-secondary" id="uploadDataCancelBtn">Avbryt</button>
-        <button type="button" class="btn btn-primary" id="uploadDataLoadBtn">Last inn</button>
+        <button type="button" class="btn btn-secondary" id="uploadDataCancelBtn" data-i18n>Avbryt</button>
+        <button type="button" class="btn btn-primary" id="uploadDataLoadBtn" data-i18n>Last inn</button>
       </div>
     </div>
   </div>
 
   <div class="settings-overlay" id="webExamplesOverlay" role="dialog" aria-modal="true" aria-label="Web-eksempler">
     <div class="settings-dialog web-examples-dialog">
-      <div class="settings-header"><h2>Web-eksempler</h2></div>
+      <div class="settings-header"><h2 data-i18n>Web-eksempler</h2></div>
       <div class="web-examples-body">
-        <div class="web-examples-pane" id="webExCategories" role="listbox" aria-label="Kategorier"></div>
+        <div class="web-examples-pane" id="webExCategories" role="listbox" data-i18n-aria aria-label="Kategorier"></div>
         <div class="web-examples-pane" id="webExScripts" role="listbox" aria-label="Scripts"></div>
       </div>
       <div class="settings-buttons">
-        <button type="button" class="btn btn-secondary" id="webExCancelBtn">Avbryt</button>
-        <button type="button" class="btn btn-primary" id="webExLoadBtn" disabled>Last inn</button>
+        <button type="button" class="btn btn-secondary" id="webExCancelBtn" data-i18n>Avbryt</button>
+        <button type="button" class="btn btn-primary" id="webExLoadBtn" disabled data-i18n>Last inn</button>
       </div>
     </div>
   </div>
 
-  <div class="help-modal-overlay" id="helpModalOverlay" role="dialog" aria-modal="true" aria-label="Hjelp">
+  <div class="help-modal-overlay" id="helpModalOverlay" role="dialog" aria-modal="true" data-i18n-aria aria-label="Hjelp">
     <div class="help-modal-dialog">
       <div class="help-modal-header" id="helpModalHeader" style="display:none">
         <div class="help-modal-kicker" id="helpModalKicker"></div>
@@ -670,8 +677,8 @@
       </div>
       <div class="help-modal-body" id="helpModalContent"></div>
       <div class="help-modal-buttons">
-        <button type="button" class="btn btn-secondary" id="helpModalOk">Lukk</button>
-        <button type="button" class="btn btn-primary" id="helpModalMore" style="display:none">Mer informasjon</button>
+        <button type="button" class="btn btn-secondary" id="helpModalOk" data-i18n>Lukk</button>
+        <button type="button" class="btn btn-primary" id="helpModalMore" style="display:none" data-i18n>Mer informasjon</button>
       </div>
     </div>
   </div>
@@ -680,10 +687,10 @@
       <div class="var-detail-header">
         <h2 class="var-detail-title" id="varDetailTitle"></h2>
         <div class="var-detail-header-actions">
-          <button type="button" class="var-detail-expand-btn" id="varDetailExpandBtn" title="Utvid vinduet vertikalt" aria-label="Utvid vertikalt">
+          <button type="button" class="var-detail-expand-btn" id="varDetailExpandBtn" data-i18n-title data-i18n-aria title="Utvid vinduet vertikalt" aria-label="Utvid vertikalt">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M8 9l4-4 4 4M8 15l4 4 4-4"/></svg>
           </button>
-          <button type="button" id="varDetailCloseBtn" title="Lukk" aria-label="Lukk">&#10005;</button>
+          <button type="button" id="varDetailCloseBtn" data-i18n-title data-i18n-aria title="Lukk" aria-label="Lukk">&#10005;</button>
         </div>
       </div>
       <div class="var-detail-body" id="varDetailBody"></div>
@@ -692,13 +699,13 @@
   <div class="individata-overlay" id="individataOverlay" role="dialog" aria-modal="true" aria-labelledby="individataTitle" aria-hidden="true">
     <div class="individata-dialog">
       <div class="individata-header">
-        <h2 class="individata-title" id="individataTitle">Datasett</h2>
+        <h2 class="individata-title" id="individataTitle" data-i18n>Datasett</h2>
         <div class="individata-header-actions">
           <span class="individata-meta" id="individataMeta"></span>
-          <button type="button" id="individataCloseBtn" title="Lukk" aria-label="Lukk">&#10005;</button>
+          <button type="button" id="individataCloseBtn" data-i18n-title data-i18n-aria title="Lukk" aria-label="Lukk">&#10005;</button>
         </div>
       </div>
-      <div class="individata-body" id="individataBody"><div class="individata-status">Henter data &hellip;</div></div>
+      <div class="individata-body" id="individataBody"><div class="individata-status" data-i18n>Henter data &hellip;</div></div>
     </div>
   </div>
   <input type="file" id="fileInput" accept=".txt,text/plain" style="display:none">
@@ -3079,6 +3086,7 @@
       var dcSumEl    = document.getElementById('settingDcMinSummarize');
       var saveBtn   = document.getElementById('settingsSaveBtn');
       var cancelBtn = document.getElementById('settingsCancelBtn');
+      var langSel   = document.getElementById('settingLanguage');
       if (!overlay) return;
 
       rateIn.addEventListener('input', function() {
@@ -3086,6 +3094,7 @@
       });
 
       function openSettings() {
+        if (langSel) langSel.value = window.M2PY_LANG || 'no';
         limitIn.value = getImportLimit();
         fontSel.value = document.body.getAttribute('data-font-size') || '';
         rateIn.value  = getTtsRate();
@@ -3146,6 +3155,10 @@
         if (dcAffEl)  setDcThreshold('dc_min_affected', dcAffEl.value);
         if (dcSumEl)  setDcThreshold('dc_min_summarize', dcSumEl.value);
         closeSettings();
+        // Språkbytte til slutt: laster siden på nytt (kun hvis endret).
+        if (langSel && window.m2pySetLang && langSel.value !== window.M2PY_LANG) {
+          window.m2pySetLang(langSel.value);
+        }
       });
       cancelBtn.addEventListener('click', closeSettings);
       overlay.addEventListener('click', function(e) { if (e.target === overlay) closeSettings(); });
@@ -8787,82 +8800,82 @@ def _run_microdata_chunk(_code):
 
   <div id="dmResultBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 780px; max-height: 80vh; display: flex; flex-direction: column;">
-      <h3 style="font-size: 1.25em;">Dataminimering-vurdering</h3>
+      <h3 style="font-size: 1.25em;" data-i18n>Dataminimering-vurdering</h3>
       <div id="dmResultBody" style="flex: 1; overflow-y: auto; padding: 8px 0; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.5;"></div>
       <div id="dmResultStatus" style="font-size: 12px; color: var(--text-muted); padding: 4px 0;"></div>
       <div id="dmResultRevisedSection" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
-        <h4 style="margin: 0 0 8px 0;">Revidert script</h4>
+        <h4 style="margin: 0 0 8px 0;" data-i18n>Revidert script</h4>
         <pre id="dmResultRevisedCode" style="background: var(--bg); padding: 10px; border-radius: 4px; max-height: 240px; overflow-y: auto; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; margin: 0;"></pre>
         <div style="margin-top: 8px; display: flex; gap: 8px;">
-          <button type="button" id="dmResultCopyRevised" class="ai-modal-btn">Kopier revidert</button>
-          <button type="button" id="dmResultReplaceScript" class="ai-modal-btn primary">Erstatt scriptet</button>
+          <button type="button" id="dmResultCopyRevised" class="ai-modal-btn" data-i18n>Kopier revidert</button>
+          <button type="button" id="dmResultReplaceScript" class="ai-modal-btn primary" data-i18n>Erstatt scriptet</button>
         </div>
       </div>
       <div class="ai-modal-actions" style="margin-top: 8px;">
-        <button type="button" id="dmResultCancel" class="ai-modal-btn">Avbryt</button>
-        <button type="button" id="dmResultCopy" class="ai-modal-btn">Kopier</button>
-        <button type="button" id="dmResultClose" class="ai-modal-btn primary">Lukk</button>
+        <button type="button" id="dmResultCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
+        <button type="button" id="dmResultCopy" class="ai-modal-btn" data-i18n>Kopier</button>
+        <button type="button" id="dmResultClose" class="ai-modal-btn primary" data-i18n>Lukk</button>
       </div>
     </div>
   </div>
 
   <div id="dmOptionsBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 540px;">
-      <h3 style="font-size: 1.25em;">Vurder dataminimering</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+      <h3 style="font-size: 1.25em;" data-i18n>Vurder dataminimering</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n>
         AI vurderer om scriptet ditt henter og bruker minimum nødvendig data.
       </p>
 
-      <button type="button" id="dmOptToggleAdvanced" class="ai-modal-btn"
+      <button type="button" id="dmOptToggleAdvanced" class="ai-modal-btn" data-i18n-title
         title="Vis valg for språk, rapportlengde, revidert script og formål"
         style="width: 100%; text-align: left; margin: 8px 0;">⚙ Flere valg</button>
 
       <div id="dmOptAdvanced" style="display:none;">
-        <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;"
+        <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;" data-i18n-title
           title="Hvilket språk scriptet er i. «Automatisk» lar AI gjette ut fra koden.">
-          <label for="dmOptLanguage" style="min-width: 80px;">Språk:</label>
+          <label for="dmOptLanguage" style="min-width: 80px;" data-i18n>Språk:</label>
           <select id="dmOptLanguage" style="flex: 1; padding: 6px;">
-            <option value="auto">Automatisk</option>
+            <option value="auto" data-i18n>Automatisk</option>
             <option value="microdata">microdata.no</option>
             <option value="r">R</option>
             <option value="python">Python</option>
           </select>
         </div>
 
-        <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;"
+        <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;" data-i18n-title
           title="Kort: de 3–5 viktigste observasjonene. Lang: full gjennomgang av alle dimensjoner med lovreferanser.">
-          <span style="min-width: 80px;">Rapport:</span>
+          <span style="min-width: 80px;" data-i18n>Rapport:</span>
           <label style="margin-right: 16px;">
-            <input type="radio" name="dmOptDetail" value="kort" checked> Kort
+            <input type="radio" name="dmOptDetail" value="kort" checked> <span data-i18n>Kort</span>
           </label>
           <label>
-            <input type="radio" name="dmOptDetail" value="lang"> Lang
+            <input type="radio" name="dmOptDetail" value="lang"> <span data-i18n>Lang</span>
           </label>
         </div>
 
         <div style="margin: 12px 0;">
-          <label title="AI foreslår en konkret, minimert versjon av scriptet som du kan sette rett inn i editoren.">
-            <input type="checkbox" id="dmOptRevise"> Generer også revidert script
+          <label data-i18n-title title="AI foreslår en konkret, minimert versjon av scriptet som du kan sette rett inn i editoren.">
+            <input type="checkbox" id="dmOptRevise"> <span data-i18n>Generer også revidert script</span>
           </label>
           <label style="display:block; margin: 6px 0 0 22px; font-size: 13px; color: var(--text-muted);"
-            title="Lar det reviderte scriptet foreslå scrub-kommandoer (jitter, winsorize, collapse …) for å minimere/de-identifisere data. Krever at «revidert script» er på.">
-            <input type="checkbox" id="dmOptUseScrub"> Bruk scrub-kommandoer (dataminimering) i forslaget
+            data-i18n-title title="Lar det reviderte scriptet foreslå scrub-kommandoer (jitter, winsorize, collapse …) for å minimere/de-identifisere data. Krever at «revidert script» er på.">
+            <input type="checkbox" id="dmOptUseScrub"> <span data-i18n>Bruk scrub-kommandoer (dataminimering) i forslaget</span>
           </label>
         </div>
 
         <div style="margin: 16px 0 12px 0; padding-top: 12px; border-top: 1px solid var(--border);">
-          <div style="margin-bottom: 6px;">Formål og bakgrunn:</div>
-          <button type="button" id="dmOptContextBtn" class="ai-modal-btn" style="width: 100%; text-align: left;"
+          <div style="margin-bottom: 6px;" data-i18n>Formål og bakgrunn:</div>
+          <button type="button" id="dmOptContextBtn" class="ai-modal-btn" style="width: 100%; text-align: left;" data-i18n data-i18n-title
             title="Beskriv formålet med analysen, så vurderer AI ut fra det — ikke bare koden. Reduserer falske «unødvendig variabel»-treff.">Spesifiser formål / kontekst</button>
-          <p id="dmOptContextStatus" style="font-size: 12px; color: var(--text-muted); margin: 6px 0 0 0;">
+          <p id="dmOptContextStatus" style="font-size: 12px; color: var(--text-muted); margin: 6px 0 0 0;" data-i18n>
             Hvis ikke spesifisert, vurderer AI ut fra scriptet alene.
           </p>
         </div>
       </div>
 
       <div class="ai-modal-actions" style="margin-top: 16px;">
-        <button type="button" id="dmOptCancel" class="ai-modal-btn">Avbryt</button>
-        <button type="button" id="dmOptSubmit" class="ai-modal-btn primary"
+        <button type="button" id="dmOptCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
+        <button type="button" id="dmOptSubmit" class="ai-modal-btn primary" data-i18n data-i18n-title
           title="Send scriptet til AI for vurdering med valgene over (eller standardvalg).">Start vurderingen</button>
       </div>
     </div>
@@ -8870,12 +8883,12 @@ def _run_microdata_chunk(_code):
 
   <div id="dmContextBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 600px;">
-      <h3 style="font-size: 1.25em;">Formål og kontekst</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+      <h3 style="font-size: 1.25em;" data-i18n>Formål og kontekst</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n>
         Beskriv formålet og bakgrunnen for analysen. AI bruker dette for å gjøre
         en mer presis vurdering. Alt er valgfritt.
       </p>
-      <textarea id="dmContextTextarea"
+      <textarea id="dmContextTextarea" data-i18n-placeholder
                 style="width: 100%; min-height: 200px; padding: 10px; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.5; box-sizing: border-box;"
                 placeholder="Eksempler på hva som er nyttig:
 - Formålet med analysen
@@ -8886,23 +8899,23 @@ def _run_microdata_chunk(_code):
       <div style="margin-top: 12px;">
         <label>
           <input type="checkbox" id="dmContextSave" checked>
-          Lagre dette som <code>// personvern</code>-blokk i scriptet
+          <span data-i18n-html>Lagre dette som <code>// personvern</code>-blokk i scriptet</span>
         </label>
-        <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0 22px;">
+        <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0 22px;" data-i18n>
           Da plukker neste vurdering opp konteksten automatisk.
         </p>
       </div>
       <div class="ai-modal-actions" style="margin-top: 16px;">
-        <button type="button" id="dmContextCancel" class="ai-modal-btn">Avbryt</button>
-        <button type="button" id="dmContextSubmit" class="ai-modal-btn primary">Bruk</button>
+        <button type="button" id="dmContextCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
+        <button type="button" id="dmContextSubmit" class="ai-modal-btn primary" data-i18n>Bruk</button>
       </div>
     </div>
   </div>
 
   <div id="adminSharedCodeBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 520px;">
-      <h3 style="font-size: 1.25em;">Generer tilgangskode</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+      <h3 style="font-size: 1.25em;" data-i18n>Generer tilgangskode</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n>
         Lager en delt kode som hvem som helst kan lime inn for å logge inn anonymt.
         Bruk for workshop, demo eller midlertidig tilgang.
       </p>
@@ -8910,58 +8923,58 @@ def _run_microdata_chunk(_code):
       <!-- Form (shown initially) -->
       <div id="adminSharedCodeForm">
         <div style="margin: 12px 0;">
-          <label for="adminCodeLabel">Etikett (intern, kun for deg)</label>
+          <label for="adminCodeLabel" data-i18n>Etikett (intern, kun for deg)</label>
           <input type="text" id="adminCodeLabel" placeholder="workshop-2026-06-15" maxlength="100" style="width: 100%; padding: 6px;">
         </div>
 
         <div style="margin: 12px 0;">
-          <label for="adminCodeExpires">Utløper om</label>
+          <label for="adminCodeExpires" data-i18n>Utløper om</label>
           <select id="adminCodeExpires" style="padding: 6px;">
-            <option value="1">1 dag</option>
-            <option value="3" selected>3 dager</option>
-            <option value="7">1 uke</option>
-            <option value="30">30 dager</option>
-            <option value="90">90 dager</option>
+            <option value="1" data-i18n>1 dag</option>
+            <option value="3" selected data-i18n>3 dager</option>
+            <option value="7" data-i18n>1 uke</option>
+            <option value="30" data-i18n>30 dager</option>
+            <option value="90" data-i18n>90 dager</option>
           </select>
         </div>
 
         <div style="margin: 12px 0;">
-          <div>Maks antall bruk</div>
+          <div data-i18n>Maks antall bruk</div>
           <label style="display: block; margin: 4px 0;">
-            <input type="radio" name="adminCodeMaxUses" value="unlimited" checked> Ubegrenset
+            <input type="radio" name="adminCodeMaxUses" value="unlimited" checked> <span data-i18n>Ubegrenset</span>
           </label>
           <label style="display: block;">
             <input type="radio" name="adminCodeMaxUses" value="limited">
-            <input type="number" id="adminCodeMaxUsesInput" min="1" max="10000" value="25" style="width: 80px; padding: 4px;" disabled> bruk
+            <input type="number" id="adminCodeMaxUsesInput" min="1" max="10000" value="25" style="width: 80px; padding: 4px;" disabled> <span data-i18n>bruk</span>
           </label>
         </div>
 
         <div id="adminCodeError" style="color: var(--accent-danger, #d00); font-size: 12px; min-height: 1.2em;"></div>
 
         <div class="ai-modal-actions" style="margin-top: 16px;">
-          <button type="button" id="adminCodeCancel" class="ai-modal-btn">Avbryt</button>
-          <button type="button" id="adminCodeSubmit" class="ai-modal-btn primary">Generer</button>
+          <button type="button" id="adminCodeCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
+          <button type="button" id="adminCodeSubmit" class="ai-modal-btn primary" data-i18n>Generer</button>
         </div>
       </div>
 
       <!-- Result (shown after success) -->
       <div id="adminSharedCodeResult" style="display:none;">
-        <p style="margin: 12px 0 4px 0;">&#10003; Kode generert:</p>
+        <p style="margin: 12px 0 4px 0;" data-i18n>&#10003; Kode generert:</p>
         <div style="background: var(--bg); padding: 12px; border-radius: 4px; margin: 8px 0;">
           <code id="adminCodeResultCode" style="font-size: 18px; font-family: ui-monospace, monospace;"></code>
         </div>
-        <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0;">
+        <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0;" data-i18n-html>
           Utløper: <span id="adminCodeResultExpires"></span><br>
           Maks bruk: <span id="adminCodeResultMaxUses"></span>
         </p>
-        <p style="font-size: 13px; margin: 12px 0;">
+        <p style="font-size: 13px; margin: 12px 0;" data-i18n>
           Gi koden til brukere via Slack, mail, eller på papir.
           De limer den inn i login-modalen som om de fikk den på mail.
         </p>
         <div class="ai-modal-actions" style="margin-top: 16px;">
-          <button type="button" id="adminCodeCopy" class="ai-modal-btn">Kopier</button>
-          <button type="button" id="adminCodeNew" class="ai-modal-btn">Generer ny</button>
-          <button type="button" id="adminCodeClose" class="ai-modal-btn primary">Lukk</button>
+          <button type="button" id="adminCodeCopy" class="ai-modal-btn" data-i18n>Kopier</button>
+          <button type="button" id="adminCodeNew" class="ai-modal-btn" data-i18n>Generer ny</button>
+          <button type="button" id="adminCodeClose" class="ai-modal-btn primary" data-i18n>Lukk</button>
         </div>
       </div>
     </div>
@@ -8970,8 +8983,8 @@ def _run_microdata_chunk(_code):
   <!-- Åpne fra URL -->
   <div id="openUrlBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 560px;">
-      <h3 style="font-size: 1.25em;">&#197;pne script fra URL</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+      <h3 style="font-size: 1.25em;" data-i18n>&#197;pne script fra URL</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n>
         Lim inn en direkte lenke til en tekstfil. Fungerer med GitHub &laquo;raw&raquo;-lenker, GitHub gist og Dropbox.
         Innholdet hentes inn i editoren &mdash; det du har n&aring; blir erstattet.
       </p>
@@ -8980,12 +8993,12 @@ def _run_microdata_chunk(_code):
       </div>
       <div id="openUrlError" style="color: var(--accent-danger,#d00); font-size:12px; min-height:1.2em;"></div>
       <div id="openUrlRecentWrap" style="margin: 8px 0; display:none;">
-        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px;">Nylige</div>
+        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px;" data-i18n>Nylige</div>
         <div id="openUrlRecent"></div>
       </div>
       <div class="ai-modal-actions" style="margin-top:16px;">
-        <button type="button" id="openUrlCancel" class="ai-modal-btn">Avbryt</button>
-        <button type="button" id="openUrlGo" class="ai-modal-btn primary">&#197;pne</button>
+        <button type="button" id="openUrlCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
+        <button type="button" id="openUrlGo" class="ai-modal-btn primary" data-i18n>&#197;pne</button>
       </div>
     </div>
   </div>
@@ -8993,13 +9006,13 @@ def _run_microdata_chunk(_code):
   <!-- Søk om data -->
   <div id="sokDataBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 480px;">
-      <h3 style="font-size: 1.25em;">S&#248;k om data</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+      <h3 style="font-size: 1.25em;" data-i18n>S&#248;k om data</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n>
         Send en foresp&#248;rsel om tilgang til individdata.
       </p>
       <div class="ai-modal-actions" style="margin-top:16px;">
-        <button type="button" id="sokDataCancel" class="ai-modal-btn">Avbryt</button>
-        <button type="button" id="sokDataSend" class="ai-modal-btn primary">Send foresp&#248;rsel</button>
+        <button type="button" id="sokDataCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
+        <button type="button" id="sokDataSend" class="ai-modal-btn primary" data-i18n>Send foresp&#248;rsel</button>
       </div>
     </div>
   </div>
@@ -9007,13 +9020,13 @@ def _run_microdata_chunk(_code):
   <!-- Søknaden er godkjent -->
   <div id="sokDataApprovedBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 480px;">
-      <h3 style="font-size: 1.25em;">S&#248;knaden er godkjent.</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+      <h3 style="font-size: 1.25em;" data-i18n>S&#248;knaden er godkjent.</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n>
         Du har n&#229; tilgang p&#229; individdata. Du kan se data ved &#229; trykke p&#229; &laquo;Se data&raquo;.
       </p>
       <div class="ai-modal-actions" style="margin-top:16px;">
-        <button type="button" id="sokDataApprovedClose" class="ai-modal-btn">Lukk</button>
-        <button type="button" id="sokDataApprovedVis" class="ai-modal-btn primary">Se data</button>
+        <button type="button" id="sokDataApprovedClose" class="ai-modal-btn" data-i18n>Lukk</button>
+        <button type="button" id="sokDataApprovedVis" class="ai-modal-btn primary" data-i18n>Se data</button>
       </div>
     </div>
   </div>
@@ -9022,8 +9035,8 @@ def _run_microdata_chunk(_code):
   <!-- GitHub: innstillinger (oppsett) -->
   <div id="githubBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 560px;">
-      <h3 style="font-size: 1.25em;">GitHub-innstillinger</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+      <h3 style="font-size: 1.25em;" data-i18n>GitHub-innstillinger</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n-html>
         Lagre og hent scripts i ditt eget GitHub-repo. Krever et fine-grained personal access token (PAT)
         med <strong>Contents: Read and write</strong> p&aring; repoet
         (<a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener">lag token</a>).
@@ -9031,24 +9044,24 @@ def _run_microdata_chunk(_code):
       </p>
       <div style="margin:10px 0; display:flex; gap:8px; align-items:flex-end;">
         <div style="flex:1;">
-          <label for="ghProfileSelect">Profil</label>
+          <label for="ghProfileSelect" data-i18n>Profil</label>
           <select id="ghProfileSelect" style="width:100%; padding:6px;"></select>
         </div>
-        <button type="button" id="ghProfileNew" class="ai-modal-btn">Ny</button>
-        <button type="button" id="ghProfileDelete" class="ai-modal-btn">Slett</button>
+        <button type="button" id="ghProfileNew" class="ai-modal-btn" data-i18n>Ny</button>
+        <button type="button" id="ghProfileDelete" class="ai-modal-btn" data-i18n>Slett</button>
       </div>
       <div style="margin:10px 0;">
         <label for="ghPat">Token (PAT)</label>
         <div style="display:flex; gap:6px;">
           <input type="password" id="ghPat" placeholder="github_pat_&#8230;" autocomplete="off" style="flex:1; padding:6px;">
-          <button type="button" id="ghPatToggle" class="ai-modal-btn">Vis</button>
-          <button type="button" id="ghPatCopy" class="ai-modal-btn">Kopier</button>
+          <button type="button" id="ghPatToggle" class="ai-modal-btn" data-i18n>Vis</button>
+          <button type="button" id="ghPatCopy" class="ai-modal-btn" data-i18n>Kopier</button>
         </div>
       </div>
       <div style="display:flex; gap:8px;">
         <div style="flex:2;">
-          <label for="ghRepo">Repo (eier/navn)</label>
-          <input type="text" id="ghRepo" placeholder="brukernavn/mine-scripts" style="width:100%; padding:6px;">
+          <label for="ghRepo" data-i18n>Repo (eier/navn)</label>
+          <input type="text" id="ghRepo" data-i18n-placeholder placeholder="brukernavn/mine-scripts" style="width:100%; padding:6px;">
         </div>
         <div style="flex:1;">
           <label for="ghBranch">Branch</label>
@@ -9058,9 +9071,9 @@ def _run_microdata_chunk(_code):
       <div id="ghError" style="color:var(--accent-danger,#d00); font-size:12px; min-height:1.2em;"></div>
       <div id="ghStatus" style="font-size:12px; color:var(--text-muted); min-height:1.2em;"></div>
       <div class="ai-modal-actions" style="margin-top:16px;">
-        <button type="button" id="ghSettingsClose" class="ai-modal-btn">Lukk</button>
-        <button type="button" id="ghSettingsTest" class="ai-modal-btn">Test tilkobling</button>
-        <button type="button" id="ghSettingsSave" class="ai-modal-btn primary">Lagre innstillinger</button>
+        <button type="button" id="ghSettingsClose" class="ai-modal-btn" data-i18n>Lukk</button>
+        <button type="button" id="ghSettingsTest" class="ai-modal-btn" data-i18n>Test tilkobling</button>
+        <button type="button" id="ghSettingsSave" class="ai-modal-btn primary" data-i18n>Lagre innstillinger</button>
       </div>
     </div>
   </div>
@@ -9068,13 +9081,13 @@ def _run_microdata_chunk(_code):
   <!-- GitHub: filvelger -->
   <div id="ghPickerBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 600px; max-height: 80vh; display: flex; flex-direction: column;">
-      <h3 style="font-size: 1.25em;">&#197;pne fil fra GitHub</h3>
-      <input type="text" id="ghPickerFilter" placeholder="Filtrer filer&#8230;" style="width:100%; padding:6px; margin:8px 0;">
+      <h3 style="font-size: 1.25em;" data-i18n>&#197;pne fil fra GitHub</h3>
+      <input type="text" id="ghPickerFilter" data-i18n-placeholder placeholder="Filtrer filer&#8230;" style="width:100%; padding:6px; margin:8px 0;">
       <div id="ghPickerError" style="color:var(--accent-danger,#d00); font-size:12px; min-height:1.2em;"></div>
       <div id="ghPickerList" style="overflow:auto; flex:1; min-height:140px; max-height:50vh; border:1px solid var(--border); border-radius:6px; padding:4px;"></div>
       <div class="ai-modal-actions" style="margin-top:12px;">
-        <button type="button" id="ghPickerCancel" class="ai-modal-btn">Avbryt</button>
-        <button type="button" id="ghPickerRefresh" class="ai-modal-btn">Oppdater liste</button>
+        <button type="button" id="ghPickerCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
+        <button type="button" id="ghPickerRefresh" class="ai-modal-btn" data-i18n>Oppdater liste</button>
       </div>
     </div>
   </div>
@@ -9082,17 +9095,17 @@ def _run_microdata_chunk(_code):
   <!-- GitHub: lagre som -->
   <div id="ghSaveAsBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 520px;">
-      <h3 style="font-size: 1.25em;">Lagre som&#8230; (GitHub)</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+      <h3 style="font-size: 1.25em;" data-i18n>Lagre som&#8230; (GitHub)</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n-html>
         Skriv filstien i repoet. Bruk skr&aring;strek for mapper, f.eks. <code>analyser/inntekt</code>.
         Endelsen (<code>.txt</code>) legges til automatisk hvis du ikke skriver en.
       </p>
-      <input type="text" id="ghSaveAsPath" list="ghFolderList" placeholder="mappe/filnavn" style="width:100%; padding:6px; margin:8px 0;">
+      <input type="text" id="ghSaveAsPath" list="ghFolderList" data-i18n-placeholder placeholder="mappe/filnavn" style="width:100%; padding:6px; margin:8px 0;">
       <datalist id="ghFolderList"></datalist>
       <div id="ghSaveAsError" style="color:var(--accent-danger,#d00); font-size:12px; min-height:1.2em;"></div>
       <div class="ai-modal-actions" style="margin-top:16px;">
-        <button type="button" id="ghSaveAsCancel" class="ai-modal-btn">Avbryt</button>
-        <button type="button" id="ghSaveAsConfirm" class="ai-modal-btn primary">Lagre</button>
+        <button type="button" id="ghSaveAsCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
+        <button type="button" id="ghSaveAsConfirm" class="ai-modal-btn primary" data-i18n>Lagre</button>
       </div>
     </div>
   </div>
