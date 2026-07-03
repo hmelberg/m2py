@@ -29,16 +29,17 @@
         get anvilMode() { return this.aiMode === 'anvil'; },   // back-compat: existing callers keep working
       };
 
-      // Web mode is admin-only and only meaningful in python/r/duckdb editor
-      // modes (there's no `# connect`/`# load` story for microdata). It is
-      // surfaced only via its own send button (syncWebBtnVisibility() shows/
-      // hides #aiSendWebBtn); it is never reachable via the fast/anvil menu
-      // cycle, so there's no "silently falls back" case to handle anymore.
+      // Web mode requires admin OR a user-supplied Anthropic key (BYOK — the
+      // agentic search then runs on the user's own account), and only makes
+      // sense in python/r/duckdb editor modes (no `# connect`/`# load` story
+      // for microdata). Surfaced only via its own send button
+      // (syncWebBtnVisibility() shows/hides #aiSendWebBtn).
       function webModeEligible() {
         const auth = window.mdAuth;
         const isAdmin = !!(auth && auth.user && auth.user.is_admin);
+        const hasByok = !!state.anthropicKey;
         const mode = (typeof activeEditorMode !== 'undefined' && activeEditorMode) ? activeEditorMode : 'microdata';
-        return isAdmin && (mode === 'python' || mode === 'r' || mode === 'duckdb');
+        return (isAdmin || hasByok) && (mode === 'python' || mode === 'r' || mode === 'duckdb');
       }
       // Kept for back-compat with existing call sites (menu label + cycle);
       // now just mirrors state.aiMode since 'web' is no longer a cycle value.
@@ -1053,7 +1054,7 @@
 
         const auth = window.mdAuth;
         const token = auth && auth.token;
-        if (!token) throw new Error(T('Web-modus krever innlogging.'));
+        if (!token && !state.anthropicKey) throw new Error(T('Web-modus krever innlogging eller egen Anthropic-nøkkel.'));
         const mode = (typeof activeEditorMode !== 'undefined' && activeEditorMode) ? activeEditorMode : 'python';
 
         // Continuation protocol: Netlify caps CPU per edge invocation, so the
@@ -1069,7 +1070,7 @@
           if (hop > 40) throw new Error(T('Avbrutt: svaret ble ikke ferdig etter 40 fortsettelses-runder.'));
           const resp = await fetch('/api/data-svar', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            headers: edgeAuthHeaders(),
             body: JSON.stringify({
               question,
               mode,
@@ -1079,10 +1080,10 @@
             }),
           });
           if (resp.status === 401) {
-            if (auth) { auth.logout(); auth.showLogin(); }
-            throw new Error(T('Innloggingen er utløpt. Logg inn på nytt.'));
+            if (token && auth) { auth.logout(); auth.showLogin(); throw new Error(T('Innloggingen er utløpt. Logg inn på nytt.')); }
+            throw new Error(T('Ugyldig Anthropic-nøkkel. Sjekk nøkkelen i AI-innstillingene.'));
           }
-          if (resp.status === 403) throw new Error(T('Web-modus er kun tilgjengelig for admin.'));
+          if (resp.status === 403) throw new Error(T('Web-modus krever admin eller egen Anthropic-nøkkel.'));
           if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status + ' ' + (await resp.text()));
 
           let cont = null;
@@ -1118,7 +1119,11 @@
           } else if (ev.type === 'sources') {
             sources = ev.sources;
           } else if (ev.type === 'error') {
-            throw new Error(ev.message || 'ukjent feil');
+            let msg = ev.message || 'ukjent feil';
+            if (!token && state.anthropicKey && msg.indexOf('Anthropic API error 401') !== -1) {
+              msg = T('Ugyldig Anthropic-nøkkel. Sjekk nøkkelen i AI-innstillingene.');
+            }
+            throw new Error(msg);
           }
         }
 
@@ -1275,7 +1280,7 @@
         const text = dom.aiInput.value.trim();
         if (!text) return;
         const auth = window.mdAuth;
-        if (!(auth && auth.token)) {
+        if (!(auth && auth.token) && !state.anthropicKey) {
           if (auth) auth.showLogin();
           return;
         }

@@ -110,7 +110,7 @@ window.M2PY_I18N.en = {
   "Avbryt pågående svar": "Stop the current answer",
   "Send spørsmål til AI (AI-modus velges i menyen)": "Send the question to AI (the AI mode is chosen in the menu)",
   "Eksperimentell: 2-stegs variabelvalg + auto-retting (kan være tregere)": "Experimental: 2-step variable selection + auto-repair (may be slower)",
-  "Web: finn åpne data og generer script (kun admin; python/r/duckdb-modus)": "Web: find open data and generate a script (admin only; python/r/duckdb mode)",
+  "Web: finn åpne data og generer script (krever admin eller egen Anthropic-nøkkel; python/r/duckdb-modus)": "Web: find open data and generate a script (requires admin or your own Anthropic key; python/r/duckdb mode)",
   "Konto og innstillinger": "Account and settings",
   "Logget inn som": "Logged in as",
   "Logg ut": "Log out",
@@ -490,7 +490,6 @@ window.M2PY_I18N.en = {
   "Kopier tolkning": "Copy interpretation",
   "Web-modus krever innlogging.": "Web mode requires login.",
   "Avbrutt: svaret ble ikke ferdig etter 40 fortsettelses-runder.": "Aborted: the answer did not finish after 40 continuation rounds.",
-  "Web-modus er kun tilgjengelig for admin.": "Web mode is only available for admins.",
   "Fant ikke Kjør-knappen.": "Could not find the Run button.",
   "Kan ikke sjekke kjørestatus (mdIsScriptRunning mangler).": "Cannot check run status (mdIsScriptRunning is missing).",
   "Kjør-knappen er ikke klar (miljøet laster fortsatt).": "The Run button is not ready (the environment is still loading).",
@@ -618,4 +617,6 @@ window.M2PY_I18N.en = {
   "Ugyldig Anthropic-nøkkel. Sjekk nøkkelen i AI-innstillingene.": "Invalid Anthropic key. Check the key in the AI settings.",
   "Denne funksjonen krever innlogging — egen Anthropic-nøkkel gjelder kun Rask AI, tolkning og Web.": "This feature requires login — your own Anthropic key only covers Fast AI, interpretation and Web.",
   "Du må være logget inn eller ha lagt inn egen Anthropic-nøkkel (AI-innstillinger) for å bruke dataminimering.": "You must be logged in or have entered your own Anthropic key (AI settings) to use data minimisation.",
+  "Web-modus krever innlogging eller egen Anthropic-nøkkel.": "Web mode requires login or your own Anthropic key.",
+  "Web-modus krever admin eller egen Anthropic-nøkkel.": "Web mode requires admin or your own Anthropic key.",
 };
