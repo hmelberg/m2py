@@ -126,3 +126,58 @@ Deno.test("runGate: expired cache entry triggers re-validation", async () => {
   assertEquals(resp, null);
   assertEquals(validateCalls, 1);
 });
+
+// Admin gate tests
+import { makeAnvilUserFetcher, runAdminGate, type AdminGateDeps } from "./auth.ts";
+
+function adminDeps(over: Partial<AdminGateDeps> = {}): AdminGateDeps & { calls: { fetchUser: number } } {
+  const calls = { fetchUser: 0 };
+  return {
+    calls,
+    sharedToken: undefined,
+    checkRateLimit: () => Promise.resolve({ allowed: true, retryAfterSeconds: 0 }),
+    fetchUser: () => { calls.fetchUser++; return Promise.resolve({ ok: true, isAdmin: true }); },
+    now: () => 1_000_000,
+    cache: new Map(),
+    ...over,
+  };
+}
+
+Deno.test("runAdminGate: admin user passes, non-admin gets 403, invalid 401", async () => {
+  const opts = { endpoint: "data-svar", maxBodyBytes: 1000 };
+  assertEquals(await runAdminGate(req({ token: "t1" }), opts, adminDeps()), null);
+  const r403 = await runAdminGate(req({ token: "t2" }), opts,
+    adminDeps({ fetchUser: () => Promise.resolve({ ok: true, isAdmin: false }) }));
+  assertEquals(r403?.status, 403);
+  const r401 = await runAdminGate(req({ token: "t3" }), opts,
+    adminDeps({ fetchUser: () => Promise.resolve({ ok: false, isAdmin: false }) }));
+  assertEquals(r401?.status, 401);
+});
+
+Deno.test("runAdminGate: shared token is admin; result cached", async () => {
+  const deps = adminDeps({ sharedToken: "hemmelig" });
+  const opts = { endpoint: "data-svar", maxBodyBytes: 1000 };
+  assertEquals(await runAdminGate(req({ token: "hemmelig" }), opts, deps), null);
+  assertEquals(deps.calls.fetchUser, 0);
+  assertEquals(await runAdminGate(req({ token: "bruker" }), opts, deps), null);
+  assertEquals(await runAdminGate(req({ token: "bruker" }), opts, deps), null);
+  assertEquals(deps.calls.fetchUser, 1); // second hit came from cache
+});
+
+Deno.test("runAdminGate: allowedMethods lets GET through when configured", async () => {
+  const opts = { endpoint: "hent", maxBodyBytes: 0, allowedMethods: ["GET"] };
+  const getReq = req({ token: "t", method: "GET" });
+  assertEquals(await runAdminGate(getReq, opts, adminDeps()), null);
+  const postOpts = { endpoint: "hent", maxBodyBytes: 0 }; // default POST-only
+  assertEquals((await runAdminGate(getReq, postOpts, adminDeps()))?.status, 405);
+});
+
+Deno.test("makeAnvilUserFetcher maps /auth/me shape", async () => {
+  const mk = (payload: unknown, status = 200) =>
+    makeAnvilUserFetcher("https://anvil.test/auth/me", 1000,
+      (() => Promise.resolve(new Response(JSON.stringify(payload), { status }))) as typeof fetch);
+  assertEquals(await mk({ user: { is_admin: true } })("t"), { ok: true, isAdmin: true });
+  assertEquals(await mk({ user: { is_admin: false } })("t"), { ok: true, isAdmin: false });
+  assertEquals(await mk({ user: {} })("t"), { ok: true, isAdmin: false });
+  assertEquals(await mk({}, 401)("t"), { ok: false, isAdmin: false });
+});
