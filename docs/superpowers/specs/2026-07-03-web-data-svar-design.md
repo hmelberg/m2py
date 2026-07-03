@@ -32,8 +32,9 @@ gjelder python/r/duckdb.
    tid) + fritt websøk etter relevante datafiler (CSV o.l.) som kan brukes
    dersom de er svært relevante — men bare etter probe-verifisering.
 8. **`# require <url> as NAVN` er leveringsmekanismen** for data som kan
-   hentes med én GET: genererte script deklarerer datakilder med editorens
-   eksisterende require-linjer (D1-mekanismen), ikke ad-hoc nedlastingskode.
+   hentes med én forespørsel (GET direkte, eller POST innpakket via proxyen):
+   genererte script deklarerer datakilder med editorens eksisterende
+   require-linjer (D1-mekanismen), ikke ad-hoc nedlastingskode.
 9. **Variabel-nivå uttrekk, ikke bare hele datasett**: nasjonale byrå-API-er
    (PxWeb, Eurostat, WB) støtter uttak av utvalgte variabler/dimensjoner —
    pipelinen bygger analysedatasett fra variabler, som i microdata-tankegangen.
@@ -52,9 +53,11 @@ Spørsmål ──▶ 1 TOLK: estimand, enhet, geografi/periode,
              (tomt søk → synonymer/annet språk/annen kilde;
               feilet probe → neste kandidat — planen revideres naturlig)
          ──▶ 3 GENERER: script i aktiv modus, mot OBSERVERTE skjemaer:
-             GET-bare uttrekk deklareres som `# require <url> as navn`
-             (editoren henter og materialiserer som DataFrame/tabell),
-             POST-/komplekse API-kall som kode i scriptet;
+             uttrekk deklareres som `# require <url> as navn`
+             (GET direkte; POST-API-er GET-innpakket via /api/hent;
+              editoren materialiserer som DataFrame/tabell),
+             merge/join til ÉN analysedataframe der det er nyttig,
+             flertrinns-interaksjoner som kode i scriptet;
              /api/hent-omvei der probe fant manglende CORS;
              rå → justert estimat, antakelser oppgitt, kilder sitert
          ──▶ 4 KJØR & REPARER (klient): syntakssjekk → auto-kjør →
@@ -146,7 +149,8 @@ Anvil er alternativet den dagen vi trenger *runtime-redigerbar* lagring
 materialiseres som én GET-URL (PxWebApi v2 GET med valueCodes, Eurostats
 CSV/TSV-endepunkt med dimensjonsfiltre, WB `…/indicator/{id}?format=json`).
 En slik URL er require-bar (se «Levering» under); API-er som krever POST
-(store PxWeb-uttak) håndteres som kode i scriptet i stedet.
+(PxWeb v1, f.eks. StatFin) blir require-bare via proxyens GET-innpakking
+(require-utvidelse 3 under «Levering»).
 
 Seed-liste: SSB, Eurostat, Verdensbanken, OECD, WHO GHO, Our World in Data
 (grapher-CSV), FRED (ikke-CORS → proxy), Norges Bank, NAV, FHI,
@@ -200,8 +204,30 @@ kilder det gjelder, så scriptet kan også skrive proxy-URL-en eksplisitt).
 Proxy-kall fra editoren sender brukerens Bearer-token (samme auth som
 AI-endepunktene) — require mot offentlige CORS-åpne URL-er er uendret og
 krever ingen innlogging.
-API-kall som krever POST eller flertrinns-interaksjon skrives som vanlig kode
-i scriptet med kilde-URL i kommentar.
+
+**Nødvendige require-utvidelser (i scope, dagens tilstand i parentes):**
+
+1. **Innholdsbasert format-deteksjon.** Dagens loader matcher kun URL-er som
+   slutter på `.csv`/`.parquet` (`index.html`-regexen) — API-URL-er som
+   `…/data?valueCodes[…]=…&outputFormat=csv` matcher ikke. Nytt: match enhver
+   http(s)-URL og avgjør format via respons `Content-Type` (evt.
+   format-hint i URL-en). Uten dette er ingen API-URL require-bar.
+2. **Lokal materialisering i dialekt-modusene.** URL-fetch → WASM-FS →
+   DataFrame finnes i dag bare på safestat-stien; i python/r/duckdb-modus er
+   en `# require <url>`-kommentar ikke materialisert lokalt. Implementeres
+   for alle tre moduser (alias → DataFrame/data.frame/tabell), med
+   `/api/hent`-fallback ved CORS-feil.
+3. **GET-innpakking av POST-API-er via proxyen.** Eldre PxWeb v1-installasjoner
+   (f.eks. Statistics Finland/StatFin) krever POST med JSON-spørring — ingen
+   enkelt GET-URL finnes. `/api/hent` utvides med en `body`-parameter:
+   `# require /api/hent?url=<endepunkt>&body=<url-enkodet-json> as tyollisyys`
+   — proxyen gjør POST-en server-side og strømmer svaret tilbake. Dermed er
+   selv POST-API-er require-bare, og alle datakilder i et generert script står
+   deklarert øverst på én selvdokumenterende linje. Samme SSRF-vern;
+   `body` sendes kun som `application/json`, størrelsesbegrenset.
+
+Flertrinns-interaksjoner som ikke lar seg uttrykke som én (ev. innpakket)
+forespørsel skrives fortsatt som kode i scriptet med kilde-URL i kommentar.
 
 ### 6. Frontend (`js/ai-chat.js`, `index.html`)
 
@@ -227,8 +253,14 @@ i scriptet med kilde-URL i kommentar.
 - **Kilderegler**: siter hver kilde med URL i script-kommentar; merk
   probe-verifisert vs. modellkunnskap; aldri fabrikker datasett-ID; finner du
   ingenting — si det, og foreslå omformuleringer.
-- **Flerkilde**: kombinasjon oppmuntres; harmoniser koder (ISO-land, NUTS,
-  kommunenummer) og enheter eksplisitt; join-nøkler fra registeret.
+- **Flerkilde og sammenslåing**: kombinasjon oppmuntres. Mønsteret: hver
+  require-linje gir én DataFrame per variabel/serie; **første analysesteg er å
+  merge/joine dem til ÉN analysedataframe** når det er mulig og nyttig (join
+  på år, landkode, kommunenummer — nøkler fra registeret), i stedet for å
+  analysere fragmenter hver for seg. Harmoniser koder (ISO-land, NUTS,
+  kommunenummer) og enheter eksplisitt før join; kommenter join-type og
+  hvorfor (inner/left), og sjekk radtall før/etter (stille rad-tap er en
+  klassisk feilkilde).
 - **Minimal-uttrekk**: hent variablene analysen trenger (variabel-nivå
   spørring via `table_metadata`), ikke hele tabeller — mindre data, klarere
   script, snillere mot kilde-API-ene.
@@ -237,6 +269,28 @@ i scriptet med kilde-URL i kommentar.
 - **Språkregler per modus**: python (pandas/statsmodels/matplotlib …, micropip
   ved behov), r (tidyverse/fixest …, webr::install), duckdb (httpfs-lesing av
   CSV/parquet direkte i SQL; analyse i SQL eller hybrid med #py).
+
+**Prompt-utviklingsplan** (samme metode som kode-svar-promptene):
+
+1. **Kilde-dokument først**: `prompts/data-svar.md` som kildedok (mønsteret
+   fra `kode-svar.md`) — TS-konstantene i `data-svar.ts` er render-målet.
+   Blokkstruktur som i dag (SYSTEM_INTRO / INFERENCE / KILDEREGLER / …) så
+   blokker kan gjenbrukes og diffes enkeltvis.
+2. **Arv, ikke nyskriv**: start fra det som beviselig virker —
+   `INFERENCE_STRATEGY_PYR` (utvides), `VISUALIZATION_RULES`-tankegangen,
+   språk-preamblene. Nye blokker skrives kun for det som er genuint nytt
+   (kilderegler, discovery-fasing, require-levering, flerkilde-merge).
+3. **Evalsett-drevet iterasjon**: hver promptendring kjøres mot evalsettet
+   (~10 spørsmål, se Testing) før deploy; feilmønstre fra evalene og fra
+   reparasjonsrunder i bruk omsettes til nye promptregler eller
+   register-quirks — samme loop som «levende kunnskapsbase».
+4. **Cache-disiplin**: registeret + regelblokkene renderes byte-stabilt inn i
+   cached system-prefiks (mønsteret fra `buildCachedPrefix`); per-spørsmål
+   innhold (spørsmål, tool-resultater, repair) ligger i user-turns så
+   prefikset cacher på tvers av forespørsler.
+5. **Endringslogg i kildedok**: daterte endringsnotater øverst i
+   `prompts/data-svar.md` (som i `kode-svar.md`) så prompt-historikken er
+   sporbar og porterbar.
 
 ## Feilhåndtering
 
