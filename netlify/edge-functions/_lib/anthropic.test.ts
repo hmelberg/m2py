@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { fetchWithRetry, messageAnthropic } from "./anthropic.ts";
+import { fetchWithRetry, messageAnthropic, runAgenticStream } from "./anthropic.ts";
 
 const noSleep = (_ms: number) => Promise.resolve();
 
@@ -114,4 +114,76 @@ Deno.test("messageAnthropic throws on non-OK upstream", async () => {
     threw = true;
   }
   assertEquals(threw, true);
+});
+
+async function collectSse(stream: ReadableStream<Uint8Array>): Promise<Record<string, unknown>[]> {
+  const text = await new Response(stream).text();
+  return text.split("\n\n").filter((l) => l.startsWith("data: "))
+    .map((l) => JSON.parse(l.slice(6)));
+}
+
+function apiTurns(turns: Record<string, unknown>[]): typeof fetch {
+  let i = 0;
+  return ((_u: string | URL | Request, _init?: RequestInit) =>
+    Promise.resolve(new Response(JSON.stringify(turns[i++]), { status: 200 }))) as typeof fetch;
+}
+
+Deno.test("runAgenticStream: tool round-trip then final text", async () => {
+  const fetchImpl = apiTurns([
+    { stop_reason: "tool_use", usage: { input_tokens: 10, output_tokens: 5 },
+      content: [{ type: "tool_use", id: "tu1", name: "probe", input: { url: "https://x/d.csv" } }] },
+    { stop_reason: "end_turn", usage: { input_tokens: 20, output_tokens: 15 },
+      content: [{ type: "text", text: "Her er scriptet." }] },
+  ]);
+  const calls: string[] = [];
+  const events = await collectSse(runAgenticStream({
+    apiKey: "k", model: "m", system: "s", userContent: "q",
+    tools: [{ name: "probe", description: "d", input_schema: { type: "object" } }],
+    executeTool: (name, input) => { calls.push(`${name}:${input.url}`); return Promise.resolve('{"ok":true}'); },
+    deps: { fetchImpl },
+  }));
+  assertEquals(calls, ["probe:https://x/d.csv"]);
+  assertEquals(events.map((e) => e.type), ["progress", "text", "done"]);
+  assertEquals(events[1].text, "Her er scriptet.");
+  assertEquals(events[2].inputTokens, 30);
+  assertEquals(events[2].outputTokens, 20);
+});
+
+Deno.test("runAgenticStream: budget exhausts into forced generation", async () => {
+  const toolTurn = {
+    stop_reason: "tool_use", usage: { input_tokens: 1, output_tokens: 1 },
+    content: [{ type: "tool_use", id: "t", name: "probe", input: {} }],
+  };
+  const finalTurn = {
+    stop_reason: "end_turn", usage: { input_tokens: 1, output_tokens: 1 },
+    content: [{ type: "text", text: "ferdig" }],
+  };
+  let toolResults: string[] = [];
+  const events = await collectSse(runAgenticStream({
+    apiKey: "k", model: "m", system: "s", userContent: "q",
+    tools: [], maxClientToolCalls: 2,
+    executeTool: () => { return Promise.resolve("data"); },
+    deps: { fetchImpl: (( _u: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      const lastUser = body.messages.filter((m: { role: string }) => m.role === "user").pop();
+      if (Array.isArray(lastUser?.content)) {
+        for (const c of lastUser.content) if (c.type === "tool_result") toolResults.push(String(c.content));
+      }
+      const turn = body.messages.length >= 7 ? finalTurn : toolTurn; // 3 tool rounds then final
+      return Promise.resolve(new Response(JSON.stringify(turn), { status: 200 }));
+    }) as typeof fetch },
+  }));
+  // third call is over budget (max 2) -> its result is the budget message
+  if (!toolResults[2]?.includes("budsjett")) throw new Error("ventet budsjett-melding: " + toolResults[2]);
+  assertEquals(events.at(-1)?.type, "done");
+});
+
+Deno.test("runAgenticStream: API error surfaces as error event", async () => {
+  const events = await collectSse(runAgenticStream({
+    apiKey: "k", model: "m", system: "s", userContent: "q", tools: [],
+    executeTool: () => Promise.resolve(""),
+    deps: { fetchImpl: ((_u: string | URL | Request) =>
+      Promise.resolve(new Response("boom", { status: 500 }))) as typeof fetch, retries: 0 },
+  }));
+  assertEquals(events.at(-1)?.type, "error");
 });

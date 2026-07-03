@@ -290,3 +290,128 @@ function transformAnthropicStream(
     },
   });
 }
+
+// ── Agentic tool loop (Web mode / data-svar) ─────────────────────────────
+// Non-streaming turns while the model calls tools; the final answer is
+// emitted as one SSE text event (accepted trade-off: no token streaming on
+// the final turn — the loop stays simple and correct). Hosted tools
+// (web_search) run inside the API; stop_reason "pause_turn" is resumed.
+
+export interface AgenticOptions {
+  apiKey: string;
+  model: string;
+  system: string;
+  userContent: string;
+  tools: unknown[];
+  executeTool: (name: string, input: Record<string, unknown>) => Promise<string>;
+  progressLabel?: (name: string, input: Record<string, unknown>) => string;
+  maxTokens?: number;
+  cacheTtl?: "5m" | "1h";
+  maxClientToolCalls?: number;
+  maxTurns?: number;
+  deps?: RetryDeps;
+}
+
+const AGENTIC_TIMEOUT_MS = 90_000;
+
+export function runAgenticStream(opts: AgenticOptions): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  const maxClientCalls = opts.maxClientToolCalls ?? 12;
+  const maxTurns = opts.maxTurns ?? 24;
+  const deps: RetryDeps = { timeoutMs: AGENTIC_TIMEOUT_MS, ...opts.deps };
+  const useLongTtl = opts.cacheTtl === "1h";
+
+  return new ReadableStream({
+    async start(controller) {
+      const emit = (obj: Record<string, unknown>) =>
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-api-key": opts.apiKey,
+        "anthropic-version": ANTHROPIC_VERSION,
+      };
+      if (useLongTtl) headers["anthropic-beta"] = "extended-cache-ttl-2025-04-11";
+      const system = [{
+        type: "text",
+        text: opts.system,
+        cache_control: useLongTtl ? { type: "ephemeral", ttl: "1h" } : { type: "ephemeral" },
+      }];
+
+      const messages: Record<string, unknown>[] = [{ role: "user", content: opts.userContent }];
+      let clientCalls = 0;
+      let inputTokens = 0, outputTokens = 0, cacheRead = 0, cacheCreation = 0;
+
+      try {
+        for (let turn = 0; turn < maxTurns; turn++) {
+          const resp = await fetchWithRetry(ANTHROPIC_API, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              model: opts.model,
+              max_tokens: opts.maxTokens ?? 8192,
+              stream: false,
+              system,
+              tools: opts.tools,
+              messages,
+            }),
+          }, deps);
+          if (!resp.ok) {
+            const detail = await resp.text().catch(() => "");
+            console.error(`Anthropic API error ${resp.status}: ${detail}`);
+            throw new Error(`Anthropic API error ${resp.status}`);
+          }
+          const json = await resp.json();
+          const u = json?.usage ?? {};
+          inputTokens += u.input_tokens ?? 0;
+          outputTokens += u.output_tokens ?? 0;
+          cacheRead += u.cache_read_input_tokens ?? 0;
+          cacheCreation += u.cache_creation_input_tokens ?? 0;
+          const content = Array.isArray(json?.content) ? json.content : [];
+
+          if (json.stop_reason === "pause_turn") {
+            messages.push({ role: "assistant", content });
+            continue;
+          }
+          const toolUses = content.filter((b: { type?: string }) => b.type === "tool_use");
+          if (json.stop_reason === "tool_use" && toolUses.length) {
+            messages.push({ role: "assistant", content });
+            const results: Record<string, unknown>[] = [];
+            for (const tu of toolUses) {
+              clientCalls++;
+              const label = opts.progressLabel?.(tu.name, tu.input ?? {}) ?? `Kjører ${tu.name} …`;
+              emit({ type: "progress", text: label });
+              let out: string;
+              if (clientCalls > maxClientCalls) {
+                out = "Verktøy-budsjettet er brukt opp — generer svaret NÅ med det du allerede har funnet. Vær ærlig om hva som mangler.";
+              } else {
+                try {
+                  out = await opts.executeTool(tu.name, tu.input ?? {});
+                } catch (e) {
+                  out = `Verktøyfeil: ${String(e).slice(0, 300)}`;
+                }
+              }
+              results.push({ type: "tool_result", tool_use_id: tu.id, content: out });
+            }
+            messages.push({ role: "user", content: results });
+            continue;
+          }
+          // Final answer
+          for (const b of content) {
+            if (b.type === "text" && b.text) emit({ type: "text", text: b.text });
+          }
+          emit({
+            type: "done",
+            inputTokens, outputTokens,
+            cacheReadTokens: cacheRead, cacheCreationTokens: cacheCreation,
+          });
+          controller.close();
+          return;
+        }
+        throw new Error("tool-loopen nådde maks antall turer");
+      } catch (e) {
+        emit({ type: "error", message: String(e) });
+        controller.close();
+      }
+    },
+  });
+}
