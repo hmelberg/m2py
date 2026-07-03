@@ -980,7 +980,9 @@
 
       // ── Web mode: /api/data-svar (agentic web search + generation, admin-only) ──
       // SSE contract (netlify/edge-functions/data-svar.ts):
-      //   {type:'progress', text}  — live tool-call labels (search_catalog/table_metadata/probe)
+      //   {type:'progress', text, replace?}  — live tool-call/phase labels; replace:true
+      //     means "update the previous replaceable line in place" (heartbeat ticks
+      //     with a seconds counter while a long API turn is in flight)
       //   {type:'text', text}      — markdown chunks (explanation + one fenced script)
       //   {type:'sources', sources:[{url, ok, cors, viaProxy}]} — deterministic probe manifest
       //   {type:'error', message}
@@ -1053,10 +1055,16 @@
         let _lastRender = 0;
         await consumeSse(resp, (ev) => {
           if (ev.type === 'progress') {
-            const line = document.createElement('div');
-            line.className = 'ai-progress-line';
-            line.textContent = '⏳ ' + ev.text;
-            progressBox.appendChild(line);
+            const last = progressBox.lastElementChild;
+            if (ev.replace && last && last.dataset.replace === '1') {
+              last.textContent = '⏳ ' + ev.text;
+            } else {
+              const line = document.createElement('div');
+              line.className = 'ai-progress-line';
+              if (ev.replace) line.dataset.replace = '1';
+              line.textContent = '⏳ ' + ev.text;
+              progressBox.appendChild(line);
+            }
             scrollToBottom();
           } else if (ev.type === 'text') {
             markdown += ev.text;
