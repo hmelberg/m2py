@@ -1,6 +1,6 @@
 // /api/data-svar — Web mode: agentic discovery + generation (admin-only).
 // Spec: docs/superpowers/specs/2026-07-03-web-data-svar-design.md
-import { adminGate } from "./_lib/auth.ts";
+import { adminGate, extractByokKey } from "./_lib/auth.ts";
 import { type AgenticResumeState, runAgenticStream } from "./_lib/anthropic.ts";
 import { loadRegistry, renderRegistryBlock } from "./_lib/registry.ts";
 import { searchCatalog } from "./_lib/tools/search-catalog.ts";
@@ -66,7 +66,8 @@ export default async (request: Request): Promise<Response> => {
     };
   }
 
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  const byokKey = extractByokKey(request);
+  const apiKey = byokKey ?? Deno.env.get("ANTHROPIC_API_KEY");
   const model = Deno.env.get("DATA_SVAR_MODEL") ?? Deno.env.get("ANTHROPIC_MODEL") ?? "claude-sonnet-4-6";
   if (!apiKey) {
     console.error("ANTHROPIC_API_KEY is not set");
