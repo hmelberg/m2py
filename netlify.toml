@@ -55,3 +55,7 @@
 [[edge_functions]]
   function = "hent"
   path = "/api/hent"
+
+[[edge_functions]]
+  function = "data-svar"
+  path = "/api/data-svar"
