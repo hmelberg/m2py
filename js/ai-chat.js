@@ -408,10 +408,24 @@
         dom.aiThread.scrollTop = dom.aiThread.scrollHeight;
       }
 
+      // Headers for edge-funksjonene (/api/*): innloggingstoken har forrang,
+      // deretter brukerens egen Anthropic-nøkkel (BYOK), til slutt service-token.
+      function edgeAuthHeaders() {
+        const auth = window.mdAuth;
+        const token = auth && auth.token;
+        if (token) return { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+        if (state.anthropicKey) return { 'X-Anthropic-Key': state.anthropicKey, 'Content-Type': 'application/json' };
+        return { 'X-API-Key': state.apiKey, 'Content-Type': 'application/json' };
+      }
+
       async function callApi(path, body) {
         const auth = window.mdAuth;
         const token = auth && auth.token;
         if (!token && !state.apiKey) {
+          if (state.anthropicKey) {
+            // BYOK gjelder kun edge-funksjonene, ikke Anvil-APIet (full vurdering).
+            throw new Error(T('Denne funksjonen krever innlogging — egen Anthropic-nøkkel gjelder kun Rask AI, tolkning og Web.'));
+          }
           // Defer to caller to handle (sendMessage triggers login modal)
           throw new Error(T('Ikke logget inn'));
         }
@@ -489,7 +503,7 @@
         if (!text) return;
         // Gate on login: if neither bearer token nor legacy API-key, show login modal.
         const auth = window.mdAuth;
-        const isAuthed = (auth && auth.token) || state.apiKey;
+        const isAuthed = (auth && auth.token) || state.apiKey || state.anthropicKey;
         if (!isAuthed) {
           if (auth) auth.showLogin();
           return;
@@ -622,9 +636,7 @@
       async function runFastQuery(text, lang, scriptContext, thinkingNode, signal) {
         const auth = window.mdAuth;
         const token = auth && auth.token;
-        const headers = token
-          ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
-          : { 'X-API-Key': state.apiKey, 'Content-Type': 'application/json' };
+        const headers = edgeAuthHeaders();
         const t0 = Date.now();
         const resp = await fetch('/api/kode-svar', {
           method: 'POST',
@@ -634,6 +646,9 @@
         });
         if (resp.status === 401) {
           if (token && auth) { auth.logout(); auth.showLogin(); }
+          if (!token && state.anthropicKey) {
+            throw new Error(T('Ugyldig Anthropic-nøkkel. Sjekk nøkkelen i AI-innstillingene.'));
+          }
           throw new Error(T('Innloggingen er utløpt. Logg inn på nytt.'));
         }
         if (!resp.ok || !resp.body) {
@@ -723,14 +738,15 @@
       async function streamKodeSvarV2(payload, bubble, signal) {
         const auth = window.mdAuth;
         const token = auth && auth.token;
-        const headers = token
-          ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
-          : { 'X-API-Key': state.apiKey, 'Content-Type': 'application/json' };
+        const headers = edgeAuthHeaders();
         const resp = await fetch('/api/kode-svar-v2', {
           method: 'POST', headers, body: JSON.stringify(payload), signal,
         });
         if (resp.status === 401) {
           if (token && auth) { auth.logout(); auth.showLogin(); }
+          if (!token && state.anthropicKey) {
+            throw new Error(T('Ugyldig Anthropic-nøkkel. Sjekk nøkkelen i AI-innstillingene.'));
+          }
           throw new Error(T('Innloggingen er utløpt. Logg inn på nytt.'));
         }
         if (!resp.ok || !resp.body) {
@@ -907,9 +923,7 @@
       async function runInterpretQuery(payload, thinkingNode, signal) {
         const auth = window.mdAuth;
         const token = auth && auth.token;
-        const headers = token
-          ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
-          : { 'X-API-Key': state.apiKey, 'Content-Type': 'application/json' };
+        const headers = edgeAuthHeaders();
         const resp = await fetch('/api/tolk-resultat', {
           method: 'POST',
           headers,
@@ -923,6 +937,9 @@
         });
         if (resp.status === 401) {
           if (token && auth) { auth.logout(); auth.showLogin(); }
+          if (!token && state.anthropicKey) {
+            throw new Error(T('Ugyldig Anthropic-nøkkel. Sjekk nøkkelen i AI-innstillingene.'));
+          }
           throw new Error(T('Innloggingen er utløpt. Logg inn på nytt.'));
         }
         if (!resp.ok || !resp.body) {
@@ -1595,7 +1612,7 @@
           if (!payload.output || !payload.output.trim()) return;
           if (state.sending) return;
           const auth = window.mdAuth;
-          const isAuthed = (auth && auth.token) || state.apiKey;
+          const isAuthed = (auth && auth.token) || state.apiKey || state.anthropicKey;
           if (!isAuthed) { if (auth) auth.showLogin(); return; }
           setOpen(true);
           if (state.history.length === 0) dom.aiThread.innerHTML = '';

@@ -1138,17 +1138,17 @@
       if (mdLive) { body.style.fontFamily = ''; body.style.whiteSpace = ''; }
 
       try {
-        // Get Anvil session token from mdAuth module
+        // Get Anvil session token from mdAuth module; BYOK-nøkkel som alternativ.
         const token = window.mdAuth && window.mdAuth.token;
-        if (!token) {
-          status.textContent = t('Du må være logget inn for å bruke dataminimering. Klikk Logg inn øverst.');
+        const anthropicKey = localStorage.getItem('md_anthropic_key') || '';
+        if (!token && !anthropicKey) {
+          status.textContent = t('Du må være logget inn eller ha lagt inn egen Anthropic-nøkkel (AI-innstillinger) for å bruke dataminimering.');
           cancelBtn.disabled = true;
           return;
         }
-        const headers = {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        };
+        const headers = token
+          ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+          : { 'Content-Type': 'application/json', 'X-Anthropic-Key': anthropicKey };
         const resp = await fetch('/api/dm-vurder', {
           method: 'POST',
           headers,
@@ -1164,7 +1164,9 @@
           signal: controller.signal,
         });
         if (resp.status === 401) {
-          status.textContent = t('Innloggingen er utløpt. Logg inn på nytt og prøv igjen.');
+          status.textContent = token
+            ? t('Innloggingen er utløpt. Logg inn på nytt og prøv igjen.')
+            : t('Ugyldig Anthropic-nøkkel. Sjekk nøkkelen i AI-innstillingene.');
           return;
         }
         if (!resp.ok || !resp.body) {
