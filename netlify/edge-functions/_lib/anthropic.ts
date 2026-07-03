@@ -318,6 +318,12 @@ export interface AgenticOptions {
 // instead of buffering it whole.
 const AGENTIC_TIMEOUT_MS = 180_000;
 
+// Netlify/CDN kills streamed responses that go silent for too long (~40-60s).
+// Non-streaming API turns are exactly such silent windows, so while a turn is
+// in flight we emit a progress event every 10s. `replace: true` tells the
+// client to update the previous progress line in place instead of appending.
+const HEARTBEAT_MS = 10_000;
+
 export function runAgenticStream(opts: AgenticOptions): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   const maxClientCalls = opts.maxClientToolCalls ?? 12;
@@ -347,18 +353,34 @@ export function runAgenticStream(opts: AgenticOptions): ReadableStream<Uint8Arra
 
       try {
         for (let turn = 0; turn < maxTurns; turn++) {
-          const resp = await fetchWithRetry(ANTHROPIC_API, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-              model: opts.model,
-              max_tokens: opts.maxTokens ?? 8192,
-              stream: false,
-              system,
-              tools: opts.tools,
-              messages,
-            }),
-          }, deps);
+          const turnLabel = turn === 0
+            ? "🧠 Tolker spørsmålet og planlegger"
+            : `🤔 Arbeider med svaret (tur ${turn + 1})`;
+          emit({ type: "progress", text: `${turnLabel} …`, replace: true });
+          const turnStart = Date.now();
+          const beat = setInterval(() => {
+            const s = Math.round((Date.now() - turnStart) / 1000);
+            try {
+              emit({ type: "progress", text: `${turnLabel} … (${s} s)`, replace: true });
+            } catch (_) { /* stream already closed */ }
+          }, HEARTBEAT_MS);
+          let resp: Response;
+          try {
+            resp = await fetchWithRetry(ANTHROPIC_API, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                model: opts.model,
+                max_tokens: opts.maxTokens ?? 8192,
+                stream: false,
+                system,
+                tools: opts.tools,
+                messages,
+              }),
+            }, deps);
+          } finally {
+            clearInterval(beat);
+          }
           if (!resp.ok) {
             const detail = await resp.text().catch(() => "");
             console.error(`Anthropic API error ${resp.status}: ${detail}`);
@@ -371,6 +393,18 @@ export function runAgenticStream(opts: AgenticOptions): ReadableStream<Uint8Arra
           cacheRead += u.cache_read_input_tokens ?? 0;
           cacheCreation += u.cache_creation_input_tokens ?? 0;
           const content = Array.isArray(json?.content) ? json.content : [];
+
+          // Hosted tools (web_search/web_fetch) run inside the API and are
+          // otherwise invisible to the user — surface what was searched/read.
+          for (const b of content) {
+            if (b?.type !== "server_tool_use") continue;
+            const inp = (b.input ?? {}) as Record<string, unknown>;
+            const what = String(inp.query ?? inp.url ?? "").slice(0, 120);
+            emit({
+              type: "progress",
+              text: b.name === "web_fetch" ? `🌐 Leser ${what}` : `🔎 Websøk: ${what}`,
+            });
+          }
 
           if (json.stop_reason === "pause_turn") {
             messages.push({ role: "assistant", content });

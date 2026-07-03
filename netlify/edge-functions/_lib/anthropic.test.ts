@@ -143,10 +143,35 @@ Deno.test("runAgenticStream: tool round-trip then final text", async () => {
     deps: { fetchImpl },
   }));
   assertEquals(calls, ["probe:https://x/d.csv"]);
-  assertEquals(events.map((e) => e.type), ["progress", "text", "done"]);
-  assertEquals(events[1].text, "Her er scriptet.");
-  assertEquals(events[2].inputTokens, 30);
-  assertEquals(events[2].outputTokens, 20);
+  // Turn labels (replace:true) interleave with the tool label; the substantive
+  // sequence is: turn-1 label, tool label, turn-2 label, text, done.
+  assertEquals(events.map((e) => e.type), ["progress", "progress", "progress", "text", "done"]);
+  assertEquals(events[0].replace, true);
+  assertEquals(events[1].replace, undefined);
+  assertEquals(events[2].replace, true);
+  assertEquals(events[3].text, "Her er scriptet.");
+  assertEquals(events[4].inputTokens, 30);
+  assertEquals(events[4].outputTokens, 20);
+});
+
+Deno.test("runAgenticStream: hosted web_search/web_fetch surface as progress labels", async () => {
+  const fetchImpl = apiTurns([
+    { stop_reason: "pause_turn", usage: { input_tokens: 1, output_tokens: 1 },
+      content: [{ type: "server_tool_use", id: "s1", name: "web_search", input: { query: "utdanning lønn norge" } }] },
+    { stop_reason: "end_turn", usage: { input_tokens: 1, output_tokens: 1 },
+      content: [
+        { type: "server_tool_use", id: "s2", name: "web_fetch", input: { url: "https://ssb.no/x" } },
+        { type: "text", text: "svar" },
+      ] },
+  ]);
+  const events = await collectSse(runAgenticStream({
+    apiKey: "k", model: "m", system: "s", userContent: "q", tools: [],
+    executeTool: () => Promise.resolve(""),
+    deps: { fetchImpl },
+  }));
+  const labels = events.filter((e) => e.type === "progress" && !e.replace).map((e) => e.text);
+  assertEquals(labels, ["🔎 Websøk: utdanning lønn norge", "🌐 Leser https://ssb.no/x"]);
+  assertEquals(events.at(-1)?.type, "done");
 });
 
 Deno.test("runAgenticStream: budget exhausts into forced generation", async () => {
