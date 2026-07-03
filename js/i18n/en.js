@@ -625,4 +625,9 @@ window.M2PY_I18N.en = {
   // ── Datasettviser: remote-datasett (B2) ──
   "Server-datasett: viser metadata fra kilden — fordeling og statistikk beregnes ikke lokalt.": "Remote dataset: showing metadata from the source — distributions and statistics are not computed locally.",
   "Ingen informasjon tilgjengelig for denne variabelen.": "No information available for this variable.",
+
+  // ── B1: kopier resultater ──
+  "Kopier alle resultater": "Copy all results",
+  "Kopier til utklippstavle": "Copy to clipboard",
+  "Kopier figur som bilde": "Copy figure as image",
 };
