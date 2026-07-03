@@ -61,10 +61,12 @@ def test_protected_refuses_raw_data_plots():
     assert res["figs"] == [] and res["results"] == []
 
 
-def test_protected_refuses_histogram_but_public_allows_it():
+def test_histogram_allowed_both_levels_protected_is_prebinned():
+    # stage 2d: histogram is safe on protected+ — the op pre-bins server-side
+    # (suppressed bin counts) instead of px.histogram's raw-column embedding
     script = "create-dataset demo\nhistogram x"
     prot = run_remote(script, datasets=_xy_data(), policy=resolve_policy([PROTECTED]))
-    assert prot["err"] and "histogram" in prot["err"]
+    assert prot["err"] is None and len(prot["figs"]) == 1
     pub = run_remote(script, datasets=_xy_data(), policy=resolve_policy([PUBLIC]))
     assert pub["err"] is None and len(pub["figs"]) == 1
 
@@ -200,3 +202,122 @@ def test_release_spec_cleared_after_run():
     from m2py_runtime import pandas_ops as ops
     run_remote(SCRIPT, datasets=_data(), policy=resolve_policy([PROTECTED]))
     assert ops.get_release_spec() is None
+
+
+# ── stage 2d: red-team pass ──────────────────────────────────────────────────
+
+def test_protected_summarize_by_masks_unsafe_extremes():
+    # grouped summarize releases min/max: exact individual values unless
+    # >= min_n observations sit at the extreme (order-stat rule)
+    df = pd.DataFrame({"grp": [1]*10 + [2]*10,
+                       "inc": list(range(100, 110)) + [50]*5 + [900]*5})
+    script = "create-dataset demo\nsummarize inc, by(grp)"
+    res = run_remote(script, datasets={"demo": df}, policy=resolve_policy([PROTECTED]))
+    html = res["results"][0]
+    # grp 1: unique extremes 100/109 -> masked
+    assert ">100<" not in html and ">109<" not in html
+    # grp 2: min 50 and max 900 each shared by 5 units -> released
+    assert ">50<" in html or "50.0" in html
+    assert ">900<" in html or "900.0" in html
+
+
+def test_protected_summarize_percentiles_coarsened():
+    df = pd.DataFrame({"inc": [123456.789 + i for i in range(50)]})
+    script = "create-dataset demo\nsummarize inc"
+    res = run_remote(script, datasets={"demo": df}, policy=resolve_policy([PROTECTED]))
+    html = res["results"][0]
+    # percentiles coarsened to 3 significant digits (p1≈123457, p25≈123469 must
+    # not appear at full precision; the mean stays exact — it is an aggregate)
+    import re
+    assert not re.search(r"1234[56]\d\.", html), html
+    assert "123000" in html
+
+
+def test_protected_sparse_tabulate_refused():
+    # tabulate of a near-unique column: almost every cell < min_n -> whole
+    # table refused (Tiltak 5), so row LABELS can't enumerate raw values
+    df = pd.DataFrame({"inc": range(40)})
+    script = "create-dataset demo\ntabulate inc"
+    res = run_remote(script, datasets={"demo": df}, policy=resolve_policy([PROTECTED]))
+    html = res["results"][0]
+    assert "Personvern" in html
+    assert ">17<" not in html      # no raw value labels in output
+
+
+def test_protected_coefplot_masks_thin_terms():
+    import numpy as np
+    rng = np.random.default_rng(1)
+    df = pd.DataFrame({"y": rng.normal(size=40),
+                       "x": [1]*3 + [0]*37, "z": rng.normal(size=40)})
+    script = "create-dataset demo\ncoefplot regress y x z"
+    res = run_remote(script, datasets={"demo": df}, policy=resolve_policy([PROTECTED]))
+    assert res["err"] is None, res["err"]
+    trace = _fig_trace(res)
+    assert "x" not in list(trace.y)       # thin dummy dropped from the plot
+    assert "z" in list(trace.y)
+
+
+def test_protected_panel_and_iv_mask_thin_terms():
+    import numpy as np
+    rng = np.random.default_rng(2)
+    n, t = 30, 4
+    df = pd.DataFrame({
+        "unit_id": np.repeat(range(n), t), "tid": list(range(t)) * n,
+        "y": rng.normal(size=n*t), "w": rng.normal(size=n*t),
+        "thin": [1]*3 + [0]*(n*t-3)})
+    script = "create-dataset demo\nregress-panel y w thin, re"
+    res = run_remote(script, datasets={"demo": df}, policy=resolve_policy([PROTECTED]))
+    assert res["err"] is None, res["err"]
+    html = res["results"][0]
+    assert "NaN" in html and "thin" in html
+
+
+def test_protected_kaplan_meier_at_risk_floor():
+    df = pd.DataFrame({"event": [1]*20, "dur": list(range(1, 21))})
+    script = "create-dataset demo\nkaplan-meier event dur"
+    res = run_remote(script, datasets={"demo": df}, policy=resolve_policy([PROTECTED]))
+    assert res["err"] is None, res["err"]
+    html = res["results"][0]
+    # times 17..20 have at-risk < 5 -> dropped from the released curve
+    assert ">20<" not in html and ">19<" not in html
+
+
+def test_protected_cox_masks_thin_covariates():
+    import numpy as np
+    rng = np.random.default_rng(3)
+    df = pd.DataFrame({"event": rng.integers(0, 2, 60),
+                       "dur": rng.uniform(1, 10, 60),
+                       "thin": [1]*3 + [0]*57,
+                       "w": rng.normal(size=60)})
+    script = "create-dataset demo\ncox event dur thin w"
+    res = run_remote(script, datasets={"demo": df}, policy=resolve_policy([PROTECTED]))
+    assert res["err"] is None, res["err"]
+    html = res["results"][0]
+    assert "NaN" in html and "thin" in html
+
+
+def test_protected_histogram_rebinned_server_side():
+    # numeric histogram is re-enabled: server pre-bins and suppresses bin counts
+    import numpy as np
+    rng = np.random.default_rng(4)
+    df = pd.DataFrame({"x": np.concatenate([rng.normal(0, 1, 200), [99.0]])})
+    script = "create-dataset demo\nhistogram x"
+    res = run_remote(script, datasets={"demo": df}, policy=resolve_policy([PROTECTED]))
+    assert res["err"] is None, res["err"]
+    trace = _fig_trace(res)
+    assert trace.type == "bar"            # pre-binned bars, not raw px.histogram
+    assert max(trace.x) < 50              # the lone outlier bin (n=1) is gone
+
+
+def test_sensitive_two_way_tabulate_gets_secondary():
+    from m2py_protection import SENSITIVE
+    # 2x2 with one small cell: secondary must mask a second cell so the
+    # (rounded) marginals can't recover the first
+    df = pd.DataFrame({"a": [1]*20 + [2]*20,
+                       "b": [1]*17 + [2]*3 + [1]*8 + [2]*12,
+                       "grp": [1, 2] * 20})
+    data = {"demo": pd.DataFrame({"a": df["a"].tolist() * 30,
+                                  "b": df["b"].tolist() * 30}).head(1200)}
+    script = "create-dataset demo\ntabulate a b"
+    res = run_remote(script, datasets=data, policy=resolve_policy([SENSITIVE]))
+    assert res["err"] is None, res["err"]
