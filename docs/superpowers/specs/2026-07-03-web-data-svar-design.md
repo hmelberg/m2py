@@ -1,0 +1,251 @@
+# Web-modus: generelle dataspørsmål med åpne kilder — design
+
+Dato: 2026-07-03. Status: design godkjent i samtale; venter på spec-review.
+
+## Mål
+
+En tredje AI-modus, **«Web»**, ved siden av «Rask» (kode-svar) og «Anvil»:
+brukeren stiller et hvilket som helst spørsmål, og AI-en genererer et kjørbart
+script (i aktiv editor-modus: python/r/duckdb) som **laster ned åpne data fra
+verifiserte kilder og analyserer dem med vitenskapelig metode** (kausal
+identifikasjon, konfundering, heterogenitet, usikkerhet). Nøkkelproblemet som
+skiller dette fra microdata-assistenten: det finnes ingen variabelkatalog å
+front-laste — datakildene må **oppdages** per spørsmål.
+
+Avgrensning: microdata-modus er urørt (katalog-forankret som i dag). Web-modus
+gjelder python/r/duckdb.
+
+## Vedtatte hovedvalg
+
+1. **Arkitektur B**: én agentisk edge-funksjon med server-side tool-loop
+   (ikke front-lastet enkeltkall, ikke fysisk oppdelt pipeline).
+2. **Egen knapp**: tredje AI-modus «Web» (`md_ai_mode: 'fast' | 'anvil' | 'web'`).
+3. **Kun admin**: knappen vises bare for `user.is_admin`; endepunktet håndhever
+   admin server-side (skjult knapp er ikke sikkerhet).
+4. **CORS-proxy**: ja — `/api/hent`, SSRF-herdet generell GET-proxy.
+5. **Reparasjon**: automatisk, inntil **3 runder** mot faktiske kjørefeil.
+   Iterasjon i discovery skjer gratis inne i tool-loopen; egne critique-pass på
+   plan/generering er vurdert som marginale og droppes.
+6. **Flerkilde**: prompten oppmuntrer eksplisitt til å kombinere flere kilder
+   (join på år, landkode, kommunenummer); registeret dokumenterer join-nøkler.
+7. **Kuratert-men-dynamisk**: et register over nøkkelkilder (kan utvides over
+   tid) + fritt websøk etter relevante datafiler (CSV o.l.) som kan brukes
+   dersom de er svært relevante — men bare etter probe-verifisering.
+8. **`# require <url> as NAVN` er leveringsmekanismen** for data som kan
+   hentes med én GET: genererte script deklarerer datakilder med editorens
+   eksisterende require-linjer (D1-mekanismen), ikke ad-hoc nedlastingskode.
+9. **Variabel-nivå uttrekk, ikke bare hele datasett**: nasjonale byrå-API-er
+   (PxWeb, Eurostat, WB) støtter uttak av utvalgte variabler/dimensjoner —
+   pipelinen bygger analysedatasett fra variabler, som i microdata-tankegangen.
+
+## Pipeline (én agentisk samtale, faset av systemprompten)
+
+```
+Spørsmål ──▶ 1 TOLK: estimand, enhet, geografi/periode,
+             identifikasjonsstrategi, data-ønskeliste
+         ──▶ 2 FINN (tool-loop, budsjett ~12 kall):
+             search_catalog / web_search → kandidat-tabeller
+             table_metadata → variabler/dimensjoner/kodelister i tabellen
+             → bygg variabel-nivå spørrings-URL (kun de variablene,
+               periodene og geografiene analysen trenger)
+             probe → finnes endepunktet? kolonnenavn? CORS?
+             (tomt søk → synonymer/annet språk/annen kilde;
+              feilet probe → neste kandidat — planen revideres naturlig)
+         ──▶ 3 GENERER: script i aktiv modus, mot OBSERVERTE skjemaer:
+             GET-bare uttrekk deklareres som `# require <url> as navn`
+             (editoren henter og materialiserer som DataFrame/tabell),
+             POST-/komplekse API-kall som kode i scriptet;
+             /api/hent-omvei der probe fant manglende CORS;
+             rå → justert estimat, antakelser oppgitt, kilder sitert
+         ──▶ 4 KJØR & REPARER (klient): syntakssjekk → auto-kjør →
+             feil + feilklasse tilbake til endepunktet, maks 3 runder
+```
+
+Grunnprinsippet: **aldri generer mot antatte skjemaer.** Datasett-ID-er og
+kolonnenavn kommer fra probe-resultater, ikke modellhukommelse. Det dreper den
+dominerende feilmoden (hallusinerte tabell-ID-er/kolonner) ved roten.
+
+## Komponenter
+
+### 1. `netlify/edge-functions/data-svar.ts` (ny)
+
+Agentisk endepunkt. Auth-gate som i dag **pluss** admin-krav: `/auth/me`-svaret
+må ha `user.is_admin === true` (utvid `_lib/auth.ts` til å returnere
+brukerobjektet, ikke bare boolean; behold positiv-cache med samme TTL).
+
+Request: `{ question, mode: 'python'|'r'|'duckdb', history?, repair?: {script, error, round} }`.
+Response: SSE-strøm med to hendelsestyper i tillegg til dagens `text`/`done`:
+`{"type":"progress","text":"Søker i SSB-katalogen …"}` (én per tool-kall, vises
+som statuslinjer i chatten) og til slutt `{"type":"sources","sources":[...]}`
+(kildemanifest: url, tittel, verifisert-av-probe: ja/nei, via-proxy: ja/nei).
+
+Modell: samme som kode-svar (Sonnet-klassen) med `web_search` som hosted tool
+og `search_catalog`/`table_metadata`/`probe` som klient-tools i loopen. Maks ~12 tool-kall,
+deretter tvinges generering (ærlig degradering: «fant ikke data for X» heller
+enn fabrikkering).
+
+### 2. `_lib/anthropic.ts`: tool-loop-støtte (utvidelse)
+
+I dag: kun enkeltkall. Nytt: `runToolLoop(opts)` — ikke-strømmende turer så
+lenge modellen kaller tools, strømmende siste tur (svaret). Emitterer
+progress-callback per tool-kall. `web_search` er Anthropic-hosted (ingen
+implementasjon her); `search_catalog`/`probe` dispatches til `_lib/tools/`.
+
+### 3. `_lib/tools/` (ny)
+
+- `search-catalog.ts` — adaptere per kildetype, valgt via registeret:
+  PxWeb (SSB), Eurostat, Verdensbanken, OECD SDMX, data.norge.no (CKAN/DCAT).
+  Én funksjon per adapter: `(query) → [{id, tittel, periode, geografi, url}]`.
+- `table-metadata.ts` — variabel-nivå oppslag for en truffet tabell:
+  `(kilde, tabell_id) → {variabler: [{navn, label, koder/verdier, tid}]}`
+  (PxWeb metadata-endepunkt, Eurostat/SDMX datastruktur, WB indikator-info).
+  Gir modellen det den trenger for å bygge en **minimal spørrings-URL** som
+  henter bare de variablene/periodene/geografiene analysen trenger — samme
+  «bygg datasett fra variabler»-tankegang som microdata-importen.
+- `probe.ts` — begrenset GET (timeout ~10 s, les maks ~256 kB): content-type,
+  HTTP-status, utledet skjema (kolonnenavn + et par eksempelrader for
+  CSV/JSON-stat/SDMX-JSON), og CORS-vurdering (`access-control-allow-origin`)
+  → «direkte fetch» eller «via /api/hent». Samme SSRF-vern som proxyen.
+- Web-søk-funn har regel i systemprompten: **må probes før bruk i script.**
+
+### 4. `data/data-sources.json` (ny) — registeret
+
+Skjema per kilde:
+
+```json
+{
+  "id": "ssb",
+  "navn": "Statistisk sentralbyrå (PxWebApi)",
+  "utgiver": "SSB",
+  "tillit": "offisiell",              // offisiell | etablert | funnet
+  "tilgang": "pxweb",                 // pxweb | sdmx | rest | ckan | fil
+  "base_url": "https://data.ssb.no/api/pxwebapi/v2/",
+  "sok_endepunkt": ".../tables?query={q}&lang=no",
+  "cors": true,
+  "join_nokler": ["kommunenummer", "fylkesnummer", "år"],
+  "oppskrift": { "python": "…", "r": "…", "duckdb": "…" },
+  "sporrings_url_mal": "…/table/{id}?valueCodes[{var}]={koder}&format=csv",
+  "quirks": "JSON-stat2; maks 800k celler per uttak; …"
+}
+```
+
+`sporrings_url_mal` dokumenterer hvordan et **variabel-nivå uttrekk**
+materialiseres som én GET-URL (PxWebApi v2 GET med valueCodes, Eurostats
+CSV/TSV-endepunkt med dimensjonsfiltre, WB `…/indicator/{id}?format=json`).
+En slik URL er require-bar (se «Levering» under); API-er som krever POST
+(store PxWeb-uttak) håndteres som kode i scriptet i stedet.
+
+Seed-liste: SSB, Eurostat, Verdensbanken, OECD, WHO GHO, Our World in Data
+(grapher-CSV), FRED (ikke-CORS → proxy), Norges Bank, NAV, FHI,
+data.norge.no, raw.githubusercontent.com (fil-kilde, discovery via websøk).
+Registeret renderes kompakt inn i den cachede system-prefiksen (navn, hva
+kilden dekker, søkbarhet, join-nøkler) — oppskrifter og detaljer hentes av
+tool-laget, ikke front-lastet i sin helhet. «Funnet»-tillitsnivået er veien
+for promotering: kilder oppdaget via websøk som viser seg gode, legges inn
+manuelt (admin) med `tillit: "funnet"`.
+
+**Registeret er en levende kunnskapsbase om «hvordan snakke med» hver kilde.**
+`oppskrift`, `sporrings_url_mal` og `quirks` fylles på etter hvert som vi
+lærer API-ene å kjenne (rate-limits, kodelister, datoformater, fallgruver).
+Konkret rutine: når en reparasjonsrunde avdekker en kilde-quirk (feil
+datoformat, celletak, uventet kolonnenavn), noteres den i registeret så neste
+generering slipper samme feil. Manuelt/admin i første omgang; kan senere
+halvautomatiseres (AI-en foreslår register-oppdatering etter vellykket repair).
+
+### 5. `netlify/edge-functions/hent.ts` (ny) — CORS-proxy `/api/hent?url=…`
+
+Ren allowlist er for rigid når funne CSV-er kan ligge hvor som helst; i stedet
+generell men herdet: kun GET; kun http(s) mot offentlige verter (blokker
+private/link-lokale IP-områder, også etter DNS-oppslag og redirects); ingen
+videresending av auth-/cookie-headere; størrelsestak ~50 MB (strømmet, avbryt
+over taket); timeout; `Access-Control-Allow-Origin` mot eget origin. Samme
+auth-gate som AI-endepunktene (Bearer-token) + admin-krav så lenge featuren er
+admin-only, så proxyen ikke er et åpent relé.
+
+### 5b. Levering: `# require <url> as navn` (eksisterende D1-mekanisme)
+
+Alt som kan hentes med én GET-URL deklareres i genererte script som en
+require-linje (`#`/`--`/`//` per språk):
+
+```
+# require https://data.ssb.no/…/tabell?valueCodes[Region]=…&format=csv as arbeidsledighet
+# require https://raw.githubusercontent.com/owid/…/co2.csv as co2
+```
+
+Editoren henter URL-ene og materialiserer dem som DataFrame (python),
+data.frame (r) eller tabell (duckdb) med aliaset som navn — nøyaktig slik
+require fungerer i dag. Gevinster: scriptet forblir en selvdokumenterende,
+reproduserbar enhet (kilde-URL-er står øverst); ingen per-språk
+nedlastingskode for enkle uttrekk; og ruting/proxy håndteres ett sted.
+Nødvendig utvidelse av require-lasteren: **fallback til `/api/hent`** når
+direkte fetch feiler på CORS (probe-resultatet forteller genereringen hvilke
+kilder det gjelder, så scriptet kan også skrive proxy-URL-en eksplisitt).
+Proxy-kall fra editoren sender brukerens Bearer-token (samme auth som
+AI-endepunktene) — require mot offentlige CORS-åpne URL-er er uendret og
+krever ingen innlogging.
+API-kall som krever POST eller flertrinns-interaksjon skrives som vanlig kode
+i scriptet med kilde-URL i kommentar.
+
+### 6. Frontend (`js/ai-chat.js`, `index.html`)
+
+- Tredje modusvalg «Web»; rendres kun når `user.is_admin`; lagres i
+  `md_ai_mode`. I microdata-modus skjules Web-valget (faller tilbake til Rask).
+- Progress-linjer fra SSE (`type:"progress"`) vises løpende, kildemanifest
+  (`type:"sources"`) vises under svaret med verifisert-merke per kilde.
+- Auto-reparasjon: etter generering kjøres syntakssjekk (Pyodide-parse for
+  python — som v2), deretter auto-kjøring i aktiv runtime. Ved feil sendes
+  `{repair: {script, error, round}}` tilbake til `/api/data-svar`; maks 3
+  runder; deretter ærlig feilmelding med hva som ble forsøkt. Feilklasser i
+  repair-prompten: nettverk/CORS → bytt til proxy eller alternativ kilde
+  (kan re-probe); skjemafeil → re-probe og rett kolonner; logikkfeil → rett koden.
+
+### 7. Promptinnhold (`data-svar.ts`-konstanter, kilde-doc i `prompts/`)
+
+- **Vitenskapelig kjerne**: utvidet versjon av `INFERENCE_STRATEGY_PYR` for
+  fulle python/R-økosystemer: rå → justert sammenligning; konfundere valgt for
+  akkurat dette spørsmålet; ÉN grov heterogenitets-oppdeling; DiD/event-study,
+  IV, RDD, faste effekter, syntetisk kontroll (statsmodels/linearmodels/
+  `fixest`); robuste/klyngede standardfeil; usikkerhet alltid rapportert;
+  ærlighet om beskrivelse vs. årsak når identifikasjon ikke er mulig.
+- **Kilderegler**: siter hver kilde med URL i script-kommentar; merk
+  probe-verifisert vs. modellkunnskap; aldri fabrikker datasett-ID; finner du
+  ingenting — si det, og foreslå omformuleringer.
+- **Flerkilde**: kombinasjon oppmuntres; harmoniser koder (ISO-land, NUTS,
+  kommunenummer) og enheter eksplisitt; join-nøkler fra registeret.
+- **Minimal-uttrekk**: hent variablene analysen trenger (variabel-nivå
+  spørring via `table_metadata`), ikke hele tabeller — mindre data, klarere
+  script, snillere mot kilde-API-ene.
+- **Levering**: GET-bare uttrekk som `# require <url> as navn` øverst;
+  POST-/komplekse kall som kode med kilde-URL i kommentar.
+- **Språkregler per modus**: python (pandas/statsmodels/matplotlib …, micropip
+  ved behov), r (tidyverse/fixest …, webr::install), duckdb (httpfs-lesing av
+  CSV/parquet direkte i SQL; analyse i SQL eller hybrid med #py).
+
+## Feilhåndtering
+
+- Tool-feil (nede kilde-API, timeout) → modellen fortsetter med andre kilder;
+  progress-linja viser feilen kort.
+- Tomt discovery-resultat etter budsjettet → ærlig «fant ikke data»-svar med
+  hva som ble søkt og forslag til omformulering. Ingen fabrikkering.
+- Proxy-avslag (privat IP, for stor fil) → tydelig feiltekst som repair-runden
+  kan reagere på.
+- 3 feilede reparasjonsrunder → svaret leveres med feilbeskrivelse og siste
+  script, merket som ikke-kjørende.
+
+## Testing
+
+- `_lib/tools/*.test.ts`: adaptere mot fixture-svar (PxWeb/Eurostat/WB/OECD/
+  CKAN), probe-skjemautledning (CSV/JSON-stat), SSRF-vern (private IP-er,
+  redirects, størrelsestak) — samme mønster som eksisterende `*.test.ts`.
+- `_lib/anthropic`-loop: enhetstest med mock-modell (tool-kall → svar).
+- Evalsett: ~10 realistiske spørsmål (norsk + internasjonalt, én- og
+  flerkilde) sjekket for: fant verifisert kilde, scriptet kjører, kildene er
+  reelle. Kjøres manuelt/halvautomatisk ved promptendringer.
+
+## Utenfor scope (nå)
+
+- Åpning for ikke-admin-brukere (krever kost-/misbruksvurdering av proxy og
+  tool-loop; repair kan da gjøres knappstyrt).
+- Automatisk promotering av funne kilder inn i registeret.
+- Microdata som én av kildene i Web-modus (mulig senere: #micro-bro).
+- Caching av probe-/katalogresultater på tvers av forespørsler.
