@@ -1,6 +1,6 @@
 import { detectLanguage } from "./_lib/parse-script-context.ts";
 import { streamAnthropic } from "./_lib/anthropic.ts";
-import { gate } from "./_lib/auth.ts";
+import { extractByokKey, gate, upstreamErrorResponse } from "./_lib/auth.ts";
 
 interface RequestBody {
   script?: string;
@@ -87,7 +87,8 @@ export default async (request: Request): Promise<Response> => {
     return new Response("Missing output", { status: 400 });
   }
 
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  const byokKey = extractByokKey(request);
+  const apiKey = byokKey ?? Deno.env.get("ANTHROPIC_API_KEY");
   const model = Deno.env.get("ANTHROPIC_MODEL") ?? "claude-sonnet-4-6";
   if (!apiKey) {
     console.error("ANTHROPIC_API_KEY is not set");
@@ -129,6 +130,6 @@ section headings as: «Hva analysen gjorde» → «What the analysis did»,
       },
     });
   } catch (e) {
-    return new Response(`Upstream error: ${e}`, { status: 502 });
+    return upstreamErrorResponse(e, byokKey);
   }
 };

@@ -1,5 +1,5 @@
 import { messageAnthropic, streamAnthropic } from "./_lib/anthropic.ts";
-import { gate } from "./_lib/auth.ts";
+import { extractByokKey, gate, upstreamErrorResponse } from "./_lib/auth.ts";
 import { buildCachedPrefix, coerceMode, type GenMode } from "./kode-svar.ts";
 import {
   type CatalogMeta,
@@ -111,7 +111,8 @@ export default async (request: Request): Promise<Response> => {
   const question = (body.question ?? "").trim();
   if (!question) return new Response("Missing question", { status: 400 });
 
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  const byokKey = extractByokKey(request);
+  const apiKey = byokKey ?? Deno.env.get("ANTHROPIC_API_KEY");
   const model = Deno.env.get("ANTHROPIC_MODEL") ?? "claude-sonnet-4-6";
   const pickerModel = Deno.env.get("PICKER_MODEL") ?? "claude-haiku-4-5-20251001";
   if (!apiKey) {
@@ -186,6 +187,6 @@ export default async (request: Request): Promise<Response> => {
       headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
     });
   } catch (e) {
-    return new Response(`Upstream error: ${e}`, { status: 502 });
+    return upstreamErrorResponse(e, byokKey);
   }
 };
