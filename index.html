@@ -2557,7 +2557,7 @@
       }
       btnOk.onclick = function() { closeModal(); };
       btnMore.onclick = function() {
-        window.open('hjelp.html', '_blank', 'noopener,noreferrer');
+        window.open(window.M2PY_LANG === 'en' ? 'hjelp.en.html' : 'hjelp.html', '_blank', 'noopener,noreferrer');
         closeModal();
       };
       overlay.onclick = function(e) { if (e.target === overlay) closeModal(); };
