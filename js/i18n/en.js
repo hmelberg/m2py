@@ -115,7 +115,6 @@ window.M2PY_I18N.en = {
   "Logget inn som": "Logged in as",
   "Logg ut": "Log out",
   "Åpne admin-panel": "Open admin panel",
-  "Du er ikke logget inn. AI-assistenten og online-lagring krever en konto.": "You are not logged in. The AI assistant and online storage require an account.",
   "Avansert: API-base og service-token": "Advanced: API base and service token",
   "Adressen til Anvil-appen som kjører API-et. Standard: https://mdataapi.anvil.app": "The address of the Anvil app running the API. Default: https://mdataapi.anvil.app",
   "Service-token (kun for automatisering)": "Service token (automation only)",
@@ -611,4 +610,9 @@ window.M2PY_I18N.en = {
   "Eksempler:": "Examples:",
   "Mer dokumentasjon:": "More documentation:",
   "Funksjon:": "Function:",
+
+  // ── BYOK: egen Anthropic-nøkkel ──
+  "Du er ikke logget inn. AI-assistenten og online-lagring krever en konto eller egen Anthropic-nøkkel.": "You are not logged in. The AI assistant and online storage require an account or your own Anthropic key.",
+  "Eller bruk egen Anthropic API-nøkkel": "Or use your own Anthropic API key",
+  "Har du egen Claude-konto? Lag en API-nøkkel på <a href=\"https://console.anthropic.com/settings/keys\" target=\"_blank\" rel=\"noopener\">console.anthropic.com</a> og lim den inn her. Nøkkelen lagres kun i denne nettleseren; forespørsler går via appens server, men nøkkelen lagres eller logges ikke der. Forbruk belastes din egen Anthropic-konto. Gir også tilgang til Web-knappen i python/r/duckdb-modus.": "Have your own Claude account? Create an API key at <a href=\"https://console.anthropic.com/settings/keys\" target=\"_blank\" rel=\"noopener\">console.anthropic.com</a> and paste it here. The key is stored only in this browser; requests pass through the app's server, but the key is never stored or logged there. Usage is billed to your own Anthropic account. Also unlocks the Web button in python/r/duckdb mode.",
 };

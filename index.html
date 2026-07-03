@@ -281,10 +281,15 @@
 
       <div id="aiCfgLoggedOut">
         <div class="ai-modal-help" style="margin-bottom:14px;" data-i18n>
-          Du er ikke logget inn. AI-assistenten og online-lagring krever en konto.
+          Du er ikke logget inn. AI-assistenten og online-lagring krever en konto eller egen Anthropic-nøkkel.
         </div>
         <div class="ai-modal-actions" style="margin-bottom:18px;">
           <button type="button" class="ai-modal-btn primary" id="aiCfgLogin" data-i18n>Logg inn</button>
+        </div>
+        <div style="margin-bottom:18px;">
+          <label for="aiCfgAnthropicKey" data-i18n>Eller bruk egen Anthropic API-nøkkel</label>
+          <input type="password" id="aiCfgAnthropicKey" placeholder="sk-ant-…" autocomplete="off">
+          <div class="ai-modal-help" data-i18n-html>Har du egen Claude-konto? Lag en API-nøkkel på <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> og lim den inn her. Nøkkelen lagres kun i denne nettleseren; forespørsler går via appens server, men nøkkelen lagres eller logges ikke der. Forbruk belastes din egen Anthropic-konto. Gir også tilgang til Web-knappen i python/r/duckdb-modus.</div>
         </div>
       </div>
 

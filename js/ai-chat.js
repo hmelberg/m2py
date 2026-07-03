@@ -5,6 +5,7 @@
       var T = window.t || function (s, p) { return p ? s.replace(/\{(\w+)\}/g, function (m, k) { return k in p ? p[k] : m; }) : s; };
       const LS_KEY_BASE = 'md_ai_api_base';
       const LS_KEY_APIKEY = 'md_ai_api_key';
+      const LS_KEY_ANTHROPIC = 'md_anthropic_key';   // BYOK: brukerens egen Anthropic-nøkkel
       const LS_KEY_AIMODE = 'md_ai_mode';   // 'fast' | 'anvil'
       const DEFAULT_BASE = 'https://mdataapi.anvil.app';
 
@@ -13,6 +14,7 @@
         history: [],   // {role, html|text, raw}
         get apiBase() { return (localStorage.getItem(LS_KEY_BASE) || DEFAULT_BASE).replace(/\/+$/, ''); },
         get apiKey()  { return localStorage.getItem(LS_KEY_APIKEY) || ''; },
+        get anthropicKey() { return localStorage.getItem(LS_KEY_ANTHROPIC) || ''; },
         // AI mode: 'fast' = rask edge-funksjon, 'anvil' = full vurdering via
         // Anvil-API. Web (agentisk web-søk + generering; admin-only,
         // python/r/duckdb) is NOT part of this menu cycle — it has its own
@@ -52,7 +54,7 @@
         ['aiToggleBtn','aiSidebar','aiCloseBtn','aiSettingsBtn','aiClearBtn',
          'aiThread','aiInput','aiSendFastBtn','aiSendV2Btn','aiSendWebBtn','aiAbortBtn',
          'aiIncludeScript','menuAiMode',
-         'aiSettingsBackdrop','aiCfgBaseUrl','aiCfgApiKey','aiCfgSave','aiCfgCancel',
+         'aiSettingsBackdrop','aiCfgBaseUrl','aiCfgApiKey','aiCfgAnthropicKey','aiCfgSave','aiCfgCancel',
          'aiCfgLoggedIn','aiCfgLoggedOut','aiCfgUserEmail','aiCfgUserMeta',
          'aiCfgLogout','aiCfgAdmin','aiCfgLogin',
          'sidebarRight','sidebarOpenTab','scriptInput'
@@ -1441,6 +1443,7 @@
       function openSettings() {
         dom.aiCfgBaseUrl.value = state.apiBase;
         dom.aiCfgApiKey.value = state.apiKey;
+        if (dom.aiCfgAnthropicKey) dom.aiCfgAnthropicKey.value = state.anthropicKey;
         refreshUserPanel();
         // Refresh /auth/me in background so the displayed credits/category are up-to-date
         if (window.mdAuth && window.mdAuth.token) {
@@ -1454,6 +1457,11 @@
         const key = dom.aiCfgApiKey.value.trim();
         localStorage.setItem(LS_KEY_BASE, base);
         localStorage.setItem(LS_KEY_APIKEY, key);
+        const akey = dom.aiCfgAnthropicKey ? dom.aiCfgAnthropicKey.value.trim() : '';
+        if (akey) localStorage.setItem(LS_KEY_ANTHROPIC, akey);
+        else localStorage.removeItem(LS_KEY_ANTHROPIC);
+        // BYOK-nøkkelen påvirker Web-knappens synlighet (webModeEligible).
+        if (window.mdSyncWebBtnVisibility) window.mdSyncWebBtnVisibility();
         closeSettings();
       }
 
