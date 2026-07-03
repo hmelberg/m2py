@@ -488,7 +488,6 @@ window.M2PY_I18N.en = {
   "Finner relevante variabler…": "Finding relevant variables…",
   "Retter feil og prøver på nytt…": "Fixing errors and retrying…",
   "Kopier tolkning": "Copy interpretation",
-  "Web-modus krever innlogging.": "Web mode requires login.",
   "Avbrutt: svaret ble ikke ferdig etter 40 fortsettelses-runder.": "Aborted: the answer did not finish after 40 continuation rounds.",
   "Fant ikke Kjør-knappen.": "Could not find the Run button.",
   "Kan ikke sjekke kjørestatus (mdIsScriptRunning mangler).": "Cannot check run status (mdIsScriptRunning is missing).",

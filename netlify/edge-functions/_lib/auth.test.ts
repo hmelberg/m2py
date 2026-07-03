@@ -246,23 +246,23 @@ function makeByokAdminDeps(): AdminGateDeps & { calls: { fetchUser: number } } {
 
 Deno.test("runGate: valid BYOK header, no bearer -> passes without validation", async () => {
   const deps = makeDeps();
-  const resp = await runGate(req({ byok: GOOD_KEY }), { endpoint: "t", maxBodyBytes: 100 }, deps);
+  const resp = await runGate(req({ byok: GOOD_KEY }), { endpoint: "t", maxBodyBytes: 100, allowByok: true }, deps);
   assertEquals(resp, null);
   assertEquals(deps.calls.validate, 0);
 });
 
 Deno.test("runGate: malformed BYOK header, no bearer -> 401", async () => {
-  const resp = await runGate(req({ byok: "not-a-key" }), { endpoint: "t", maxBodyBytes: 100 }, makeDeps());
+  const resp = await runGate(req({ byok: "not-a-key" }), { endpoint: "t", maxBodyBytes: 100, allowByok: true }, makeDeps());
   assertEquals(resp?.status, 401);
 });
 
 Deno.test("runGate: BYOK still method-checked -> 405", async () => {
-  const resp = await runGate(req({ byok: GOOD_KEY, method: "GET" }), { endpoint: "t", maxBodyBytes: 100 }, makeDeps());
+  const resp = await runGate(req({ byok: GOOD_KEY, method: "GET" }), { endpoint: "t", maxBodyBytes: 100, allowByok: true }, makeDeps());
   assertEquals(resp?.status, 405);
 });
 
 Deno.test("runGate: BYOK still body-capped -> 413", async () => {
-  const resp = await runGate(req({ byok: GOOD_KEY, contentLength: 999 }), { endpoint: "t", maxBodyBytes: 100 }, makeDeps());
+  const resp = await runGate(req({ byok: GOOD_KEY, contentLength: 999 }), { endpoint: "t", maxBodyBytes: 100, allowByok: true }, makeDeps());
   assertEquals(resp?.status, 413);
 });
 
@@ -270,13 +270,13 @@ Deno.test("runGate: BYOK still rate-limited -> 429", async () => {
   const deps = makeDeps({
     checkRateLimit: () => Promise.resolve({ allowed: false, retryAfterSeconds: 7 }),
   });
-  const resp = await runGate(req({ byok: GOOD_KEY }), { endpoint: "t", maxBodyBytes: 100 }, deps);
+  const resp = await runGate(req({ byok: GOOD_KEY }), { endpoint: "t", maxBodyBytes: 100, allowByok: true }, deps);
   assertEquals(resp?.status, 429);
 });
 
 Deno.test("runAdminGate: valid BYOK header, no bearer -> passes without admin", async () => {
   const deps = makeByokAdminDeps();
-  const resp = await runAdminGate(req({ byok: GOOD_KEY }), { endpoint: "t", maxBodyBytes: 100 }, deps);
+  const resp = await runAdminGate(req({ byok: GOOD_KEY }), { endpoint: "t", maxBodyBytes: 100, allowByok: true }, deps);
   assertEquals(resp, null);
   assertEquals(deps.calls.fetchUser, 0);
 });
@@ -284,6 +284,31 @@ Deno.test("runAdminGate: valid BYOK header, no bearer -> passes without admin", 
 Deno.test("runAdminGate: no BYOK, non-admin token -> 403 (unchanged)", async () => {
   const deps = makeByokAdminDeps();
   deps.fetchUser = () => Promise.resolve({ ok: true, isAdmin: false });
-  const resp = await runAdminGate(req({ token: "user-token" }), { endpoint: "t", maxBodyBytes: 100 }, deps);
+  const resp = await runAdminGate(req({ token: "user-token" }), { endpoint: "t", maxBodyBytes: 100, allowByok: true }, deps);
   assertEquals(resp?.status, 403);
+});
+
+// ── BYOK is opt-in per endpoint (finding 1: hent must never allow it) ──
+
+Deno.test("runGate: valid BYOK header, NO allowByok -> 401 (BYOK not accepted)", async () => {
+  const deps = makeDeps();
+  const resp = await runGate(req({ byok: GOOD_KEY }), { endpoint: "t", maxBodyBytes: 100 }, deps);
+  assertEquals(resp?.status, 401);
+});
+
+Deno.test("runAdminGate: valid BYOK header, NO allowByok -> 401 (fetchUser not ok, BYOK ignored)", async () => {
+  const deps = makeByokAdminDeps();
+  const resp = await runAdminGate(req({ byok: GOOD_KEY }), { endpoint: "t", maxBodyBytes: 100 }, deps);
+  assertEquals(resp?.status, 401);
+});
+
+Deno.test("runGate: allowByok, valid BYOK header AND invalid Bearer token both present -> passes (BYOK wins)", async () => {
+  const deps = makeDeps({ validateToken: () => Promise.resolve(false) });
+  const headers = new Headers();
+  headers.set("authorization", "Bearer definitely-not-valid");
+  headers.set("x-anthropic-key", GOOD_KEY);
+  const request = new Request("https://example.test/", { method: "POST", headers });
+  const resp = await runGate(request, { endpoint: "t", maxBodyBytes: 100, allowByok: true }, deps);
+  assertEquals(resp, null);
+  assertEquals(deps.calls.validate, 0); // BYOK short-circuits before token validation
 });

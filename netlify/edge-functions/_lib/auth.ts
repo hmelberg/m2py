@@ -72,6 +72,13 @@ export interface GateOptions {
   endpoint: string;
   maxBodyBytes: number;
   allowedMethods?: string[];
+  /**
+   * Accept a well-formed X-Anthropic-Key in place of token/admin auth — only
+   * for endpoints that forward the key to Anthropic, which validates it.
+   * Never set this on endpoints that don't consume the key (they would
+   * become effectively anonymous).
+   */
+  allowByok?: boolean;
 }
 
 export interface GateDeps {
@@ -161,7 +168,7 @@ export async function runGate(
   opts: GateOptions,
   deps: GateDeps,
 ): Promise<Response | null> {
-  const byokKey = extractByokKey(request);
+  const byokKey = opts.allowByok ? extractByokKey(request) : null;
   const { presentedToken, failure } = await runBaseChecks(
     request,
     opts,
@@ -172,6 +179,8 @@ export async function runGate(
 
   // BYOK: the user's own Anthropic key replaces account auth. Method, body
   // and rate-limit checks above still ran; the handler uses the key upstream.
+  // Deliberate server-side precedence: when both a valid BYOK header and a
+  // Bearer token are present, BYOK wins and the token is never validated.
   if (byokKey !== null) return null;
 
   // 5. auth: cheap shared-token (constant-time) -> positive cache -> Anvil
@@ -288,7 +297,7 @@ export async function runAdminGate(
   opts: GateOptions,
   deps: AdminGateDeps,
 ): Promise<Response | null> {
-  const byokKey = extractByokKey(request);
+  const byokKey = opts.allowByok ? extractByokKey(request) : null;
   const { presentedToken, failure } = await runBaseChecks(
     request,
     opts,

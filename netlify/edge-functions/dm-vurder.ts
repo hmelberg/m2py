@@ -356,7 +356,7 @@ function languageInstruction(requested: string, detected: Language): string {
 
 export default async (request: Request): Promise<Response> => {
   const MAX_BODY_BYTES = 50_000;
-  const gateResp = await gate(request, { endpoint: "dm-vurder", maxBodyBytes: MAX_BODY_BYTES });
+  const gateResp = await gate(request, { endpoint: "dm-vurder", maxBodyBytes: MAX_BODY_BYTES, allowByok: true });
   if (gateResp) return gateResp;
 
   let body: RequestBody;

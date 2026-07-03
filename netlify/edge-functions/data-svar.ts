@@ -36,7 +36,7 @@ function validResumeState(s: AgenticResumeState | undefined): s is AgenticResume
 }
 
 export default async (request: Request): Promise<Response> => {
-  const gateResp = await adminGate(request, { endpoint: "data-svar", maxBodyBytes: MAX_BODY_BYTES });
+  const gateResp = await adminGate(request, { endpoint: "data-svar", maxBodyBytes: MAX_BODY_BYTES, allowByok: true });
   if (gateResp) return gateResp;
 
   let body: RequestBody;

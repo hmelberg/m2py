@@ -74,7 +74,7 @@ function languageInstruction(requested: string, detected: string): string {
 }
 
 export default async (request: Request): Promise<Response> => {
-  const gateResp = await gate(request, { endpoint: "tolk-resultat", maxBodyBytes: 120_000 });
+  const gateResp = await gate(request, { endpoint: "tolk-resultat", maxBodyBytes: 120_000, allowByok: true });
   if (gateResp) return gateResp;
 
   let body: RequestBody;

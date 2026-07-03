@@ -1247,7 +1247,7 @@ export async function buildCachedPrefix(origin: string, mode: GenMode = "microda
 // ====================================================================
 
 export default async (request: Request): Promise<Response> => {
-  const gateResp = await gate(request, { endpoint: "kode-svar", maxBodyBytes: 50_000 });
+  const gateResp = await gate(request, { endpoint: "kode-svar", maxBodyBytes: 50_000, allowByok: true });
   if (gateResp) return gateResp;
 
   let body: RequestBody;
