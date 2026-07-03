@@ -1,5 +1,6 @@
     // ── Del / Åpne fra URL / Koble til GitHub ────────────────────────────────
     (function initScriptSharing() {
+      var T = window.t || function (s, p) { return p ? s.replace(/\{(\w+)\}/g, function (m, k) { return k in p ? p[k] : m; }) : s; };
       const $ = (id) => document.getElementById(id);
       const dropdown = $('hamburgerDropdown');
       function closeAllSubmenus() {
@@ -82,7 +83,7 @@
         closeMenu();
         const si = $('scriptInput');
         const script = si ? si.value : '';
-        if (!script.trim()) { alert('Editoren er tom — ingenting å dele.'); return; }
+        if (!script.trim()) { alert(T('Editoren er tom — ingenting å dele.')); return; }
         try {
           const payload = JSON.stringify({
             v: 1,
@@ -93,13 +94,13 @@
           const packed = await gzip(payload);
           const link = location.origin + location.pathname + '#s=' + packed;
           if (link.length > 8000) {
-            alert('Scriptet er for stort for en delelenke (' + link.length + ' tegn i URL). Bruk «Last ned kode» (fil) eller GitHub i stedet.');
+            alert(T('Scriptet er for stort for en delelenke ({n} tegn i URL). Bruk «Last ned kode» (fil) eller GitHub i stedet.', { n: link.length }));
             return;
           }
           await navigator.clipboard.writeText(link);
-          toast('Delelenke kopiert til utklippstavlen');
+          toast(T('Delelenke kopiert til utklippstavlen'));
         } catch (e) {
-          alert('Kunne ikke lage delelenke: ' + (e.message || e));
+          alert(T('Kunne ikke lage delelenke: {msg}', { msg: e.message || e }));
         }
       }
 
@@ -112,7 +113,7 @@
             setEditor(data.script, data.lang);
             setCurrent(null); // delt lenke er ikke en GitHub-fil
             if (data.name && $('scriptName')) $('scriptName').value = data.name;
-            toast('Delt script åpnet');
+            toast(T('Delt script åpnet'));
           }
         } catch (e) {
           console.warn('Kunne ikke åpne delt script fra lenke:', e);
@@ -169,9 +170,9 @@
           pushRecent(normalized);
           pushRecentFile({ kind: 'url', url: normalized });
           $('openUrlBackdrop').style.display = 'none';
-          toast('Script hentet fra URL');
+          toast(T('Script hentet fra URL'));
         } catch (e) {
-          if (err) err.textContent = 'Kunne ikke hente URL-en. Bruk en direkte «raw»-lenke som tillater henting (CORS) — f.eks. GitHub raw eller gist. Feil: ' + (e.message || e);
+          if (err) err.textContent = T('Kunne ikke hente URL-en. Bruk en direkte «raw»-lenke som tillater henting (CORS) — f.eks. GitHub raw eller gist. Feil: {msg}', { msg: e.message || e });
         } finally {
           if (go) go.disabled = false;
         }
@@ -299,7 +300,7 @@
       function renderRecentMenu() {
         const menu = $('ghRecentMenu'); if (!menu) return;
         const a = getRecentFiles();
-        menu.innerHTML = '<div class="examples-dropdown-title">Nylige filer</div>';
+        menu.innerHTML = '<div class="examples-dropdown-title">' + T('Nylige filer') + '</div>';
         if (!a.length) {
           menu.innerHTML += '<div style="padding:6px 14px;color:var(--text-muted);font-size:13px;">Ingen nylige.</div>';
         } else {
@@ -318,15 +319,15 @@
         hr.style.cssText = 'margin:4px 0;border-color:#334155;';
         menu.appendChild(hr);
         const more = document.createElement('button'); more.type = 'button';
-        more.textContent = 'Flere filer (GitHub)';
-        more.title = 'Bla gjennom alle filene i GitHub-repoet';
+        more.textContent = T('Flere filer (GitHub)');
+        more.title = T('Bla gjennom alle filene i GitHub-repoet');
         more.onclick = () => { menu.classList.remove('open'); openPicker(); };
         menu.appendChild(more);
       }
       async function reopenRecent(e) {
         if (e.kind === 'url') { await fetchUrl(e.url); return; }
         const pat = getPatForRepo(e.repo);
-        if (!pat) { openSettings('Sett opp GitHub-tilgang for ' + e.repo + ' først.'); return; }
+        if (!pat) { openSettings(T('Sett opp GitHub-tilgang for {repo} først.', { repo: e.repo })); return; }
         try {
           const resp = await fetch(ghContentsUrlFor(e.repo, e.path) + '?ref=' + encodeURIComponent(e.branch), { headers: ghHeaders(pat) });
           if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -336,8 +337,8 @@
           if (nameEl) nameEl.value = (e.path.split('/').pop() || '').replace(/\.(txt|py|r)$/i, '');
           setCurrent({ repo: e.repo, branch: e.branch, path: e.path });
           markSaved();
-          toast('Hentet fra GitHub: ' + e.path);
-        } catch (err) { alert('Kunne ikke åpne: ' + (err.message || err)); }
+          toast(T('Hentet fra GitHub: {path}', { path: e.path }));
+        } catch (err) { alert(T('Kunne ikke åpne: {msg}', { msg: err.message || err })); }
       }
       function ghIconHost() {
         let host = $('ghIndicatorHost');
@@ -369,7 +370,7 @@
         recentWrap.style.cssText = 'position:relative;display:none;align-items:center;margin-left:4px;';
         const recentBtn = document.createElement('span');
         recentBtn.id = 'ghRecentBtn';
-        recentBtn.title = 'Nylige filer';
+        recentBtn.title = T('Nylige filer');
         recentBtn.style.cssText = 'display:inline-flex;align-items:center;color:var(--text-muted);cursor:pointer;';
         recentBtn.innerHTML = SVG_CHEVRON;
         const recentMenu = document.createElement('div');
@@ -402,7 +403,7 @@
             save.style.display = 'inline-flex';
             save.classList.toggle('dirty', dirty);
             const loc = cur.repo + '/' + cur.path + (cur.branch && cur.branch !== 'main' ? '@' + cur.branch : '');
-            save.title = 'GitHub: ' + loc + (dirty ? ' — ulagrede endringer, klikk for å lagre' : ' — lagret, klikk for å lagre igjen');
+            save.title = 'GitHub: ' + loc + (dirty ? T(' — ulagrede endringer, klikk for å lagre') : T(' — lagret, klikk for å lagre igjen'));
           }
         } else {
           if (save) save.style.display = 'none';
@@ -415,7 +416,7 @@
         const a = getProfiles(), active = getActiveIndex();
         sel.innerHTML = '';
         if (!a.length) {
-          const o = document.createElement('option'); o.value = '-1'; o.textContent = '(ingen profil ennå)'; sel.appendChild(o);
+          const o = document.createElement('option'); o.value = '-1'; o.textContent = T('(ingen profil ennå)'); sel.appendChild(o);
         } else {
           a.forEach((p, idx) => {
             const o = document.createElement('option');
@@ -433,7 +434,7 @@
         $('ghBranch').value = p.branch || 'main';
         // Tilbakestill token-feltet til maskert ved bytte
         $('ghPat').type = 'password';
-        const tog = $('ghPatToggle'); if (tog) tog.textContent = 'Vis';
+        const tog = $('ghPatToggle'); if (tog) tog.textContent = T('Vis');
       }
       function openSettings(msg) {
         closeMenu();
@@ -451,8 +452,8 @@
       }
       function settingsValidate(f) {
         const err = $('ghError'); err.textContent = '';
-        if (!f.pat) { err.textContent = 'Mangler token.'; return false; }
-        if (!/^[^/\s]+\/[^/\s]+$/.test(f.repo)) { err.textContent = 'Repo må være på formen eier/navn.'; return false; }
+        if (!f.pat) { err.textContent = T('Mangler token.'); return false; }
+        if (!/^[^/\s]+\/[^/\s]+$/.test(f.repo)) { err.textContent = T('Repo må være på formen eier/navn.'); return false; }
         return true;
       }
       function settingsSave() {
@@ -463,7 +464,7 @@
         saveProfiles(a, i);
         lastTree = null; // repo/branch kan ha endret seg
         $('githubBackdrop').style.display = 'none';
-        toast('GitHub-innstillinger lagret');
+        toast(T('GitHub-innstillinger lagret'));
         updateCurrentIndicator();
       }
       function profileNew() {
@@ -480,8 +481,8 @@
         const a = getProfiles();
         if (!a.length) return;
         const i = getActiveIndex();
-        const name = a[i].repo || ('Profil ' + (i + 1));
-        if (!confirm('Slette profilen «' + name + '»?')) return;
+        const name = a[i].repo || (T('Profil') + ' ' + (i + 1));
+        if (!confirm(T('Slette profilen «{name}»?', { name: name }))) return;
         a.splice(i, 1);
         const ni = Math.max(0, Math.min(i, a.length - 1));
         saveProfiles(a, ni);
@@ -493,30 +494,30 @@
       function patToggle() {
         const inp = $('ghPat'), btn = $('ghPatToggle');
         if (!inp) return;
-        if (inp.type === 'password') { inp.type = 'text'; if (btn) btn.textContent = 'Skjul'; }
-        else { inp.type = 'password'; if (btn) btn.textContent = 'Vis'; }
+        if (inp.type === 'password') { inp.type = 'text'; if (btn) btn.textContent = T('Skjul'); }
+        else { inp.type = 'password'; if (btn) btn.textContent = T('Vis'); }
       }
       async function patCopy() {
         const inp = $('ghPat'); if (!inp || !inp.value) return;
         try {
           await navigator.clipboard.writeText(inp.value);
           const btn = $('ghPatCopy');
-          if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert!'; setTimeout(() => { btn.textContent = o; }, 1500); }
+          if (btn) { const o = btn.textContent; btn.textContent = T('Kopiert!'); setTimeout(() => { btn.textContent = o; }, 1500); }
         } catch (_) {}
       }
       async function settingsTest() {
         const f = settingsRead();
         if (!settingsValidate(f)) return;
         const status = $('ghStatus'), err = $('ghError');
-        err.textContent = ''; status.textContent = 'Tester…';
+        err.textContent = ''; status.textContent = T('Tester…');
         try {
           const resp = await fetch('https://api.github.com/repos/' + f.repo, { headers: ghHeaders(f.pat) });
           if (!resp.ok) throw new Error('HTTP ' + resp.status +
-            (resp.status === 404 ? ' (repo ikke funnet / ingen tilgang)' : resp.status === 401 ? ' (ugyldig token)' : ''));
+            (resp.status === 404 ? T(' (repo ikke funnet / ingen tilgang)') : resp.status === 401 ? T(' (ugyldig token)') : ''));
           const data = await resp.json();
-          status.textContent = '✓ Tilkoblet: ' + (data.full_name || f.repo) + (data.private ? ' (privat)' : ' (offentlig)');
+          status.textContent = T('✓ Tilkoblet: {repo}', { repo: data.full_name || f.repo }) + (data.private ? T(' (privat)') : T(' (offentlig)'));
         } catch (e) {
-          status.textContent = ''; err.textContent = 'Tilkobling feilet: ' + (e.message || e);
+          status.textContent = ''; err.textContent = T('Tilkobling feilet: {msg}', { msg: e.message || e });
         }
       }
 
@@ -524,7 +525,7 @@
       async function fetchTree(s) {
         const url = 'https://api.github.com/repos/' + s.repo + '/git/trees/' + encodeURIComponent(s.branch) + '?recursive=1';
         const resp = await fetch(url, { headers: ghHeaders(s.pat) });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status + (resp.status === 404 ? ' (repo/branch ikke funnet)' : ''));
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + (resp.status === 404 ? T(' (repo/branch ikke funnet)') : ''));
         const data = await resp.json();
         lastTree = (data.tree || []).filter((n) => n.type === 'blob').map((n) => n.path);
         return lastTree;
@@ -537,7 +538,7 @@
         list.innerHTML = '';
         if (!items.length) {
           const msg = all.length
-            ? (q ? 'Ingen treff på filteret.' : 'Ingen filer å vise.')
+            ? (q ? T('Ingen treff på filteret.') : T('Ingen filer å vise.'))
             : 'Repoet/branchen er tom — eller branch-navnet stemmer ikke (sjekk Innstillinger).';
           list.innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:13px;">' + msg + '</div>';
           return;
@@ -553,17 +554,17 @@
       }
       async function openPicker() {
         closeMenu();
-        if (!ghConfigured()) { openSettings('Sett opp GitHub-tilkobling først.'); return; }
+        if (!ghConfigured()) { openSettings(T('Sett opp GitHub-tilkobling først.')); return; }
         const err = $('ghPickerError'); if (err) err.textContent = '';
         const list = $('ghPickerList');
-        if (list) list.innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:13px;">Henter filliste…</div>';
+        if (list) list.innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:13px;">' + T('Henter filliste…') + '</div>';
         const filter = $('ghPickerFilter'); if (filter) filter.value = '';
         $('ghPickerBackdrop').style.display = 'flex';
         try {
           await fetchTree(ghSettings());
           renderPicker('');
         } catch (e) {
-          if (err) err.textContent = 'Kunne ikke hente filliste: ' + (e.message || e);
+          if (err) err.textContent = T('Kunne ikke hente filliste: {msg}', { msg: e.message || e });
           if (list) list.innerHTML = '';
         }
       }
@@ -581,9 +582,9 @@
           markSaved();
           pushRecentFile({ kind: 'github', repo: s.repo, branch: s.branch, path: path });
           $('ghPickerBackdrop').style.display = 'none';
-          toast('Hentet fra GitHub: ' + path);
+          toast(T('Hentet fra GitHub: {path}', { path: path }));
         } catch (e) {
-          if (err) err.textContent = 'Kunne ikke hente filen: ' + (e.message || e);
+          if (err) err.textContent = T('Kunne ikke hente filen: {msg}', { msg: e.message || e });
         }
       }
 
@@ -599,13 +600,13 @@
         if (!resp.ok) {
           let msg = 'HTTP ' + resp.status;
           try { const ej = await resp.json(); if (ej.message) msg += ' – ' + ej.message; } catch (_) {}
-          if (resp.status === 409) msg += ' (filen er endret på GitHub — bruk «Oppdater» og prøv igjen)';
+          if (resp.status === 409) msg += T(' (filen er endret på GitHub — bruk «Oppdater» og prøv igjen)');
           throw new Error(msg);
         }
       }
       async function doSave() {
         closeMenu();
-        if (!ghConfigured()) { openSettings('Sett opp GitHub-tilkobling først.'); return; }
+        if (!ghConfigured()) { openSettings(T('Sett opp GitHub-tilkobling først.')); return; }
         const s = ghSettings();
         const cur = getCurrent();
         // Also require the branch to match: a file opened from `dev` must not be
@@ -620,11 +621,11 @@
           await putFile(s, cur.path, si ? si.value : '');
           setCurrent({ repo: s.repo, branch: s.branch, path: cur.path });
           markSaved();
-          toast('Lagret til GitHub: ' + cur.path);
-        } catch (e) { alert('Kunne ikke lagre: ' + (e.message || e)); }
+          toast(T('Lagret til GitHub: {path}', { path: cur.path }));
+        } catch (e) { alert(T('Kunne ikke lagre: {msg}', { msg: e.message || e })); }
       }
       function openSaveAs() {
-        if (!ghConfigured()) { openSettings('Sett opp GitHub-tilkobling først.'); return; }
+        if (!ghConfigured()) { openSettings(T('Sett opp GitHub-tilkobling først.')); return; }
         const err = $('ghSaveAsError'); if (err) err.textContent = '';
         const s = ghSettings();
         const cur = getCurrent();
@@ -656,7 +657,7 @@
       async function saveAsConfirm() {
         const err = $('ghSaveAsError'); if (err) err.textContent = '';
         let path = $('ghSaveAsPath').value.trim();
-        if (!path) { if (err) err.textContent = 'Skriv en filsti.'; return; }
+        if (!path) { if (err) err.textContent = T('Skriv en filsti.'); return; }
         path = ensureExt(path);
         const s = ghSettings();
         const si = $('scriptInput');
@@ -668,14 +669,14 @@
           const nameEl = $('scriptName');
           if (nameEl) nameEl.value = (path.split('/').pop() || '').replace(/\.(txt|py|r)$/i, '');
           $('ghSaveAsBackdrop').style.display = 'none';
-          toast('Lagret til GitHub: ' + path);
-        } catch (e) { if (err) err.textContent = 'Kunne ikke lagre: ' + (e.message || e); }
+          toast(T('Lagret til GitHub: {path}', { path: path }));
+        } catch (e) { if (err) err.textContent = T('Kunne ikke lagre: {msg}', { msg: e.message || e }); }
       }
       async function doRefresh() {
         closeMenu();
         const cur = getCurrent();
-        if (!cur || !cur.path) { alert('Ingen gjeldende GitHub-fil å oppdatere. Bruk «Åpne fil…» først.'); return; }
-        if (!confirm('Hente «' + cur.path + '» på nytt fra GitHub? Ulagrede lokale endringer går tapt.')) return;
+        if (!cur || !cur.path) { alert(T('Ingen gjeldende GitHub-fil å oppdatere. Bruk «Åpne fil…» først.')); return; }
+        if (!confirm(T('Hente «{path}» på nytt fra GitHub? Ulagrede lokale endringer går tapt.', { path: cur.path }))) return;
         const s = ghSettings();
         try {
           const resp = await fetch(ghContentsUrlFor(cur.repo, cur.path) + '?ref=' + encodeURIComponent(cur.branch), { headers: ghHeaders(s.pat) });
@@ -683,8 +684,8 @@
           const data = await resp.json();
           setEditor(b64ToUtf8(data.content), langFromPath(cur.path));
           markSaved();
-          toast('Hentet på nytt fra GitHub: ' + cur.path);
-        } catch (e) { alert('Kunne ikke oppdatere: ' + (e.message || e)); }
+          toast(T('Hentet på nytt fra GitHub: {path}', { path: cur.path }));
+        } catch (e) { alert(T('Kunne ikke oppdatere: {msg}', { msg: e.message || e })); }
       }
 
       // --- Kobling av knapper ---

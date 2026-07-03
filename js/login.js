@@ -2,6 +2,7 @@
        Auth module — magic-link login, bearer token, /auth/me refresh
        =================================================================== */
     (function authModule() {
+      var T = window.t || function (s, p) { return p ? s.replace(/\{(\w+)\}/g, function (m, k) { return k in p ? p[k] : m; }) : s; };
       const LS_TOKEN = 'mdapi_token';
       const LS_USER = 'mdapi_user';
       const LS_BASE = 'md_ai_api_base';
@@ -41,13 +42,13 @@
       function showLoginCodeStep() {
         showLogin();
         setStep(2);
-        if (dom.loginSentEmail) dom.loginSentEmail.textContent = '(ingen epost — bruker delt kode)';
+        if (dom.loginSentEmail) dom.loginSentEmail.textContent = T('(ingen epost — bruker delt kode)');
         setTimeout(() => dom.loginCode && dom.loginCode.focus(), 60);
       }
       function hideLogin() { dom.loginBackdrop && dom.loginBackdrop.classList.remove('open'); }
 
       async function requestMagicLink(email) {
-        const lang = 'no'; // the login UI is Norwegian-first; email follows it
+        const lang = (window.M2PY_LANG === 'en') ? 'en' : 'no'; // e-posten følger UI-språket
         const res = await fetch(apiBase() + '/_/api/auth/email/request', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -55,7 +56,7 @@
         });
         if (!res.ok) {
           const text = await res.text();
-          throw new Error('Kunne ikke sende lenke: ' + (text || res.status));
+          throw new Error(T('Kunne ikke sende lenke: {msg}', { msg: text || res.status }));
         }
         return res.json();
       }
@@ -76,7 +77,7 @@
       async function verifyPastedCode() {
         const code = (dom.loginCode.value || '').trim();
         if (!code) {
-          dom.loginCodeError.textContent = 'Skriv inn koden.';
+          dom.loginCodeError.textContent = T('Skriv inn koden.');
           return;
         }
         dom.loginCodeError.textContent = '';
@@ -87,7 +88,7 @@
           hideLogin();
           if (typeof refreshUserPanel === 'function') refreshUserPanel();
         } catch (e) {
-          dom.loginCodeError.textContent = e.message || 'Koden er ugyldig eller utløpt.';
+          dom.loginCodeError.textContent = e.message || T('Koden er ugyldig eller utløpt.');
         } finally {
           dom.loginVerify.disabled = false;
         }
@@ -157,7 +158,7 @@
           hideLogin();
           return true;
         } catch (e) {
-          alert('Påloggings-lenken er ugyldig eller utløpt: ' + e.message);
+          alert(T('Påloggings-lenken er ugyldig eller utløpt: {msg}', { msg: e.message }));
           params.delete('login');
           history.replaceState({}, document.title, window.location.pathname);
           hideLogin();
@@ -172,12 +173,12 @@
         dom.loginSubmit.addEventListener('click', async () => {
           const email = (dom.loginEmail.value || '').trim();
           if (!email || !email.includes('@')) {
-            alert('Skriv inn en gyldig e-postadresse.');
+            alert(T('Skriv inn en gyldig e-postadresse.'));
             return;
           }
           dom.loginSubmit.disabled = true;
           const orig = dom.loginSubmit.textContent;
-          dom.loginSubmit.textContent = 'Sender…';
+          dom.loginSubmit.textContent = T('Sender…');
           try {
             await requestMagicLink(email);
             dom.loginSentEmail.textContent = email;
@@ -211,7 +212,7 @@
           switchLink.addEventListener('click', (e) => {
             e.preventDefault();
             setStep(2);
-            if (dom.loginSentEmail) dom.loginSentEmail.textContent = '(ingen epost — bruker delt kode)';
+            if (dom.loginSentEmail) dom.loginSentEmail.textContent = T('(ingen epost — bruker delt kode)');
             setTimeout(() => dom.loginCode && dom.loginCode.focus(), 60);
           });
         }

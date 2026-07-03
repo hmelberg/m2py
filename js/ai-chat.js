@@ -2,6 +2,7 @@
        AI assistant — sidebar wiring + API calls
        =================================================================== */
     (function aiModule() {
+      var T = window.t || function (s, p) { return p ? s.replace(/\{(\w+)\}/g, function (m, k) { return k in p ? p[k] : m; }) : s; };
       const LS_KEY_BASE = 'md_ai_api_base';
       const LS_KEY_APIKEY = 'md_ai_api_key';
       const LS_KEY_AIMODE = 'md_ai_mode';   // 'fast' | 'anvil'
@@ -98,12 +99,12 @@
         dom.aiThread.innerHTML = '';
         const wrap = document.createElement('div');
         wrap.className = 'ai-empty';
-        wrap.innerHTML = '<div class="ai-empty-title">Hei! Hva kan jeg hjelpe med?</div>' +
-          '<div>Spør om en analyse, et skript, eller hva en kommando gjør.</div>' +
+        wrap.innerHTML = '<div class="ai-empty-title">' + T('Hei! Hva kan jeg hjelpe med?') + '</div>' +
+          '<div>' + T('Spør om en analyse, et skript, eller hva en kommando gjør.') + '</div>' +
           '<div class="ai-empty-examples">' +
-            '<button type="button" class="ai-empty-example" data-q="Vis sammendragsstatistikk for inntekt og kjønn">Vis sammendragsstatistikk for inntekt og kjønn</button>' +
+            '<button type="button" class="ai-empty-example" data-q="' + T('Vis sammendragsstatistikk for inntekt og kjønn') + '">' + T('Vis sammendragsstatistikk for inntekt og kjønn') + '</button>' +
             '<button type="button" class="ai-empty-example" data-q="What does reshape long do?">What does reshape long do?</button>' +
-            '<button type="button" class="ai-empty-example" data-q="Hvilke variabler finnes for utdanning?">Hvilke variabler finnes for utdanning?</button>' +
+            '<button type="button" class="ai-empty-example" data-q="' + T('Hvilke variabler finnes for utdanning?') + '">' + T('Hvilke variabler finnes for utdanning?') + '</button>' +
           '</div>';
         dom.aiThread.appendChild(wrap);
         wrap.querySelectorAll('.ai-empty-example').forEach(btn => {
@@ -127,7 +128,7 @@
       function appendThinking() {
         const wrap = document.createElement('div');
         wrap.className = 'ai-msg ai-msg-assistant';
-        wrap.innerHTML = '<div class="ai-thinking"><span class="ai-thinking-dot"></span><span class="ai-thinking-dot"></span><span class="ai-thinking-dot"></span><span style="margin-left:4px">Tenker…</span></div>';
+        wrap.innerHTML = '<div class="ai-thinking"><span class="ai-thinking-dot"></span><span class="ai-thinking-dot"></span><span class="ai-thinking-dot"></span><span style="margin-left:4px">' + T('Tenker…') + '</span></div>';
         dom.aiThread.appendChild(wrap);
         scrollToBottom();
         return wrap;
@@ -174,7 +175,7 @@
         const actions = document.createElement('div');
         actions.className = 'ai-codeblock-actions';
         actions.innerHTML =
-          '<button type="button" class="ai-codeblock-btn" data-act="copy">📋 Kopier</button>';
+          '<button type="button" class="ai-codeblock-btn" data-act="copy">📋 ' + T('Kopier') + '</button>';
         cbWrap.appendChild(actions);
         bubble.appendChild(cbWrap);
         actions.addEventListener('click', (e) => {
@@ -202,7 +203,7 @@
         wrap.className = 'ai-validation-warning';
         const title = document.createElement('div');
         title.className = 'ai-validation-warning-title';
-        title.textContent = '⚠ Valideringsadvarsler';
+        title.textContent = T('⚠ Valideringsadvarsler');
         wrap.appendChild(title);
 
         const groups = { unknown_variable: [], unknown_command: [], parse: [], runtime: [], other: [] };
@@ -225,7 +226,7 @@
             const chip = document.createElement('span');
             chip.className = 'ai-chip';
             chip.textContent = e.token || e.message || '?';
-            chip.title = (e.message || '') + ' — klikk for å foreslå alternativ';
+            chip.title = T('{msg} — klikk for å foreslå alternativ', { msg: e.message || '' });
             chip.addEventListener('click', () => {
               if (!dom.aiInput) return;
               dom.aiInput.value = suggestionTemplate.replace('{token}', e.token || '');
@@ -238,8 +239,8 @@
           wrap.appendChild(sec);
         };
 
-        renderChips('Ukjente variabler', groups.unknown_variable, 'Bruk en annen variabel for {token}');
-        renderChips('Ukjente kommandoer', groups.unknown_command, 'Skriv om uten å bruke {token}');
+        renderChips(T('Ukjente variabler'), groups.unknown_variable, T('Bruk en annen variabel for {token}'));
+        renderChips(T('Ukjente kommandoer'), groups.unknown_command, T('Skriv om uten å bruke {token}'));
 
         const others = [...groups.parse, ...groups.runtime, ...groups.other];
         if (others.length) {
@@ -247,13 +248,13 @@
           sec.className = 'ai-validation-section';
           const lab = document.createElement('div');
           lab.className = 'ai-validation-section-label';
-          lab.textContent = 'Andre advarsler';
+          lab.textContent = T('Andre advarsler');
           sec.appendChild(lab);
           const ul = document.createElement('ul');
           ul.className = 'ai-validation-bullets';
           others.forEach(e => {
             const li = document.createElement('li');
-            const lineHint = e.line_no ? ('linje ' + e.line_no + ': ') : '';
+            const lineHint = e.line_no ? T('linje {n}: ', { n: e.line_no }) : '';
             li.textContent = lineHint + (e.message || e.kind);
             ul.appendChild(li);
           });
@@ -343,19 +344,19 @@
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         lbl.appendChild(cb);
-        lbl.appendChild(document.createTextNode(' Inkluder forklaring som kommentar'));
+        lbl.appendChild(document.createTextNode(' ' + T('Inkluder forklaring som kommentar')));
 
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'ai-response-insert-btn';
-        btn.textContent = 'Sett inn';
-        btn.title = 'Sett svaret inn i editoren (erstatter innholdet)';
+        btn.textContent = T('Sett inn');
+        btn.title = T('Sett svaret inn i editoren (erstatter innholdet)');
         btn.addEventListener('click', () => {
           const content = buildInsertContent(rawMd, cb.checked);
           if (!content) return;
           dom.scriptInput.value = content;
           dom.scriptInput.dispatchEvent(new Event('input', { bubbles: true }));
-          flash(btn, '✓ Satt inn');
+          flash(btn, T('✓ Satt inn'));
         });
 
         // Knapp før checkbox (horisontalt).
@@ -366,7 +367,7 @@
 
       function handleCodeAction(act, script, btn) {
         if (act === 'copy') {
-          navigator.clipboard.writeText(script).then(() => flash(btn, '✓ Kopiert'));
+          navigator.clipboard.writeText(script).then(() => flash(btn, T('✓ Kopiert')));
         }
       }
 
@@ -391,7 +392,7 @@
           const actions = document.createElement('div');
           actions.className = 'ai-codeblock-actions';
           actions.innerHTML =
-            '<button type="button" class="ai-codeblock-btn" data-act="copy">📋 Kopier</button>';
+            '<button type="button" class="ai-codeblock-btn" data-act="copy">📋 ' + T('Kopier') + '</button>';
           wrap.appendChild(actions);
           actions.addEventListener('click', (e) => {
             const btn = e.target.closest('.ai-codeblock-btn');
@@ -410,7 +411,7 @@
         const token = auth && auth.token;
         if (!token && !state.apiKey) {
           // Defer to caller to handle (sendMessage triggers login modal)
-          throw new Error('Ikke logget inn');
+          throw new Error(T('Ikke logget inn'));
         }
         const isGet = body == null;
         const opts = {
@@ -467,7 +468,7 @@
           }
           // 'running' → loop
         }
-        throw new Error('Bakgrunnsoppgaven brukte mer enn 3 min — avbrutt.');
+        throw new Error(T('Bakgrunnsoppgaven brukte mer enn 3 min — avbrutt.'));
       }
 
       function detectLang(text) {
@@ -477,7 +478,7 @@
         if (noWords.test(text)) return 'no';
         const enWords = /\b(what|how|show|run|script|does|find|income|gender|age)\b/i;
         if (enWords.test(text)) return 'en';
-        return 'no';
+        return (window.M2PY_LANG === 'en') ? 'en' : 'no';
       }
 
       async function sendMessage(fast, useV2) {
@@ -631,7 +632,7 @@
         });
         if (resp.status === 401) {
           if (token && auth) { auth.logout(); auth.showLogin(); }
-          throw new Error('Innloggingen er utløpt. Logg inn på nytt.');
+          throw new Error(T('Innloggingen er utløpt. Logg inn på nytt.'));
         }
         if (!resp.ok || !resp.body) {
           throw new Error('HTTP ' + resp.status + ' ' + (await resp.text()));
@@ -677,7 +678,7 @@
               cacheRead = obj.cacheReadTokens || 0;
               cacheCreate = obj.cacheCreationTokens || 0;
             } else if (obj.type === 'error') {
-              throw new Error(obj.message || 'Ukjent feil fra server');
+              throw new Error(obj.message || T('Ukjent feil fra server'));
             }
           }
         }
@@ -728,7 +729,7 @@
         });
         if (resp.status === 401) {
           if (token && auth) { auth.logout(); auth.showLogin(); }
-          throw new Error('Innloggingen er utløpt. Logg inn på nytt.');
+          throw new Error(T('Innloggingen er utløpt. Logg inn på nytt.'));
         }
         if (!resp.ok || !resp.body) {
           throw new Error('HTTP ' + resp.status + ' ' + (await resp.text()));
@@ -765,7 +766,7 @@
               cacheRead = obj.cacheReadTokens || 0;
               cacheCreate = obj.cacheCreationTokens || 0;
             } else if (obj.type === 'error') {
-              throw new Error(obj.message || 'Ukjent feil fra server');
+              throw new Error(obj.message || T('Ukjent feil fra server'));
             }
           }
         }
@@ -817,7 +818,7 @@
         thinkingNode.innerHTML = '';
         const bubble = document.createElement('div');
         bubble.className = 'ai-bubble';
-        bubble.textContent = 'Finner relevante variabler…';
+        bubble.textContent = T('Finner relevante variabler…');
         thinkingNode.appendChild(bubble);
 
         const mode = (typeof activeEditorMode !== 'undefined' && activeEditorMode) ? activeEditorMode : 'microdata';
@@ -857,7 +858,7 @@
             repaired = true;
             const note = document.createElement('div');
             note.className = 'ai-thinking';
-            note.textContent = 'Retter feil og prøver på nytt…';
+            note.textContent = T('Retter feil og prøver på nytt…');
             thinkingNode.appendChild(note);
             const repairBubble = document.createElement('div');
             repairBubble.className = 'ai-bubble';
@@ -919,7 +920,7 @@
         });
         if (resp.status === 401) {
           if (token && auth) { auth.logout(); auth.showLogin(); }
-          throw new Error('Innloggingen er utløpt. Logg inn på nytt.');
+          throw new Error(T('Innloggingen er utløpt. Logg inn på nytt.'));
         }
         if (!resp.ok || !resp.body) {
           throw new Error('HTTP ' + resp.status + ' ' + (await resp.text()));
@@ -952,7 +953,7 @@
                 scrollToBottom();
               }
             } else if (obj.type === 'error') {
-              throw new Error(obj.message || 'Ukjent feil fra server');
+              throw new Error(obj.message || T('Ukjent feil fra server'));
             }
           }
         }
@@ -969,9 +970,9 @@
         const copyBtn = document.createElement('button');
         copyBtn.type = 'button';
         copyBtn.className = 'ai-codeblock-btn';
-        copyBtn.textContent = '📋 Kopier tolkning';
+        copyBtn.textContent = '📋 ' + T('Kopier tolkning');
         copyBtn.addEventListener('click', () => {
-          navigator.clipboard.writeText(accumulated).then(() => flash(copyBtn, '✓ Kopiert')).catch(() => {});
+          navigator.clipboard.writeText(accumulated).then(() => flash(copyBtn, T('✓ Kopiert'))).catch(() => {});
         });
         actions.appendChild(copyBtn);
         thinkingNode.appendChild(actions);
@@ -1032,7 +1033,7 @@
 
         const auth = window.mdAuth;
         const token = auth && auth.token;
-        if (!token) throw new Error('Web-modus krever innlogging.');
+        if (!token) throw new Error(T('Web-modus krever innlogging.'));
         const mode = (typeof activeEditorMode !== 'undefined' && activeEditorMode) ? activeEditorMode : 'python';
 
         // Continuation protocol: Netlify caps CPU per edge invocation, so the
@@ -1045,7 +1046,7 @@
         let _lastRender = 0;
         let resume = null;
         for (let hop = 0; ; hop++) {
-          if (hop > 40) throw new Error('Avbrutt: svaret ble ikke ferdig etter 40 fortsettelses-runder.');
+          if (hop > 40) throw new Error(T('Avbrutt: svaret ble ikke ferdig etter 40 fortsettelses-runder.'));
           const resp = await fetch('/api/data-svar', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -1059,9 +1060,9 @@
           });
           if (resp.status === 401) {
             if (auth) { auth.logout(); auth.showLogin(); }
-            throw new Error('Innloggingen er utløpt. Logg inn på nytt.');
+            throw new Error(T('Innloggingen er utløpt. Logg inn på nytt.'));
           }
-          if (resp.status === 403) throw new Error('Web-modus er kun tilgjengelig for admin.');
+          if (resp.status === 403) throw new Error(T('Web-modus er kun tilgjengelig for admin.'));
           if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status + ' ' + (await resp.text()));
 
           let cont = null;
@@ -1178,13 +1179,13 @@
       async function runScriptAndCaptureError() {
         const btn = document.getElementById('btnRun');
         const outputArea = document.getElementById('outputArea');
-        if (!btn) return 'Fant ikke Kjør-knappen.';
+        if (!btn) return T('Fant ikke Kjør-knappen.');
         if (typeof window.mdIsScriptRunning !== 'function') {
-          return 'Kan ikke sjekke kjørestatus (mdIsScriptRunning mangler).';
+          return T('Kan ikke sjekke kjørestatus (mdIsScriptRunning mangler).');
         }
         let waited = 0;
         while (btn.disabled && waited < 20000) { await sleep(200); waited += 200; }
-        if (btn.disabled) return 'Kjør-knappen er ikke klar (miljøet laster fortsatt).';
+        if (btn.disabled) return T('Kjør-knappen er ikke klar (miljøet laster fortsatt).');
         btn.click();
         await sleep(50);   // let the click handler's async body flip the running flag
         const start = Date.now();
@@ -1192,7 +1193,7 @@
           await sleep(150);
         }
         if (window.mdIsScriptRunning()) {
-          return 'Kjøringen var ikke ferdig etter 180 sekunder — overvåking avbrutt.';
+          return T('Kjøringen var ikke ferdig etter 180 sekunder — overvåking avbrutt.');
         }
         const errEl = outputArea && outputArea.querySelector('pre.error');
         return errEl ? errEl.textContent : null;
@@ -1218,8 +1219,7 @@
             giveUp.className = 'ai-msg ai-msg-assistant';
             giveUp.innerHTML = '<div class="ai-bubble ai-error"></div>';
             giveUp.querySelector('.ai-bubble').textContent =
-              'Kunne ikke få scriptet til å kjøre etter 3 reparasjonsrunder. Siste feil:\n\n' + lastError +
-              '\n\nScriptet står i editoren — juster gjerne manuelt.';
+              T('Kunne ikke få scriptet til å kjøre etter 3 reparasjonsrunder. Siste feil:\n\n{err}\n\nScriptet står i editoren — juster gjerne manuelt.', { err: lastError });
             dom.aiThread.appendChild(giveUp);
             scrollToBottom();
             return;
@@ -1228,7 +1228,7 @@
           roundNote.className = 'ai-msg ai-msg-assistant';
           roundNote.innerHTML = '<div class="ai-bubble ai-repair-note"></div>';
           roundNote.querySelector('.ai-bubble').textContent =
-            '⚙️ Reparasjonsrunde ' + round + ' — retter: ' + String(lastError).slice(0, 120);
+            T('⚙️ Reparasjonsrunde {round} — retter: {err}', { round: round, err: String(lastError).slice(0, 120) });
           dom.aiThread.appendChild(roundNote);
           scrollToBottom();
           const repairNode = appendThinking();
@@ -1413,11 +1413,11 @@
           dom.aiCfgLoggedOut.style.display = 'none';
           dom.aiCfgUserEmail.textContent = user.email || '';
           const bits = [];
-          bits.push('Kategori: ' + categoryLabel(user.category));
-          if (typeof user.credits === 'number') bits.push('Saldo: ' + user.credits);
+          bits.push(T('Kategori: {cat}', { cat: categoryLabel(user.category) }));
+          if (typeof user.credits === 'number') bits.push(T('Saldo: {n}', { n: user.credits }));
           if (user.is_superuser) bits.push('Superuser');
           if (user.is_admin) bits.push('Admin');
-          if (user.expires_at) bits.push('Utløper: ' + user.expires_at.slice(0, 10));
+          if (user.expires_at) bits.push(T('Utløper: {date}', { date: user.expires_at.slice(0, 10) }));
           dom.aiCfgUserMeta.textContent = bits.join(' · ');
           dom.aiCfgAdmin.style.display = user.is_admin ? '' : 'none';
         } else {
@@ -1531,8 +1531,8 @@
         function updateAiModeLabel() {
           if (!dom.menuAiMode) return;
           const eff = effectiveAiMode();
-          const label = eff === 'anvil' ? 'Anvil (full vurdering)' : 'Rask';
-          dom.menuAiMode.textContent = 'AI-svar: ' + label;
+          const label = eff === 'anvil' ? T('Anvil (full vurdering)') : T('Rask');
+          dom.menuAiMode.textContent = T('AI-svar: {label}', { label: label });
         }
         if (dom.menuAiMode) {
           dom.menuAiMode.addEventListener('click', () => {
@@ -1590,7 +1590,7 @@
           if (!isAuthed) { if (auth) auth.showLogin(); return; }
           setOpen(true);
           if (state.history.length === 0) dom.aiThread.innerHTML = '';
-          appendUserMessage('Tolk resultatene fra forrige kjøring.');
+          appendUserMessage(T('Tolk resultatene fra forrige kjøring.'));
           state.history.push({ role: 'user', text: 'Tolk resultatene' });
           const thinkingNode = appendThinking();
           state.sending = true;
