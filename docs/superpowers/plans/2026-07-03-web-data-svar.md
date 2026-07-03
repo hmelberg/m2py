@@ -325,6 +325,14 @@ Expected: PASS (5 tests)
     "base_url": "https://raw.githubusercontent.com/",
     "cors": true,
     "quirks": "discovery via web_search; ALLTID probe før bruk; tillit avhenger av repo-eier"
+  },
+  {
+    "id": "wikipedia", "navn": "Wikipedia (tabeller i artikler)", "utgiver": "Wikimedia",
+    "tillit": "etablert", "tilgang": "fil",
+    "base_url": "https://en.wikipedia.org/wiki/",
+    "cors": false,
+    "oppskrift": { "python": "# load /api/hent?url=<url-enkodet artikkel-URL> as raw_html  →  import micropip; await micropip.install('lxml'); tabeller = pd.read_html(io.StringIO(raw_html)); df = tabeller[i]" },
+    "quirks": "tabeller er load-bare via /api/hent + pd.read_html (lxml via micropip); velg riktig tabellindeks; no.wikipedia.org for norske artikler"
   }
 ]
 ```
@@ -1806,7 +1814,7 @@ Deno.test("system prompt: byte-stable, mode-specific, carries core rules", () =>
   assertEquals(a, buildDataSvarSystem("python", reg));
   for (const needle of [
     "connect", "load", "probe", "aldri", "konfunder", "heterogenitet",
-    "join", "Kilderegister",
+    "join", "Kilderegister", "transkribert", "modellkunnskap", "site:",
   ]) {
     if (!a.toLowerCase().includes(needle.toLowerCase())) throw new Error("mangler: " + needle);
   }
@@ -1816,11 +1824,11 @@ Deno.test("system prompt: byte-stable, mode-specific, carries core rules", () =>
   if (!d.includes("read_csv_auto")) throw new Error("duckdb-blokk mangler");
 });
 
-Deno.test("TOOL_DEFS: three client tools + hosted web_search", () => {
+Deno.test("TOOL_DEFS: three client tools + hosted web_search/web_fetch", () => {
   const names = TOOL_DEFS.map((t) => (t as { name: string }).name);
-  assertEquals(names, ["search_catalog", "table_metadata", "probe", "web_search"]);
-  const ws = TOOL_DEFS[3] as { type: string };
-  assertEquals(ws.type, "web_search_20250305");
+  assertEquals(names, ["search_catalog", "table_metadata", "probe", "web_search", "web_fetch"]);
+  assertEquals((TOOL_DEFS[3] as { type: string }).type, "web_search_20250305");
+  assertEquals((TOOL_DEFS[4] as { type: string }).type, "web_fetch_20250910");
 });
 
 Deno.test("turns and progress labels", () => {
@@ -1861,11 +1869,14 @@ kode. Du svarer på brukerens språk (norsk/engelsk). Arbeidsflyt i TRE faser:
    årsakseffekt?), analyseenhet, geografi og periode, og hvilken
    identifikasjonsstrategi som er realistisk. Lag en data-ønskeliste.
 2. **FINN data med verktøyene** (search_catalog → table_metadata → probe;
-   web_search for kilder utenfor registeret). Regler:
+   web_search/web_fetch for kilder utenfor registeret). Regler:
    - Datasett-ID-er og kolonnenavn skal komme fra verktøy-resultater.
      ALDRI generer mot antatte skjemaer eller funnede ID-er fra hukommelsen.
-   - Alt funnet via web_search MÅ probes før det brukes i scriptet.
-   - Tomt søk? Prøv synonymer, engelsk/norsk, en annen kilde.
+   - Alt funnet via web_search MÅ probes (eller leses med web_fetch) før
+     det brukes i scriptet.
+   - Tomt søk? Prøv synonymer, engelsk/norsk, en annen kilde. Bruk
+     søkehåndverk: \`site:data.norge.no\`, \`filetype:csv\`, "dataset" +
+     tema på engelsk.
    - Bygg MINIMALE uttrekk: bare variablene, periodene og geografiene
      analysen trenger (table_metadata gir kodene).
 3. **GENERER** ett komplett, kjørbart script i brukerens modus (se
@@ -1913,6 +1924,25 @@ const SCIENCE = `\
 - **Ærlighet.** Uten troverdig identifikasjon: si klart at resultatet er
   deskriptivt/assosiasjon, ikke årsak.`;
 
+const INLINE = `\
+## Datatilfangst-stigen (data uten endepunkt)
+
+Foretrekk alltid nivå 1; gå nedover bare når nivået over ikke finnes:
+1. **Probet endepunkt** (\`# load …\`). Wikipedia-tabeller ER load-bare:
+   \`# load /api/hent?url=<url-enkodet artikkel> as raw\` og
+   \`pd.read_html(io.StringIO(raw))\` (installer lxml med micropip).
+2. **Transkribert fra hentet innhold**: har du LEST kilden (web_fetch), kan du
+   skrive små tabeller (< ~50 rader) inline:
+   \`data_<navn> = """..."""\` + \`pd.read_csv(io.StringIO(data_<navn>))\`
+   (R: \`read.csv(text = "...")\`). KRAV: kilde-URL i kommentar ved blokken
+   + merk «transkribert, ikke maskinelt verifisert».
+3. **Modellkunnskap**: KUN stabile referansefakta (ISO-koder, kjente
+   reformdatoer, klassifiseringer), merket «fra modellkunnskap — verifiser».
+   ALDRI som utfallsvariabel — utfall skal komme fra nivå 1–2.
+
+Nivå 2–3 er særlig riktig for lim-tabellene kausale design trenger
+(reformdatoer, tiltaks-/kontrollgrupper, regiongrupperinger).`;
+
 const MULTI = `\
 ## Flerkilde og sammenslåing
 
@@ -1958,7 +1988,7 @@ connect/load-direktivene øverst (-- kommentar). Ikke JSON.`;
 const MODE: Record<DataMode, string> = { python: MODE_PY, r: MODE_R, duckdb: MODE_DUCK };
 
 export function buildDataSvarSystem(mode: DataMode, registryBlock: string): string {
-  return [INTRO, DELIVERY, SCIENCE, MULTI, MODE[mode], registryBlock].join("\n\n");
+  return [INTRO, DELIVERY, SCIENCE, INLINE, MULTI, MODE[mode], registryBlock].join("\n\n");
 }
 
 export const TOOL_DEFS: unknown[] = [
@@ -1996,6 +2026,7 @@ export const TOOL_DEFS: unknown[] = [
     },
   },
   { type: "web_search_20250305", name: "web_search", max_uses: 5 },
+  { type: "web_fetch_20250910", name: "web_fetch", max_uses: 5 },
 ];
 
 export function questionTurn(question: string, script?: string): string {
@@ -2044,12 +2075,14 @@ denne fila er kildedokument + endringslogg (samme mønster som kode-svar.md).
 
 Design: docs/superpowers/specs/2026-07-03-web-data-svar-design.md.
 
-Blokkstruktur: INTRO (tre faser: tolk → finn → generer), DELIVERY
-(connect/load-direktiver, proxy, POST-innpakking, kildesitering), SCIENCE
-(rå→justert, identifikasjon, heterogenitet, ærlighet — utvidet fra
-INFERENCE_STRATEGY_PYR i kode-svar.ts), MULTI (merge til ÉN analysedataframe,
-join-nøkler, radtall før/etter), MODE_PY/R/DUCK (miljø + svarformat),
-+ registerblokk (renderRegistryBlock, byte-stabil).
+Blokkstruktur: INTRO (tre faser: tolk → finn → generer; søkehåndverk),
+DELIVERY (connect/load-direktiver, proxy, POST-innpakking, kildesitering),
+SCIENCE (rå→justert, identifikasjon, heterogenitet, ærlighet — utvidet fra
+INFERENCE_STRATEGY_PYR i kode-svar.ts), INLINE (datatilfangst-stigen:
+probet → transkribert-fra-web_fetch → modellkunnskap; aldri utfall fra
+nivå 3), MULTI (merge til ÉN analysedataframe, join-nøkler, radtall
+før/etter), MODE_PY/R/DUCK (miljø + svarformat), + registerblokk
+(renderRegistryBlock, byte-stabil). Hosted tools: web_search + web_fetch.
 
 Prompt-utviklingsloop (spec §7): endringer kjøres mot evalsettet
 (docs/eval/data-svar-evalsett.md) før deploy; feilmønstre fra evals og
@@ -2494,85 +2527,149 @@ git commit -m "feat(web-svar): connect/load directive parser + resolver (legacy 
 ```
 
 ---
-### Task 12: Local materialization in `index.html` (python/r/duckdb)
+### Task 12: Local materialization (js/data-loader.js + three small runner hooks)
 
 **Files:**
-- Modify: `index.html` (the three mode runners)
-- Manual test: three example scripts (Step 4)
+- Create: `js/data-loader.js` (ALL fetch/format logic — keeps index.html growth minimal)
+- Test: `netlify/edge-functions/_lib/data-loader.test.ts`
+- Modify: `index.html` (only: one `<script>` include + three ~10-line runner hooks)
+- Manual test: example scripts (Step 4)
 
 **Interfaces:**
 - Consumes: `window.DataDirectives.parse/resolve` (Task 11), `/api/hent` (Task 4), `/data/data-sources.json` (Task 1).
-- Produces: `materializeDataLoads(script, mode, ctx)` — async helper in `index.html`; fetches every resolved load and makes each alias available as DataFrame (python), data.frame (r), or table (duckdb) **before** the user code runs; returns `{ script, preamble }` or throws with a Norwegian error naming the failing alias/URL. Format decided by response `content-type` (csv/json/parquet — **content-based, not URL-extension**, closing loader gap 1 in spec §5b).
+- Produces: `window.DataLoader.resolveAndFetchLoads(script, deps?)` → `Promise<[{ alias, bytes: Uint8Array, format: "csv"|"json"|"parquet"|"html" }]>` — parses directives, resolves against the registry, fetches each load (direct → proxy fallback), sniffs format by response `content-type` (**content-based, not URL-extension** — closes loader gap 1 in spec §5b). Throws Norwegian errors naming the failing alias/URL. `deps` (all optional, for tests/wiring): `{ fetchImpl, registry, authToken }`.
+- index.html's only new responsibility: binding the returned bytes into each runtime (FS write + one read call per alias).
 
 Implementation notes for the engineer (read first):
 - Find the runners: `grep -n "loadPyodideAndM2py\|webr\|duckdb" index.html`. Python execution ≈ the Pyodide path near `deriveSafeStatExecutor` usage (`index.html:7683-7740` region); the duckdb connection setup is near `index.html:2940-2990`; the R runner is found via `grep -n "webR\|webr" index.html`.
 - Proxy fallback: try direct `fetch(url)`; on network error (CORS shows as `TypeError`) or when `viaProxy` is already true, retry as `fetch('/api/hent?url=' + encodeURIComponent(url), { headers: { Authorization: 'Bearer ' + token } })` where `token` comes from the same place ai-chat.js gets it (grep `Authorization` in `js/ai-chat.js`).
 - Registry for `resolve`: fetch `/data/data-sources.json` once, cache in a module-level variable.
 
-- [ ] **Step 1: Add the shared materializer to `index.html`**
-
-Insert near the other runner helpers (same `<script>` block as `deriveSafeStatExecutor`):
+- [ ] **Step 1: Write `js/data-loader.js` (all logic lives here, not in index.html)**
 
 ```js
-    // ── Web-modus: materialiser connect/load-direktiver (Task 12) ──
-    var _dataSourcesRegistry = null;
-    async function loadDataSourcesRegistry() {
-      if (_dataSourcesRegistry) return _dataSourcesRegistry;
-      try {
-        var r = await fetch('data/data-sources.json');
-        _dataSourcesRegistry = r.ok ? await r.json() : [];
-      } catch (e) { _dataSourcesRegistry = []; }
-      return _dataSourcesRegistry;
-    }
+// Materialisering av connect/load-direktiver: parse → resolve → fetch.
+// Ingen runtime-binding her — index.html binder bytes inn i pyodide/webr/
+// duckdb med ~10 linjer per modus. deps er injiserbar for tester.
+(function (global) {
+  'use strict';
 
-    async function fetchLoadTarget(item) {
-      // Direct first; proxy on CORS failure or when flagged.
-      var authToken = (typeof getAuthToken === 'function') ? getAuthToken() : null;
-      async function viaProxy() {
-        var headers = authToken ? { 'Authorization': 'Bearer ' + authToken } : {};
-        var pr = await fetch('/api/hent?url=' + encodeURIComponent(item.url), { headers: headers });
-        if (!pr.ok) throw new Error('proxy ' + pr.status + ' for ' + item.alias);
-        return pr;
-      }
-      if (item.url.indexOf('/api/hent?') === 0) {
-        var headers2 = authToken ? { 'Authorization': 'Bearer ' + authToken } : {};
-        var r0 = await fetch(item.url, { headers: headers2 });
-        if (!r0.ok) throw new Error('proxy ' + r0.status + ' for ' + item.alias);
-        return r0;
-      }
-      if (item.viaProxy) return viaProxy();
-      try {
-        var r1 = await fetch(item.url);
-        if (!r1.ok) throw new Error('HTTP ' + r1.status + ' for ' + item.alias + ' (' + item.url + ')');
-        return r1;
-      } catch (e) {
-        if (e instanceof TypeError) return viaProxy();   // CORS/nettverk → proxy
-        throw e;
-      }
-    }
+  var _registryCache = null;
+  async function loadRegistry(fetchImpl) {
+    if (_registryCache) return _registryCache;
+    try {
+      var r = await fetchImpl('data/data-sources.json');
+      _registryCache = r.ok ? await r.json() : [];
+    } catch (e) { _registryCache = []; }
+    return _registryCache;
+  }
 
-    function sniffFormat(resp, url) {
-      var ct = (resp.headers.get('content-type') || '').toLowerCase();
-      if (ct.indexOf('parquet') >= 0 || /\.parquet(\?|$)/.test(url)) return 'parquet';
-      if (ct.indexOf('json') >= 0) return 'json';
-      return 'csv';
+  async function fetchLoadTarget(item, fetchImpl, authToken) {
+    async function viaProxy() {
+      var headers = authToken ? { 'Authorization': 'Bearer ' + authToken } : {};
+      var pr = await fetchImpl('/api/hent?url=' + encodeURIComponent(item.url), { headers: headers });
+      if (!pr.ok) throw new Error('proxy ' + pr.status + ' for ' + item.alias);
+      return pr;
     }
+    if (item.url.indexOf('/api/hent?') === 0) {
+      var headers2 = authToken ? { 'Authorization': 'Bearer ' + authToken } : {};
+      var r0 = await fetchImpl(item.url, { headers: headers2 });
+      if (!r0.ok) throw new Error('proxy ' + r0.status + ' for ' + item.alias);
+      return r0;
+    }
+    if (item.viaProxy) return viaProxy();
+    try {
+      var r1 = await fetchImpl(item.url);
+      if (!r1.ok) throw new Error('HTTP ' + r1.status + ' for ' + item.alias + ' (' + item.url + ')');
+      return r1;
+    } catch (e) {
+      if (e instanceof TypeError) return viaProxy();   // CORS/nettverk → proxy
+      throw e;
+    }
+  }
 
-    // Fetches all loads; returns [{alias, bytes(Uint8Array), format}] or throws.
-    async function resolveAndFetchLoads(script) {
-      if (!window.DataDirectives) return [];
-      var parsed = window.DataDirectives.parse(script);
-      if (!parsed.loads.length) return [];
-      var registry = await loadDataSourcesRegistry();
-      var resolved = window.DataDirectives.resolve(parsed, registry);
-      var bad = resolved.filter(function (r) { return r.error; });
-      if (bad.length) throw new Error('Direktivfeil: ' + bad.map(function (b) { return b.error; }).join('; '));
-      return Promise.all(resolved.map(async function (item) {
-        var resp = await fetchLoadTarget(item);
-        var buf = new Uint8Array(await resp.arrayBuffer());
-        return { alias: item.alias, bytes: buf, format: sniffFormat(resp, item.url) };
-      }));
-    }
+  function sniffFormat(resp, url) {
+    var ct = (resp.headers.get('content-type') || '').toLowerCase();
+    if (ct.indexOf('parquet') >= 0 || /\.parquet(\?|$)/.test(url)) return 'parquet';
+    if (ct.indexOf('json') >= 0) return 'json';
+    if (ct.indexOf('html') >= 0) return 'html';   // f.eks. Wikipedia: bind som råtekst
+    return 'csv';
+  }
+
+  // Hoved-API: [{alias, bytes(Uint8Array), format}] eller kast norsk feil.
+  async function resolveAndFetchLoads(script, deps) {
+    deps = deps || {};
+    var fetchImpl = deps.fetchImpl || (typeof fetch !== 'undefined' ? fetch.bind(global) : null);
+    var DD = global.DataDirectives;
+    if (!DD || !fetchImpl) return [];
+    var parsed = DD.parse(script);
+    if (!parsed.loads.length) return [];
+    var registry = deps.registry || await loadRegistry(fetchImpl);
+    var resolved = DD.resolve(parsed, registry);
+    var bad = resolved.filter(function (r) { return r.error; });
+    if (bad.length) throw new Error('Direktivfeil: ' + bad.map(function (b) { return b.error; }).join('; '));
+    return Promise.all(resolved.map(async function (item) {
+      var resp = await fetchLoadTarget(item, fetchImpl, deps.authToken || null);
+      var buf = new Uint8Array(await resp.arrayBuffer());
+      return { alias: item.alias, bytes: buf, format: sniffFormat(resp, item.url) };
+    }));
+  }
+
+  global.DataLoader = { resolveAndFetchLoads: resolveAndFetchLoads, _sniffFormat: sniffFormat };
+})(typeof window !== 'undefined' ? window : globalThis);
+```
+
+- [ ] **Step 1b: Write and run the deno test**
+
+`netlify/edge-functions/_lib/data-loader.test.ts`:
+
+```ts
+import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+
+for (const f of ["data-directives.js", "data-loader.js"]) {
+  (0, eval)(await Deno.readTextFile(new URL(`../../../js/${f}`, import.meta.url)));
+}
+// deno-lint-ignore no-explicit-any
+const DL = (globalThis as any).DataLoader;
+
+Deno.test("resolveAndFetchLoads: fetches, sniffs format, proxy fallback on CORS", async () => {
+  const calls: string[] = [];
+  const fetchImpl = ((input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    calls.push(url + ((init?.headers as Record<string, string>)?.Authorization ? " [auth]" : ""));
+    if (url.startsWith("https://blocked.example/")) return Promise.reject(new TypeError("CORS"));
+    const body = url.includes("/api/hent?") ? "a;b\n1;2" : "x,y\n3,4";
+    return Promise.resolve(new Response(body, { status: 200, headers: { "content-type": "text/csv" } }));
+  }) as typeof fetch;
+  const script = [
+    "# load https://open.example/d.csv as direkte",
+    "# load https://blocked.example/d.csv as sperret",
+  ].join("\n");
+  const out = await DL.resolveAndFetchLoads(script, { fetchImpl, registry: [], authToken: "T" });
+  assertEquals(out.map((o: { alias: string; format: string }) => [o.alias, o.format]),
+    [["direkte", "csv"], ["sperret", "csv"]]);
+  // blocked URL retried via proxy with auth header
+  const proxyCall = calls.find((c) => c.includes("/api/hent?url=https%3A%2F%2Fblocked.example"));
+  if (!proxyCall?.includes("[auth]")) throw new Error("proxy-fallback mangler auth: " + calls.join(" | "));
+});
+
+Deno.test("sniffFormat: content-type wins over URL", () => {
+  const mk = (ct: string) => new Response("", { headers: { "content-type": ct } });
+  assertEquals(DL._sniffFormat(mk("text/html; charset=utf-8"), "https://x/api"), "html");
+  assertEquals(DL._sniffFormat(mk("application/json"), "https://x/d.csv"), "json");
+  assertEquals(DL._sniffFormat(mk("text/csv"), "https://x/tabell?format=csv"), "csv");
+});
+```
+
+Run: `cd netlify/edge-functions && deno test --allow-all _lib/data-loader.test.ts`
+Expected: PASS (2 tests)
+
+- [ ] **Step 1c: Include the script in `index.html`**
+
+Next to the Task 11 include:
+
+```html
+<script src="js/data-loader.js"></script>
 ```
 
 - [ ] **Step 2: Wire into the three runners**
@@ -2580,24 +2677,32 @@ Insert near the other runner helpers (same `<script>` block as `deriveSafeStatEx
 **Python (Pyodide):** immediately before user code executes (same place the `#micro`-bridge / upload frames are injected — grep `_upload_df` for the pattern), add:
 
 ```js
-        var _loads = await resolveAndFetchLoads(effectiveScript);
+        var _loads = await window.DataLoader.resolveAndFetchLoads(effectiveScript, { authToken: getAuthToken() });
         for (var _li = 0; _li < _loads.length; _li++) {
           var _ld = _loads[_li];
           var _path = '/home/pyodide/_webdata/' + _ld.alias + '.' + _ld.format;
           py.FS.mkdirTree('/home/pyodide/_webdata');
           py.FS.writeFile(_path, _ld.bytes);
-          var _read = _ld.format === 'parquet' ? 'pd.read_parquet'
-                    : _ld.format === 'json' ? 'pd.read_json' : 'pd.read_csv';
-          await py.runPythonAsync(
-            'import pandas as pd\n' + _ld.alias + ' = ' + _read + '(' + JSON.stringify(_path) + ')'
-          );
+          if (_ld.format === 'html') {
+            // HTML (f.eks. Wikipedia): bind som råtekst — scriptet bruker
+            // pd.read_html(io.StringIO(alias)) selv (se registry-oppskrift).
+            await py.runPythonAsync(
+              _ld.alias + ' = open(' + JSON.stringify(_path) + ', encoding="utf-8").read()'
+            );
+          } else {
+            var _read = _ld.format === 'parquet' ? 'pd.read_parquet'
+                      : _ld.format === 'json' ? 'pd.read_json' : 'pd.read_csv';
+            await py.runPythonAsync(
+              'import pandas as pd\n' + _ld.alias + ' = ' + _read + '(' + JSON.stringify(_path) + ')'
+            );
+          }
         }
 ```
 
 **R (WebR):** same position in the R runner; write to the WebR FS and bind with `read.csv`/`jsonlite::fromJSON` (parquet: raise a clear "parquet støttes ikke i R-modus ennå"):
 
 ```js
-        var _loadsR = await resolveAndFetchLoads(effectiveScript);
+        var _loadsR = await window.DataLoader.resolveAndFetchLoads(effectiveScript, { authToken: getAuthToken() });
         for (var _ri = 0; _ri < _loadsR.length; _ri++) {
           var _lr = _loadsR[_ri];
           if (_lr.format === 'parquet') throw new Error('parquet støttes ikke i R-modus ennå (' + _lr.alias + ')');
@@ -2605,6 +2710,8 @@ Insert near the other runner helpers (same `<script>` block as `deriveSafeStatEx
           await webR.FS.writeFile(_rp, _lr.bytes);
           var _rcode = _lr.format === 'json'
             ? _lr.alias + ' <- jsonlite::fromJSON(' + JSON.stringify(_rp) + ')'
+            : _lr.format === 'html'
+            ? _lr.alias + ' <- paste(readLines(' + JSON.stringify(_rp) + ', warn = FALSE), collapse = "\\n")'
             : _lr.alias + ' <- read.csv(' + JSON.stringify(_rp) + ', check.names = FALSE)';
           await webR.evalRVoid(_rcode);
         }
@@ -2613,9 +2720,10 @@ Insert near the other runner helpers (same `<script>` block as `deriveSafeStatEx
 **DuckDB:** after the connection exists, register bytes and create tables:
 
 ```js
-        var _loadsD = await resolveAndFetchLoads(effectiveScript);
+        var _loadsD = await window.DataLoader.resolveAndFetchLoads(effectiveScript, { authToken: getAuthToken() });
         for (var _di = 0; _di < _loadsD.length; _di++) {
           var _ldd = _loadsD[_di];
+          if (_ldd.format === 'html') throw new Error('html-kilder støttes ikke i duckdb-modus (' + _ldd.alias + ') — bruk python/r');
           var _fname = '_webdata_' + _ldd.alias + '.' + _ldd.format;
           await db.registerFileBuffer(_fname, _ldd.bytes);
           var _reader = _ldd.format === 'parquet' ? "read_parquet('" + _fname + "')"
@@ -2671,8 +2779,8 @@ Expected: data loads via `/api/hent` (check the network tab: no `api_key` visibl
 - [ ] **Step 5: Commit**
 
 ```bash
-git add index.html
-git commit -m "feat(web-svar): materialize connect/load directives in python/r/duckdb runners (content-type detection, proxy fallback)"
+git add js/data-loader.js netlify/edge-functions/_lib/data-loader.test.ts index.html
+git commit -m "feat(web-svar): data loader (fetch/format/proxy-fallback in js/data-loader.js) + minimal runner hooks in index.html"
 ```
 
 ---
@@ -2840,6 +2948,7 @@ Kriterier (alle må holde):
 | 8 | python | Finn en åpen CSV om drivstoffpriser i Norge og vis utviklingen. | web_search + probe (datanorge/funnet kilde) |
 | 9 | duckdb | Sammenlign renta i Norge og eurosonen siste 5 år. | Norges Bank + ECB/Eurostat (flerkilde) |
 | 10 | python | Hva vet vi om effekten av kontantstøtte på mødres yrkesdeltakelse? | ærlighets-test: identifikasjon er vanskelig — svaret skal si det, og evt. vise deskriptiv utvikling med forbehold |
+| 11 | python | Har kommuner som skiftet ordførerparti ved valget i 2023 hatt annerledes utvikling i ledighet? | SSB (utfall) + Wikipedia/transkribert lim-tabell for partiskifte (nivå 2 i datatilfangst-stigen, med kilde-URL) |
 
 Resultatlogg (dato, #, PASS/FAIL, notat) føres nederst; feilmønstre omsettes
 til promptregler i _lib/data-svar-prompt.ts eller quirks i data-sources.json.
@@ -2902,6 +3011,8 @@ cd ../safepy && git add docs/plan-integration.md && git commit -m "docs: note co
 - Deliberately out of scope (matches spec): Eurostat/OECD/SDMX search adapters (reachable via web_search+probe; `search_catalog` throws a guiding error), non-admin rollout, probe/catalog caching, R parquet.
 - Type consistency: `DataSource`/`CatalogHit`/`TableMeta`/`ProbeResult`/`AgenticOptions` names match across tasks; `viaProxy` naming consistent from probe → manifest → resolver.
 - Known judgment calls documented inline: hostname-only SSRF (T2 comment), non-streaming final turn (T8), DOM-based error capture fallback (T13 Step 4).
+- Datatilfangst-stigen (spec §5d): INLINE prompt block + hosted web_fetch (T9), Wikipedia registry entry with read_html recipe (T1), html format binding in all runners (T12), eval question 11 (T14).
+- index.html footprint deliberately minimal: parsing in `js/data-directives.js` (T11), fetch/format/proxy in `js/data-loader.js` (T12); index.html gets only two script includes + three ~10-line runtime-binding hooks (FS write + read call per mode) — those must live there because they touch the pyodide/webr/duckdb instances the runners own.
 
 
 

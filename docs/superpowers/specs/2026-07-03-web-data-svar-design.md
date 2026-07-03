@@ -157,7 +157,8 @@ En slik URL er load-bar (se «Levering» under); API-er som krever POST
 
 Seed-liste: SSB, Eurostat, Verdensbanken, OECD, WHO GHO, Our World in Data
 (grapher-CSV), FRED (ikke-CORS → proxy), Norges Bank, NAV, FHI,
-data.norge.no, raw.githubusercontent.com (fil-kilde, discovery via websøk).
+data.norge.no, raw.githubusercontent.com (fil-kilde, discovery via websøk),
+Wikipedia (tabeller via `/api/hent` + `pd.read_html` — se 5d).
 Registeret renderes kompakt inn i den cachede system-prefiksen (navn, hva
 kilden dekker, søkbarhet, join-nøkler) — oppskrifter og detaljer hentes av
 tool-laget, ikke front-lastet i sin helhet. «Funnet»-tillitsnivået er veien
@@ -298,6 +299,38 @@ Content-Type er tvetydig), `via(proxy)` (tving proxy-ruting), og på sikt
 Promptregelen fra flerkilde-avsnittet står: ett uttrekk per tabell med flere
 variabler i samme uttrekk der API-et tillater det — kildedeklarasjonen
 reduserer gjentakelse *på tvers av* uttrekk, ikke innenfor ett.
+
+### 5d. Datatilfangst-stigen: også data uten endepunkt
+
+Mye data finnes ikke bak en fetch-bar URL: tabeller i Wikipedia-artikler og
+PDF-er, små referansetabeller, og fakta i modellens egen kunnskap. Disse
+slippes inn — men gjennom en eksplisitt **tillitsstige** som håndheves i
+prompten og synliggjøres i kildemanifestet:
+
+1. **Probet endepunkt** (`# load …`) — alltid foretrukket. Merk: Wikipedia-
+   tabeller ER load-bare: `# load /api/hent?url=<wiki-url> as raw` +
+   `pd.read_html(raw)` (lxml via micropip) — reproduserbart, full proveniens.
+   Wikipedia ligger i registeret med denne oppskriften.
+2. **Transkribert fra hentet innhold** — modellen kan skrive små tabeller
+   (< ~50 rader) inline i scriptet NÅR den faktisk har lest kilden i
+   tool-loopen (hosted `web_fetch` henter side-/PDF-innhold inn i konteksten).
+   Krav: kilde-URL i kommentar ved datablokken + merket «transkribert, ikke
+   maskinelt verifisert».
+3. **Modellkunnskap** — kun stabile referansefakta (ISO-koder, kjente
+   datoer/klassifiseringer), merket «fra modellkunnskap — verifiser», og
+   ALDRI som utfallsvariabel i en analyse. Utfall skal komme fra nivå 1–2.
+
+Inline-konvensjon per språk: python
+`data_<navn> = """..."""` + `pd.read_csv(io.StringIO(data_<navn>))`;
+R `read.csv(text = "...")`; duckdb via `#py`-hybrid eller VALUES-liste.
+Killer-bruksområdet er lim-tabellene kausale design trenger (reformdatoer,
+tiltaks-/kontrollklassifisering, regiongrupperinger) — små, sjelden i
+statistikk-API-er, og avgjørende for DiD/event-studier.
+
+Inline-blokker føres i kildemanifestet med eget tillitsmerke (nivå 2/3), så
+det alltid er synlig hva analysen hviler på. Verktøytillegg: hosted
+`web_fetch` inn i TOOL_DEFS ved siden av `web_search`. Prompten lærer også
+bort søkehåndverk (`site:data.norge.no`, `filetype:csv`, norsk+engelsk søk).
 
 ### 6. Frontend (`js/ai-chat.js`, `index.html`)
 
