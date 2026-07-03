@@ -618,4 +618,8 @@ window.M2PY_I18N.en = {
   "Du må være logget inn eller ha lagt inn egen Anthropic-nøkkel (AI-innstillinger) for å bruke dataminimering.": "You must be logged in or have entered your own Anthropic key (AI settings) to use data minimisation.",
   "Web-modus krever innlogging eller egen Anthropic-nøkkel.": "Web mode requires login or your own Anthropic key.",
   "Web-modus krever admin eller egen Anthropic-nøkkel.": "Web mode requires admin or your own Anthropic key.",
+
+  // ── Datasettviser: remote-datasett (B2) ──
+  "Server-datasett: viser metadata fra kilden — fordeling og statistikk beregnes ikke lokalt.": "Remote dataset: showing metadata from the source — distributions and statistics are not computed locally.",
+  "Ingen informasjon tilgjengelig for denne variabelen.": "No information available for this variable.",
 };

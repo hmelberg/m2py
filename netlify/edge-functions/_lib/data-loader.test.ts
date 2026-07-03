@@ -27,6 +27,36 @@ Deno.test("resolveAndFetchLoads: fetches, sniffs format, proxy fallback on CORS"
   if (!proxyCall?.includes("[auth]")) throw new Error("proxy-fallback mangler auth: " + calls.join(" | "));
 });
 
+Deno.test("resolveAndFetchLoads: BYOK-nøkkel sendes som X-Anthropic-Key på proxy-kall når token mangler", async () => {
+  const calls: { url: string; headers: Record<string, string> }[] = [];
+  const fetchImpl = ((input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    calls.push({ url, headers: (init?.headers as Record<string, string>) ?? {} });
+    if (url.startsWith("https://blocked.example/")) return Promise.reject(new TypeError("CORS"));
+    return Promise.resolve(new Response("x,y\n1,2", { status: 200, headers: { "content-type": "text/csv" } }));
+  }) as typeof fetch;
+  const script = "# load https://blocked.example/d.csv as sperret";
+  await DL.resolveAndFetchLoads(script, { fetchImpl, registry: [], anthropicKey: "sk-ant-test123" });
+  const proxy = calls.find((c) => c.url.includes("/api/hent?url="));
+  if (!proxy) throw new Error("ingen proxy-kall: " + calls.map((c) => c.url).join(" | "));
+  assertEquals(proxy.headers["X-Anthropic-Key"], "sk-ant-test123");
+  assertEquals(proxy.headers["Authorization"], undefined);
+});
+
+Deno.test("resolveAndFetchLoads: innloggingstoken har forrang over BYOK-nøkkel", async () => {
+  const calls: { url: string; headers: Record<string, string> }[] = [];
+  const fetchImpl = ((input: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(input), headers: (init?.headers as Record<string, string>) ?? {} });
+    return Promise.resolve(new Response("x,y\n1,2", { status: 200, headers: { "content-type": "text/csv" } }));
+  }) as typeof fetch;
+  const script = "# load /api/hent?url=https%3A%2F%2Fx.example%2Fd.csv as via";
+  await DL.resolveAndFetchLoads(script, { fetchImpl, registry: [], authToken: "T", anthropicKey: "sk-ant-test123" });
+  const proxy = calls.find((c) => c.url.includes("/api/hent?url="));
+  if (!proxy) throw new Error("ingen proxy-kall");
+  assertEquals(proxy.headers["Authorization"], "Bearer T");
+  assertEquals(proxy.headers["X-Anthropic-Key"], undefined);
+});
+
 Deno.test("sniffFormat: content-type wins over URL", () => {
   const mk = (ct: string) => new Response("", { headers: { "content-type": ct } });
   assertEquals(DL._sniffFormat(mk("text/html; charset=utf-8"), "https://x/api"), "html");

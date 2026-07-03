@@ -1,5 +1,8 @@
-// /api/hent — SSRF-hardened fetch proxy for Web mode (admin-only while the
-// feature is admin-only; see spec §5). GET /api/hent?url=…[&body=…]
+// /api/hent — SSRF-hardened fetch proxy for Web mode: admin, or BYOK (a user
+// presenting their own Anthropic key gets Web mode incl. proxy loads — B5 in
+// safepy/docs/plan-integration.md; the key is format-checked only here, so
+// this endpoint is reachable with a fabricated key, bounded by the per-IP
+// rate limit — accepted by the owner 2026-07-04). GET /api/hent?url=…[&body=…]
 import { adminGate } from "./_lib/auth.ts";
 import { loadRegistry } from "./_lib/registry.ts";
 import { handleHent } from "./_lib/hent-core.ts";
@@ -9,6 +12,7 @@ export default async (request: Request): Promise<Response> => {
     endpoint: "hent",
     maxBodyBytes: 0,
     allowedMethods: ["GET"],
+    allowByok: true,
   });
   if (gateResp) return gateResp;
 

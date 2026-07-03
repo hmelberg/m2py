@@ -14,16 +14,22 @@
     return _registryCache;
   }
 
-  async function fetchLoadTarget(item, fetchImpl, authToken) {
+  // Proxy-auth: innloggingstoken har forrang; ellers BYOK-nøkkel (hent-
+  // endepunktet godtar X-Anthropic-Key via allowByok, jf. B5 i roadmapen).
+  function proxyHeaders(authToken, anthropicKey) {
+    if (authToken) return { 'Authorization': 'Bearer ' + authToken };
+    if (anthropicKey) return { 'X-Anthropic-Key': anthropicKey };
+    return {};
+  }
+
+  async function fetchLoadTarget(item, fetchImpl, authToken, anthropicKey) {
     async function viaProxy() {
-      var headers = authToken ? { 'Authorization': 'Bearer ' + authToken } : {};
-      var pr = await fetchImpl('/api/hent?url=' + encodeURIComponent(item.url), { headers: headers });
+      var pr = await fetchImpl('/api/hent?url=' + encodeURIComponent(item.url), { headers: proxyHeaders(authToken, anthropicKey) });
       if (!pr.ok) throw new Error('proxy ' + pr.status + ' for ' + item.alias);
       return pr;
     }
     if (item.url.indexOf('/api/hent?') === 0) {
-      var headers2 = authToken ? { 'Authorization': 'Bearer ' + authToken } : {};
-      var r0 = await fetchImpl(item.url, { headers: headers2 });
+      var r0 = await fetchImpl(item.url, { headers: proxyHeaders(authToken, anthropicKey) });
       if (!r0.ok) throw new Error('proxy ' + r0.status + ' for ' + item.alias);
       return r0;
     }
@@ -59,7 +65,7 @@
     var bad = resolved.filter(function (r) { return r.error; });
     if (bad.length) throw new Error('Direktivfeil: ' + bad.map(function (b) { return b.error; }).join('; '));
     return Promise.all(resolved.map(async function (item) {
-      var resp = await fetchLoadTarget(item, fetchImpl, deps.authToken || null);
+      var resp = await fetchLoadTarget(item, fetchImpl, deps.authToken || null, deps.anthropicKey || null);
       var buf = new Uint8Array(await resp.arrayBuffer());
       return { alias: item.alias, bytes: buf, format: sniffFormat(resp, item.url) };
     }));
