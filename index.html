@@ -2921,6 +2921,11 @@
     function getAuthToken() {
       return (window.mdAuth && window.mdAuth.token) || null;
     }
+    // BYOK-nøkkel (samme localStorage-nøkkel som ai-chat.js) — brukes av
+    // data-loaderen mot /api/hent når brukeren ikke er innlogget.
+    function getAnthropicKey() {
+      return localStorage.getItem('md_anthropic_key') || null;
+    }
 
     // ── Datakilde: dynamisk (generer) vs statisk (DuckDB-WASM + Parquet) ──────
     const DATA_SOURCE_KEY = 'microdata_data_source';
@@ -4423,9 +4428,12 @@
         if (cat.temporalitet) rows.push('<dt>Temporalitet</dt><dd>' + escapeHtml(String(cat.temporalitet)) + '</dd>');
         if (cat.type) rows.push('<dt>Type (register)</dt><dd>' + escapeHtml(String(cat.type)) + '</dd>');
       }
-      rows.push('<dt>Antall observasjoner</dt><dd>' + escapeHtml(String(data.n)) + '</dd>');
-      rows.push('<dt>Manglende</dt><dd>' + escapeHtml(String(data.nmissing)) + '</dd>');
+      if (data.n !== undefined && data.n !== null) rows.push('<dt>Antall observasjoner</dt><dd>' + escapeHtml(String(data.n)) + '</dd>');
+      if (data.nmissing !== undefined) rows.push('<dt>Manglende</dt><dd>' + escapeHtml(String(data.nmissing)) + '</dd>');
       parts.push('<dl class="var-detail-dl">' + rows.join('') + '</dl>');
+      if (data.remote) {
+        parts.push('<p class="var-detail-prose" style="color:var(--text-muted)">' + escapeHtml(t('Server-datasett: viser metadata fra kilden — fordeling og statistikk beregnes ikke lokalt.')) + '</p>');
+      }
       if (cat && cat.description) {
         parts.push('<p class="var-detail-prose">' + escapeHtml(cat.description) + '</p>');
       } else if (!cat) {
@@ -4517,8 +4525,18 @@
       if (window.__applyShowIndividataToSidebar) window.__applyShowIndividataToSidebar();
     }
 
+    // Art fra dtype-strengen alene — brukes for remote-datasett der bare
+    // katalogmetadata (kolonner/dtypes/nrows) finnes, ikke selve dataene.
+    function inferKindFromDtype(dtypeStr) {
+      var s = String(dtypeStr || '').toLowerCase();
+      if (!s) return 'unknown';
+      if (s.indexOf('bool') >= 0) return 'categorical';
+      if (s.indexOf('int') >= 0 || s.indexOf('float') >= 0 || s.indexOf('double') >= 0 || s.indexOf('decimal') >= 0 || s.indexOf('number') >= 0) return 'numeric';
+      if (s.indexOf('object') >= 0 || s.indexOf('str') >= 0 || s.indexOf('category') >= 0 || s.indexOf('char') >= 0 || s.indexOf('utf8') >= 0) return 'string';
+      return 'unknown';
+    }
+
     async function showVariableDetail(datasetName, varName) {
-      if (!pyodide) { alert(t('Kjør scriptet først.')); return; }
       var overlay = document.getElementById('varDetailOverlay');
       var titleEl = document.getElementById('varDetailTitle');
       var bodyEl = document.getElementById('varDetailBody');
@@ -4530,50 +4548,70 @@
       overlay.setAttribute('aria-hidden', 'false');
       if (dialogEl) dialogEl.classList.remove('var-detail-dialog--expanded');
       try {
-        pyodide.globals.set('_var_ds', datasetName);
-        pyodide.globals.set('_var_col', varName);
-        var jsonStr = await pyodide.runPythonAsync(`
+        var data = null;
+        if (pyodide) {
+          pyodide.globals.set('_var_ds', datasetName);
+          pyodide.globals.set('_var_col', varName);
+          var jsonStr = await pyodide.runPythonAsync(`
 import json
 import pandas as pd
 e = __main__.micro_interpreter
-df = e.datasets[_var_ds][_var_col]
-dtype = str(df.dtype)
-nmissing = int(df.isna().sum())
-n = len(df)
-out = {"dtype": dtype, "nmissing": nmissing, "n": n, "catLimit": 30}
-dt_lower = dtype.lower()
-if dtype in ("bool", "boolean") or "bool" in dt_lower:
-    vc = df.astype(str).value_counts(dropna=False)
-    out["categories"] = {str(k): int(v) for k, v in vc.head(30).items()}
-    out["kind"] = "categorical"
-elif dtype in ("object", "string", "category") or "str" in dt_lower:
-    vals = df.dropna().astype(str).value_counts()
-    out["categories"] = {str(k): int(v) for k, v in vals.head(30).items()}
-    out["kind"] = "string"
+_ds = getattr(e, "datasets", None) or {}
+if _var_ds not in _ds or _var_col not in _ds[_var_ds].columns:
+    out = {"missing": True}
 else:
-    out["kind"] = "numeric"
-    num = pd.to_numeric(df, errors="coerce")
-    nvalid = int(num.notna().sum())
-    out["nvalid"] = nvalid
-    if nvalid > 0:
-        out["mean"] = float(num.mean())
-        out["std"] = float(num.std(ddof=0)) if nvalid > 1 else 0.0
-        try:
-            out["nunique"] = int(num.nunique(dropna=True))
-        except Exception:
-            pass
-        try:
-            q = num.quantile([0, 0.25, 0.5, 0.75, 1])
-            out["min"] = float(q.iloc[0])
-            out["q1"] = float(q.iloc[1])
-            out["median"] = float(q.iloc[2])
-            out["q3"] = float(q.iloc[3])
-            out["max"] = float(q.iloc[4])
-        except Exception:
-            pass
+    df = _ds[_var_ds][_var_col]
+    dtype = str(df.dtype)
+    nmissing = int(df.isna().sum())
+    n = len(df)
+    out = {"dtype": dtype, "nmissing": nmissing, "n": n, "catLimit": 30}
+    dt_lower = dtype.lower()
+    if dtype in ("bool", "boolean") or "bool" in dt_lower:
+        vc = df.astype(str).value_counts(dropna=False)
+        out["categories"] = {str(k): int(v) for k, v in vc.head(30).items()}
+        out["kind"] = "categorical"
+    elif dtype in ("object", "string", "category") or "str" in dt_lower:
+        vals = df.dropna().astype(str).value_counts()
+        out["categories"] = {str(k): int(v) for k, v in vals.head(30).items()}
+        out["kind"] = "string"
+    else:
+        out["kind"] = "numeric"
+        num = pd.to_numeric(df, errors="coerce")
+        nvalid = int(num.notna().sum())
+        out["nvalid"] = nvalid
+        if nvalid > 0:
+            out["mean"] = float(num.mean())
+            out["std"] = float(num.std(ddof=0)) if nvalid > 1 else 0.0
+            try:
+                out["nunique"] = int(num.nunique(dropna=True))
+            except Exception:
+                pass
+            try:
+                q = num.quantile([0, 0.25, 0.5, 0.75, 1])
+                out["min"] = float(q.iloc[0])
+                out["q1"] = float(q.iloc[1])
+                out["median"] = float(q.iloc[2])
+                out["q3"] = float(q.iloc[3])
+                out["max"] = float(q.iloc[4])
+            except Exception:
+                pass
 json.dumps(out)
 `);
-        var data = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : JSON.parse(jsonStr.toJs ? jsonStr.toJs() : '{}');
+          data = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : JSON.parse(jsonStr.toJs ? jsonStr.toJs() : '{}');
+          if (data && data.missing) data = null;
+        }
+        if (!data) {
+          // B2: datasettet finnes ikke i den lokale motoren (typisk en
+          // server-kjøring der bare katalogmetadata ble sendt) — degradér
+          // pent til metadataene i stedet for å feile.
+          var dsMeta = (window.lastDatasetInfo || {})[datasetName] || null;
+          if (!dsMeta) {
+            bodyEl.innerHTML = '<p class="var-detail-prose" style="color:var(--text-muted)">' + escapeHtml(t('Ingen informasjon tilgjengelig for denne variabelen.')) + '</p>';
+            return;
+          }
+          var dtypeStr = (dsMeta.dtypes || {})[varName] || '';
+          data = { dtype: dtypeStr, n: dsMeta.nrows, kind: inferKindFromDtype(dtypeStr), remote: true };
+        }
         var cat = getVariableCatalogEntryForColumn(varName);
         bodyEl.innerHTML = renderVariableDetailHtml(varName, data, cat);
       } catch (err) {
@@ -7027,7 +7065,7 @@ json.dumps(out)
 
       // Web-modus: connect/load-direktiver — hent kilder og bind dem inn i R
       // FØR koden kjører (ingen-op når scriptet ikke har direktiver).
-      var _loadsR = await window.DataLoader.resolveAndFetchLoads(src, { authToken: getAuthToken() });
+      var _loadsR = await window.DataLoader.resolveAndFetchLoads(src, { authToken: getAuthToken(), anthropicKey: getAnthropicKey() });
       if (_loadsR.length && _loadsR.some(function (l) { return l.format === 'json'; })) {
         try { await webR.installPackages(['jsonlite'], { quiet: true }); } catch (e) {
           console.warn('R jsonlite install error:', e);
@@ -8156,7 +8194,7 @@ options(width = 200)
         // Ingen-op når scriptet ikke har load-direktiver (tom liste).
         var _pyLoads = [];
         if (activeEditorMode === 'python' || activeEditorMode === 'duckdb') {
-          var _rawLoads = await window.DataLoader.resolveAndFetchLoads(effectiveScript, { authToken: getAuthToken() });
+          var _rawLoads = await window.DataLoader.resolveAndFetchLoads(effectiveScript, { authToken: getAuthToken(), anthropicKey: getAnthropicKey() });
           if (activeEditorMode === 'duckdb') {
             var _htmlLoad = _rawLoads.find(function (l) { return l.format === 'html'; });
             if (_htmlLoad) throw new Error(t('html-kilder støttes ikke i duckdb-modus ({alias}) — bruk python/r', { alias: _htmlLoad.alias }));
