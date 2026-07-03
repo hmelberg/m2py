@@ -101,13 +101,15 @@ async function runBaseChecks(
   request: Request,
   opts: GateOptions,
   checkRateLimit: GateDeps["checkRateLimit"],
+  requireToken = true,
 ): Promise<BaseCheckResult> {
-  // 1. token presence (free)
+  // 1. token presence (free) — skipped for BYOK requests, which carry the
+  // user's own Anthropic key instead of an account token.
   const authHeader = request.headers.get("authorization") ?? "";
   const presentedToken = authHeader.startsWith("Bearer ")
     ? authHeader.slice(7).trim()
     : "";
-  if (!presentedToken) {
+  if (!presentedToken && requireToken) {
     return {
       presentedToken,
       failure: new Response("Unauthorized: missing token", { status: 401 }),
@@ -159,12 +161,18 @@ export async function runGate(
   opts: GateOptions,
   deps: GateDeps,
 ): Promise<Response | null> {
+  const byokKey = extractByokKey(request);
   const { presentedToken, failure } = await runBaseChecks(
     request,
     opts,
     deps.checkRateLimit,
+    /* requireToken */ byokKey === null,
   );
   if (failure) return failure;
+
+  // BYOK: the user's own Anthropic key replaces account auth. Method, body
+  // and rate-limit checks above still ran; the handler uses the key upstream.
+  if (byokKey !== null) return null;
 
   // 5. auth: cheap shared-token (constant-time) -> positive cache -> Anvil
   const now = deps.now();
@@ -280,12 +288,18 @@ export async function runAdminGate(
   opts: GateOptions,
   deps: AdminGateDeps,
 ): Promise<Response | null> {
+  const byokKey = extractByokKey(request);
   const { presentedToken, failure } = await runBaseChecks(
     request,
     opts,
     deps.checkRateLimit,
+    /* requireToken */ byokKey === null,
   );
   if (failure) return failure;
+
+  // BYOK: the user's own Anthropic key replaces account auth. Method, body
+  // and rate-limit checks above still ran; the handler uses the key upstream.
+  if (byokKey !== null) return null;
 
   const now = deps.now();
   let info: UserInfo | null = null;

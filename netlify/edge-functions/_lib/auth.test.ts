@@ -226,3 +226,64 @@ Deno.test("upstreamErrorResponse: BYOK + other error -> 502", () => {
 Deno.test("upstreamErrorResponse: no BYOK -> always 502", () => {
   assertEquals(upstreamErrorResponse(new Error("Anthropic API error 401"), null).status, 502);
 });
+
+// ── BYOK: runGate and runAdminGate paths ──
+
+function makeByokAdminDeps(): AdminGateDeps & { calls: { fetchUser: number } } {
+  const calls = { fetchUser: 0 };
+  return {
+    sharedToken: undefined,
+    checkRateLimit: () => Promise.resolve({ allowed: true, retryAfterSeconds: 0 }),
+    fetchUser: () => {
+      calls.fetchUser++;
+      return Promise.resolve({ ok: false, isAdmin: false });
+    },
+    now: () => 1000,
+    cache: new Map<string, { exp: number; isAdmin: boolean }>(),
+    calls,
+  };
+}
+
+Deno.test("runGate: valid BYOK header, no bearer -> passes without validation", async () => {
+  const deps = makeDeps();
+  const resp = await runGate(req({ byok: GOOD_KEY }), { endpoint: "t", maxBodyBytes: 100 }, deps);
+  assertEquals(resp, null);
+  assertEquals(deps.calls.validate, 0);
+});
+
+Deno.test("runGate: malformed BYOK header, no bearer -> 401", async () => {
+  const resp = await runGate(req({ byok: "not-a-key" }), { endpoint: "t", maxBodyBytes: 100 }, makeDeps());
+  assertEquals(resp?.status, 401);
+});
+
+Deno.test("runGate: BYOK still method-checked -> 405", async () => {
+  const resp = await runGate(req({ byok: GOOD_KEY, method: "GET" }), { endpoint: "t", maxBodyBytes: 100 }, makeDeps());
+  assertEquals(resp?.status, 405);
+});
+
+Deno.test("runGate: BYOK still body-capped -> 413", async () => {
+  const resp = await runGate(req({ byok: GOOD_KEY, contentLength: 999 }), { endpoint: "t", maxBodyBytes: 100 }, makeDeps());
+  assertEquals(resp?.status, 413);
+});
+
+Deno.test("runGate: BYOK still rate-limited -> 429", async () => {
+  const deps = makeDeps({
+    checkRateLimit: () => Promise.resolve({ allowed: false, retryAfterSeconds: 7 }),
+  });
+  const resp = await runGate(req({ byok: GOOD_KEY }), { endpoint: "t", maxBodyBytes: 100 }, deps);
+  assertEquals(resp?.status, 429);
+});
+
+Deno.test("runAdminGate: valid BYOK header, no bearer -> passes without admin", async () => {
+  const deps = makeByokAdminDeps();
+  const resp = await runAdminGate(req({ byok: GOOD_KEY }), { endpoint: "t", maxBodyBytes: 100 }, deps);
+  assertEquals(resp, null);
+  assertEquals(deps.calls.fetchUser, 0);
+});
+
+Deno.test("runAdminGate: no BYOK, non-admin token -> 403 (unchanged)", async () => {
+  const deps = makeByokAdminDeps();
+  deps.fetchUser = () => Promise.resolve({ ok: true, isAdmin: false });
+  const resp = await runAdminGate(req({ token: "user-token" }), { endpoint: "t", maxBodyBytes: 100 }, deps);
+  assertEquals(resp?.status, 403);
+});
