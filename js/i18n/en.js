@@ -603,4 +603,12 @@ window.M2PY_I18N.en = {
   "jamovi-modus: pek-og-klikk-analyser som genererer R og kjører det via webR på det aktive datasettet.": "jamovi mode: point-and-click analyses that generate R and run it via webR on the active dataset.",
   "Spørsmål": "Question",
   "Ikke riktig, prøv igjen.": "Not right, try again.",
+
+  // --- Kommandohjelp (rammetekster) ---
+  "Kommando:": "Command:",
+  "Syntaks:": "Syntax:",
+  "Alternativer:": "Options:",
+  "Eksempler:": "Examples:",
+  "Mer dokumentasjon:": "More documentation:",
+  "Funksjon:": "Function:",
 };

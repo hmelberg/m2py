@@ -4627,22 +4627,24 @@ json.dumps(out)
     function getCommandHelp(cmd) {
       const help = typeof window.MICRODATA_COMMAND_HELP !== 'undefined' && window.MICRODATA_COMMAND_HELP[cmd];
       if (!help) return null;
-      let s = 'Kommando: ' + cmd + '\n\nSyntaks: ' + (help.syntax || '');
-      if (help.description) s += '\n\n' + help.description;
-      if (help.options && help.options.length) s += '\n\nAlternativer: ' + help.options.join('\n');
-      if (help.examples && help.examples.length) s += '\n\nEksempler:\n' + help.examples.slice(0, 5).join('\n');
+      let s = t('Kommando:') + ' ' + cmd + '\n\n' + t('Syntaks:') + ' ' + (help.syntax || '');
+      const desc = i18nField(help, 'description');
+      if (desc) s += '\n\n' + desc;
+      if (help.options && help.options.length) s += '\n\n' + t('Alternativer:') + ' ' + help.options.join('\n');
+      if (help.examples && help.examples.length) s += '\n\n' + t('Eksempler:') + '\n' + help.examples.slice(0, 5).join('\n');
       const src = help.source || (MICRODATA_COMMAND_DOC_BASE + '#' + cmd.toLowerCase());
-      s += '\n\nMer dokumentasjon: ' + src;
+      s += '\n\n' + t('Mer dokumentasjon:') + ' ' + src;
       return s;
     }
 
     function formatFunctionHelp(help, name) {
       if (!help) return null;
-      let s = 'Funksjon: ' + name + '\n\n';
-      if (help.syntax) s += 'Syntaks: ' + help.syntax + '\n\n';
-      if (help.description) s += help.description;
+      let s = t('Funksjon:') + ' ' + name + '\n\n';
+      if (help.syntax) s += t('Syntaks:') + ' ' + help.syntax + '\n\n';
+      const fdesc = i18nField(help, 'description');
+      if (fdesc) s += fdesc;
       const funcUrl = MICRODATA_FUNCTION_DOC_BASE + '#' + name.toLowerCase();
-      s += '\n\nMer dokumentasjon: ' + funcUrl;
+      s += '\n\n' + t('Mer dokumentasjon:') + ' ' + funcUrl;
       return s;
     }
 
