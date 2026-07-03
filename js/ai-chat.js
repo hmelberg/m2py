@@ -985,6 +985,8 @@
       //     with a seconds counter while a long API turn is in flight)
       //   {type:'text', text}      — markdown chunks (explanation + one fenced script)
       //   {type:'sources', sources:[{url, ok, cors, viaProxy}]} — deterministic probe manifest
+      //   {type:'continue', state, probed} — invocation's turn budget spent; re-POST
+      //     with resume:{state, probed} to keep going (Netlify CPU cap per request)
       //   {type:'error', message}
       // Consume one SSE response, dispatching parsed events to onEvent. Mirrors the
       // inline reader loops in runFastQuery/streamKodeSvarV2/runInterpretQuery above
@@ -1033,27 +1035,45 @@
         if (!token) throw new Error('Web-modus krever innlogging.');
         const mode = (typeof activeEditorMode !== 'undefined' && activeEditorMode) ? activeEditorMode : 'python';
 
-        const resp = await fetch('/api/data-svar', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({
-            question,
-            mode,
-            script: (dom.scriptInput && dom.scriptInput.value) || '',
-            repair: repair ? { script: repair.script, error: repair.error, round } : undefined,
-          }),
-        });
-        if (resp.status === 401) {
-          if (auth) { auth.logout(); auth.showLogin(); }
-          throw new Error('Innloggingen er utløpt. Logg inn på nytt.');
-        }
-        if (resp.status === 403) throw new Error('Web-modus er kun tilgjengelig for admin.');
-        if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status + ' ' + (await resp.text()));
-
+        // Continuation protocol: Netlify caps CPU per edge invocation, so the
+        // server runs ONE API turn per POST and hands back
+        // {type:'continue', state, probed} when it isn't finished; we
+        // immediately re-POST with `resume` until the final answer arrives.
+        // The progress box lives across hops, so the user sees one seamless run.
         let markdown = '';
         let sources = null;
         let _lastRender = 0;
-        await consumeSse(resp, (ev) => {
+        let resume = null;
+        for (let hop = 0; ; hop++) {
+          if (hop > 40) throw new Error('Avbrutt: svaret ble ikke ferdig etter 40 fortsettelses-runder.');
+          const resp = await fetch('/api/data-svar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({
+              question,
+              mode,
+              script: (dom.scriptInput && dom.scriptInput.value) || '',
+              repair: repair ? { script: repair.script, error: repair.error, round } : undefined,
+              resume: resume || undefined,
+            }),
+          });
+          if (resp.status === 401) {
+            if (auth) { auth.logout(); auth.showLogin(); }
+            throw new Error('Innloggingen er utløpt. Logg inn på nytt.');
+          }
+          if (resp.status === 403) throw new Error('Web-modus er kun tilgjengelig for admin.');
+          if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status + ' ' + (await resp.text()));
+
+          let cont = null;
+          await consumeSse(resp, (ev) => {
+            if (ev.type === 'continue') { cont = { state: ev.state, probed: ev.probed }; return; }
+            handleWebEvent(ev);
+          });
+          if (!cont) break;
+          resume = cont;
+        }
+
+        function handleWebEvent(ev) {
           if (ev.type === 'progress') {
             const last = progressBox.lastElementChild;
             if (ev.replace && last && last.dataset.replace === '1') {
@@ -1079,7 +1099,7 @@
           } else if (ev.type === 'error') {
             throw new Error(ev.message || 'ukjent feil');
           }
-        });
+        }
 
         streamRenderMd(bubble, markdown);
         attachCodeBlockActions(bubble);

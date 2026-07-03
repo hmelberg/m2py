@@ -309,7 +309,30 @@ export interface AgenticOptions {
   cacheTtl?: "5m" | "1h";
   maxClientToolCalls?: number;
   maxTurns?: number;
+  // Continuation protocol: Netlify caps CPU per edge invocation, so a run
+  // that needs many API turns must be split across invocations. When the
+  // per-call turn budget (turnsPerCall, default 1) is spent without a final
+  // answer, the stream ends with {type:"continue", state, ...continueExtra()}
+  // and the client re-POSTs with `resume` = that state.
+  resume?: AgenticResumeState;
+  turnsPerCall?: number;
+  continueExtra?: () => Record<string, unknown>;
   deps?: RetryDeps;
+}
+
+// Everything the loop needs to pick up where a previous invocation stopped.
+// Round-trips through the client verbatim; contains only the question, tool
+// results and model output — never the system prompt or API keys.
+export interface AgenticResumeState {
+  messages: Record<string, unknown>[];
+  turn: number;
+  clientCalls: number;
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+    cacheCreationTokens: number;
+  };
 }
 
 // Long final generations (multi-tool-call context, big final script) can
@@ -347,15 +370,20 @@ export function runAgenticStream(opts: AgenticOptions): ReadableStream<Uint8Arra
         cache_control: useLongTtl ? { type: "ephemeral", ttl: "1h" } : { type: "ephemeral" },
       }];
 
-      const messages: Record<string, unknown>[] = [{ role: "user", content: opts.userContent }];
-      let clientCalls = 0;
-      let inputTokens = 0, outputTokens = 0, cacheRead = 0, cacheCreation = 0;
+      const state: AgenticResumeState = opts.resume ?? {
+        messages: [{ role: "user", content: opts.userContent }],
+        turn: 0,
+        clientCalls: 0,
+        usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 },
+      };
+      const turnsPerCall = opts.turnsPerCall ?? 1;
 
       try {
-        for (let turn = 0; turn < maxTurns; turn++) {
-          const turnLabel = turn === 0
+        for (let i = 0; i < turnsPerCall; i++) {
+          if (state.turn >= maxTurns) throw new Error("tool-loopen nådde maks antall turer");
+          const turnLabel = state.turn === 0
             ? "🧠 Tolker spørsmålet og planlegger"
-            : `🤔 Arbeider med svaret (tur ${turn + 1})`;
+            : `🤔 Arbeider med svaret (tur ${state.turn + 1})`;
           emit({ type: "progress", text: `${turnLabel} …`, replace: true });
           const turnStart = Date.now();
           const beat = setInterval(() => {
@@ -375,7 +403,7 @@ export function runAgenticStream(opts: AgenticOptions): ReadableStream<Uint8Arra
                 stream: false,
                 system,
                 tools: opts.tools,
-                messages,
+                messages: state.messages,
               }),
             }, deps);
           } finally {
@@ -387,11 +415,12 @@ export function runAgenticStream(opts: AgenticOptions): ReadableStream<Uint8Arra
             throw new Error(`Anthropic API error ${resp.status}`);
           }
           const json = await resp.json();
+          state.turn++;
           const u = json?.usage ?? {};
-          inputTokens += u.input_tokens ?? 0;
-          outputTokens += u.output_tokens ?? 0;
-          cacheRead += u.cache_read_input_tokens ?? 0;
-          cacheCreation += u.cache_creation_input_tokens ?? 0;
+          state.usage.inputTokens += u.input_tokens ?? 0;
+          state.usage.outputTokens += u.output_tokens ?? 0;
+          state.usage.cacheReadTokens += u.cache_read_input_tokens ?? 0;
+          state.usage.cacheCreationTokens += u.cache_creation_input_tokens ?? 0;
           const content = Array.isArray(json?.content) ? json.content : [];
 
           // Hosted tools (web_search/web_fetch) run inside the API and are
@@ -407,19 +436,19 @@ export function runAgenticStream(opts: AgenticOptions): ReadableStream<Uint8Arra
           }
 
           if (json.stop_reason === "pause_turn") {
-            messages.push({ role: "assistant", content });
+            state.messages.push({ role: "assistant", content });
             continue;
           }
           const toolUses = content.filter((b: { type?: string }) => b.type === "tool_use");
           if (json.stop_reason === "tool_use" && toolUses.length) {
-            messages.push({ role: "assistant", content });
+            state.messages.push({ role: "assistant", content });
             const results: Record<string, unknown>[] = [];
             for (const tu of toolUses) {
-              clientCalls++;
+              state.clientCalls++;
               const label = opts.progressLabel?.(tu.name, tu.input ?? {}) ?? `Kjører ${tu.name} …`;
               emit({ type: "progress", text: label });
               let out: string;
-              if (clientCalls > maxClientCalls) {
+              if (state.clientCalls > maxClientCalls) {
                 out = "Verktøy-budsjettet er brukt opp — generer svaret NÅ med det du allerede har funnet. Vær ærlig om hva som mangler.";
               } else {
                 try {
@@ -430,22 +459,22 @@ export function runAgenticStream(opts: AgenticOptions): ReadableStream<Uint8Arra
               }
               results.push({ type: "tool_result", tool_use_id: tu.id, content: out });
             }
-            messages.push({ role: "user", content: results });
+            state.messages.push({ role: "user", content: results });
             continue;
           }
           // Final answer
           for (const b of content) {
             if (b.type === "text" && b.text) emit({ type: "text", text: b.text });
           }
-          emit({
-            type: "done",
-            inputTokens, outputTokens,
-            cacheReadTokens: cacheRead, cacheCreationTokens: cacheCreation,
-          });
+          emit({ type: "done", ...state.usage });
           controller.close();
           return;
         }
-        throw new Error("tool-loopen nådde maks antall turer");
+        // Turn budget for THIS invocation spent without a final answer: hand
+        // the state back so the client can continue in a fresh invocation.
+        emit({ type: "continue", state, ...(opts.continueExtra?.() ?? {}) });
+        controller.close();
+        return;
       } catch (e) {
         emit({ type: "error", message: String(e) });
         controller.close();
