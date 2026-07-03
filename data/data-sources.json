@@ -76,7 +76,7 @@
     "base_url": "https://data.norge.no/",
     "sok_endepunkt": "https://search.api.fellesdatakatalog.digdir.no/search",
     "cors": true,
-    "quirks": "katalog over datasett fra offentlige etater; selve datafilene ligger hos utgiver (probe før bruk)"
+    "quirks": "katalog over datasett fra offentlige etater; selve datafilene ligger hos utgiver (probe før bruk); søke-API: POST-body bruker felt 'q' (ikke 'query'), og filters.type.value='datasets' må settes — uten dette domineres treff av CONCEPT/andre entitetstyper"
   },
   {
     "id": "githubraw", "navn": "GitHub raw-filer", "utgiver": "(varierer)",
