@@ -64,3 +64,16 @@ Deno.test("handleHent caps oversized body param", async () => {
   const r = await handleHent(req("url=" + encodeURIComponent("https://example.org/t") + "&body=" + encodeURIComponent(big)), deps([]));
   assertEquals(r.status, 413);
 });
+
+Deno.test("handleHent never echoes upstream fetch errors (key leak) to the client", async () => {
+  const rejectingFetch: typeof fetch = (() =>
+    Promise.reject(new TypeError(
+      "error sending request for url (https://api.stlouisfed.org/fred/series?api_key=K123): connect error",
+    ))) as unknown as typeof fetch;
+  const d = { registry: REG, getEnv: (k: string) => ({ FRED_API_KEY: "K123" } as Record<string, string>)[k], fetchImpl: rejectingFetch };
+  const r = await handleHent(req("url=" + encodeURIComponent("https://api.stlouisfed.org/fred/series?series_id=UNRATE")), d);
+  assertEquals(r.status, 502);
+  const text = await r.text();
+  if (text.includes("K123")) throw new Error("nøkkel lekket i feilrespons: " + text);
+  if (text.includes("stlouisfed")) throw new Error("kilde-URL lekket i feilrespons: " + text);
+});

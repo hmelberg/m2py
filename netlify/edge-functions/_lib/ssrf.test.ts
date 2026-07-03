@@ -52,3 +52,26 @@ Deno.test("fetchGuarded rejects non-public start URL", async () => {
   try { await fetchGuarded("http://localhost/x"); } catch (e) { threw = String(e); }
   if (!threw.includes("blokkert")) throw new Error("skulle blokkeres");
 });
+
+Deno.test("fetchGuarded drops auth headers on cross-host redirects", async () => {
+  const seenHeaders: Record<string, HeadersInit | undefined> = {};
+  const f = ((input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    seenHeaders[url] = init?.headers;
+    if (url === "https://a.example/hop2") {
+      return Promise.resolve(new Response(null, { status: 302, headers: { location: "https://b.example/final" } }));
+    }
+    if (url === "https://b.example/final") {
+      return Promise.resolve(new Response("OK", { status: 200 }));
+    }
+    return Promise.resolve(new Response("not found", { status: 404 }));
+  }) as typeof fetch;
+
+  const r = await fetchGuarded("https://a.example/hop2", { headers: { "X-Key": "S3CRET" }, fetchImpl: f });
+  assertEquals(r.status, 200);
+
+  const aHeaders = new Headers(seenHeaders["https://a.example/hop2"]);
+  const bHeaders = new Headers(seenHeaders["https://b.example/final"]);
+  assertEquals(aHeaders.get("X-Key"), "S3CRET");
+  assertEquals(bHeaders.get("X-Key"), null);
+});

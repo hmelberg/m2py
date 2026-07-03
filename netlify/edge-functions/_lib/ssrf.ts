@@ -45,15 +45,20 @@ export async function fetchGuarded(rawUrl: string, opts: GuardedOptions = {}): P
   const maxRedirects = opts.maxRedirects ?? 5;
 
   let url = rawUrl;
+  const initialHost = new URL(rawUrl).host;
   for (let hop = 0; hop <= maxRedirects; hop++) {
     if (!isPublicHttpUrl(url)) throw new Error(`blokkert URL (ikke offentlig http/https): ${url}`);
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    // Auth/credential headers (e.g. a header-injected API key) must never be
+    // replayed to a host other than the one the caller originally targeted —
+    // a redirect to a foreign host must not receive them.
+    const sameHost = new URL(url).host === initialHost;
     try {
       const resp = await fetchImpl(url, {
         method: opts.method ?? "GET",
         body: opts.body,
-        headers: opts.headers,
+        headers: sameHost ? opts.headers : {},
         redirect: "manual",
         signal: ctrl.signal,
       });

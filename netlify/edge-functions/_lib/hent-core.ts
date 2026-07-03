@@ -59,6 +59,11 @@ export async function handleHent(request: Request, deps: HentDeps): Promise<Resp
     if (res.truncated) out.set("x-hent-truncated", "1");
     return new Response(res.body as BodyInit, { status: res.status, headers: out });
   } catch (e) {
-    return new Response(`Proxy-feil: ${String(e).slice(0, 300)}`, { status: 502 });
+    // Never echo the caught error to the client: Deno fetch errors and our
+    // own fetchGuarded errors embed the request URL, which may carry a
+    // server-injected api_key (query-string key injection above). Log
+    // server-side only; return a fixed, non-interpolated body.
+    console.error("hent: proxy error:", String(e));
+    return new Response("Proxy-feil ved henting av kilden", { status: 502 });
   }
 }
