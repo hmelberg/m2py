@@ -7410,15 +7410,18 @@ exec(compile(static_code, "static_source.py", "exec"), sys.modules["static_sourc
           window.__staticSourceLoaded = true;
         } catch (e) { console.warn('static_source register:', e); }
       }
-      // Speile avsløringskontroll-flagget fra localStorage til m2py.M2PY_DISCLOSURE_CONTROL.
+      // Speile avsløringskontroll-flagget fra localStorage til m2py.M2PY_DISCLOSURE_CONTROL,
+      // og UI-språket til m2py.M2PY_LANG (styrer motorens meldingsspråk).
       window.__applyDisclosureControlToPython = async function () {
         if (!pyodide) return;
         const on = window.__getDisclosureControl ? window.__getDisclosureControl() : false;
+        const uiLang = window.M2PY_LANG === 'en' ? 'en' : 'no';
         try {
           await pyodide.runPythonAsync(
             `import sys\n` +
             `if 'm2py' in sys.modules:\n` +
-            `    sys.modules['m2py'].M2PY_DISCLOSURE_CONTROL = ${on ? "'1'" : "'0'"}\n`
+            `    sys.modules['m2py'].M2PY_DISCLOSURE_CONTROL = ${on ? "'1'" : "'0'"}\n` +
+            `    sys.modules['m2py'].M2PY_LANG = '${uiLang}'\n`
           );
         } catch (e) { console.warn('apply disclosure control:', e); }
       };
