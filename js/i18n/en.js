@@ -619,6 +619,9 @@ window.M2PY_I18N.en = {
   "Web-modus krever innlogging eller egen Anthropic-nøkkel.": "Web mode requires login or your own Anthropic key.",
   "Web-modus krever admin eller egen Anthropic-nøkkel.": "Web mode requires admin or your own Anthropic key.",
 
+  "Egen Anthropic-nøkkel er lagret i denne nettleseren. Den brukes bare når du er logget ut.": "Your own Anthropic key is stored in this browser. It is only used while you are logged out.",
+  "Fjern nøkkel": "Remove key",
+
   // ── Datasettviser: remote-datasett (B2) ──
   "Server-datasett: viser metadata fra kilden — fordeling og statistikk beregnes ikke lokalt.": "Remote dataset: showing metadata from the source — distributions and statistics are not computed locally.",
   "Ingen informasjon tilgjengelig for denne variabelen.": "No information available for this variable.",

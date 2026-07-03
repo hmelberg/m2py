@@ -57,7 +57,7 @@
          'aiIncludeScript','menuAiMode',
          'aiSettingsBackdrop','aiCfgBaseUrl','aiCfgApiKey','aiCfgAnthropicKey','aiCfgSave','aiCfgCancel',
          'aiCfgLoggedIn','aiCfgLoggedOut','aiCfgUserEmail','aiCfgUserMeta',
-         'aiCfgLogout','aiCfgAdmin','aiCfgLogin',
+         'aiCfgLogout','aiCfgAdmin','aiCfgLogin','aiCfgByokStored','aiCfgByokRemove',
          'sidebarRight','sidebarOpenTab','scriptInput'
         ].forEach(id => { dom[id] = $(id); });
         dom.containers = document.querySelectorAll('.container');
@@ -1445,6 +1445,9 @@
           if (user.expires_at) bits.push(T('Utløper: {date}', { date: user.expires_at.slice(0, 10) }));
           dom.aiCfgUserMeta.textContent = bits.join(' · ');
           dom.aiCfgAdmin.style.display = user.is_admin ? '' : 'none';
+          // B6: innloggede skal kunne se og fjerne en lagret BYOK-nøkkel
+          // (feltet for å legge den inn ligger kun i utlogget-panelet).
+          if (dom.aiCfgByokStored) dom.aiCfgByokStored.style.display = state.anthropicKey ? '' : 'none';
         } else {
           dom.aiCfgLoggedIn.style.display = 'none';
           dom.aiCfgLoggedOut.style.display = '';
@@ -1522,6 +1525,14 @@
         if (dom.aiCfgAdmin) {
           dom.aiCfgAdmin.addEventListener('click', () => {
             window.location.href = 'admin.html';
+          });
+        }
+        if (dom.aiCfgByokRemove) {
+          dom.aiCfgByokRemove.addEventListener('click', () => {
+            localStorage.removeItem(LS_KEY_ANTHROPIC);
+            if (dom.aiCfgAnthropicKey) dom.aiCfgAnthropicKey.value = '';
+            if (dom.aiCfgByokStored) dom.aiCfgByokStored.style.display = 'none';
+            if (window.mdSyncWebBtnVisibility) window.mdSyncWebBtnVisibility();
           });
         }
 
