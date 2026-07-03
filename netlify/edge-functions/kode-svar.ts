@@ -1,5 +1,5 @@
 import { streamAnthropic } from "./_lib/anthropic.ts";
-import { gate } from "./_lib/auth.ts";
+import { extractByokKey, gate, upstreamErrorResponse } from "./_lib/auth.ts";
 import { abbrevType, cleanDescription, extractValidPeriod, renderLabels } from "./_lib/catalog-format.ts";
 
 // ====================================================================
@@ -1247,7 +1247,7 @@ export async function buildCachedPrefix(origin: string, mode: GenMode = "microda
 // ====================================================================
 
 export default async (request: Request): Promise<Response> => {
-  const gateResp = await gate(request, { endpoint: "kode-svar", maxBodyBytes: 50_000 });
+  const gateResp = await gate(request, { endpoint: "kode-svar", maxBodyBytes: 50_000, allowByok: true });
   if (gateResp) return gateResp;
 
   let body: RequestBody;
@@ -1261,7 +1261,8 @@ export default async (request: Request): Promise<Response> => {
     return new Response("Missing question", { status: 400 });
   }
 
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  const byokKey = extractByokKey(request);
+  const apiKey = byokKey ?? Deno.env.get("ANTHROPIC_API_KEY");
   const model = Deno.env.get("ANTHROPIC_MODEL") ?? "claude-sonnet-4-6";
   if (!apiKey) {
     console.error("ANTHROPIC_API_KEY is not set");
@@ -1300,6 +1301,6 @@ export default async (request: Request): Promise<Response> => {
       },
     });
   } catch (e) {
-    return new Response(`Upstream error: ${e}`, { status: 502 });
+    return upstreamErrorResponse(e, byokKey);
   }
 };

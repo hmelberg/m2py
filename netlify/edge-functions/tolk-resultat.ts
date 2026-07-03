@@ -1,11 +1,12 @@
 import { detectLanguage } from "./_lib/parse-script-context.ts";
 import { streamAnthropic } from "./_lib/anthropic.ts";
-import { gate } from "./_lib/auth.ts";
+import { extractByokKey, gate, upstreamErrorResponse } from "./_lib/auth.ts";
 
 interface RequestBody {
   script?: string;
   output: string;
   språk?: "auto" | "microdata" | "python" | "r";
+  ui_lang?: "no" | "en";   // svarspråk (UI-språket); default norsk
 }
 
 // Inlined from ./prompts/tolk-resultat.md (Deno Deploy bundler tar ikke .md i runtime;
@@ -52,6 +53,8 @@ REGLER
 - Ikke gjenta hele outputen — tolk den.`;
 
 const TOLK_USER_TEMPLATE = `\
+{{OUTPUT_LANGUAGE}}
+
 SPRÅK
 {{LANGUAGE}}
 
@@ -71,7 +74,7 @@ function languageInstruction(requested: string, detected: string): string {
 }
 
 export default async (request: Request): Promise<Response> => {
-  const gateResp = await gate(request, { endpoint: "tolk-resultat", maxBodyBytes: 120_000 });
+  const gateResp = await gate(request, { endpoint: "tolk-resultat", maxBodyBytes: 120_000, allowByok: true });
   if (gateResp) return gateResp;
 
   let body: RequestBody;
@@ -84,7 +87,8 @@ export default async (request: Request): Promise<Response> => {
     return new Response("Missing output", { status: 400 });
   }
 
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  const byokKey = extractByokKey(request);
+  const apiKey = byokKey ?? Deno.env.get("ANTHROPIC_API_KEY");
   const model = Deno.env.get("ANTHROPIC_MODEL") ?? "claude-sonnet-4-6";
   if (!apiKey) {
     console.error("ANTHROPIC_API_KEY is not set");
@@ -96,9 +100,16 @@ export default async (request: Request): Promise<Response> => {
   const script = (body.script ?? "").slice(0, MAX_CHARS);
   const output = body.output.slice(0, MAX_CHARS);
   const requested = body.språk ?? "auto";
+  const uiLang = body.ui_lang === "en" ? "en" : "no";
+  const outputLanguage = uiLang === "en"
+    ? `Answer in English (overriding the Norwegian scaffold above). Translate the
+section headings as: «Hva analysen gjorde» → «What the analysis did»,
+«Resultater» → «Results», «Forbehold» → «Caveats».`
+    : "Svar på norsk.";
   const detected = detectLanguage(output || script);
 
   const prompt = TOLK_USER_TEMPLATE
+    .replaceAll("{{OUTPUT_LANGUAGE}}", () => outputLanguage)
     .replaceAll("{{LANGUAGE}}", () => languageInstruction(requested, detected))
     .replaceAll("{{SCRIPT}}", () => script || "(ingen kommandoer sendt)")
     .replaceAll("{{OUTPUT}}", () => output);
@@ -119,6 +130,6 @@ export default async (request: Request): Promise<Response> => {
       },
     });
   } catch (e) {
-    return new Response(`Upstream error: ${e}`, { status: 502 });
+    return upstreamErrorResponse(e, byokKey);
   }
 };

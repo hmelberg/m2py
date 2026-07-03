@@ -21,10 +21,12 @@ microdata.no-output (når relevant):
 - regress / logit / probit / poisson → koeffisienter, standardfeil, p-verdier.
 - collapse / aggregate → aggregerte verdier per gruppe.
 
+{{OUTPUT_LANGUAGE}}
+
 SPRÅK
 {{LANGUAGE}}
 
-OUTPUT (norsk, markdown, konsist)
+OUTPUT (markdown, konsist; språk styres av {{OUTPUT_LANGUAGE}})
 
 ## Hva analysen gjorde
 <1–3 setninger basert på kommandoene>

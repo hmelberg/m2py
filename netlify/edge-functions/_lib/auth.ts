@@ -43,10 +43,42 @@ export function clientIp(request: Request): string {
   return request.headers.get("x-nf-client-connection-ip") ?? "";
 }
 
+/**
+ * BYOK: user-supplied Anthropic key from the X-Anthropic-Key header. Only a
+ * well-formed key (sk-ant-…, sane charset, ≤250 chars) counts; anything else
+ * is treated as absent so the normal token path (and its 401) applies.
+ * The value must never be logged or cached.
+ */
+export function extractByokKey(request: Request): string | null {
+  const raw = (request.headers.get("x-anthropic-key") ?? "").trim();
+  if (raw.length === 0 || raw.length > 250) return null;
+  return /^sk-ant-[A-Za-z0-9_-]+$/.test(raw) ? raw : null;
+}
+
+/**
+ * Map an upstream Anthropic failure to a client response. With BYOK, a 401
+ * from Anthropic means the user's own key is invalid — surface that directly
+ * instead of a generic 502 (the anthropic.ts helpers throw
+ * `Error("Anthropic API error <status>")`).
+ */
+export function upstreamErrorResponse(e: unknown, byokKey: string | null): Response {
+  if (byokKey && String(e).includes("Anthropic API error 401")) {
+    return new Response("Ugyldig Anthropic-nøkkel", { status: 401 });
+  }
+  return new Response(`Upstream error: ${e}`, { status: 502 });
+}
+
 export interface GateOptions {
   endpoint: string;
   maxBodyBytes: number;
   allowedMethods?: string[];
+  /**
+   * Accept a well-formed X-Anthropic-Key in place of token/admin auth — only
+   * for endpoints that forward the key to Anthropic, which validates it.
+   * Never set this on endpoints that don't consume the key (they would
+   * become effectively anonymous).
+   */
+  allowByok?: boolean;
 }
 
 export interface GateDeps {
@@ -76,13 +108,15 @@ async function runBaseChecks(
   request: Request,
   opts: GateOptions,
   checkRateLimit: GateDeps["checkRateLimit"],
+  requireToken = true,
 ): Promise<BaseCheckResult> {
-  // 1. token presence (free)
+  // 1. token presence (free) — skipped for BYOK requests, which carry the
+  // user's own Anthropic key instead of an account token.
   const authHeader = request.headers.get("authorization") ?? "";
   const presentedToken = authHeader.startsWith("Bearer ")
     ? authHeader.slice(7).trim()
     : "";
-  if (!presentedToken) {
+  if (!presentedToken && requireToken) {
     return {
       presentedToken,
       failure: new Response("Unauthorized: missing token", { status: 401 }),
@@ -134,12 +168,20 @@ export async function runGate(
   opts: GateOptions,
   deps: GateDeps,
 ): Promise<Response | null> {
+  const byokKey = opts.allowByok ? extractByokKey(request) : null;
   const { presentedToken, failure } = await runBaseChecks(
     request,
     opts,
     deps.checkRateLimit,
+    /* requireToken */ byokKey === null,
   );
   if (failure) return failure;
+
+  // BYOK: the user's own Anthropic key replaces account auth. Method, body
+  // and rate-limit checks above still ran; the handler uses the key upstream.
+  // Deliberate server-side precedence: when both a valid BYOK header and a
+  // Bearer token are present, BYOK wins and the token is never validated.
+  if (byokKey !== null) return null;
 
   // 5. auth: cheap shared-token (constant-time) -> positive cache -> Anvil
   const now = deps.now();
@@ -255,12 +297,18 @@ export async function runAdminGate(
   opts: GateOptions,
   deps: AdminGateDeps,
 ): Promise<Response | null> {
+  const byokKey = opts.allowByok ? extractByokKey(request) : null;
   const { presentedToken, failure } = await runBaseChecks(
     request,
     opts,
     deps.checkRateLimit,
+    /* requireToken */ byokKey === null,
   );
   if (failure) return failure;
+
+  // BYOK: the user's own Anthropic key replaces account auth. Method, body
+  // and rate-limit checks above still ran; the handler uses the key upstream.
+  if (byokKey !== null) return null;
 
   const now = deps.now();
   let info: UserInfo | null = null;

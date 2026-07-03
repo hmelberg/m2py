@@ -15,6 +15,40 @@ from typing import Any, Callable, Iterable, Sequence
 import numpy as np
 import pandas as pd
 
+
+def _t(s, **kw):
+    # Meldingsspråk følger m2py.M2PY_LANG ('no' er nøkkelspråket; mangler
+    # oversettelse vises norsk). Lokal katalog per modul.
+    try:
+        import sys
+        _lang = getattr(sys.modules.get('m2py'), 'M2PY_LANG', 'no')
+    except Exception:
+        _lang = 'no'
+    if _lang == 'en':
+        s = _MESSAGES_EN.get(s, s)
+    return s.format(**kw) if kw else s
+
+
+_MESSAGES_EN = {
+    # norsk nøkkel -> engelsk
+    "{verb} er deterministisk per verdi; delvis anvendelse "
+    "(share={share}) støttes ikke fordi det ville gitt inkonsistente "
+    "data. Bruk share=1.0 (standard).":
+        "{verb} is deterministic per value; partial application "
+        "(share={share}) is not supported because it would produce "
+        "inconsistent data. Use share=1.0 (default).",
+    "k_min={k_min} < mål k={k}":
+        "k_min={k_min} < target k={k}",
+    "k-anonymisering nådde ikke mål k={k}: minste gruppe har "
+    "k_min={k_min} etter {max_iterations} iterasjoner. Øk "
+    "max_iterations, reduser k, eller generaliser/fjern quasi-"
+    "identifikatorer.":
+        "k-anonymization did not reach target k={k}: smallest group has "
+        "k_min={k_min} after {max_iterations} iterations. Increase "
+        "max_iterations, reduce k, or generalize/remove quasi-"
+        "identifiers.",
+}
+
 # Public API: data-side verbs, meta verbs, audit + risk reporting.
 __all__ = [
     "TransformLog",
@@ -118,11 +152,12 @@ def _reject_inert_share(share, verb: str) -> None:
     ble tidligere godtatt men stille ignorert; delvis anvendelse ville gitt
     inkonsistente data (noen rader grovkornet, andre ikke). Avvis tydelig."""
     if share is not None and share != 1.0:
-        raise ValueError(
-            f"{verb} er deterministisk per verdi; delvis anvendelse "
-            f"(share={share}) støttes ikke fordi det ville gitt inkonsistente "
-            f"data. Bruk share=1.0 (standard)."
-        )
+        raise ValueError(_t(
+            "{verb} er deterministisk per verdi; delvis anvendelse "
+            "(share={share}) støttes ikke fordi det ville gitt inkonsistente "
+            "data. Bruk share=1.0 (standard).",
+            verb=verb, share=share,
+        ))
 
 
 def _validate_columns(data: pd.DataFrame, columns: str | Sequence[str]) -> list[str]:
@@ -2133,13 +2168,14 @@ def _profile_k_anonymize(
         log.add(function="_k_anonymize_FAILED",
                 params={"k": k, "max_iterations": max_iterations},
                 rows_affected=len(out),
-                notes=f"k_min={final.k_min} < mål k={k}")
-        raise ValueError(
-            f"k-anonymisering nådde ikke mål k={k}: minste gruppe har "
-            f"k_min={final.k_min} etter {max_iterations} iterasjoner. Øk "
-            f"max_iterations, reduser k, eller generaliser/fjern quasi-"
-            f"identifikatorer."
-        )
+                notes=_t("k_min={k_min} < mål k={k}", k_min=final.k_min, k=k))
+        raise ValueError(_t(
+            "k-anonymisering nådde ikke mål k={k}: minste gruppe har "
+            "k_min={k_min} etter {max_iterations} iterasjoner. Øk "
+            "max_iterations, reduser k, eller generaliser/fjern quasi-"
+            "identifikatorer.",
+            k=k, k_min=final.k_min, max_iterations=max_iterations,
+        ))
     return out, log
 
 

@@ -12,113 +12,113 @@
 <body data-theme="light">
   <header class="topbar">
     <div style="position: relative;">
-      <button type="button" class="hamburger" id="hamburgerBtn" aria-label="Meny" title="Meny">&#9776;</button>
+      <button type="button" class="hamburger" id="hamburgerBtn" aria-label="Meny" title="Meny" data-i18n-aria data-i18n-title>&#9776;</button>
       <div class="hamburger-dropdown" id="hamburgerDropdown">
         <div class="topbar-examples-wrap" style="position:relative">
-          <button type="button" id="menuFilBtn">Fil</button>
+          <button type="button" id="menuFilBtn" data-i18n>Fil</button>
           <div class="examples-dropdown" id="filSubmenu">
-            <button type="button" id="menuNew">Nytt script</button>
-            <button type="button" id="menuOpenUrl">&#197;pne fra URL</button>
-            <button type="button" id="menuLoad">&#197;pne lokal fil</button>
-            <button type="button" id="menuShareLink">Del (kopier lenke)</button>
-            <button type="button" id="menuSave">Last ned kode</button>
+            <button type="button" id="menuNew" data-i18n>Nytt script</button>
+            <button type="button" id="menuOpenUrl" data-i18n>&#197;pne fra URL</button>
+            <button type="button" id="menuLoad" data-i18n>&#197;pne lokal fil</button>
+            <button type="button" id="menuShareLink" data-i18n>Del (kopier lenke)</button>
+            <button type="button" id="menuSave" data-i18n>Last ned kode</button>
           </div>
         </div>
         <div class="topbar-examples-wrap" style="position:relative">
-          <button type="button" id="menuExamplesBtn">Eksempler</button>
+          <button type="button" id="menuExamplesBtn" data-i18n>Eksempler</button>
           <div class="examples-dropdown" id="examplesDropdown">
             <div class="examples-section" data-section-mode="microdata">
-              <button type="button" data-example="01_beskrivende_statistikk.txt" data-mode="microdata">Beskrivende statistikk</button>
-              <button type="button" data-example="02_tabeller_og_kategorier.txt" data-mode="microdata">Tabeller og kategorier</button>
-              <button type="button" data-example="03_visualiseringer.txt" data-mode="microdata">Visualiseringer</button>
-              <button type="button" data-example="04_aggregat_og_generate.txt" data-mode="microdata">Aggregat og nye variabler</button>
-              <button type="button" data-example="05_regresjon.txt" data-mode="microdata">Regresjon</button>
-              <button type="button" data-example="06_avansert_analyse.txt" data-mode="microdata">Avansert analyse</button>
+              <button type="button" data-example="01_beskrivende_statistikk.txt" data-mode="microdata" data-i18n>Beskrivende statistikk</button>
+              <button type="button" data-example="02_tabeller_og_kategorier.txt" data-mode="microdata" data-i18n>Tabeller og kategorier</button>
+              <button type="button" data-example="03_visualiseringer.txt" data-mode="microdata" data-i18n>Visualiseringer</button>
+              <button type="button" data-example="04_aggregat_og_generate.txt" data-mode="microdata" data-i18n>Aggregat og nye variabler</button>
+              <button type="button" data-example="05_regresjon.txt" data-mode="microdata" data-i18n>Regresjon</button>
+              <button type="button" data-example="06_avansert_analyse.txt" data-mode="microdata" data-i18n>Avansert analyse</button>
               <hr style="margin:4px 0;border-color:#334155;">
             </div>
             <div class="examples-section" data-section-mode="python">
-              <button type="button" data-example="py01_pandas_basics.txt" data-mode="python">pandas &mdash; grunnleggende</button>
+              <button type="button" data-example="py01_pandas_basics.txt" data-mode="python" data-i18n>pandas &mdash; grunnleggende</button>
               <button type="button" data-example="py02_pandas_microdata.txt" data-mode="python">pandas + #micro</button>
-              <button type="button" data-example="py03_statsmodels_regression.txt" data-mode="python">statsmodels &mdash; OLS-regresjon</button>
+              <button type="button" data-example="py03_statsmodels_regression.txt" data-mode="python" data-i18n>statsmodels &mdash; OLS-regresjon</button>
               <button type="button" data-example="py04_pandas_plot.txt" data-mode="python">matplotlib + #micro</button>
-              <button type="button" data-example="py05_duckdb_block.txt" data-mode="python">pandas + #duckdb (SQL-blokk)</button>
+              <button type="button" data-example="py05_duckdb_block.txt" data-mode="python" data-i18n>pandas + #duckdb (SQL-blokk)</button>
               <hr style="margin:4px 0;border-color:#334155;">
             </div>
             <div class="examples-section" data-section-mode="r">
-              <button type="button" data-example="r01_base_basics.txt" data-mode="r">base R &mdash; grunnleggende</button>
-              <button type="button" data-example="r02_tidyverse_groupby.txt" data-mode="r">tidyverse &mdash; gruppestatistikk</button>
+              <button type="button" data-example="r01_base_basics.txt" data-mode="r" data-i18n>base R &mdash; grunnleggende</button>
+              <button type="button" data-example="r02_tidyverse_groupby.txt" data-mode="r" data-i18n>tidyverse &mdash; gruppestatistikk</button>
               <button type="button" data-example="r03_tidyverse_microdata.txt" data-mode="r">tidyverse + #micro</button>
               <button type="button" data-example="r04_ggplot_microdata.txt" data-mode="r">ggplot2 + #micro</button>
-              <button type="button" data-example="r05_dplyr_recode.txt" data-mode="r">dplyr &mdash; omkoding (case_when/ifelse)</button>
-              <button type="button" data-example="r06_base_r_idioms.txt" data-mode="r">base R &mdash; subset/transform/aggregate</button>
-              <button type="button" data-example="r07_regresjon.txt" data-mode="r">regresjon &mdash; lm + glm</button>
-              <button type="button" data-example="r08_across_sample.txt" data-mode="r">dplyr &mdash; across + slice_sample</button>
+              <button type="button" data-example="r05_dplyr_recode.txt" data-mode="r" data-i18n>dplyr &mdash; omkoding (case_when/ifelse)</button>
+              <button type="button" data-example="r06_base_r_idioms.txt" data-mode="r" data-i18n>base R &mdash; subset/transform/aggregate</button>
+              <button type="button" data-example="r07_regresjon.txt" data-mode="r" data-i18n>regresjon &mdash; lm + glm</button>
+              <button type="button" data-example="r08_across_sample.txt" data-mode="r" data-i18n>dplyr &mdash; across + slice_sample</button>
               <hr style="margin:4px 0;border-color:#334155;">
             </div>
             <div class="examples-section" data-section-mode="statx">
-              <button type="button" data-example="st01_stata_basics.txt" data-mode="statx">Stata &mdash; beskrivende</button>
-              <button type="button" data-example="st02_stata_regresjon.txt" data-mode="statx">Stata &mdash; regresjon</button>
-              <button type="button" data-example="st03_stata_generate.txt" data-mode="statx">Stata &mdash; generate/egen</button>
-              <button type="button" data-example="st04_stata_use.txt" data-mode="statx">Stata &mdash; use (flere datasett)</button>
+              <button type="button" data-example="st01_stata_basics.txt" data-mode="statx" data-i18n>Stata &mdash; beskrivende</button>
+              <button type="button" data-example="st02_stata_regresjon.txt" data-mode="statx" data-i18n>Stata &mdash; regresjon</button>
+              <button type="button" data-example="st03_stata_generate.txt" data-mode="statx" data-i18n>Stata &mdash; generate/egen</button>
+              <button type="button" data-example="st04_stata_use.txt" data-mode="statx" data-i18n>Stata &mdash; use (flere datasett)</button>
             </div>
             <div class="examples-section" data-section-mode="duckdb">
-              <button type="button" data-example="sql01_select_basics.txt" data-mode="duckdb">SQL &mdash; grunnleggende SELECT</button>
-              <button type="button" data-example="sql02_aggregate_groupby.txt" data-mode="duckdb">SQL &mdash; GROUP BY og aggregering</button>
+              <button type="button" data-example="sql01_select_basics.txt" data-mode="duckdb" data-i18n>SQL &mdash; grunnleggende SELECT</button>
+              <button type="button" data-example="sql02_aggregate_groupby.txt" data-mode="duckdb" data-i18n>SQL &mdash; GROUP BY og aggregering</button>
               <button type="button" data-example="sql03_join.txt" data-mode="duckdb">SQL &mdash; JOIN</button>
-              <button type="button" data-example="sql04_create_table.txt" data-mode="duckdb">SQL &mdash; CREATE TABLE (bygg datasett)</button>
-              <button type="button" data-example="sql05_cte_window.txt" data-mode="duckdb">SQL &mdash; CTE + vindusfunksjon</button>
-              <button type="button" data-example="sql06_case_recode.txt" data-mode="duckdb">SQL &mdash; CASE WHEN (omkoding)</button>
-              <button type="button" data-example="sql07_multi_statement.txt" data-mode="duckdb">SQL &mdash; flere setninger</button>
-              <button type="button" data-example="sql08_describe_summary.txt" data-mode="duckdb">SQL &mdash; profilering/oppsummering</button>
+              <button type="button" data-example="sql04_create_table.txt" data-mode="duckdb" data-i18n>SQL &mdash; CREATE TABLE (bygg datasett)</button>
+              <button type="button" data-example="sql05_cte_window.txt" data-mode="duckdb" data-i18n>SQL &mdash; CTE + vindusfunksjon</button>
+              <button type="button" data-example="sql06_case_recode.txt" data-mode="duckdb" data-i18n>SQL &mdash; CASE WHEN (omkoding)</button>
+              <button type="button" data-example="sql07_multi_statement.txt" data-mode="duckdb" data-i18n>SQL &mdash; flere setninger</button>
+              <button type="button" data-example="sql08_describe_summary.txt" data-mode="duckdb" data-i18n>SQL &mdash; profilering/oppsummering</button>
               <button type="button" data-example="sql09_micro_then_sql.txt" data-mode="duckdb">SQL &mdash; #micro &rarr; DuckDB (hybrid)</button>
               <button type="button" data-example="sql10_py_then_sql.txt" data-mode="duckdb">SQL &mdash; #py &rarr; DuckDB (hybrid)</button>
             </div>
             <div class="examples-section" data-section-mode="safestat">
-              <button type="button" data-example="safestat01_url_csv.txt" data-mode="safestat">SafeStat &mdash; CSV fra URL</button>
+              <button type="button" data-example="safestat01_url_csv.txt" data-mode="safestat" data-i18n>SafeStat &mdash; CSV fra URL</button>
             </div>
-            <button type="button" id="menuWebExamples">Flere eksempler p&#229; web</button>
+            <button type="button" id="menuWebExamples" data-i18n>Flere eksempler p&#229; web</button>
           </div>
         </div>
-        <button type="button" id="menuUploadData">Last opp data</button>
+        <button type="button" id="menuUploadData" data-i18n>Last opp data</button>
         <hr style="margin:4px 0;border-color:#334155;">
         <div class="topbar-examples-wrap" style="position:relative">
           <button type="button" id="menuGithubBtn">GitHub</button>
           <div class="examples-dropdown" id="githubSubmenu">
             <div class="examples-dropdown-title">GitHub</div>
-            <button type="button" id="ghMenuSettings">Innstillinger</button>
-            <button type="button" id="ghMenuOpen">&#197;pne fil</button>
-            <button type="button" id="ghMenuSave">Lagre</button>
-            <button type="button" id="ghMenuSaveAs">Lagre som</button>
-            <button type="button" id="ghMenuRefresh" title="Hent gjeldende fil p&#229; nytt fra GitHub og forkast ulagrede lokale endringer. Dette henter (leser) &mdash; det lagrer ikke.">Hent p&#229; nytt</button>
+            <button type="button" id="ghMenuSettings" data-i18n>Innstillinger</button>
+            <button type="button" id="ghMenuOpen" data-i18n>&#197;pne fil</button>
+            <button type="button" id="ghMenuSave" data-i18n>Lagre</button>
+            <button type="button" id="ghMenuSaveAs" data-i18n>Lagre som</button>
+            <button type="button" id="ghMenuRefresh" data-i18n data-i18n-title title="Hent gjeldende fil p&#229; nytt fra GitHub og forkast ulagrede lokale endringer. Dette henter (leser) &mdash; det lagrer ikke.">Hent p&#229; nytt</button>
           </div>
         </div>
-        <button type="button" id="menuForklar" title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">Kj&#248;r skrittvis</button>
+        <button type="button" id="menuForklar" data-i18n data-i18n-title title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">Kj&#248;r skrittvis</button>
         <div class="topbar-examples-wrap" id="offlineMenuWrap" style="position:relative;display:none">
-          <button type="button" id="menuOfflineBtn" title="Oversett microdata-scriptet til frittst&#229;ende Python (pandas/polars) som kan kj&#248;res utenfor nettleseren, f.eks. p&#229; Anvil">Vis offline Python</button>
+          <button type="button" id="menuOfflineBtn" data-i18n data-i18n-title title="Oversett microdata-scriptet til frittst&#229;ende Python (pandas/polars) som kan kj&#248;res utenfor nettleseren, f.eks. p&#229; Anvil">Vis offline Python</button>
           <div class="examples-dropdown" id="offlineSubmenu">
             <div class="examples-dropdown-title">Offline Python</div>
-            <button type="button" id="menuOfflinePandas" title="Frittst&#229;ende pandas-script (vises i output)">pandas</button>
-            <button type="button" id="menuOfflinePolars" title="Frittst&#229;ende polars-script (krever polars; vises i output)">polars</button>
+            <button type="button" id="menuOfflinePandas" data-i18n-title title="Frittst&#229;ende pandas-script (vises i output)">pandas</button>
+            <button type="button" id="menuOfflinePolars" data-i18n-title title="Frittst&#229;ende polars-script (krever polars; vises i output)">polars</button>
           </div>
         </div>
-        <button type="button" id="menuSokData" title="S&#248;k om tilgang til individdata" style="display:flex;align-items:center;gap:8px;">
+        <button type="button" id="menuSokData" data-i18n-title title="S&#248;k om tilgang til individdata" style="display:flex;align-items:center;gap:8px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
             <circle cx="11" cy="11" r="7"/>
             <line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
-          <span>S&#248;k om data</span>
+          <span data-i18n>S&#248;k om data</span>
         </button>
-        <button type="button" id="menuVisData" title="&#197;pne sidemenyen for &#229; velge og se data" style="display:flex;align-items:center;gap:8px;">
+        <button type="button" id="menuVisData" data-i18n-title title="&#197;pne sidemenyen for &#229; velge og se data" style="display:flex;align-items:center;gap:8px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
             <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/>
             <circle cx="12" cy="12" r="3"/>
           </svg>
-          <span>Se data</span>
+          <span data-i18n>Se data</span>
         </button>
         <button type="button" id="menuRunnerMode" style="display:none">Kjøremodus: Microdata</button>
         <button type="button" id="menuToggleOutputMode" style="display:none">Output-modus: String</button>
         <button type="button" id="menuToggleSafestatOutput" style="display:none">SafeStat-output: Formatert</button>
-        <button type="button" id="menuShowIndividata" title="Når PÅ: klikk på datasett-navnet i sidemenyen for å åpne en tabellvisning av rådataene (sorter, filtrer, bla). Når AV: dataset-navnet er inaktivt." style="display:flex;align-items:center;gap:8px;">
+        <button type="button" id="menuShowIndividata" data-i18n-title title="Når PÅ: klikk på datasett-navnet i sidemenyen for å åpne en tabellvisning av rådataene (sorter, filtrer, bla). Når AV: dataset-navnet er inaktivt." style="display:flex;align-items:center;gap:8px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
             <rect x="3" y="4" width="18" height="16" rx="2"/>
             <line x1="3" y1="10" x2="21" y2="10"/>
@@ -126,39 +126,46 @@
             <line x1="9" y1="4" x2="9" y2="20"/>
             <line x1="15" y1="4" x2="15" y2="20"/>
           </svg>
-          <span id="menuShowIndividataLabel">Datatilgang: AV</span>
+          <span id="menuShowIndividataLabel" data-i18n>Datatilgang: AV</span>
         </button>
         <hr style="margin:4px 0;border-color:#334155;">
-        <button type="button" id="menuSettings">Innstillinger</button>
-        <button type="button" id="btnLoginWithCode">Logg inn</button>
+        <div class="topbar-examples-wrap" style="position:relative">
+          <button type="button" id="menuLangBtn">Spr&#229;k / Language</button>
+          <div class="examples-dropdown" id="langSubmenu">
+            <button type="button" data-lang="no">Norsk</button>
+            <button type="button" data-lang="en">English</button>
+          </div>
+        </div>
+        <button type="button" id="menuSettings" data-i18n>Innstillinger</button>
+        <button type="button" id="btnLoginWithCode" data-i18n>Logg inn</button>
         <div id="adminMenuSection" style="display:none;">
           <hr style="margin:4px 0;border-color:#334155;">
           <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Admin</div>
-          <button type="button" id="btnAdminSharedCode">Generer tilgangskode</button>
+          <button type="button" id="btnAdminSharedCode" data-i18n>Generer tilgangskode</button>
         </div>
       </div>
     </div>
-    <input type="text" class="script-name" id="scriptName" placeholder="Script navn" value="Script navn">
-    <button type="button" class="help-icon" id="helpBtn" aria-label="Hjelp" title="Hjelp" style="margin-left:auto">&#63;</button>
-    <button type="button" class="help-icon" id="clearOutputTopBtn" aria-label="Tøm output" title="Tøm output"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg></button>
+    <input type="text" class="script-name" id="scriptName" data-i18n-placeholder placeholder="Script navn" value="Script navn">
+    <button type="button" class="help-icon" id="helpBtn" data-i18n-aria data-i18n-title aria-label="Hjelp" title="Hjelp" style="margin-left:auto">&#63;</button>
+    <button type="button" class="help-icon" id="clearOutputTopBtn" data-i18n-aria data-i18n-title aria-label="Tøm output" title="Tøm output"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg></button>
     <div class="topbar-export-wrap">
-      <button type="button" class="export-icon" id="exportBtn" aria-label="Eksporter resultat" title="Eksporter resultat">&#8689;</button>
+      <button type="button" class="export-icon" id="exportBtn" data-i18n-aria data-i18n-title aria-label="Eksporter resultat" title="Eksporter resultat">&#8689;</button>
       <div class="export-dropdown" id="exportDropdown">
-        <div class="export-dropdown-title">Eksporter skriptresultatene</div>
-        <button type="button" id="exportCopy">Kopier til utklippstavlen</button>
-        <button type="button" id="exportPrint">Skriv ut</button>
+        <div class="export-dropdown-title" data-i18n>Eksporter skriptresultatene</div>
+        <button type="button" id="exportCopy" data-i18n>Kopier til utklippstavlen</button>
+        <button type="button" id="exportPrint" data-i18n>Skriv ut</button>
       </div>
     </div>
     <div class="topbar-theme-wrap">
-      <button type="button" class="theme-icon" id="themeBtn" aria-label="Tema" title="Tema og innstillinger"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0112 0v1"/></svg></button>
+      <button type="button" class="theme-icon" id="themeBtn" data-i18n-aria data-i18n-title aria-label="Tema" title="Tema og innstillinger"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0112 0v1"/></svg></button>
       <div class="theme-dropdown" id="themeDropdown">
-        <div class="theme-dropdown-title">Tema</div>
-        <label><input type="radio" name="theme" value="light" checked> Lys</label>
-        <label><input type="radio" name="theme" value="dark"> Mørk</label>
-        <label><input type="radio" name="theme" value="auto"> Som nettleser</label>
+        <div class="theme-dropdown-title" data-i18n>Tema</div>
+        <label><input type="radio" name="theme" value="light" checked> <span data-i18n>Lys</span></label>
+        <label><input type="radio" name="theme" value="dark"> <span data-i18n>Mørk</span></label>
+        <label><input type="radio" name="theme" value="auto"> <span data-i18n>Som nettleser</span></label>
       </div>
     </div>
-    <button type="button" class="ai-icon" id="aiToggleBtn" aria-label="AI assistent" title="AI assistent (Ctrl+I)">
+    <button type="button" class="ai-icon" id="aiToggleBtn" data-i18n-aria data-i18n-title aria-label="AI assistent" title="AI assistent (Ctrl+I)">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3z"/>
         <path d="M19 17l.7 2.3L22 20l-2.3.7L19 23l-.7-2.3L16 20l2.3-.7L19 17z"/>
@@ -173,13 +180,13 @@
         <button class="btn btn-primary btn-run" id="btnRun" type="button" disabled>
           <span class="btn-run-inner">
             <span class="btn-run-icon-slot" aria-hidden="true"><span class="btn-run-spinner"></span></span>
-            <span class="btn-run-label">Venter</span>
+            <span class="btn-run-label" data-i18n>Venter</span>
           </span>
         </button>
-        <button class="btn btn-primary btn-run" id="btnForklar" type="button" disabled title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">
+        <button class="btn btn-primary btn-run" id="btnForklar" type="button" disabled data-i18n-title title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">
           <span class="btn-run-inner">
             <span class="btn-run-icon-slot" aria-hidden="true"><span class="btn-forklar-icon">&#128266;</span></span>
-            <span class="btn-run-label">Kj&#248;r skrittvis</span>
+            <span class="btn-run-label" data-i18n>Kj&#248;r skrittvis</span>
           </span>
         </button>
         <span class="status" id="leftStatus"></span>
@@ -202,21 +209,21 @@
         <div class="output-scroll-wrap" id="outputScrollWrap">
           <div class="output-area" id="outputArea"></div>
         </div>
-        <button type="button" class="output-jump-last-btn" id="outputJumpLastBtn" title="Bla ned til resultat fra siste linje" aria-label="Bla ned til resultat fra siste linje"><span aria-hidden="true">&#8595;</span></button>
+        <button type="button" class="output-jump-last-btn" id="outputJumpLastBtn" data-i18n-title data-i18n-aria title="Bla ned til resultat fra siste linje" aria-label="Bla ned til resultat fra siste linje"><span aria-hidden="true">&#8595;</span></button>
       </div>
     </div>
       </div>
   <aside class="sidebar-right collapsed" id="sidebarRight">
     <div class="sidebar-header">
-      <h3>Datasett</h3>
-      <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" title="Lukk sidemeny" aria-label="Lukk">&#10005;</button>
+      <h3 data-i18n>Datasett</h3>
+      <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" data-i18n-title data-i18n-aria title="Lukk sidemeny" aria-label="Lukk">&#10005;</button>
       </div>
     <div class="sidebar-content" id="sidebarContent">
-      <div class="sidebar-empty" id="sidebarEmpty">Kjør et script for å se datasett.</div>
+      <div class="sidebar-empty" id="sidebarEmpty" data-i18n>Kjør et script for å se datasett.</div>
       <div id="sidebarDatasets"></div>
     </div>
   </aside>
-  <div class="sidebar-open-tab" id="sidebarOpenTab" title="Åpne sidemeny (datasett og variabler)" aria-label="Åpne sidemeny"><span>&#171;</span></div>
+  <div class="sidebar-open-tab" id="sidebarOpenTab" data-i18n-title data-i18n-aria title="Åpne sidemeny (datasett og variabler)" aria-label="Åpne sidemeny"><span>&#171;</span></div>
 
   <aside class="ai-sidebar" id="aiSidebar" aria-hidden="true">
     <div class="ai-header">
@@ -225,127 +232,132 @@
           <path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3z"/>
           <path d="M19 17l.7 2.3L22 20l-2.3.7L19 23l-.7-2.3L16 20l2.3-.7L19 17z"/>
         </svg>
-        AI assistent
+        <span data-i18n>AI assistent</span>
       </h3>
       <div class="ai-header-actions">
-        <button type="button" class="ai-icon-btn" id="aiClearBtn" title="Tøm samtale" aria-label="Tøm samtale">
+        <button type="button" class="ai-icon-btn" id="aiClearBtn" data-i18n-title data-i18n-aria title="Tøm samtale" aria-label="Tøm samtale">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg>
         </button>
-        <button type="button" class="ai-icon-btn" id="aiSettingsBtn" title="Innstillinger" aria-label="Innstillinger">
+        <button type="button" class="ai-icon-btn" id="aiSettingsBtn" data-i18n-title data-i18n-aria title="Innstillinger" aria-label="Innstillinger">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         </button>
-        <button type="button" class="ai-icon-btn" id="aiCloseBtn" title="Lukk" aria-label="Lukk">&#10005;</button>
+        <button type="button" class="ai-icon-btn" id="aiCloseBtn" data-i18n-title data-i18n-aria title="Lukk" aria-label="Lukk">&#10005;</button>
       </div>
     </div>
     <div class="ai-thread" id="aiThread"></div>
     <div class="ai-input-area">
       <label class="ai-include-row">
         <input type="checkbox" id="aiIncludeScript">
-        Inkluder skript fra editor (revider)
+        <span data-i18n>Inkluder skript fra editor (revider)</span>
       </label>
       <div class="ai-input-wrap">
-        <textarea id="aiInput" class="ai-input" rows="1"
+        <textarea id="aiInput" class="ai-input" rows="1" data-i18n-placeholder
           placeholder="Spør om noe... (Enter = send, Shift+Enter = ny linje)"></textarea>
-        <button type="button" class="ai-abort-btn" id="aiAbortBtn" style="display:none;" title="Avbryt pågående svar" aria-label="Avbryt">⏹ Avbryt</button>
-        <button type="button" class="ai-send-fast-btn" id="aiSendFastBtn"
+        <button type="button" class="ai-abort-btn" id="aiAbortBtn" style="display:none;" data-i18n data-i18n-title data-i18n-aria title="Avbryt pågående svar" aria-label="Avbryt">⏹ Avbryt</button>
+        <button type="button" class="ai-send-fast-btn" id="aiSendFastBtn" data-i18n-title
           title="Send spørsmål til AI (AI-modus velges i menyen)"
           aria-label="Send">Send</button>
-        <button type="button" class="ai-send-fast-btn ai-send-v2-btn" id="aiSendV2Btn"
+        <button type="button" class="ai-send-fast-btn ai-send-v2-btn" id="aiSendV2Btn" data-i18n-title
           title="Eksperimentell: 2-stegs variabelvalg + auto-retting (kan være tregere)"
           aria-label="Send (eksperimentell)">Send⚗︎</button>
-        <button type="button" class="ai-send-fast-btn ai-send-web-btn" id="aiSendWebBtn" style="display:none;" title="Web: finn åpne data og generer script (kun admin; python/r/duckdb-modus)" aria-label="Send (web)">Web</button>
+        <button type="button" class="ai-send-fast-btn ai-send-web-btn" id="aiSendWebBtn" style="display:none;" data-i18n-title title="Web: finn åpne data og generer script (krever admin eller egen Anthropic-nøkkel; python/r/duckdb-modus)" aria-label="Send (web)">Web</button>
       </div>
     </div>
   </aside>
 
   <div class="ai-modal-backdrop" id="aiSettingsBackdrop">
     <div class="ai-modal">
-      <h3>Konto og innstillinger</h3>
+      <h3 data-i18n>Konto og innstillinger</h3>
 
       <div id="aiCfgLoggedIn" style="display:none;">
-        <div class="ai-modal-help" style="margin-bottom:6px;">Logget inn som</div>
+        <div class="ai-modal-help" style="margin-bottom:6px;" data-i18n>Logget inn som</div>
         <div id="aiCfgUserEmail" style="font-weight:600; margin-bottom:8px;"></div>
         <div id="aiCfgUserMeta" class="ai-modal-help" style="margin-bottom:14px;"></div>
         <div class="ai-modal-actions" style="margin-bottom:18px;">
-          <button type="button" class="ai-modal-btn" id="aiCfgLogout">Logg ut</button>
-          <button type="button" class="ai-modal-btn primary" id="aiCfgAdmin" style="display:none;">Åpne admin-panel</button>
+          <button type="button" class="ai-modal-btn" id="aiCfgLogout" data-i18n>Logg ut</button>
+          <button type="button" class="ai-modal-btn primary" id="aiCfgAdmin" style="display:none;" data-i18n>Åpne admin-panel</button>
         </div>
       </div>
 
       <div id="aiCfgLoggedOut">
-        <div class="ai-modal-help" style="margin-bottom:14px;">
-          Du er ikke logget inn. AI-assistenten og online-lagring krever en konto.
+        <div class="ai-modal-help" style="margin-bottom:14px;" data-i18n>
+          Du er ikke logget inn. AI-assistenten og online-lagring krever en konto eller egen Anthropic-nøkkel.
         </div>
         <div class="ai-modal-actions" style="margin-bottom:18px;">
-          <button type="button" class="ai-modal-btn primary" id="aiCfgLogin">Logg inn</button>
+          <button type="button" class="ai-modal-btn primary" id="aiCfgLogin" data-i18n>Logg inn</button>
+        </div>
+        <div style="margin-bottom:18px;">
+          <label for="aiCfgAnthropicKey" data-i18n>Eller bruk egen Anthropic API-nøkkel</label>
+          <input type="password" id="aiCfgAnthropicKey" placeholder="sk-ant-…" autocomplete="off">
+          <div class="ai-modal-help" data-i18n-html>Har du egen Claude-konto? Lag en API-nøkkel på <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> og lim den inn her. Nøkkelen lagres kun i denne nettleseren; forespørsler går via appens server, men nøkkelen lagres eller logges ikke der. Forbruk belastes din egen Anthropic-konto. Gir også tilgang til Web-knappen i python/r/duckdb-modus.</div>
         </div>
       </div>
 
       <details style="margin-top:12px;">
-        <summary style="cursor:pointer; font-size:13px; color:var(--text-muted);">Avansert: API-base og service-token</summary>
+        <summary style="cursor:pointer; font-size:13px; color:var(--text-muted);" data-i18n>Avansert: API-base og service-token</summary>
         <div style="margin-top:10px;">
           <label for="aiCfgBaseUrl">API base-URL</label>
           <input type="text" id="aiCfgBaseUrl" placeholder="https://mdataapi.anvil.app">
-          <div class="ai-modal-help">Adressen til Anvil-appen som kjører API-et. Standard: https://mdataapi.anvil.app</div>
-          <label for="aiCfgApiKey">Service-token (kun for automatisering)</label>
-          <input type="password" id="aiCfgApiKey" placeholder="(la stå tom for vanlig bruk)">
-          <div class="ai-modal-help">Lagres lokalt. Sendes som <code>X-API-Key</code>. Brukes kun for skript / eval-harness.</div>
+          <div class="ai-modal-help" data-i18n>Adressen til Anvil-appen som kjører API-et. Standard: https://mdataapi.anvil.app</div>
+          <label for="aiCfgApiKey" data-i18n>Service-token (kun for automatisering)</label>
+          <input type="password" id="aiCfgApiKey" data-i18n-placeholder placeholder="(la stå tom for vanlig bruk)">
+          <div class="ai-modal-help" data-i18n-html>Lagres lokalt. Sendes som <code>X-API-Key</code>. Brukes kun for skript / eval-harness.</div>
         </div>
       </details>
 
       <div class="ai-modal-actions" style="margin-top:14px;">
-        <button type="button" class="ai-modal-btn" id="aiCfgCancel">Lukk</button>
-        <button type="button" class="ai-modal-btn primary" id="aiCfgSave">Lagre innstillinger</button>
+        <button type="button" class="ai-modal-btn" id="aiCfgCancel" data-i18n>Lukk</button>
+        <button type="button" class="ai-modal-btn primary" id="aiCfgSave" data-i18n>Lagre innstillinger</button>
       </div>
     </div>
   </div>
 
   <div class="ai-modal-backdrop" id="loginBackdrop">
     <div class="ai-modal" style="max-width:420px;">
-      <h3>Logg inn</h3>
+      <h3 data-i18n>Logg inn</h3>
       <div id="loginStep1">
-        <div class="ai-modal-help" style="margin-bottom:14px;">
+        <div class="ai-modal-help" style="margin-bottom:14px;" data-i18n-html>
           Skriv inn e-postadressen din. Vi sender en lenke du klikker for å logge inn.
           FHI-ansatte (<code>@fhi.no</code>) får full tilgang automatisk.
         </div>
-        <label for="loginEmail">E-post</label>
+        <label for="loginEmail" data-i18n>E-post</label>
         <input type="email" id="loginEmail" placeholder="navn@fhi.no" autocomplete="email">
-        <div class="ai-modal-help">Du får en kode på e-post som er gyldig i 30 dager.</div>
+        <div class="ai-modal-help" data-i18n>Du får en kode på e-post som er gyldig i 30 dager.</div>
         <div class="ai-modal-actions">
-          <button type="button" class="ai-modal-btn" id="loginCancel">Avbryt</button>
-          <button type="button" class="ai-modal-btn primary" id="loginSubmit">Send påloggings-lenke</button>
+          <button type="button" class="ai-modal-btn" id="loginCancel" data-i18n>Avbryt</button>
+          <button type="button" class="ai-modal-btn primary" id="loginSubmit" data-i18n>Send påloggings-lenke</button>
         </div>
         <div style="text-align: center; margin-top: 8px;">
-          <a href="#" id="loginSwitchToCode" style="font-size: 12px; color: var(--text-muted); text-decoration: underline;">Har du allerede en kode? Lim den inn her</a>
+          <a href="#" id="loginSwitchToCode" style="font-size: 12px; color: var(--text-muted); text-decoration: underline;" data-i18n>Har du allerede en kode? Lim den inn her</a>
         </div>
       </div>
       <div id="loginStep2" style="display:none;">
-        <p style="margin-bottom:12px;">✓ Vi har sendt en e-post til <strong id="loginSentEmail"></strong>.</p>
-        <div class="ai-modal-help" style="margin-bottom:14px;">
+        <p style="margin-bottom:12px;" data-i18n-html>✓ Vi har sendt en e-post til <strong id="loginSentEmail"></strong>.</p>
+        <div class="ai-modal-help" style="margin-bottom:14px;" data-i18n>
           Lim inn 3-ordskoden fra e-posten, eller klikk lenken for å logge inn direkte.
           Koden er gyldig i 30 dager og kan brukes på flere maskiner.
         </div>
-        <label for="loginCode">Kode</label>
+        <label for="loginCode" data-i18n>Kode</label>
         <input type="text" id="loginCode" placeholder="abacus-charity-twelve" autocomplete="off" spellcheck="false" style="font-family: monospace;">
         <div id="loginCodeError" style="color: var(--accent-danger, #d00); font-size: 12px; min-height: 1.2em; margin-top: 4px;"></div>
         <div class="ai-modal-actions" style="margin-top: 12px;">
-          <button type="button" class="ai-modal-btn" id="loginDone">Lukk</button>
-          <button type="button" class="ai-modal-btn primary" id="loginVerify">Logg inn</button>
+          <button type="button" class="ai-modal-btn" id="loginDone" data-i18n>Lukk</button>
+          <button type="button" class="ai-modal-btn primary" id="loginVerify" data-i18n>Logg inn</button>
         </div>
       </div>
       <div id="loginStep3" style="display:none;">
-        <p style="margin-bottom:12px;">⏳ Logger inn…</p>
+        <p style="margin-bottom:12px;" data-i18n>⏳ Logger inn…</p>
       </div>
     </div>
   </div>
 
   <div class="ai-modal-backdrop" id="welcomeBackdrop">
     <div class="ai-modal" style="max-width:600px;">
-      <h3 style="font-size:20px;">Velkommen!</h3>
-      <p style="margin:0 0 10px 0; font-size:16px; line-height:1.5;">
+      <h3 style="font-size:20px;" data-i18n>Velkommen!</h3>
+      <p style="margin:0 0 10px 0; font-size:16px; line-height:1.5;" data-i18n>
         Dette er en side der du kan øve på å kjøre analyser i microdata.no-stil.
       </p>
-      <div class="ai-modal-help" style="margin-bottom:14px; font-size:14px; line-height:1.5;">
+      <div class="ai-modal-help" style="margin-bottom:14px; font-size:14px; line-height:1.5;" data-i18n-html>
         Denne siden inneholder ikke ekte tall. Det er et hobbyprosjekt og er
         <strong>ikke</strong> laget av microdata.no selv. Den kommer uten garantier
         for at analysene er korrekt implementert.
@@ -360,10 +372,10 @@
                     color:var(--text-muted); margin-top:12px; text-transform:none;
                     letter-spacing:0;">
         <input type="checkbox" id="welcomeDontShow" style="margin:0;">
-        Ikke vis denne meldingen igjen
+        <span data-i18n>Ikke vis denne meldingen igjen</span>
       </label>
       <div class="ai-modal-actions">
-        <button type="button" class="ai-modal-btn" id="welcomeNextTip" style="font-size:14px; padding:8px 16px;">Vis et nytt tips</button>
+        <button type="button" class="ai-modal-btn" id="welcomeNextTip" style="font-size:14px; padding:8px 16px;" data-i18n>Vis et nytt tips</button>
         <button type="button" class="ai-modal-btn primary" id="welcomeOk" style="font-size:14px; padding:8px 16px;">OK</button>
       </div>
     </div>
@@ -371,24 +383,24 @@
   </div>
   <footer class="bottombar">
     <div class="bottombar-left">
-      <button type="button" class="bottombar-icon-btn" id="layoutStackedBtn" title="Stablevisning (kode over, output under)" aria-label="Stablevisning" aria-pressed="false">
+      <button type="button" class="bottombar-icon-btn" id="layoutStackedBtn" data-i18n-title data-i18n-aria title="Stablevisning (kode over, output under)" aria-label="Stablevisning" aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect class="icon-solid" x="4" y="4" width="16" height="7" rx="1"/>
           <rect class="icon-outline" x="4" y="13" width="16" height="7" rx="1"/>
         </svg>
       </button>
-      <button type="button" class="bottombar-icon-btn" id="layoutColumnsBtn" title="Kolonnevisning (kode og output side ved side)" aria-label="Kolonnevisning" aria-pressed="true">
+      <button type="button" class="bottombar-icon-btn" id="layoutColumnsBtn" data-i18n-title data-i18n-aria title="Kolonnevisning (kode og output side ved side)" aria-label="Kolonnevisning" aria-pressed="true">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect class="icon-solid" x="3" y="4" width="8" height="16" rx="1"/>
           <rect class="icon-outline" x="13" y="4" width="8" height="16" rx="1"/>
         </svg>
       </button>
-      <button type="button" class="bottombar-icon-btn" id="layoutOutputBtn" title="Skjul/vis inndatapanel (bare output)" aria-label="Skjul inndatapanel" aria-pressed="false">
+      <button type="button" class="bottombar-icon-btn" id="layoutOutputBtn" data-i18n-title data-i18n-aria title="Skjul/vis inndatapanel (bare output)" aria-label="Skjul inndatapanel" aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect class="icon-solid" x="4" y="4" width="16" height="16" rx="1"/>
         </svg>
       </button>
-      <button type="button" class="bottombar-icon-btn" id="csvToolBtn" title="CSV omkodingsverktøy" aria-label="CSV omkodingsverktøy">
+      <button type="button" class="bottombar-icon-btn" id="csvToolBtn" data-i18n-title data-i18n-aria title="CSV omkodingsverktøy" aria-label="CSV omkodingsverktøy">
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
           <path d="M4 8h12M13 5.5L16 8l-3 2.5"/>
           <path d="M20 16H8M11 13.5L8 16l3 2.5"/>
@@ -396,7 +408,7 @@
       </button>
       <div style="width:1px;height:20px;background:var(--border);margin:0 6px;flex-shrink:0"></div>
       <div class="mode-dropdown-wrap">
-        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" title="Velg modus (Microdata, Python, R, Statx, jamovi, DuckDB, SafeStat)">
+        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg modus (Microdata, Python, R, Statx, jamovi, DuckDB, SafeStat)">
           <span id="editorModeLabel">Microdata</span>
           <span class="chevron">▲</span>
         </button>
@@ -410,35 +422,35 @@
           <button type="button" data-mode="safestat">SafeStat</button>
         </div>
       </div>
-      <button type="button" class="btn btn-tolk" id="btnDmQuick" style="display:none;gap:6px" title="Vurder personvern: sjekk om scriptet henter mer detaljerte data enn n&#248;dvendig (dataminimering), og f&#229; forslag til &#229; aggregere/forenkle. Krever innlogging.">
+      <button type="button" class="btn btn-tolk" id="btnDmQuick" style="display:none;gap:6px" data-i18n-title title="Vurder personvern: sjekk om scriptet henter mer detaljerte data enn n&#248;dvendig (dataminimering), og f&#229; forslag til &#229; aggregere/forenkle. Krever innlogging.">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/></svg>
-        Vurder personvern
+        <span data-i18n>Vurder personvern</span>
       </button>
       <button type="button" class="oversett-btn" id="oversettBtn" style="display:none">Oversett</button>
     </div>
     <div class="bottombar-center">
-      <input type="text" class="bottombar-ask" id="topbarAsk" placeholder="Hva vil du undersøke?" aria-label="Spør AI" autocomplete="off" title="Skriv et spørsmål og trykk Enter — AI-panelet åpnes og svarer" style="display:none">
+      <input type="text" class="bottombar-ask" id="topbarAsk" data-i18n-placeholder data-i18n-aria data-i18n-title placeholder="Hva vil du undersøke?" aria-label="Spør AI" autocomplete="off" title="Skriv et spørsmål og trykk Enter — AI-panelet åpnes og svarer" style="display:none">
     </div>
     <div class="bottombar-right">
       <span class="status" id="rightStatus"></span>
-      <button type="button" class="btn btn-tolk" id="btnTolkFooter" style="display:none" title="Tolk resultatene (output) med AI i sidemenyen">Tolk resultat</button>
+      <button type="button" class="btn btn-tolk" id="btnTolkFooter" style="display:none" data-i18n data-i18n-title title="Tolk resultatene (output) med AI i sidemenyen">Tolk resultat</button>
       <button class="btn btn-primary btn-run" id="btnRunFooter" type="button" disabled>
         <span class="btn-run-inner">
           <span class="btn-run-icon-slot" aria-hidden="true"><span class="btn-run-spinner"></span></span>
-          <span class="btn-run-label">Venter</span>
+          <span class="btn-run-label" data-i18n>Venter</span>
         </span>
       </button>
-      <div class="forklar-dock" id="forklarDock" role="toolbar" aria-label="Forklar avspilling" aria-hidden="true">
-        <button type="button" class="forklar-dock-btn" id="forklarDockPrev" disabled title="Forrige blokk" aria-label="Forrige blokk">
+      <div class="forklar-dock" id="forklarDock" role="toolbar" data-i18n-aria aria-label="Forklar avspilling" aria-hidden="true">
+        <button type="button" class="forklar-dock-btn" id="forklarDockPrev" disabled data-i18n-title data-i18n-aria title="Forrige blokk" aria-label="Forrige blokk">
           <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
         </button>
-        <button type="button" class="forklar-dock-btn" id="forklarDockPlayPause" disabled title="Pause" aria-label="Pause forklaring">
+        <button type="button" class="forklar-dock-btn" id="forklarDockPlayPause" disabled data-i18n-aria title="Pause" aria-label="Pause forklaring">
           <svg class="forklar-dock-pp-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.75"/><g class="forklar-dock-pp-pause"><path d="M10 9v6M14 9v6" stroke="currentColor" stroke-width="1.75"/></g><path class="forklar-dock-pp-play" d="M10 8l7 4-7 4V8z" fill="currentColor"/></svg>
         </button>
-        <button type="button" class="forklar-dock-btn" id="forklarDockNext" disabled title="Neste" aria-label="Neste">
+        <button type="button" class="forklar-dock-btn" id="forklarDockNext" disabled data-i18n-title data-i18n-aria title="Neste" aria-label="Neste">
           <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
         </button>
-        <button type="button" class="forklar-dock-btn forklar-dock-btn--abort" id="forklarDockAbort" title="Avbryt forklaring" aria-label="Avbryt forklaring">
+        <button type="button" class="forklar-dock-btn forklar-dock-btn--abort" id="forklarDockAbort" data-i18n-title data-i18n-aria title="Avbryt forklaring" aria-label="Avbryt forklaring">
           <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
       </div>
@@ -448,156 +460,163 @@
   <div class="csv-tool-overlay" id="csvToolOverlay" role="dialog" aria-modal="true" aria-labelledby="csvToolTitle" aria-hidden="true">
     <div class="csv-tool-dialog">
       <div class="csv-tool-header">
-        <h2 class="csv-tool-title" id="csvToolTitle">CSV omkodingsverktøy</h2>
-        <button type="button" class="csv-tool-close" id="csvToolCloseBtn" title="Lukk" aria-label="Lukk">&#10005;</button>
+        <h2 class="csv-tool-title" id="csvToolTitle" data-i18n>CSV omkodingsverktøy</h2>
+        <button type="button" class="csv-tool-close" id="csvToolCloseBtn" data-i18n-title data-i18n-aria title="Lukk" aria-label="Lukk">&#10005;</button>
       </div>
       <div class="csv-tool-body" id="csvToolBody">
-        <p>Genererer et recode-uttrykk fra korrespondansetabell i opplastet csv-fil.</p>
-        <p>Formatet er basert på SSBs egne klassifikasjoner og kodelister: <a href="https://www.ssb.no/klass" target="_blank" rel="noopener noreferrer">ssb.no/klass</a> under «korrespondanser».</p>
-        <p>Tabellen må være en semikolon-separert csv-fil med følgende kolonner:<br>fra-kode, fra-navn, til-kode og til-navn</p>
-        <p>Tabellen må også inneholde en første linje som beskriver de etterfølgende kolonnene. Om denne inneholder de tre verdiene &lsquo;sourceCode&rsquo;, &lsquo;targetCode&rsquo; og &lsquo;targetName&rsquo;, så vil kolonnene under disse bli definert som hhv. fra-kode, fra-navn og til-kode. Om disse ikke er definert vil standardoppsettet fra over brukes. Kolonnen &lsquo;targetCode&rsquo; kan unnlates om du ikke vil sette en label på den omkodede verdien.</p>
-        <p><strong>Eksempel</strong></p>
-        <p>Utsnitt fra korrespondansetabell mellom økonomiske regioner og kommuner. Denne tabellen har kolonnene i standardoppsett.</p>
+        <p data-i18n>Genererer et recode-uttrykk fra korrespondansetabell i opplastet csv-fil.</p>
+        <p data-i18n-html>Formatet er basert på SSBs egne klassifikasjoner og kodelister: <a href="https://www.ssb.no/klass" target="_blank" rel="noopener noreferrer">ssb.no/klass</a> under «korrespondanser».</p>
+        <p data-i18n-html>Tabellen må være en semikolon-separert csv-fil med følgende kolonner:<br>fra-kode, fra-navn, til-kode og til-navn</p>
+        <p data-i18n>Tabellen må også inneholde en første linje som beskriver de etterfølgende kolonnene. Om denne inneholder de tre verdiene &lsquo;sourceCode&rsquo;, &lsquo;targetCode&rsquo; og &lsquo;targetName&rsquo;, så vil kolonnene under disse bli definert som hhv. fra-kode, fra-navn og til-kode. Om disse ikke er definert vil standardoppsettet fra over brukes. Kolonnen &lsquo;targetCode&rsquo; kan unnlates om du ikke vil sette en label på den omkodede verdien.</p>
+        <p><strong data-i18n>Eksempel</strong></p>
+        <p data-i18n>Utsnitt fra korrespondansetabell mellom økonomiske regioner og kommuner. Denne tabellen har kolonnene i standardoppsett.</p>
         <pre class="csv-tool-example">'sourceCode'	;	'sourceName'	;	'targetCode'	;	'targetName'
 '03001'	;	'Oslo'	;	'0301'	;	'Oslo'
 '11001'	;	'Dalane'	;	'1101'	;	'Eigersund'
 '11001'	;	'Dalane'	;	'1111'	;	'Sokndal'</pre>
-        <p>Dette vil generere recode-uttrykket</p>
+        <p data-i18n>Dette vil generere recode-uttrykket</p>
         <pre class="csv-tool-example">recode variable ('03001' = '0301' 'Oslo') ('11001' = '1101' 'Eigersund') ('11001' = '1111' 'Sokndal')</pre>
-        <p>Om du heller vil omkode fra kommuner til økonomiske regioner og invertere tabellen, kan da verdiene i den første linjen, sourceCode/sourceName og targetCode/targetName bytte plass, og resten av verdiene stå som før</p>
+        <p data-i18n>Om du heller vil omkode fra kommuner til økonomiske regioner og invertere tabellen, kan da verdiene i den første linjen, sourceCode/sourceName og targetCode/targetName bytte plass, og resten av verdiene stå som før</p>
         <pre class="csv-tool-example">'targetCode'	;	'targetName'	;	'sourceCode'	;	'sourceName'</pre>
-        <p>vil generere</p>
+        <p data-i18n>vil generere</p>
         <pre class="csv-tool-example">recode variable ('0301' = '03001' 'Oslo') ('1101' '1111' = '11001' 'Dalane')</pre>
         <div class="csv-tool-actions">
-          <button type="button" class="btn btn-primary" id="csvToolUploadBtn">Last opp csv</button>
-          <button type="button" class="btn btn-secondary" id="csvToolCopyBtn" disabled>Kopier recode</button>
+          <button type="button" class="btn btn-primary" id="csvToolUploadBtn" data-i18n>Last opp csv</button>
+          <button type="button" class="btn btn-secondary" id="csvToolCopyBtn" disabled data-i18n>Kopier recode</button>
         </div>
-        <label for="csvToolOutput" class="var-detail-section-title" style="display:block;margin-top:14px;">Generert recode</label>
-        <textarea id="csvToolOutput" class="csv-tool-out" readonly rows="6" placeholder="Last opp en fil for å generere recode-uttrykk her."></textarea>
+        <label for="csvToolOutput" class="var-detail-section-title" style="display:block;margin-top:14px;" data-i18n>Generert recode</label>
+        <textarea id="csvToolOutput" class="csv-tool-out" readonly rows="6" data-i18n-placeholder placeholder="Last opp en fil for å generere recode-uttrykk her."></textarea>
       </div>
       <div class="csv-tool-buttons">
-        <button type="button" class="btn btn-secondary" id="csvToolOkBtn">Lukk</button>
+        <button type="button" class="btn btn-secondary" id="csvToolOkBtn" data-i18n>Lukk</button>
       </div>
     </div>
   </div>
   <input type="file" id="csvToolFileInput" accept=".csv,text/csv,text/plain" style="display:none">
 
-  <div class="settings-overlay" id="settingsOverlay" role="dialog" aria-modal="true" aria-label="Innstillinger">
+  <div class="settings-overlay" id="settingsOverlay" role="dialog" aria-modal="true" data-i18n-aria aria-label="Innstillinger">
     <div class="settings-dialog">
-      <div class="settings-header"><h2>&#9881; Innstillinger</h2></div>
+      <div class="settings-header"><h2 data-i18n>&#9881; Innstillinger</h2></div>
       <div class="settings-body">
         <div class="settings-field">
-          <label for="settingImportLimit">Antall observasjoner ved import</label>
-          <input type="number" id="settingImportLimit" min="10" max="100000" step="100" value="10000">
-          <p class="settings-hint">Maks antall rader per import-kommando (10 – 100 000).</p>
+          <label for="settingLanguage">Spr&#229;k / Language</label>
+          <select id="settingLanguage">
+            <option value="no">Norsk</option>
+            <option value="en">English</option>
+          </select>
         </div>
         <div class="settings-field">
-          <label for="settingDecimals">Desimaler i tabeller</label>
+          <label for="settingImportLimit" data-i18n>Antall observasjoner ved import</label>
+          <input type="number" id="settingImportLimit" min="10" max="100000" step="100" value="10000">
+          <p class="settings-hint" data-i18n>Maks antall rader per import-kommando (10 – 100 000).</p>
+        </div>
+        <div class="settings-field">
+          <label for="settingDecimals" data-i18n>Desimaler i tabeller</label>
           <select id="settingDecimals">
             <option value="0">0</option>
             <option value="1">1</option>
-            <option value="2" selected>2 (standard)</option>
+            <option value="2" selected data-i18n>2 (standard)</option>
             <option value="3">3</option>
             <option value="4">4</option>
             <option value="5">5</option>
           </select>
-          <p class="settings-hint">Antall desimaler i tabellutdata. Tall mindre enn 1 f&#229;r automatisk ekstra desimaler for &#229; vise signifikante siffer.</p>
+          <p class="settings-hint" data-i18n>Antall desimaler i tabellutdata. Tall mindre enn 1 f&#229;r automatisk ekstra desimaler for &#229; vise signifikante siffer.</p>
         </div>
         <div class="settings-field">
-          <label for="settingLabelFormat">Etiketter i tabulate</label>
+          <label for="settingLabelFormat" data-i18n>Etiketter i tabulate</label>
           <select id="settingLabelFormat">
-            <option value="both" selected>Kode og etikett (standard)</option>
-            <option value="label">Bare etikett</option>
-            <option value="code">Bare kode</option>
+            <option value="both" selected data-i18n>Kode og etikett (standard)</option>
+            <option value="label" data-i18n>Bare etikett</option>
+            <option value="code" data-i18n>Bare kode</option>
           </select>
-          <p class="settings-hint">Standardvisning i <code>tabulate</code>. Kan overstyres per kommando med opsjonene <code>nolabels</code> / <code>novalues</code>, eller per script med <code>// m2py: label-format=both|label|code</code>.</p>
+          <p class="settings-hint" data-i18n-html>Standardvisning i <code>tabulate</code>. Kan overstyres per kommando med opsjonene <code>nolabels</code> / <code>novalues</code>, eller per script med <code>// m2py: label-format=both|label|code</code>.</p>
         </div>
         <div class="settings-field">
-          <label for="settingShowCommands">Kommando-echo i output (Python/R)</label>
+          <label for="settingShowCommands" data-i18n>Kommando-echo i output (Python/R)</label>
           <select id="settingShowCommands">
-            <option value="on" selected>P&#229; (standard)</option>
-            <option value="off">Av</option>
+            <option value="on" selected data-i18n>P&#229; (standard)</option>
+            <option value="off" data-i18n>Av</option>
           </select>
-          <p class="settings-hint">Om hver setning gjentas med <code>&gt;&gt;&gt;</code> rett over outputen den lager. Kan overstyres per script med <code>#options.show_commands=False</code>.</p>
+          <p class="settings-hint" data-i18n-html>Om hver setning gjentas med <code>&gt;&gt;&gt;</code> rett over outputen den lager. Kan overstyres per script med <code>#options.show_commands=False</code>.</p>
         </div>
         <div class="settings-field">
-          <label for="settingFontSize">Skriftstørrelse</label>
+          <label for="settingFontSize" data-i18n>Skriftstørrelse</label>
           <select id="settingFontSize">
-            <option value="small">Liten</option>
-            <option value="">Normal</option>
-            <option value="large">Stor</option>
-            <option value="xlarge">Ekstra stor</option>
+            <option value="small" data-i18n>Liten</option>
+            <option value="" data-i18n>Normal</option>
+            <option value="large" data-i18n>Stor</option>
+            <option value="xlarge" data-i18n>Ekstra stor</option>
           </select>
         </div>
         <div class="settings-field">
-          <label>Talehastighet – Kjør skrittvis</label>
+          <label data-i18n>Talehastighet – Kjør skrittvis</label>
           <div class="range-row">
             <input type="range" id="settingTtsRate" min="0.5" max="2.0" step="0.1" value="1.0">
             <span class="settings-range-val" id="settingTtsRateVal">1.0&times;</span>
           </div>
-          <p class="settings-hint">Hastigheten p&#229; opplesing av kommentarer (0.5 – 2.0).</p>
+          <p class="settings-hint" data-i18n>Hastigheten p&#229; opplesing av kommentarer (0.5 – 2.0).</p>
         </div>
         <div class="settings-field">
-          <label for="settingBlockPause">Pause mellom kommentarl&#248;se blokker (sekunder)</label>
+          <label for="settingBlockPause" data-i18n>Pause mellom kommentarl&#248;se blokker (sekunder)</label>
           <input type="number" id="settingBlockPause" min="0" max="10" step="0.1" value="1.0">
-          <p class="settings-hint">Ventetid etter blokker uten kommentarer i Kj&#248;r skrittvis. 0 = ingen pause.</p>
+          <p class="settings-hint" data-i18n>Ventetid etter blokker uten kommentarer i Kj&#248;r skrittvis. 0 = ingen pause.</p>
         </div>
         <div class="settings-field">
-          <label>Avsl&#248;ringskontroll</label>
-          <button type="button" class="btn btn-secondary" id="menuDisclosureControl" title="Når PÅ: matcher microdata.no — pseudonym-validering, type-sjekk, min populasjon 1000, små celler skjules, winsorisering, persentiler avrundes. Når AV: alle regler er slått av og du ser rå tall.">Avsl&#248;ringskontroll: AV</button>
-          <p class="settings-hint">N&#229;r P&#197;: matcher microdata.no &mdash; pseudonym-validering, type-sjekk, min populasjon 1000, sm&#229; celler skjules, winsorisering, persentiler avrundes. N&#229;r AV: alle regler er sl&#229;tt av og du ser r&#229; tall.</p>
+          <label data-i18n>Avsl&#248;ringskontroll</label>
+          <button type="button" class="btn btn-secondary" id="menuDisclosureControl" data-i18n-title title="Når PÅ: matcher microdata.no — pseudonym-validering, type-sjekk, min populasjon 1000, små celler skjules, winsorisering, persentiler avrundes. Når AV: alle regler er slått av og du ser rå tall.">Avsl&#248;ringskontroll: AV</button>
+          <p class="settings-hint" data-i18n>N&#229;r P&#197;: matcher microdata.no &mdash; pseudonym-validering, type-sjekk, min populasjon 1000, sm&#229; celler skjules, winsorisering, persentiler avrundes. N&#229;r AV: alle regler er sl&#229;tt av og du ser r&#229; tall.</p>
         </div>
         <div class="settings-field">
-          <label>Avsl&#248;ringsterskler</label>
+          <label data-i18n>Avsl&#248;ringsterskler</label>
           <div class="range-row" style="gap:6px;flex-wrap:wrap;">
-            <label for="settingDcMinPop" style="font-size:12px;flex:1 1 46%;">Min. populasjon (T1)
+            <label for="settingDcMinPop" style="font-size:12px;flex:1 1 46%;"><span data-i18n>Min. populasjon (T1)</span>
               <input type="number" id="settingDcMinPop" min="1" step="1" value="1000" style="width:100%;"></label>
-            <label for="settingDcLowCell" style="font-size:12px;flex:1 1 46%;">Min. cellefrekvens (T5)
+            <label for="settingDcLowCell" style="font-size:12px;flex:1 1 46%;"><span data-i18n>Min. cellefrekvens (T5)</span>
               <input type="number" id="settingDcLowCell" min="1" step="1" value="5" style="width:100%;"></label>
-            <label for="settingDcMinAffected" style="font-size:12px;flex:1 1 46%;">Min. p&#229;virkede rader (T6)
+            <label for="settingDcMinAffected" style="font-size:12px;flex:1 1 46%;"><span data-i18n>Min. p&#229;virkede rader (T6)</span>
               <input type="number" id="settingDcMinAffected" min="1" step="1" value="10" style="width:100%;"></label>
-            <label for="settingDcMinSummarize" style="font-size:12px;flex:1 1 46%;">Min. populasjon, statistikk (T7)
+            <label for="settingDcMinSummarize" style="font-size:12px;flex:1 1 46%;"><span data-i18n>Min. populasjon, statistikk (T7)</span>
               <input type="number" id="settingDcMinSummarize" min="1" step="1" value="10" style="width:100%;"></label>
           </div>
-          <p class="settings-hint">Tersklene microdata.no bruker. Mock-populasjonen er mindre enn ekte data, s&#229; standardene (1000/5/10/10) stopper ofte mer enn de ville p&#229; ekte register &mdash; senk dem her ved behov. Skaleres ikke automatisk. Gjelder bare n&#229;r avsl&#248;ringskontroll er P&#197;.</p>
+          <p class="settings-hint" data-i18n>Tersklene microdata.no bruker. Mock-populasjonen er mindre enn ekte data, s&#229; standardene (1000/5/10/10) stopper ofte mer enn de ville p&#229; ekte register &mdash; senk dem her ved behov. Skaleres ikke automatisk. Gjelder bare n&#229;r avsl&#248;ringskontroll er P&#197;.</p>
         </div>
         <div class="settings-field">
-          <label>Datakilde</label>
-          <button type="button" class="btn btn-secondary" id="menuDataSource" title="Dynamisk: variabler genereres på nytt ved hver kjøring (standard). Statisk: import laster fra ferdige, konsistente datafiler (static_data/*.parquet) via DuckDB-WASM. Variabler/datoer som ikke finnes statisk faller tilbake til generering. Kan også settes per script med // m2py: data-source=static.">Datakilde: Dynamisk</button>
-          <p class="settings-hint">Dynamisk = generer ved kjøring (standard). Statisk = last fra <code>static_data/*.parquet</code> (krever at filene er tilgjengelige). Per script: <code>// m2py: data-source=static</code>.</p>
+          <label data-i18n>Datakilde</label>
+          <button type="button" class="btn btn-secondary" id="menuDataSource" data-i18n-title title="Dynamisk: variabler genereres på nytt ved hver kjøring (standard). Statisk: import laster fra ferdige, konsistente datafiler (static_data/*.parquet) via DuckDB-WASM. Variabler/datoer som ikke finnes statisk faller tilbake til generering. Kan også settes per script med // m2py: data-source=static.">Datakilde: Dynamisk</button>
+          <p class="settings-hint" data-i18n-html>Dynamisk = generer ved kjøring (standard). Statisk = last fra <code>static_data/*.parquet</code> (krever at filene er tilgjengelige). Per script: <code>// m2py: data-source=static</code>.</p>
         </div>
         <div class="settings-field">
-          <label>AI-svar</label>
-          <button type="button" class="btn btn-secondary" id="menuAiMode" title="Sykler Send-knappen mellom rask AI (enkelt svar), Anvil-AI (full vurdering med reparasjonsloop) og — for admin i python/r/duckdb-modus — Web (agentisk websøk + generering med auto-kjøring og reparasjon)">AI-svar: Rask</button>
-          <p class="settings-hint">Sykler mellom rask AI (enkelt svar), Anvil-AI (full vurdering med reparasjonsloop) og — kun for admin, i python/r/duckdb-modus — Web (websøk etter data + generering, med auto-kjøring og inntil 3 reparasjonsrunder).</p>
+          <label data-i18n>AI-svar</label>
+          <button type="button" class="btn btn-secondary" id="menuAiMode" data-i18n-title title="Sykler Send-knappen mellom rask AI (enkelt svar), Anvil-AI (full vurdering med reparasjonsloop) og — for admin i python/r/duckdb-modus — Web (agentisk websøk + generering med auto-kjøring og reparasjon)">AI-svar: Rask</button>
+          <p class="settings-hint" data-i18n>Sykler mellom rask AI (enkelt svar), Anvil-AI (full vurdering med reparasjonsloop) og — kun for admin, i python/r/duckdb-modus — Web (websøk etter data + generering, med auto-kjøring og inntil 3 reparasjonsrunder).</p>
         </div>
       </div>
       <div class="settings-buttons">
-        <button type="button" class="btn btn-secondary" id="settingsCancelBtn">Avbryt</button>
-        <button type="button" class="btn btn-primary" id="settingsSaveBtn">Lagre</button>
+        <button type="button" class="btn btn-secondary" id="settingsCancelBtn" data-i18n>Avbryt</button>
+        <button type="button" class="btn btn-primary" id="settingsSaveBtn" data-i18n>Lagre</button>
       </div>
     </div>
   </div>
 
-  <div class="settings-overlay" id="uploadDataOverlay" role="dialog" aria-modal="true" aria-label="Last opp data">
+  <div class="settings-overlay" id="uploadDataOverlay" role="dialog" aria-modal="true" data-i18n-aria aria-label="Last opp data">
     <div class="settings-dialog" style="max-width:480px">
-      <div class="settings-header"><h2>Last opp data</h2></div>
+      <div class="settings-header"><h2 data-i18n>Last opp data</h2></div>
       <div class="settings-body">
         <div class="settings-field">
-          <label>Fil</label>
+          <label data-i18n>Fil</label>
           <input type="file" id="uploadDataFileInput" accept=".csv,.tsv,.tab,.xlsx,.xls,.json,.parquet,.dta,.sav,.feather,.sas7bdat">
           <p class="settings-hint" id="uploadDataFileHint"></p>
         </div>
         <div class="settings-field">
-          <label for="uploadDataName">Datasett-navn</label>
-          <input type="text" id="uploadDataName" placeholder="f.eks. mine_data">
-          <p class="settings-hint">Navnet datasettet f&#229;r i scriptet og sidepanelet.</p>
+          <label for="uploadDataName" data-i18n>Datasett-navn</label>
+          <input type="text" id="uploadDataName" data-i18n-placeholder placeholder="f.eks. mine_data">
+          <p class="settings-hint" data-i18n>Navnet datasettet f&#229;r i scriptet og sidepanelet.</p>
         </div>
         <div class="settings-field">
           <label for="uploadDataFormat">Format</label>
           <select id="uploadDataFormat">
             <option value="csv">CSV</option>
-            <option value="tsv">TSV (tab-separert)</option>
+            <option value="tsv" data-i18n>TSV (tab-separert)</option>
             <option value="excel">Excel (.xlsx / .xls)</option>
             <option value="json">JSON</option>
             <option value="parquet">Parquet</option>
@@ -619,43 +638,43 @@
         <div class="settings-field" id="uploadDataSepField">
           <label for="uploadDataSep">Separator</label>
           <select id="uploadDataSep">
-            <option value="," selected>Komma (,)</option>
-            <option value=";">Semikolon (;)</option>
+            <option value="," selected data-i18n>Komma (,)</option>
+            <option value=";" data-i18n>Semikolon (;)</option>
             <option value="&#9;">Tab</option>
             <option value="|">Pipe (|)</option>
           </select>
         </div>
         <div class="settings-field" id="uploadDataSheetField" style="display:none">
-          <label for="uploadDataSheet">Arknavn / nummer</label>
-          <input type="text" id="uploadDataSheet" placeholder="0 (f&#248;rste ark)" value="0">
-          <p class="settings-hint">Arknavn (tekst) eller indeks (0 = f&#248;rste).</p>
+          <label for="uploadDataSheet" data-i18n>Arknavn / nummer</label>
+          <input type="text" id="uploadDataSheet" data-i18n-placeholder placeholder="0 (f&#248;rste ark)" value="0">
+          <p class="settings-hint" data-i18n>Arknavn (tekst) eller indeks (0 = f&#248;rste).</p>
         </div>
-        <div id="uploadDataSizeWarn" style="display:none;padding:10px 12px;margin-top:8px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;font-size:13px;color:#92400e;">
+        <div id="uploadDataSizeWarn" style="display:none;padding:10px 12px;margin-top:8px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;font-size:13px;color:#92400e;" data-i18n>
           Filen er stor. Innlasting kan ta tid og bruke mye minne i nettleseren.
         </div>
       </div>
       <div class="settings-buttons">
-        <button type="button" class="btn btn-secondary" id="uploadDataCancelBtn">Avbryt</button>
-        <button type="button" class="btn btn-primary" id="uploadDataLoadBtn">Last inn</button>
+        <button type="button" class="btn btn-secondary" id="uploadDataCancelBtn" data-i18n>Avbryt</button>
+        <button type="button" class="btn btn-primary" id="uploadDataLoadBtn" data-i18n>Last inn</button>
       </div>
     </div>
   </div>
 
   <div class="settings-overlay" id="webExamplesOverlay" role="dialog" aria-modal="true" aria-label="Web-eksempler">
     <div class="settings-dialog web-examples-dialog">
-      <div class="settings-header"><h2>Web-eksempler</h2></div>
+      <div class="settings-header"><h2 data-i18n>Web-eksempler</h2></div>
       <div class="web-examples-body">
-        <div class="web-examples-pane" id="webExCategories" role="listbox" aria-label="Kategorier"></div>
+        <div class="web-examples-pane" id="webExCategories" role="listbox" data-i18n-aria aria-label="Kategorier"></div>
         <div class="web-examples-pane" id="webExScripts" role="listbox" aria-label="Scripts"></div>
       </div>
       <div class="settings-buttons">
-        <button type="button" class="btn btn-secondary" id="webExCancelBtn">Avbryt</button>
-        <button type="button" class="btn btn-primary" id="webExLoadBtn" disabled>Last inn</button>
+        <button type="button" class="btn btn-secondary" id="webExCancelBtn" data-i18n>Avbryt</button>
+        <button type="button" class="btn btn-primary" id="webExLoadBtn" disabled data-i18n>Last inn</button>
       </div>
     </div>
   </div>
 
-  <div class="help-modal-overlay" id="helpModalOverlay" role="dialog" aria-modal="true" aria-label="Hjelp">
+  <div class="help-modal-overlay" id="helpModalOverlay" role="dialog" aria-modal="true" data-i18n-aria aria-label="Hjelp">
     <div class="help-modal-dialog">
       <div class="help-modal-header" id="helpModalHeader" style="display:none">
         <div class="help-modal-kicker" id="helpModalKicker"></div>
@@ -663,8 +682,8 @@
       </div>
       <div class="help-modal-body" id="helpModalContent"></div>
       <div class="help-modal-buttons">
-        <button type="button" class="btn btn-secondary" id="helpModalOk">Lukk</button>
-        <button type="button" class="btn btn-primary" id="helpModalMore" style="display:none">Mer informasjon</button>
+        <button type="button" class="btn btn-secondary" id="helpModalOk" data-i18n>Lukk</button>
+        <button type="button" class="btn btn-primary" id="helpModalMore" style="display:none" data-i18n>Mer informasjon</button>
       </div>
     </div>
   </div>
@@ -673,10 +692,10 @@
       <div class="var-detail-header">
         <h2 class="var-detail-title" id="varDetailTitle"></h2>
         <div class="var-detail-header-actions">
-          <button type="button" class="var-detail-expand-btn" id="varDetailExpandBtn" title="Utvid vinduet vertikalt" aria-label="Utvid vertikalt">
+          <button type="button" class="var-detail-expand-btn" id="varDetailExpandBtn" data-i18n-title data-i18n-aria title="Utvid vinduet vertikalt" aria-label="Utvid vertikalt">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M8 9l4-4 4 4M8 15l4 4 4-4"/></svg>
           </button>
-          <button type="button" id="varDetailCloseBtn" title="Lukk" aria-label="Lukk">&#10005;</button>
+          <button type="button" id="varDetailCloseBtn" data-i18n-title data-i18n-aria title="Lukk" aria-label="Lukk">&#10005;</button>
         </div>
       </div>
       <div class="var-detail-body" id="varDetailBody"></div>
@@ -685,13 +704,13 @@
   <div class="individata-overlay" id="individataOverlay" role="dialog" aria-modal="true" aria-labelledby="individataTitle" aria-hidden="true">
     <div class="individata-dialog">
       <div class="individata-header">
-        <h2 class="individata-title" id="individataTitle">Datasett</h2>
+        <h2 class="individata-title" id="individataTitle" data-i18n>Datasett</h2>
         <div class="individata-header-actions">
           <span class="individata-meta" id="individataMeta"></span>
-          <button type="button" id="individataCloseBtn" title="Lukk" aria-label="Lukk">&#10005;</button>
+          <button type="button" id="individataCloseBtn" data-i18n-title data-i18n-aria title="Lukk" aria-label="Lukk">&#10005;</button>
         </div>
       </div>
-      <div class="individata-body" id="individataBody"><div class="individata-status">Henter data &hellip;</div></div>
+      <div class="individata-body" id="individataBody"><div class="individata-status" data-i18n>Henter data &hellip;</div></div>
     </div>
   </div>
   <input type="file" id="fileInput" accept=".txt,text/plain" style="display:none">
@@ -703,6 +722,8 @@
     <input type="checkbox" id="plotSeaborn">
   </div>
   <link href="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/css/tabulator_simple.min.css" rel="stylesheet">
+  <script src="js/i18n/en.js"></script>
+  <script src="js/i18n.js"></script>
   <script src="https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
@@ -710,6 +731,10 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
+    // Fallback hvis js/i18n.js ikke lastet (404 e.l.): vis norsk uendret.
+    window.t = window.t || function (s) { return s; };
+    window.i18nField = window.i18nField || function (obj, field) { return obj && obj[field]; };
+
     window.M2PY_VERSION = '2026-05-25g';
 
     // One-time migration: remove obsolete localStorage keys from previous milestones
@@ -739,11 +764,11 @@
       const _toggleBtn = document.getElementById('dmOptToggleAdvanced');
       if (_advanced && _toggleBtn) {
         _advanced.style.display = 'none';
-        _toggleBtn.textContent = '⚙ Flere valg';
+        _toggleBtn.textContent = t('⚙ Flere valg');
         _toggleBtn.onclick = () => {
           const open = _advanced.style.display !== 'none';
           _advanced.style.display = open ? 'none' : '';
-          _toggleBtn.textContent = open ? '⚙ Flere valg' : '⚙ Færre valg';
+          _toggleBtn.textContent = open ? t('⚙ Flere valg') : t('⚙ Færre valg');
         };
       }
 
@@ -779,7 +804,7 @@
 
         const script = (document.getElementById('scriptInput')?.value || '').trim();
         if (!script) {
-          alert('Editor er tom. Skriv et script først.');
+          alert(t('Editor er tom. Skriv et script først.'));
           return;
         }
         runDmVurder(script, { ...dmOptionsState });
@@ -826,7 +851,7 @@
       document.getElementById('adminCodeSubmit').onclick = async () => {
         const label = labelInput.value.trim();
         if (!label) {
-          errorDiv.textContent = 'Skriv inn en etikett.';
+          errorDiv.textContent = t('Skriv inn en etikett.');
           return;
         }
         const expires_days = parseInt(expiresSelect.value, 10);
@@ -835,7 +860,7 @@
         if (maxUsesType === 'limited') {
           max_uses = parseInt(maxUsesInput.value, 10);
           if (!max_uses || max_uses < 1) {
-            errorDiv.textContent = 'Maks bruk må være minst 1.';
+            errorDiv.textContent = t('Maks bruk må være minst 1.');
             return;
           }
         }
@@ -843,12 +868,12 @@
         errorDiv.textContent = '';
         const submitBtn = document.getElementById('adminCodeSubmit');
         submitBtn.disabled = true;
-        submitBtn.textContent = 'Genererer…';
+        submitBtn.textContent = t('Genererer…');
 
         try {
           const token = window.mdAuth && window.mdAuth.token;
           if (!token) {
-            errorDiv.textContent = 'Du må være logget inn.';
+            errorDiv.textContent = t('Du må være logget inn.');
             return;
           }
           const apiBase = (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app').replace(/\/+$/, '');
@@ -865,13 +890,13 @@
           let data = {};
           try { data = await res.json(); } catch (_) {}
           if (!res.ok || data.error) {
-            errorDiv.textContent = data.error || `Feil: ${res.status}`;
+            errorDiv.textContent = data.error || t('Feil: {msg}', { msg: res.status });
             return;
           }
           // Show result
           document.getElementById('adminCodeResultCode').textContent = data.code;
           document.getElementById('adminCodeResultExpires').textContent = new Date(data.expires_at).toLocaleString('nb-NO');
-          document.getElementById('adminCodeResultMaxUses').textContent = data.max_uses ? String(data.max_uses) : 'ubegrenset';
+          document.getElementById('adminCodeResultMaxUses').textContent = data.max_uses ? String(data.max_uses) : t('ubegrenset');
           form.style.display = 'none';
           result.style.display = '';
 
@@ -879,15 +904,15 @@
             try {
               await navigator.clipboard.writeText(data.code);
               const btn = document.getElementById('adminCodeCopy');
-              btn.textContent = 'Kopiert!';
-              setTimeout(() => btn.textContent = 'Kopier', 1500);
+              btn.textContent = t('Kopiert!');
+              setTimeout(() => btn.textContent = t('Kopier'), 1500);
             } catch (_) { /* ignore */ }
           };
         } catch (e) {
-          errorDiv.textContent = 'Nettverksfeil: ' + (e.message || e);
+          errorDiv.textContent = t('Nettverksfeil: {msg}', { msg: e.message || e });
         } finally {
           submitBtn.disabled = false;
-          submitBtn.textContent = 'Generer';
+          submitBtn.textContent = t('Generer');
         }
       };
     }
@@ -898,11 +923,11 @@
       if (!status || !btn) return;
       const len = (dmOptionsState.kontekst || '').length;
       if (len > 0) {
-        btn.textContent = `Endre formål / kontekst (${len} tegn)`;
-        status.textContent = 'Konteksten er spesifisert. Klikk for å redigere.';
+        btn.textContent = t('Endre formål / kontekst ({len} tegn)', { len: len });
+        status.textContent = t('Konteksten er spesifisert. Klikk for å redigere.');
       } else {
-        btn.textContent = 'Spesifiser formål / kontekst';
-        status.textContent = 'Hvis ikke spesifisert, vurderer AI ut fra scriptet alene.';
+        btn.textContent = t('Spesifiser formål / kontekst');
+        status.textContent = t('Hvis ikke spesifisert, vurderer AI ut fra scriptet alene.');
       }
     }
 
@@ -1092,7 +1117,7 @@
       const closeBtn = document.getElementById('dmResultClose');
 
       body.textContent = '';
-      status.textContent = 'Henter vurdering…';
+      status.textContent = t('Henter vurdering…');
       backdrop.style.display = 'flex';
       cancelBtn.disabled = false;
       copyBtn.disabled = true;
@@ -1113,23 +1138,24 @@
       if (mdLive) { body.style.fontFamily = ''; body.style.whiteSpace = ''; }
 
       try {
-        // Get Anvil session token from mdAuth module
+        // Get Anvil session token from mdAuth module; BYOK-nøkkel som alternativ.
         const token = window.mdAuth && window.mdAuth.token;
-        if (!token) {
-          status.textContent = 'Du må være logget inn for å bruke dataminimering. Klikk Logg inn øverst.';
+        const anthropicKey = localStorage.getItem('md_anthropic_key') || '';
+        if (!token && !anthropicKey) {
+          status.textContent = t('Du må være logget inn eller ha lagt inn egen Anthropic-nøkkel (AI-innstillinger) for å bruke dataminimering.');
           cancelBtn.disabled = true;
           return;
         }
-        const headers = {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        };
+        const headers = token
+          ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+          : { 'Content-Type': 'application/json', 'X-Anthropic-Key': anthropicKey };
         const resp = await fetch('/api/dm-vurder', {
           method: 'POST',
           headers,
           body: JSON.stringify({
             script,
             kontekst: options.kontekst || '',
+            ui_lang: window.M2PY_LANG === 'en' ? 'en' : 'no',
             språk: options.språk || 'auto',
             detaljnivå: options.detaljnivå || 'kort',
             ønsker_revidert_script: options.ønsker_revidert_script || false,
@@ -1138,11 +1164,13 @@
           signal: controller.signal,
         });
         if (resp.status === 401) {
-          status.textContent = 'Innloggingen er utløpt. Logg inn på nytt og prøv igjen.';
+          status.textContent = token
+            ? t('Innloggingen er utløpt. Logg inn på nytt og prøv igjen.')
+            : t('Ugyldig Anthropic-nøkkel. Sjekk nøkkelen i AI-innstillingene.');
           return;
         }
         if (!resp.ok || !resp.body) {
-          status.textContent = `Feil: ${resp.status} ${await resp.text()}`;
+          status.textContent = t('Feil: {msg}', { msg: `${resp.status} ${await resp.text()}` });
           return;
         }
         const reader = resp.body.getReader();
@@ -1177,7 +1205,7 @@
                 inputTokens = obj.inputTokens || 0;
                 outputTokens = obj.outputTokens || 0;
               } else if (obj.type === 'error') {
-                streamError = obj.message || 'ukjent feil';
+                streamError = obj.message || t('ukjent feil');
                 break;
               }
             } catch (_) { /* ignore */ }
@@ -1187,7 +1215,7 @@
         // A server-side stream error must NOT fall through to the success path
         // (which otherwise repaints the result and sets a "Ferdig" status).
         if (streamError) {
-          status.textContent = `Feil fra server: ${streamError}`;
+          status.textContent = t('Feil fra server: {msg}', { msg: streamError });
           return;
         }
         // Split out "## Revidert script" section if present
@@ -1195,7 +1223,7 @@
         let revisedScript = null;
         let revisedMatch = null;
 
-        const revisedMatchResult = accumulated.match(/\n##\s+Revidert script\s*\n([\s\S]+)$/i);
+        const revisedMatchResult = accumulated.match(/\n##\s+Revi(?:dert|sed) script\s*\n([\s\S]+)$/i);
         if (revisedMatchResult) {
           revisedMatch = revisedMatchResult;
           mainText = accumulated.slice(0, revisedMatchResult.index);
@@ -1236,28 +1264,29 @@
         copyRevisedBtn.onclick = async () => {
           try {
             await navigator.clipboard.writeText(revisedScript || '');
-            copyRevisedBtn.textContent = 'Kopiert!';
-            setTimeout(() => copyRevisedBtn.textContent = 'Kopier revidert', 1500);
+            copyRevisedBtn.textContent = t('Kopiert!');
+            setTimeout(() => copyRevisedBtn.textContent = t('Kopier revidert'), 1500);
           } catch (_) { /* ignore */ }
         };
 
         replaceScriptBtn.onclick = () => {
           if (!revisedScript) return;
-          if (revisedScript.toLowerCase().includes('ingen endringer foreslås')) {
-            alert('AI fant ingen endringer å foreslå.');
+          if (revisedScript.toLowerCase().includes('ingen endringer foreslås')
+              || revisedScript.toLowerCase().includes('no changes suggested')) {
+            alert(t('AI fant ingen endringer å foreslå.'));
             return;
           }
           const editor = document.getElementById('scriptInput');
           if (!editor) return;
-          const proceed = confirm('Erstatt scriptet med den reviderte versjonen?\n\nDu kan angre med Ctrl+Z etter at det er erstattet.');
+          const proceed = confirm(t('Erstatt scriptet med den reviderte versjonen?\n\nDu kan angre med Ctrl+Z etter at det er erstattet.'));
           if (!proceed) return;
           editor.value = revisedScript;
           editor.dispatchEvent(new Event('input', { bubbles: true }));
           backdrop.style.display = 'none';
-          setTimeout(() => alert('Scriptet er erstattet. Anbefalt: kjør vurdering på nytt.'), 100);
+          setTimeout(() => alert(t('Scriptet er erstattet. Anbefalt: kjør vurdering på nytt.')), 100);
         };
 
-        status.textContent = `Ferdig. ${inputTokens} input / ${outputTokens} output tokens.`;
+        status.textContent = t('Ferdig. {i} input / {o} output tokens.', { i: inputTokens, o: outputTokens });
         cancelBtn.disabled = true;
         copyBtn.disabled = false;
 
@@ -1267,17 +1296,17 @@
         }
       } catch (e) {
         if (e.name === 'AbortError') {
-          status.textContent = 'Avbrutt.';
+          status.textContent = t('Avbrutt.');
         } else {
-          status.textContent = `Feil: ${e.message}`;
+          status.textContent = t('Feil: {msg}', { msg: e.message });
         }
       }
 
       copyBtn.onclick = async () => {
         try {
           await navigator.clipboard.writeText(accumulated);
-          copyBtn.textContent = 'Kopiert!';
-          setTimeout(() => copyBtn.textContent = 'Kopier', 1500);
+          copyBtn.textContent = t('Kopiert!');
+          setTimeout(() => copyBtn.textContent = t('Kopier'), 1500);
         } catch (_) { /* ignore */ }
       };
     }
@@ -1335,10 +1364,11 @@
         var cb = document.getElementById('welcomeDontShow');
         if (!bd || !tipEl || !nextBtn || !okBtn || !cb) return;
 
-        tipEl.textContent = pickTip(null);
+        var lastTip = null;
+        tipEl.textContent = t(lastTip = pickTip(lastTip));
         bd.classList.add('open');
 
-        nextBtn.onclick = function () { tipEl.textContent = pickTip(tipEl.textContent); };
+        nextBtn.onclick = function () { tipEl.textContent = t(lastTip = pickTip(lastTip)); };
         var close = function () {
           if (cb.checked) localStorage.setItem(LS_KEY, '1');
           bd.classList.remove('open');
@@ -1566,7 +1596,7 @@
       }
 
       function buildRecodeFromRows(rows) {
-        if (rows.length < 2) return { error: 'For få linjer (trenger header og minst én datarad).' };
+        if (rows.length < 2) return { error: t('For få linjer (trenger header og minst én datarad).') };
         var header = rows[0];
         var dataRows = rows.slice(1);
 
@@ -1577,14 +1607,14 @@
 
         var useDefault = iSrc < 0 && iTgt < 0;
         if (useDefault) {
-          if (header.length < 4) return { error: 'Forventet minst fire kolonner (fra-kode, fra-navn, til-kode, til-navn) eller SSB-kolonneravn i første linje.' };
+          if (header.length < 4) return { error: t('Forventet minst fire kolonner (fra-kode, fra-navn, til-kode, til-navn) eller SSB-kolonneravn i første linje.') };
           iSrc = 0;
           iSrcName = 1;
           iTgt = 2;
           iTgtName = 3;
         } else {
-          if (iSrc < 0) return { error: 'Fant ikke sourceCode / fra-kode i første linje.' };
-          if (iTgt < 0 && iTgtName < 0) return { error: 'Fant verken targetCode/til-kode eller targetName/til-navn.' };
+          if (iSrc < 0) return { error: t('Fant ikke sourceCode / fra-kode i første linje.') };
+          if (iTgt < 0 && iTgtName < 0) return { error: t('Fant verken targetCode/til-kode eller targetName/til-navn.') };
         }
 
         var inverted = false;
@@ -1756,7 +1786,7 @@
       }
       window.renderScriptHighlight = renderScriptHighlight;
 
-      const _BP_TITLE = 'Stoppunkt som angir hvor skriptet skal stoppe kjøringen';
+      const _BP_TITLE = t('Stoppunkt som angir hvor skriptet skal stoppe kjøringen');
       // One delegated click handler instead of one per line span — the gutter
       // used to attach N listeners on every keystroke.
       lineNumbers.addEventListener('click', function (e) {
@@ -1950,9 +1980,9 @@
             scriptInput.selectionStart = scriptInput.selectionEnd = 0;
           }).catch(function(err) {
             if (window.location.protocol === 'file:') {
-              alert('Filen er åpnet direkte i nettleseren (file://). Start en lokal webserver og åpne via http://localhost for å laste eksempler.\n\nEks: åpne terminal i m2py-mappen og kjør:\npython -m http.server 8000\n\nÅpne deretter http://localhost:8000/microdata_runner.html');
+              alert(t('Filen er åpnet direkte i nettleseren (file://). Start en lokal webserver og åpne via http://localhost for å laste eksempler.\n\nEks: åpne terminal i m2py-mappen og kjør:\npython -m http.server 8000\n\nÅpne deretter http://localhost:8000/microdata_runner.html'));
             } else {
-              alert('Kunne ikke laste eksempel: ' + file + '\nFeil: ' + (err && err.message ? err.message : String(err)) + '\n\nSjekk at examples-mappen ligger i samme mappe som microdata_runner.html og at serveren har tilgang til den.');
+              alert(t('Kunne ikke laste eksempel: {file}\nFeil: {msg}\n\nSjekk at examples-mappen ligger i samme mappe som microdata_runner.html og at serveren har tilgang til den.', { file: file, msg: err && err.message ? err.message : String(err) }));
             }
           });
         });
@@ -2038,9 +2068,9 @@
             scriptInput.selectionStart = scriptInput.selectionEnd = 0;
           }).catch(function(err) {
             if (window.location.protocol === 'file:') {
-              alert('Filen er åpnet direkte i nettleseren (file://). Start en lokal webserver og åpne via http://localhost for å laste eksempler.\n\nEks: åpne terminal i m2py-mappen og kjør:\npython -m http.server 8000\n\nÅpne deretter http://localhost:8000/microdata_runner.html');
+              alert(t('Filen er åpnet direkte i nettleseren (file://). Start en lokal webserver og åpne via http://localhost for å laste eksempler.\n\nEks: åpne terminal i m2py-mappen og kjør:\npython -m http.server 8000\n\nÅpne deretter http://localhost:8000/microdata_runner.html'));
             } else {
-              alert('Kunne ikke laste eksempel: ' + selectedScript.file + '\nFeil: ' + (err && err.message ? err.message : String(err)) + '\n\nSjekk at web_examples-mappen ligger i samme mappe som microdata_runner.html og at serveren har tilgang til den.');
+              alert(t('Kunne ikke laste eksempel: {file}\nFeil: {msg}\n\nSjekk at web_examples-mappen ligger i samme mappe som microdata_runner.html og at serveren har tilgang til den.', { file: selectedScript.file, msg: err && err.message ? err.message : String(err) }));
             }
           });
         }
@@ -2056,8 +2086,8 @@
             }
             return;
           }
-          showEmptyHint(catPane, 'Laster&#8230;');
-          showEmptyHint(scrPane, 'Velg en kategori');
+          showEmptyHint(catPane, t('Laster…'));
+          showEmptyHint(scrPane, t('Velg en kategori'));
           loadBtn.disabled = true;
           const base = window.location.href.replace(/[^/]+$/, '');
           fetch(base + 'web_examples/manifest.json').then(function(r) {
@@ -2066,12 +2096,12 @@
           }).then(function(data) {
             manifest = data;
             renderCategories();
-            showEmptyHint(scrPane, 'Velg en kategori');
+            showEmptyHint(scrPane, t('Velg en kategori'));
           }).catch(function(err) {
             if (window.location.protocol === 'file:') {
-              showEmptyHint(catPane, 'Kunne ikke laste manifest (file://). Start en lokal webserver.');
+              showEmptyHint(catPane, t('Kunne ikke laste manifest (file://). Start en lokal webserver.'));
             } else {
-              showEmptyHint(catPane, 'Kunne ikke laste manifest: ' + (err && err.message ? err.message : String(err)));
+              showEmptyHint(catPane, t('Kunne ikke laste manifest: {msg}', { msg: err && err.message ? err.message : String(err) }));
             }
           });
         }
@@ -2155,6 +2185,34 @@
         });
       });
 
+      // Språkmeny: hake på aktivt språk; bytte lagrer valget og laster siden
+      // på nytt (m2pySetLang i js/i18n.js tar vare på editorinnholdet).
+      (function initLangMenu() {
+        const btn = document.getElementById('menuLangBtn');
+        const sub = document.getElementById('langSubmenu');
+        if (!btn || !sub) return;
+        sub.querySelectorAll('button[data-lang]').forEach(function(b) {
+          if (b.getAttribute('data-lang') === (window.M2PY_LANG || 'no')) {
+            b.textContent = '✓ ' + b.textContent;
+          }
+          b.addEventListener('click', function() {
+            sub.classList.remove('open');
+            dropdown.classList.remove('open');
+            if (window.m2pySetLang) window.m2pySetLang(this.getAttribute('data-lang'));
+          });
+        });
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          const willOpen = !sub.classList.contains('open');
+          document.querySelectorAll('#hamburgerDropdown .examples-dropdown.open').forEach(function(d) {
+            d.classList.remove('open');
+          });
+          if (willOpen) sub.classList.add('open');
+        });
+        sub.addEventListener('click', function(e) { e.stopPropagation(); });
+        document.addEventListener('click', function() { sub.classList.remove('open'); });
+      })();
+
       document.getElementById('menuNew').addEventListener('click', function() {
         scriptInput.value = '';
         scriptName.value = 'Script navn';
@@ -2201,10 +2259,10 @@
         Array.from(outputModeRadios).forEach(function(r) {
           if (r.checked) currentMode = r.value;
         });
-        if (modeBtn) modeBtn.textContent = 'Output-modus: ' + (currentMode === 'html' ? 'HTML' : 'String');
-        if (suppressBtn) suppressBtn.textContent = suppressEmbedded.checked ? 'Skjul innebygde: PÅ' : 'Skjul innebygde: AV';
-        if (staticBtn) staticBtn.textContent = plotStatic.checked ? 'Plot: Statisk' : 'Plot: Interaktiv';
-        if (seabornBtn) seabornBtn.textContent = plotSeaborn.checked ? 'Plot-stil: Seaborn' : 'Plot-stil: Standard';
+        if (modeBtn) modeBtn.textContent = t('Output-modus: {mode}', { mode: currentMode === 'html' ? 'HTML' : 'String' });
+        if (suppressBtn) suppressBtn.textContent = suppressEmbedded.checked ? t('Skjul innebygde: PÅ') : t('Skjul innebygde: AV');
+        if (staticBtn) staticBtn.textContent = plotStatic.checked ? t('Plot: Statisk') : t('Plot: Interaktiv');
+        if (seabornBtn) seabornBtn.textContent = plotSeaborn.checked ? t('Plot-stil: Seaborn') : t('Plot-stil: Standard');
       }
 
       updateOutputMenuLabels();
@@ -2226,7 +2284,7 @@
         const btn = document.getElementById('menuRunnerMode');
         if (!btn) return;
         const m = getRunnerModeFromStorage();
-        btn.textContent = m === 'pyodide' ? 'Kjøremodus: Pyodide (start: Python)' : 'Kjøremodus: Microdata (start: microdata)';
+        btn.textContent = m === 'pyodide' ? t('Kjøremodus: Pyodide (start: Python)') : t('Kjøremodus: Microdata (start: microdata)');
       }
       updateRunnerModeMenuLabel();
       const menuRunnerModeBtn = document.getElementById('menuRunnerMode');
@@ -2256,7 +2314,7 @@
       function updateDCLabel() {
         const btn = document.getElementById('menuDisclosureControl');
         if (!btn) return;
-        btn.textContent = 'Avsløringskontroll: ' + (getDisclosureControl() ? 'PÅ' : 'AV');
+        btn.textContent = getDisclosureControl() ? t('Avsløringskontroll: PÅ') : t('Avsløringskontroll: AV');
       }
       updateDCLabel();
       const menuDCBtn = document.getElementById('menuDisclosureControl');
@@ -2279,7 +2337,7 @@
       (function(){
         var b = document.getElementById('menuToggleSafestatOutput');
         if (!b) return;
-        function lbl(){ b.textContent = 'SafeStat-output: ' + (safeStatFormat === 'raw' ? 'Rå' : 'Formatert'); }
+        function lbl(){ b.textContent = (safeStatFormat === 'raw') ? t('SafeStat-output: Rå') : t('SafeStat-output: Formatert'); }
         lbl();
         b.addEventListener('click', function(){
           safeStatFormat = (safeStatFormat === 'raw') ? 'formatted' : 'raw';
@@ -2305,7 +2363,7 @@
       function updateShowIndividataLabel() {
         const lbl = document.getElementById('menuShowIndividataLabel');
         if (!lbl) return;
-        lbl.textContent = 'Datatilgang: ' + (getShowIndividata() ? 'PÅ' : 'AV');
+        lbl.textContent = getShowIndividata() ? t('Datatilgang: PÅ') : t('Datatilgang: AV');
       }
       function applyShowIndividataToSidebar() {
         var on = getShowIndividata();
@@ -2328,7 +2386,7 @@
       // Datakilde-bryter: dynamisk (generer) vs statisk (DuckDB-WASM + Parquet)
       function updateDataSourceLabel() {
         const b = document.getElementById('menuDataSource');
-        if (b) b.textContent = 'Datakilde: ' + (isStaticDataSource() ? 'Statisk' : 'Dynamisk');
+        if (b) b.textContent = isStaticDataSource() ? t('Datakilde: Statisk') : t('Datakilde: Dynamisk');
       }
       updateDataSourceLabel();
       const menuDataSourceBtn = document.getElementById('menuDataSource');
@@ -2418,7 +2476,7 @@
       document.getElementById('hamburgerDropdown').classList.remove('open');
       const script = (document.getElementById('scriptInput')?.value || '').trim();
       if (!script) {
-        alert('Editor er tom. Skriv et script først.');
+        alert(t('Editor er tom. Skriv et script først.'));
         return;
       }
       // Require Anvil login
@@ -2426,7 +2484,7 @@
         if (window.mdAuth && typeof window.mdAuth.showLogin === 'function') {
           window.mdAuth.showLogin();
         } else {
-          alert('Du må være logget inn for å bruke dataminimering. Bruk Logg inn-knappen øverst.');
+          alert(t('Du må være logget inn for å bruke dataminimering. Bruk Logg inn-knappen øverst.'));
         }
         return;
       }
@@ -2437,7 +2495,7 @@
       document.getElementById('hamburgerDropdown').classList.remove('open');
       var outEl = document.getElementById('outputArea');
       var outText = (outEl ? (outEl.innerText || '') : '').trim() || (lastOutput || '').trim();
-      if (!outText) { alert('Ingen output å tolke. Kjør et script først.'); return; }
+      if (!outText) { alert(t('Ingen output å tolke. Kjør et script først.')); return; }
       if (outText.length > 30000) outText = outText.slice(0, 30000) + '\n…(forkortet)';
       var si = document.getElementById('scriptInput');
       var script = (si && si.value || '').trim().slice(0, 20000);
@@ -2481,23 +2539,23 @@
       const btnMore = document.getElementById('helpModalMore');
       if (!overlay || !contentEl) return;
       headerEl.style.display = '';
-      kickerEl.textContent = 'Hjelp';
+      kickerEl.textContent = t('Hjelp');
       titleEl.textContent = 'Microdata Script Runner';
       contentEl.innerHTML = [
-        '<p class="var-detail-prose" style="margin-bottom:10px">Skriv og kjør microdata.no-kode, Python og R direkte i nettleseren.</p>',
-        '<p class="var-detail-prose" style="margin-bottom:10px;font-size:12px;color:var(--text-muted)">NB: Dette er et hobbyprosjekt &mdash; ikke laget av microdata.no. Tallene er ikke ekte, og det gis ingen garantier for korrekthet.</p>',
-        '<div class="var-detail-section-title">Kjøre</div>',
-        '<p class="var-detail-prose">Trykk <strong>Kjør</strong> eller <kbd style="font-size:11px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 5px">Ctrl+Enter</kbd>. <strong>Oversett</strong>-knappen konverterer Python/R til microdata-syntaks.</p>',
-        '<div class="var-detail-section-title">Moduser</div>',
-        '<p class="var-detail-prose">Microdata · Python (Pyodide) · R (WebR). Bytt modus med dropdown-menyen i bunnbaren, eller bruk <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">#r</code> / <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">#py</code> / <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">#micro</code> på egen linje i scriptet for hybridkode.</p>',
-        '<div class="var-detail-section-title">Tab-autocomplete</div>',
-        '<p class="var-detail-prose">Tab etter <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">/</code> → microdata-variabler · tab på tom linje → kommandoer/funksjoner · <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">df.</code> → DataFrame-metoder · <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">df$</code> → R-kolonner.</p>',
-        '<div class="var-detail-section-title">Kjør skrittvis</div>',
-        '<p class="var-detail-prose">Kjør scriptet ett blokk om gangen med tale. Blank linje skiller blokker. Kommentarer på egen linje (<code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">//</code> for microdata, <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">#</code> for Python/R) leses opp: kommentar over en blokk leses FØR koden, kommentar etter leses ETTER resultatet.</p>',
-        '<div class="var-detail-section-title">Datasett-panel</div>',
-        '<p class="var-detail-prose" style="margin-bottom:0">Sidemenyen til høyre viser datasett, variabler og typer. Klikk på en variabel for detaljer og lenke til dokumentasjon.</p>',
+        t('<p class="var-detail-prose" style="margin-bottom:10px">Skriv og kjør microdata.no-kode, Python og R direkte i nettleseren.</p>'),
+        t('<p class="var-detail-prose" style="margin-bottom:10px;font-size:12px;color:var(--text-muted)">NB: Dette er et hobbyprosjekt &mdash; ikke laget av microdata.no. Tallene er ikke ekte, og det gis ingen garantier for korrekthet.</p>'),
+        t('<div class="var-detail-section-title">Kjøre</div>'),
+        t('<p class="var-detail-prose">Trykk <strong>Kjør</strong> eller <kbd style="font-size:11px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 5px">Ctrl+Enter</kbd>. <strong>Oversett</strong>-knappen konverterer Python/R til microdata-syntaks.</p>'),
+        t('<div class="var-detail-section-title">Moduser</div>'),
+        t('<p class="var-detail-prose">Microdata · Python (Pyodide) · R (WebR). Bytt modus med dropdown-menyen i bunnbaren, eller bruk <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">#r</code> / <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">#py</code> / <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">#micro</code> på egen linje i scriptet for hybridkode.</p>'),
+        t('<div class="var-detail-section-title">Tab-autocomplete</div>'),
+        t('<p class="var-detail-prose">Tab etter <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">/</code> → microdata-variabler · tab på tom linje → kommandoer/funksjoner · <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">df.</code> → DataFrame-metoder · <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">df$</code> → R-kolonner.</p>'),
+        t('<div class="var-detail-section-title">Kjør skrittvis</div>'),
+        t('<p class="var-detail-prose">Kjør scriptet ett blokk om gangen med tale. Blank linje skiller blokker. Kommentarer på egen linje (<code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">//</code> for microdata, <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">#</code> for Python/R) leses opp: kommentar over en blokk leses FØR koden, kommentar etter leses ETTER resultatet.</p>'),
+        t('<div class="var-detail-section-title">Datasett-panel</div>'),
+        t('<p class="var-detail-prose" style="margin-bottom:0">Sidemenyen til høyre viser datasett, variabler og typer. Klikk på en variabel for detaljer og lenke til dokumentasjon.</p>'),
       ].join('');
-      btnMore.textContent = 'Full dokumentasjon';
+      btnMore.textContent = t('Full dokumentasjon');
       btnMore.style.display = '';
       overlay.classList.add('open');
       function closeModal() {
@@ -2508,7 +2566,7 @@
       }
       btnOk.onclick = function() { closeModal(); };
       btnMore.onclick = function() {
-        window.open('hjelp.html', '_blank', 'noopener,noreferrer');
+        window.open(window.M2PY_LANG === 'en' ? 'hjelp.en.html' : 'hjelp.html', '_blank', 'noopener,noreferrer');
         closeModal();
       };
       overlay.onclick = function(e) { if (e.target === overlay) closeModal(); };
@@ -2552,7 +2610,7 @@
         // og oppdaterer label + sidebar via den globale apply-funksjonen.
         try { localStorage.setItem('microdata_show_individata', '1'); } catch (e) {}
         var lbl = document.getElementById('menuShowIndividataLabel');
-        if (lbl) lbl.textContent = 'Datatilgang: PÅ';
+        if (lbl) lbl.textContent = t('Datatilgang: PÅ');
         if (window.__applyShowIndividataToSidebar) {
           try { window.__applyShowIndividataToSidebar(); } catch (e) {}
         }
@@ -3038,6 +3096,7 @@
       var dcSumEl    = document.getElementById('settingDcMinSummarize');
       var saveBtn   = document.getElementById('settingsSaveBtn');
       var cancelBtn = document.getElementById('settingsCancelBtn');
+      var langSel   = document.getElementById('settingLanguage');
       if (!overlay) return;
 
       rateIn.addEventListener('input', function() {
@@ -3045,6 +3104,7 @@
       });
 
       function openSettings() {
+        if (langSel) langSel.value = window.M2PY_LANG || 'no';
         limitIn.value = getImportLimit();
         fontSel.value = document.body.getAttribute('data-font-size') || '';
         rateIn.value  = getTtsRate();
@@ -3105,6 +3165,10 @@
         if (dcAffEl)  setDcThreshold('dc_min_affected', dcAffEl.value);
         if (dcSumEl)  setDcThreshold('dc_min_summarize', dcSumEl.value);
         closeSettings();
+        // Språkbytte til slutt: laster siden på nytt (kun hvis endret).
+        if (langSel && window.m2pySetLang && langSel.value !== window.M2PY_LANG) {
+          window.m2pySetLang(langSel.value);
+        }
       });
       cancelBtn.addEventListener('click', closeSettings);
       overlay.addEventListener('click', function(e) { if (e.target === overlay) closeSettings(); });
@@ -3154,7 +3218,7 @@
           uploadFileHint.textContent = '';
           uploadSizeWarn.style.display = 'none';
           uploadLoadBtn.disabled = false;
-          uploadLoadBtn.textContent = 'Last inn';
+          uploadLoadBtn.textContent = t('Last inn');
           updateFieldVisibility();
           uploadOverlay.classList.add('open');
         }
@@ -3194,11 +3258,11 @@
 
         uploadLoadBtn.addEventListener('click', async function() {
           var file = uploadFileInput.files && uploadFileInput.files[0];
-          if (!file) { alert('Velg en fil først.'); return; }
+          if (!file) { alert(t('Velg en fil først.')); return; }
           var name = uploadName.value.trim();
-          if (!name) { alert('Angi et datasett-navn.'); return; }
+          if (!name) { alert(t('Angi et datasett-navn.')); return; }
           if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
-            alert('Datasett-navn må starte med bokstav eller _ og kun inneholde bokstaver, tall og _.');
+            alert(t('Datasett-navn må starte med bokstav eller _ og kun inneholde bokstaver, tall og _.'));
             return;
           }
           var fmt = uploadFormat.value;
@@ -3207,7 +3271,7 @@
           var sheet = uploadSheet.value.trim() || '0';
 
           uploadLoadBtn.disabled = true;
-          uploadLoadBtn.textContent = 'Laster\u2026';
+          uploadLoadBtn.textContent = t('Laster…');
 
           try {
             var arrayBuf = await file.arrayBuffer();
@@ -3266,7 +3330,7 @@
             alert('Feil ved innlasting:\n' + (err && err.message ? err.message : String(err)));
           } finally {
             uploadLoadBtn.disabled = false;
-            uploadLoadBtn.textContent = 'Last inn';
+            uploadLoadBtn.textContent = t('Last inn');
           }
         });
       })();
@@ -3297,7 +3361,7 @@
         runDefault: 'pyodide',
         preRun: async function (script, ctx) {
           try {
-            setStatus(ctx.rightStatus, 'Sjekker pakker…');
+            setStatus(ctx.rightStatus, t('Sjekker pakker…'));
             await ctx.py.loadPackagesFromImports(script, {
               messageCallback: function (msg) { setStatus(ctx.rightStatus, msg); } });
           } catch (e) { console.warn('loadPackagesFromImports:', e); }
@@ -3307,7 +3371,7 @@
               var _needInstall = await ctx.py.runPythonAsync(
                 'import importlib.util as _iu\n_iu.find_spec(' + JSON.stringify(_pkg) + ') is None');
               if (_needInstall) {
-                setStatus(ctx.rightStatus, 'Installerer ' + _pkg + '…');
+                setStatus(ctx.rightStatus, t('Installerer {pkg}…', { pkg: _pkg }));
                 await ctx.py.runPythonAsync('import micropip as _mp\nawait _mp.install(' + JSON.stringify(_pkg) + ')');
               }
             } catch (e) { console.warn('micropip install', _pkg, e); }
@@ -3475,7 +3539,7 @@
         var outputArea = document.getElementById('outputArea');
         try {
           var src = scriptInput.value || '';
-          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">Oversetter\u2026</div>';
+          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + window.t('Oversetter…') + '</div>';
           var script = '', warnings = [];
 
           var t = currentMode().translate;
@@ -3485,7 +3549,7 @@
             editorContent.python = script;
           } else if (t && t.toMicrodata) {
             if (activeEditorMode === 'r' && !webRReady) {
-              outputArea.innerHTML = '<div class="transl-warn">WebR er ikke klar enn\u00e5. Vent litt og pr\u00f8v igjen.</div>';
+              outputArea.innerHTML = '<div class="transl-warn">' + window.t('WebR er ikke klar ennå. Vent litt og prøv igjen.') + '</div>';
               return;
             }
             var py2 = activeEditorMode === 'python' ? await loadPyodideAndM2py() : null;
@@ -3496,7 +3560,7 @@
 
           var html = '';
           if (warnings && warnings.length) {
-            html += '<div class="transl-warn">Oversettelseadvarsler:\n' +
+            html += '<div class="transl-warn">' + window.t('Oversettelseadvarsler:') + '\n' +
               warnings.map(function(w) {
                 return String(w).replace(/&/g,'&amp;').replace(/</g,'&lt;');
               }).join('\n') + '</div>';
@@ -3506,8 +3570,7 @@
           outputArea.innerHTML = html;
 
         } catch(e) {
-          outputArea.innerHTML = '<pre class="error">Oversettingsfeil: ' +
-            String(e.message||e).replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</pre>';
+          outputArea.innerHTML = '<pre class="error">' + window.t('Oversettingsfeil: {msg}', { msg: String(e.message||e).replace(/&/g,'&amp;').replace(/</g,'&lt;') }) + '</pre>';
         } finally {
           btn.disabled = false;
         }
@@ -3519,29 +3582,29 @@
 
     // ── Starteksempel og auto-fokus ─────────────────────────────────────────
     const _PLACEHOLDER = [
-      '// Velkommen!',
-      '// Dette er en side der du kan øve på å kjøre analyser i microdata.no.',
+      t('// Velkommen!'),
+      t('// Dette er en side der du kan øve på å kjøre analyser i microdata.no.'),
       '',
-      '//- Denne siden inneholder ikke ekte tall, det er et hobbyprosjekt og er ikke laget av microdata.no selv. Den kommer også uten garantier for at analysene er korrekt implementert.',
+      t('//- Denne siden inneholder ikke ekte tall, det er et hobbyprosjekt og er ikke laget av microdata.no selv. Den kommer også uten garantier for at analysene er korrekt implementert.'),
       '',
-      '// La oss starte med et eksempel',
-      '//- Du kan endre det fritt eller hente et nytt under eksempler i menyen.',
+      t('// La oss starte med et eksempel'),
+      t('//- Du kan endre det fritt eller hente et nytt under eksempler i menyen.'),
       '',
-      '// Først må vi koble oss opp mot basen med data',
-      'require no.ssb.fdb:51 as db  // Her lager vi koblingen og gir den et navn (db).',
+      t('// Først må vi koble oss opp mot basen med data'),
+      t('require no.ssb.fdb:51 as db  // Her lager vi koblingen og gir den et navn (db).'),
       '',
-      'create-dataset df  // Vi starter så med å opprette et nytt datasett kalt df',
+      t('create-dataset df  // Vi starter så med å opprette et nytt datasett kalt df'),
       '',
-      '// Vi kan så importere ulike variabler',
+      t('// Vi kan så importere ulike variabler'),
       'import db/BEFOLKNING_KJOENN as kjonn',
-      'import db/INNTEKT_LONN 2022-01-01 as inntekt  // Akkumulerte variabler krever en importdato (YYYY-MM-DD)',
-      '// Nå har vi hentet data fra databasen (db) og gitt variablene nye navn.',
-      '// Husk at du kan trykke TAB for å få hjelp med kommandoer og variabler',
+      t('import db/INNTEKT_LONN 2022-01-01 as inntekt  // Akkumulerte variabler krever en importdato (YYYY-MM-DD)'),
+      t('// Nå har vi hentet data fra databasen (db) og gitt variablene nye navn.'),
+      t('// Husk at du kan trykke TAB for å få hjelp med kommandoer og variabler'),
       '',
-      '// Da er vi klare til å analysere.',
-      'summarize inntekt // Kommandoen vises gjennomsnitt, standardavvik og mer',
-      'tabulate kjonn    // Tabellen viser fordelingen mellom kjønnene i datasettet',
-      'barchart kjonn    // Til slutt lager vi et stolpediagram over kjønnsfordelingen',
+      t('// Da er vi klare til å analysere.'),
+      t('summarize inntekt // Kommandoen vises gjennomsnitt, standardavvik og mer'),
+      t('tabulate kjonn    // Tabellen viser fordelingen mellom kjønnene i datasettet'),
+      t('barchart kjonn    // Til slutt lager vi et stolpediagram over kjønnsfordelingen'),
     ].join('\n');
     if (!scriptInput.value.trim()) {
       scriptInput.value = _PLACEHOLDER;
@@ -3662,7 +3725,7 @@
       try {
         if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
       } catch (e) {}
-      if (!explainRunActive) setStatus(rightStatus, 'Avbryter\u2026');
+      if (!explainRunActive) setStatus(rightStatus, t('Avbryter…'));
     }
 
     function forklarPauseRequested() {
@@ -3700,12 +3763,12 @@
     }
     function setRunButtonsUi(mode) {
       var runBtns = [
-        { btn: btnRun, idleSlot: BTN_RUN_GEARS_HTML, idleLabel: 'Kj\u00f8r' },
-        { btn: btnRunFooter, idleSlot: BTN_RUN_GEARS_HTML, idleLabel: 'Kj\u00f8r' }
+        { btn: btnRun, idleSlot: BTN_RUN_GEARS_HTML, idleLabel: t('Kjør') },
+        { btn: btnRunFooter, idleSlot: BTN_RUN_GEARS_HTML, idleLabel: t('Kjør') }
       ];
       var forkBtns = [
-        { btn: btnForklar, idleSlot: BTN_FORKLAR_SPEAKER_HTML, idleLabel: 'Kj\u00f8r skrittvis' },
-        { btn: btnForklarFooter, idleSlot: BTN_FORKLAR_SPEAKER_HTML, idleLabel: 'Kj\u00f8r skrittvis' }
+        { btn: btnForklar, idleSlot: BTN_FORKLAR_SPEAKER_HTML, idleLabel: t('Kjør skrittvis') },
+        { btn: btnForklarFooter, idleSlot: BTN_FORKLAR_SPEAKER_HTML, idleLabel: t('Kjør skrittvis') }
       ];
       var forklarOnlyRun = mode === 'running' && explainRunActive;
       for (var i = 0; i < runBtns.length; i++) {
@@ -3724,11 +3787,11 @@
         btn.classList.toggle('btn-run--running', mode === 'running');
         if (mode === 'running') {
           if (slot) slot.innerHTML = BTN_RUN_SPINNER_HTML;
-          if (labelEl) labelEl.textContent = 'Avbryt';
+          if (labelEl) labelEl.textContent = t('Avbryt');
           btn.disabled = false;
         } else if (mode === 'loading') {
           if (slot) slot.innerHTML = BTN_RUN_SPINNER_HTML;
-          if (labelEl) labelEl.textContent = 'Venter';
+          if (labelEl) labelEl.textContent = t('Venter');
           btn.disabled = true;
         } else {
           if (slot) slot.innerHTML = cfg.idleSlot;
@@ -3751,7 +3814,7 @@
         } else if (forkRunning) {
           if (forklarPaused) {
             if (fslot) fslot.innerHTML = BTN_FORKLAR_CONTINUE_HTML;
-            if (flabel) flabel.textContent = 'Fortsett';
+            if (flabel) flabel.textContent = t('Fortsett');
           } else {
             if (fslot) fslot.innerHTML = BTN_FORKLAR_PAUSE_HTML;
             if (flabel) flabel.textContent = 'Pause';
@@ -3759,7 +3822,7 @@
           fbtn.disabled = false;
         } else if (mode === 'loading') {
           if (fslot) fslot.innerHTML = BTN_RUN_SPINNER_HTML;
-          if (flabel) flabel.textContent = 'Venter';
+          if (flabel) flabel.textContent = t('Venter');
           fbtn.disabled = true;
         } else {
           if (fslot) fslot.innerHTML = fcfg.idleSlot;
@@ -4050,7 +4113,7 @@
     function renderCatalogOnlyVariableHtml(varName, catalogKeyResolved) {
       const key = variableCatalogKey(catalogKeyResolved);
       const cat = microdataCatalog && microdataCatalog.variables && microdataCatalog.variables[key];
-      if (!cat) return '<p class="var-detail-prose" style="color:var(--text-muted)">Ingen katalogoppføring for «' + escapeHtml(key) + '».</p>';
+      if (!cat) return '<p class="var-detail-prose" style="color:var(--text-muted)">' + t('Ingen katalogoppføring for «{key}».', { key: escapeHtml(key) }) + '</p>';
       const parts = [];
       if (varName !== key) {
         parts.push('<p class="var-detail-alias-line"><strong>Kolonnenavn:</strong> ' + escapeHtml(varName) + ' · <strong>Katalognavn:</strong> ' + escapeHtml(key) + '</p>');
@@ -4256,15 +4319,15 @@
       if (!overlay || !bodyEl) return;
       titleEl.textContent = datasetName;
       metaEl.textContent = '';
-      bodyEl.innerHTML = '<div class="individata-status">Henter data …</div>';
+      bodyEl.innerHTML = '<div class="individata-status">' + t('Henter data …') + '</div>';
       overlay.classList.add('open');
       overlay.setAttribute('aria-hidden', 'false');
       if (!pyodide) {
-        bodyEl.innerHTML = '<div class="individata-status error">Kjør et skript først så datasettet er lastet inn.</div>';
+        bodyEl.innerHTML = '<div class="individata-status error">' + t('Kjør et skript først så datasettet er lastet inn.') + '</div>';
         return;
       }
       if (typeof Tabulator === 'undefined') {
-        bodyEl.innerHTML = '<div class="individata-status error">Tabulator-biblioteket er ikke lastet. Sjekk nettverket og last siden på nytt.</div>';
+        bodyEl.innerHTML = '<div class="individata-status error">' + t('Tabulator-biblioteket er ikke lastet. Sjekk nettverket og last siden på nytt.') + '</div>';
         return;
       }
       try {
@@ -4455,7 +4518,7 @@
     }
 
     async function showVariableDetail(datasetName, varName) {
-      if (!pyodide) { alert('Kjør scriptet først.'); return; }
+      if (!pyodide) { alert(t('Kjør scriptet først.')); return; }
       var overlay = document.getElementById('varDetailOverlay');
       var titleEl = document.getElementById('varDetailTitle');
       var bodyEl = document.getElementById('varDetailBody');
@@ -4573,22 +4636,24 @@ json.dumps(out)
     function getCommandHelp(cmd) {
       const help = typeof window.MICRODATA_COMMAND_HELP !== 'undefined' && window.MICRODATA_COMMAND_HELP[cmd];
       if (!help) return null;
-      let s = 'Kommando: ' + cmd + '\n\nSyntaks: ' + (help.syntax || '');
-      if (help.description) s += '\n\n' + help.description;
-      if (help.options && help.options.length) s += '\n\nAlternativer: ' + help.options.join('\n');
-      if (help.examples && help.examples.length) s += '\n\nEksempler:\n' + help.examples.slice(0, 5).join('\n');
+      let s = t('Kommando:') + ' ' + cmd + '\n\n' + t('Syntaks:') + ' ' + (help.syntax || '');
+      const desc = i18nField(help, 'description');
+      if (desc) s += '\n\n' + desc;
+      if (help.options && help.options.length) s += '\n\n' + t('Alternativer:') + ' ' + help.options.join('\n');
+      if (help.examples && help.examples.length) s += '\n\n' + t('Eksempler:') + '\n' + help.examples.slice(0, 5).join('\n');
       const src = help.source || (MICRODATA_COMMAND_DOC_BASE + '#' + cmd.toLowerCase());
-      s += '\n\nMer dokumentasjon: ' + src;
+      s += '\n\n' + t('Mer dokumentasjon:') + ' ' + src;
       return s;
     }
 
     function formatFunctionHelp(help, name) {
       if (!help) return null;
-      let s = 'Funksjon: ' + name + '\n\n';
-      if (help.syntax) s += 'Syntaks: ' + help.syntax + '\n\n';
-      if (help.description) s += help.description;
+      let s = t('Funksjon:') + ' ' + name + '\n\n';
+      if (help.syntax) s += t('Syntaks:') + ' ' + help.syntax + '\n\n';
+      const fdesc = i18nField(help, 'description');
+      if (fdesc) s += fdesc;
       const funcUrl = MICRODATA_FUNCTION_DOC_BASE + '#' + name.toLowerCase();
-      s += '\n\nMer dokumentasjon: ' + funcUrl;
+      s += '\n\n' + t('Mer dokumentasjon:') + ' ' + funcUrl;
       return s;
     }
 
@@ -6951,11 +7016,11 @@ json.dumps(out)
       // Auto-install packages found in library()/require() calls
       var rPkgs = extractRPackages(src);
       if (rPkgs.length) {
-        setStatus(leftStatus, 'Installerer: ' + rPkgs.join(', ') + '\u2026');
+        setStatus(leftStatus, t('Installerer: {pkgs}…', { pkgs: rPkgs.join(', ') }));
         try { await webR.installPackages(rPkgs, { quiet: true }); } catch(e) {
           console.warn('R package install error:', e);
         }
-        setStatus(leftStatus, 'Klar (R).');
+        setStatus(leftStatus, t('Klar (R).'));
       }
 
       if (!webRShelter) webRShelter = await new webR.Shelter();
@@ -6970,7 +7035,7 @@ json.dumps(out)
       }
       for (var _ri = 0; _ri < _loadsR.length; _ri++) {
         var _lr = _loadsR[_ri];
-        if (_lr.format === 'parquet') throw new Error('parquet støttes ikke i R-modus ennå (' + _lr.alias + ')');
+        if (_lr.format === 'parquet') throw new Error(t('parquet støttes ikke i R-modus ennå ({alias})', { alias: _lr.alias }));
         var _rp = '/home/web_user/_webdata_' + _lr.alias + '.' + _lr.format;
         await webR.FS.writeFile(_rp, _lr.bytes);
         var _rcode = _lr.format === 'json'
@@ -6994,7 +7059,7 @@ json.dumps(out)
       // Arrow IPC with label metadata applied as factors.
       if (microdataSegs.length > 0) {
         try {
-          setStatus(rightStatus, 'Setter opp data\u2026');
+          setStatus(rightStatus, t('Setter opp data…'));
           // Build catalog JSON to pass to Python for label application
           var _catJson = (microdataCatalog && microdataCatalog.variables)
             ? JSON.stringify(microdataCatalog.variables) : '{}';
@@ -7051,7 +7116,7 @@ json.dumps(out)
 
             await webR.evalRVoid(rCode);
           }
-          setStatus(rightStatus, 'Kj\u00f8rer R\u2026');
+          setStatus(rightStatus, t('Kjører R…'));
         } catch(e) {
           outputParts.push({ type: 'error', text: 'Microdata-feil: ' + (e.message || e) });
         }
@@ -7153,7 +7218,7 @@ json.dumps(out)
       try {
         const py = await loadPyodideAndM2py();
         await loadPdexplorer(py);
-        setStatus(rightStatus, 'Kjører statx…');
+        setStatus(rightStatus, t('Kjører statx…'));
         const segments = parseHybridScript(script, 'stata');
         const microCode = segments.filter(function(s) { return s.kind === 'microdata'; }).map(function(s) { return s.text; }).join('\n');
         const statxCode = segments.filter(function(s) { return s.kind === 'stata' || s.kind === 'statx'; }).map(function(s) { return s.text; }).join('\n');
@@ -7192,7 +7257,7 @@ def _run_microdata_chunk(_code):
       } catch (err) {
         const errMsg = (err && err.message) ? err.message : String(err);
         renderOutput('Statx-feil:\n' + errMsg, false, false);
-        setStatus(rightStatus, 'statx-feil', true);
+        setStatus(rightStatus, t('statx-feil'), true);
       }
     }
 
@@ -7352,15 +7417,18 @@ exec(compile(static_code, "static_source.py", "exec"), sys.modules["static_sourc
           window.__staticSourceLoaded = true;
         } catch (e) { console.warn('static_source register:', e); }
       }
-      // Speile avsløringskontroll-flagget fra localStorage til m2py.M2PY_DISCLOSURE_CONTROL.
+      // Speile avsløringskontroll-flagget fra localStorage til m2py.M2PY_DISCLOSURE_CONTROL,
+      // og UI-språket til m2py.M2PY_LANG (styrer motorens meldingsspråk).
       window.__applyDisclosureControlToPython = async function () {
         if (!pyodide) return;
         const on = window.__getDisclosureControl ? window.__getDisclosureControl() : false;
+        const uiLang = window.M2PY_LANG === 'en' ? 'en' : 'no';
         try {
           await pyodide.runPythonAsync(
             `import sys\n` +
             `if 'm2py' in sys.modules:\n` +
-            `    sys.modules['m2py'].M2PY_DISCLOSURE_CONTROL = ${on ? "'1'" : "'0'"}\n`
+            `    sys.modules['m2py'].M2PY_DISCLOSURE_CONTROL = ${on ? "'1'" : "'0'"}\n` +
+            `    sys.modules['m2py'].M2PY_LANG = '${uiLang}'\n`
           );
         } catch (e) { console.warn('apply disclosure control:', e); }
       };
@@ -7377,7 +7445,7 @@ has and "int" in (m.get_microdata_functions() or {})
       // `from m2py_runtime import keys` (merge handler) resolves without needing
       // the offline-translation menu first. Non-fatal (only merges need it).
       try { await ensureM2pyRuntime(pyodide); } catch (e) { console.warn('m2py_runtime load:', e); }
-      setStatus(leftStatus, functionsLoaded ? 'Ready. (functions.py lastet.)' : 'Ready.');
+      setStatus(leftStatus, functionsLoaded ? t('Ready. (functions.py lastet.)') : 'Ready.');
       return pyodide;
     }
 
@@ -7401,7 +7469,7 @@ has and "int" in (m.get_microdata_functions() or {})
           'import pdexplorer\n'
         );
         // load our runner module into Pyodide (mirror exec/compile pattern used for functions.py)
-        setStatus(leftStatus, 'Laster statx_runner…');
+        setStatus(leftStatus, t('Laster statx_runner…'));
         const src = await fetch(base + 'statx_runner.py?v=' + (window.M2PY_VERSION || '1'), { cache: 'no-store' }).then(r => r.text());
         await py.runPythonAsync(
           'import sys, importlib.util\n' +
@@ -7412,7 +7480,7 @@ has and "int" in (m.get_microdata_functions() or {})
           'exec(compile(src, "statx_runner.py", "exec"), mod.__dict__)\n'
         );
         pdexplorerReady = true;
-        setStatus(leftStatus, 'Klar.');
+        setStatus(leftStatus, t('Klar.'));
       } finally {
         pdexplorerLoading = false;
       }
@@ -7420,7 +7488,7 @@ has and "int" in (m.get_microdata_functions() or {})
 
     async function loadPy2m(py) {
       if (py2mReady) return;
-      setStatus(leftStatus, 'Henter py2m...');
+      setStatus(leftStatus, t('Henter py2m...'));
       const base = window.location.href.replace(/[^/]+$/, '');
       const root = base + 'py2m/py2m/';
       const modules = ['__init__', 'chain', 'expr', 'formula', 'commands', 'expander', 'transformer'];
@@ -7433,7 +7501,7 @@ has and "int" in (m.get_microdata_functions() or {})
           });
         }));
       } catch(e) {
-        setStatus(leftStatus, 'py2m utilgjengelig: ' + (e.message || e), true);
+        setStatus(leftStatus, t('py2m utilgjengelig: {msg}', { msg: e.message || e }), true);
         return;
       }
       await py.runPythonAsync('import os; os.makedirs("/home/pyodide/py2m", exist_ok=True)');
@@ -7444,7 +7512,7 @@ has and "int" in (m.get_microdata_functions() or {})
       }
       await py.runPythonAsync('import sys; sys.path.insert(0, "/home/pyodide"); import py2m');
       py2mReady = true;
-      setStatus(leftStatus, 'Klar.');
+      setStatus(leftStatus, t('Klar.'));
     }
 
     // Write the m2py_runtime package to the Pyodide FS so it imports normally.
@@ -7475,7 +7543,7 @@ has and "int" in (m.get_microdata_functions() or {})
     let translatorReady = false;
     async function loadTranslator(py) {
       if (translatorReady) return;
-      setStatus(leftStatus, 'Henter offline-oversetter…');
+      setStatus(leftStatus, t('Henter offline-oversetter…'));
       const base = window.location.href.replace(/[^/]+$/, '');
       let transSrc;
       try {
@@ -7484,7 +7552,7 @@ has and "int" in (m.get_microdata_functions() or {})
           if (!r.ok) throw new Error('m2py_translate.py'); return r.text();
         });
       } catch (e) {
-        setStatus(leftStatus, 'Offline-oversetter utilgjengelig: ' + (e.message || e), true);
+        setStatus(leftStatus, t('Offline-oversetter utilgjengelig: {msg}', { msg: e.message || e }), true);
         throw e;
       }
       py.globals.set('_trans_src', transSrc);
@@ -7492,7 +7560,7 @@ has and "int" in (m.get_microdata_functions() or {})
       await py.runPythonAsync('import m2py_translate');
       py.globals.set('_trans_src', null);
       translatorReady = true;
-      setStatus(leftStatus, 'Klar.');
+      setStatus(leftStatus, t('Klar.'));
     }
 
     // Translate the current script to standalone Python and show it in output.
@@ -7503,7 +7571,7 @@ has and "int" in (m.get_microdata_functions() or {})
       if (dd) dd.classList.remove('open');
       const src = (scriptInput.value || '').trim();
       if (!src) { outputArea.innerHTML = '<pre style="opacity:.6">(tomt script)</pre>'; return; }
-      outputArea.innerHTML = '<div style="padding:8px;opacity:.6">Oversetter til ' + backend + '…</div>';
+      outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('Oversetter til {backend}…', { backend: backend }) + '</div>';
       try {
         const py = await loadPyodideAndM2py();
         await loadTranslator(py);
@@ -7520,11 +7588,9 @@ has and "int" in (m.get_microdata_functions() or {})
       } catch (e) {
         const msg = String(e && e.message ? e.message : e);
         const hint = (backend === 'polars' && /polars/i.test(msg))
-          ? '\n\n(polars-oversettelse krever polars-pakken, som ikke alltid er '
-            + 'tilgjengelig i nettleseren. Bruk pandas her, eller kjør polars offline.)'
+          ? '\n\n' + t('(polars-oversettelse krever polars-pakken, som ikke alltid er tilgjengelig i nettleseren. Bruk pandas her, eller kjør polars offline.)')
           : '';
-        outputArea.innerHTML = '<pre class="error">Offline-oversettingsfeil: '
-          + escapeHtmlOutput(msg + hint) + '</pre>';
+        outputArea.innerHTML = '<pre class="error">' + t('Offline-oversettingsfeil: {msg}', { msg: escapeHtmlOutput(msg + hint) }) + '</pre>';
       }
     }
 
@@ -7540,11 +7606,11 @@ has and "int" in (m.get_microdata_functions() or {})
     function renderSafeStatResult(res, script, ctx, sourceLabel) {
       var head = '<div style="padding:6px 8px;font-size:12px;opacity:.7">SafeStat &middot; ' + sourceLabel
         + (res.datasets && res.datasets.length ? ' &middot; data: ' + res.datasets.join(', ') : '')
-        + (res.n === null || res.n === undefined ? '' : ' &middot; ' + res.n + ' rader')
+        + (res.n === null || res.n === undefined ? '' : ' &middot; ' + res.n + ' ' + t('rader'))
         + '</div>';
       var _hasAnalysis = (res.results && res.results.length) || (res.figs && res.figs.length);
       var bodyHtml = '';
-      if (res.emu_err) bodyHtml += '<pre class="transl-warn" style="opacity:.75">Data-bygging (emulator): ' + escapeHtmlOutput(res.emu_err) + '</pre>';
+      if (res.emu_err) bodyHtml += '<pre class="transl-warn" style="opacity:.75">' + t('Data-bygging (emulator): {msg}', { msg: escapeHtmlOutput(res.emu_err) }) + '</pre>';
       if (res.err) bodyHtml += '<pre class="error">' + escapeHtmlOutput(res.err) + '</pre>';
       if (safeStatFormat === 'raw') {
         if (res.out && res.out.trim()) bodyHtml += '<pre>' + escapeHtmlOutput(res.out) + '</pre>';
@@ -7554,7 +7620,7 @@ has and "int" in (m.get_microdata_functions() or {})
       }
       if (res.html) {
         bodyHtml += _hasAnalysis
-          ? '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">Datasett (df, ' + (res.n||0) + ' rader)</summary>' + res.html + '</details>'
+          ? '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">' + t('Datasett (df, {n} rader)', { n: res.n||0 }) + '</summary>' + res.html + '</details>'
           : res.html;
       }
       var _figIds = [];
@@ -7563,9 +7629,9 @@ has and "int" in (m.get_microdata_functions() or {})
         _figIds.push({ id: _id, json: _fj });
         bodyHtml += '<div class="plotly-container" id="' + _id + '" style="margin-top:8px"></div>';
       });
-      if (!bodyHtml) bodyHtml = '<pre style="opacity:.6">(ingen output)</pre>';
+      if (!bodyHtml) bodyHtml = '<pre style="opacity:.6">' + t('(ingen output)') + '</pre>';
       outputArea.innerHTML = head + bodyHtml
-        + '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">Generert Python (pandas)</summary><pre class="offline-code"></pre></details>';
+        + '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">' + t('Generert Python (pandas)') + '</summary><pre class="offline-code"></pre></details>';
       outputArea.querySelector('details pre').textContent = res.code;
       try { window.lastDatasetInfo = res.datasetInfo || {}; updateSidebarDatasets(res.datasetInfo || {}); } catch (e) { console.warn('safestat sidebar', e); }
       _figIds.forEach(function(_f){
@@ -7585,15 +7651,15 @@ has and "int" in (m.get_microdata_functions() or {})
       if (token) headers['Authorization'] = 'Bearer ' + token;
       var body = { script: script, sources: sources, backend: 'pandas', raw: safeStatFormat === 'raw' };
       if (dialect) body.dialect = dialect;   // pandas/polars/r/duckdb -> safepy-motoren; utelatt = m2py-DSL
-      outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: sender til server (' + escapeHtmlOutput(reason || 'server-kjøring') + ')…</div>';
+      outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('SafeStat: sender til server ({reason})…', { reason: escapeHtmlOutput(reason || t('server-kjøring')) }) + '</div>';
       try {
         var resp = await fetch(apiBase + '/_/api/run_extended', {
           method: 'POST', headers: headers,
           body: JSON.stringify(body)
         });
-        if (resp.status === 401) { outputArea.innerHTML = '<pre class="error">SafeStat: server-kjøring krever innlogging. Logg inn og prøv igjen.</pre>'; return; }
+        if (resp.status === 401) { outputArea.innerHTML = '<pre class="error">' + t('SafeStat: server-kjøring krever innlogging. Logg inn og prøv igjen.') + '</pre>'; return; }
         var sub = await resp.json();
-        if (!sub || sub.error || !sub.task_id) { outputArea.innerHTML = '<pre class="error">SafeStat remote: ' + escapeHtmlOutput((sub && sub.error) || 'uventet svar') + '</pre>'; return; }
+        if (!sub || sub.error || !sub.task_id) { outputArea.innerHTML = '<pre class="error">SafeStat remote: ' + escapeHtmlOutput((sub && sub.error) || t('uventet svar')) + '</pre>'; return; }
         var taskId = sub.task_id;
         var pollHeaders = token ? { 'Authorization': 'Bearer ' + token } : {};
         for (var i = 0; i < 80; i++) {
@@ -7602,14 +7668,14 @@ has and "int" in (m.get_microdata_functions() or {})
             .then(function(r){ return r.json(); });
           if (st.status === 'completed') { renderSafeStatResult(st.result || {}, script, ctx, 'remote &middot; compute-to-data'); return; }
           if (st.status === 'failed' || st.status === 'killed') {
-            outputArea.innerHTML = '<pre class="error">SafeStat remote feilet: ' + escapeHtmlOutput(st.error || st.status) + '</pre>';
+            outputArea.innerHTML = '<pre class="error">' + t('SafeStat remote feilet: {msg}', { msg: escapeHtmlOutput(st.error || st.status) }) + '</pre>';
             return;
           }
-          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: kjører på server… (' + (i + 1) + ')</div>';
+          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('SafeStat: kjører på server… ({n})', { n: i + 1 }) + '</div>';
         }
-        outputArea.innerHTML = '<pre class="error">SafeStat remote: tidsavbrudd (ingen svar fra server)</pre>';
+        outputArea.innerHTML = '<pre class="error">' + t('SafeStat remote: tidsavbrudd (ingen svar fra server)') + '</pre>';
       } catch (e) {
-        outputArea.innerHTML = '<pre class="error">SafeStat remote-feil: ' + escapeHtmlOutput(String(e && e.message ? e.message : e)) + '</pre>';
+        outputArea.innerHTML = '<pre class="error">' + t('SafeStat remote-feil: {msg}', { msg: escapeHtmlOutput(String(e && e.message ? e.message : e)) }) + '</pre>';
       }
     }
 
@@ -7645,20 +7711,20 @@ has and "int" in (m.get_microdata_functions() or {})
             // Ikke-offentlige kilder svarer 404 for anonyme kall, så send token når vi har det.
             var siHeaders = token ? { 'Authorization': 'Bearer ' + token } : {};
             info = await fetch(apiBase + '/_/api/source_info?id=' + encodeURIComponent(ref.raw), { headers: siHeaders }).then(function(r){ return r.json(); });
-          } catch (e) { return { error: 'source_info feilet for «' + ref.raw + '»: ' + (e.message || e) }; }
-          if (!info || info.error) return { error: 'ukjent kilde: «' + ref.raw + '» (ikke-offentlige kilder krever innlogging)' };
+          } catch (e) { return { error: t('source_info feilet for «{raw}»: {msg}', { raw: ref.raw, msg: e.message || e }) }; }
+          if (!info || info.error) return { error: t('ukjent kilde: «{raw}» (ikke-offentlige kilder krever innlogging)', { raw: ref.raw }) };
         }
         var refExec;
         if (!info.public) {
           refExec = 'remote';
-          if (ref.exec === 'local') return { error: '«' + ref.raw + '» er ikke offentlig — kan ikke kjøres lokalt (kjøres på server).' };
+          if (ref.exec === 'local') return { error: t('«{raw}» er ikke offentlig — kan ikke kjøres lokalt (kjøres på server).', { raw: ref.raw }) };
         } else if (info.default_exec === 'strict_remote') {
           refExec = 'remote';
-          if (ref.exec === 'local') return { error: '«' + ref.raw + '» er for stor — kun server-kjøring.' };
+          if (ref.exec === 'local') return { error: t('«{raw}» er for stor — kun server-kjøring.', { raw: ref.raw }) };
         } else {
           refExec = ref.exec || (info.default_exec === 'remote' ? 'remote' : 'local');
         }
-        if (refExec === 'remote') { executor = 'remote'; reason = info.public ? 'server-kjøring (valgt)' : 'ikke-offentlig kilde'; }
+        if (refExec === 'remote') { executor = 'remote'; reason = info.public ? t('server-kjøring (valgt)') : t('ikke-offentlig kilde'); }
         if (refExec === 'local' && !isUrl && info.location) {
           // substitute the registered name with its public URL so the local path fetches it
           var pat = new RegExp('require\\s+' + ref.raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+as\\s+' + ref.alias, 'i');
@@ -7680,11 +7746,11 @@ has and "int" in (m.get_microdata_functions() or {})
       var named = derived.sources.filter(function(s){ return s.source_id; });
       if (!named.length) return false;   // kun URL-requires: lokal kjøring som før
       if (named.length !== derived.sources.length) {
-        outputArea.innerHTML = '<pre class="error">Server-kjøring kan ikke kombinere navngitte kilder og URL-kilder (ennå). Bruk bare navngitte kilder.</pre>';
+        outputArea.innerHTML = '<pre class="error">' + t('Server-kjøring kan ikke kombinere navngitte kilder og URL-kilder (ennå). Bruk bare navngitte kilder.') + '</pre>';
         return true;
       }
       await runSafeStatRemote(derived.remoteScript, ctx, named,
-        derived.reason === 'lokal' ? 'navngitt kilde' : derived.reason, dialect);
+        derived.reason === 'lokal' ? t('navngitt kilde') : derived.reason, dialect);
       return true;
     }
 
@@ -7721,11 +7787,11 @@ has and "int" in (m.get_microdata_functions() or {})
       var unknown = targets.filter(function (t) { return !microdataTargetKnown(t, banks); });
       if (!unknown.length) return false;                 // alle katalog-kjente: lokal
       if (unknown.length !== targets.length) {
-        outputArea.innerHTML = '<pre class="error">Kan ikke kombinere SSB-katalogkilder og serverkilder i samme skript (ennå). Bruk enten bare katalogkilder (lokal kjøring) eller bare serverkilder.</pre>';
+        outputArea.innerHTML = '<pre class="error">' + t('Kan ikke kombinere SSB-katalogkilder og serverkilder i samme skript (ennå). Bruk enten bare katalogkilder (lokal kjøring) eller bare serverkilder.') + '</pre>';
         return true;
       }
       if (unknown.some(function (t) { return /^https?:\/\//i.test(t); })) {
-        outputArea.innerHTML = '<pre class="error">URL-kilder støttes ikke i microdata-modus (ennå) — bruk SafeStat-modus, eller registrer kilden på serveren.</pre>';
+        outputArea.innerHTML = '<pre class="error">' + t('URL-kilder støttes ikke i microdata-modus (ennå) — bruk SafeStat-modus, eller registrer kilden på serveren.') + '</pre>';
         return true;
       }
       var derived = await deriveSafeStatExecutor(script);
@@ -7734,7 +7800,7 @@ has and "int" in (m.get_microdata_functions() or {})
       // den lokale motoren kan ikke lese serverdata (require er no-op).
       // dialect 'm2py' = den reserverte DSL-motoren (samme som utelatt).
       await runSafeStatRemote(derived.cleanScript, ctx, derived.sources,
-        derived.reason === 'lokal' ? 'navngitt kilde' : derived.reason, 'm2py');
+        derived.reason === 'lokal' ? t('navngitt kilde') : derived.reason, 'm2py');
       return true;
     }
 
@@ -7744,7 +7810,7 @@ has and "int" in (m.get_microdata_functions() or {})
       if (derived.executor === 'remote') { await runSafeStatRemote(derived.cleanScript, ctx, derived.sources, derived.reason); return; }
       var script = derived.localScript;   // public-name refs rewritten to their URL; exec() stripped
       var py = (ctx && ctx.py) || await loadPyodideAndM2py();
-      outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: oversetter til pandas og kjører lokalt…</div>';
+      outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('SafeStat: oversetter til pandas og kjører lokalt…') + '</div>';
       try {
         await loadTranslator(py);                 // ensures m2py_runtime + m2py_translate on the FS
         // Pyodide can't pd.read_csv(url); fetch require'd URLs in JS, write to the
@@ -7768,7 +7834,7 @@ has and "int" in (m.get_microdata_functions() or {})
           })(_m[1], _m[2]);
         }
         if (_fetches.length) {
-          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: henter ' + _fetches.length + ' datakilde(r)…</div>';
+          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('SafeStat: henter {n} datakilde(r)…', { n: _fetches.length }) + '</div>';
           await Promise.all(_fetches);
         }
         var _pkgFor = [
@@ -7779,13 +7845,12 @@ has and "int" in (m.get_microdata_functions() or {})
         var _need = _pkgFor.filter(function(p){ return p.re.test(script); }).map(function(p){ return p.pkg; });
         for (var _pi = 0; _pi < _need.length; _pi++) {
           var _pkg = _need[_pi];
-          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">SafeStat: installerer ' + _pkg + '…</div>';
+          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('SafeStat: installerer {pkg}…', { pkg: _pkg }) + '</div>';
           try {
             py.globals.set('_ss_pkg', _pkg);
             await py.runPythonAsync('import micropip as _mp\nawait _mp.install(_ss_pkg)');
           } catch (e) {
-            outputArea.innerHTML = '<pre class="error">SafeStat: kunne ikke installere «' + _pkg
-              + '» (kreves for dette scriptet) i nettleseren: ' + escapeHtmlOutput(String(e && e.message ? e.message : e)) + '</pre>';
+            outputArea.innerHTML = '<pre class="error">' + t('SafeStat: kunne ikke installere «{pkg}» (kreves for dette scriptet) i nettleseren: {msg}', { pkg: _pkg, msg: escapeHtmlOutput(String(e && e.message ? e.message : e)) }) + '</pre>';
             return;
           }
         }
@@ -7868,7 +7933,7 @@ _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
              "figs": _figs, "results": _results, "datasetInfo": _dsinfo})
 `);
         var res = JSON.parse(raw);
-        renderSafeStatResult(res, script, ctx, 'lokal kjøring');
+        renderSafeStatResult(res, script, ctx, t('lokal kjøring'));
       } catch (e) {
         outputArea.innerHTML = '<pre class="error">SafeStat-feil: '
           + escapeHtmlOutput(String(e && e.message ? e.message : e)) + '</pre>';
@@ -7895,12 +7960,12 @@ _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
       if (webRReady || webRLoading) return;
       webRLoading = true;
       setRunButtonsUi('loading');
-      setStatus(leftStatus, 'Laster WebR\u2026');
+      setStatus(leftStatus, t('Laster WebR…'));
       try {
         const { WebR } = await import('https://webr.r-wasm.org/latest/webr.mjs');
         webR = new WebR();
         await webR.init();
-        setStatus(leftStatus, 'Laster r2m\u2026');
+        setStatus(leftStatus, t('Laster r2m…'));
         const base = window.location.href.replace(/[^/]+$/, '');
         const root = base + 'r2m/r2m/';
         // Order matches r2m/test_r2m.R: expr.R defines helpers used by
@@ -7914,7 +7979,7 @@ _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
           await webR.evalRVoid(src);
         }
         // Install arrow + base64enc for typed dataframe transfer from Pyodide
-        setStatus(leftStatus, 'Installerer arrow, base64enc\u2026');
+        setStatus(leftStatus, t('Installerer arrow, base64enc…'));
         await webR.installPackages(['base64enc'], { quiet: true });
         // Create a persistent Shelter for captureR (text + plot capture)
         webRShelter = await new webR.Shelter();
@@ -7954,12 +8019,12 @@ options(width = 200)
 `);
         webRReady = true;
         setRunButtonsUi('idle');
-        setStatus(leftStatus, 'Klar (R).');
+        setStatus(leftStatus, t('Klar (R).'));
       } catch(e) {
         webRLoading = false;
         webR = null;
         setRunButtonsUi('idle');
-        setStatus(leftStatus, 'WebR feilet: ' + (e.message || e), true);
+        setStatus(leftStatus, t('WebR feilet: {msg}', { msg: e.message || e }), true);
         if (activeEditorMode === 'r') {
           outputArea.insertAdjacentHTML('afterbegin',
             '<div class="transl-warn">WebR kunne ikke lastes. R-kj\u00f8ring utilgjengelig.\n' + (e.message || e) + '</div>');
@@ -8094,7 +8159,7 @@ options(width = 200)
           var _rawLoads = await window.DataLoader.resolveAndFetchLoads(effectiveScript, { authToken: getAuthToken() });
           if (activeEditorMode === 'duckdb') {
             var _htmlLoad = _rawLoads.find(function (l) { return l.format === 'html'; });
-            if (_htmlLoad) throw new Error('html-kilder støttes ikke i duckdb-modus (' + _htmlLoad.alias + ') — bruk python/r');
+            if (_htmlLoad) throw new Error(t('html-kilder støttes ikke i duckdb-modus ({alias}) — bruk python/r', { alias: _htmlLoad.alias }));
           }
           if (_rawLoads.length) py.FS.mkdirTree('/home/pyodide/_webdata');
           _pyLoads = _rawLoads.map(function (l) {
@@ -8117,12 +8182,12 @@ options(width = 200)
         // If any segment is DuckDB SQL, make sure the bridge module + pyarrow are
         // ready before the Pyodide run loop reaches a #duckdb segment.
         if (segments.some(function (s) { return s.kind === 'duckdb'; })) {
-          setStatus(rightStatus, 'Laster DuckDB-bro…');
+          setStatus(rightStatus, t('Laster DuckDB-bro…'));
           await __ensureDuckBridge(py);
           try {
             var _needPa = await py.runPythonAsync('import importlib.util as _iu\n_iu.find_spec("pyarrow") is None');
             if (_needPa) {
-              setStatus(rightStatus, 'Installerer pyarrow…');
+              setStatus(rightStatus, t('Installerer pyarrow…'));
               await py.runPythonAsync('import micropip as _mp\nawait _mp.install("pyarrow")');
             }
           } catch (e) { console.warn('pyarrow ensure:', e); }
@@ -8235,17 +8300,17 @@ for _seg in _segments:
         try {
           if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
         } catch (e) {}
-        setStatus(rightStatus, 'Avbryter\u2026');
+        setStatus(rightStatus, t('Avbryter…'));
         return;
       }
       if (activeEditorMode === 'r' && !webRReady) {
-        setStatus(rightStatus, 'WebR er ikke klar ennå. Vent og prøv igjen.', true);
+        setStatus(rightStatus, t('WebR er ikke klar ennå. Vent og prøv igjen.'), true);
         return;
       }
       const rawScript = scriptInput.value;
       const scriptTrim = rawScript.trim();
       if (!scriptTrim) {
-        setStatus(rightStatus, 'Ingen kode \u00e5 forklare.', true);
+        setStatus(rightStatus, t('Ingen kode å forklare.'), true);
         return;
       }
       // Compute-to-data: navngitte kilder kj\u00f8res p\u00e5 server (maybeRunRemote);
@@ -8253,7 +8318,7 @@ for _seg in _segments:
       // forvirrende lokal feil.
       if ({ python: 1, r: 1, duckdb: 1 }[activeEditorMode]
           && /^[ \t]*(?:#|--|\/\/)[ \t]*require\s+(?!https?:\/\/)\S+\s+as\s+\w+/im.test(rawScript)) {
-        setStatus(rightStatus, 'Skrittvis kj\u00f8ring st\u00f8ttes ikke for navngitte kilder (server-kj\u00f8ring). Bruk Kj\u00f8r.', true);
+        setStatus(rightStatus, t('Skrittvis kjøring støttes ikke for navngitte kilder (server-kjøring). Bruk Kjør.'), true);
         return;
       }
       // Microdata-modus: samme vern for serverkilder (m\u00e5l utenfor katalogen)
@@ -8263,7 +8328,7 @@ for _seg in _segments:
         while ((_fkM = _fkRe.exec(rawScript)) !== null) {
           _fkBanks = _fkBanks || microdataKnownDatabanks();
           if (!microdataTargetKnown(_fkM[1], _fkBanks)) {
-            setStatus(rightStatus, 'Skrittvis kj\u00f8ring st\u00f8ttes ikke for serverkilder. Bruk Kj\u00f8r.', true);
+            setStatus(rightStatus, t('Skrittvis kjøring støttes ikke for serverkilder. Bruk Kjør.'), true);
             return;
           }
         }
@@ -8701,7 +8766,7 @@ def _run_microdata_chunk(_code):
         outputArea.appendChild(pre);
         forklarRevealOutputAnim();
         scrollOutputToTop();
-        setStatus(rightStatus, 'Forklar feilet.', true);
+        setStatus(rightStatus, t('Forklar feilet.'), true);
         window.lastDatasetInfo = {};
         updateSidebarDatasets({});
       } finally {
@@ -8746,82 +8811,82 @@ def _run_microdata_chunk(_code):
 
   <div id="dmResultBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 780px; max-height: 80vh; display: flex; flex-direction: column;">
-      <h3 style="font-size: 1.25em;">Dataminimering-vurdering</h3>
+      <h3 style="font-size: 1.25em;" data-i18n>Dataminimering-vurdering</h3>
       <div id="dmResultBody" style="flex: 1; overflow-y: auto; padding: 8px 0; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.5;"></div>
       <div id="dmResultStatus" style="font-size: 12px; color: var(--text-muted); padding: 4px 0;"></div>
       <div id="dmResultRevisedSection" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
-        <h4 style="margin: 0 0 8px 0;">Revidert script</h4>
+        <h4 style="margin: 0 0 8px 0;" data-i18n>Revidert script</h4>
         <pre id="dmResultRevisedCode" style="background: var(--bg); padding: 10px; border-radius: 4px; max-height: 240px; overflow-y: auto; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; margin: 0;"></pre>
         <div style="margin-top: 8px; display: flex; gap: 8px;">
-          <button type="button" id="dmResultCopyRevised" class="ai-modal-btn">Kopier revidert</button>
-          <button type="button" id="dmResultReplaceScript" class="ai-modal-btn primary">Erstatt scriptet</button>
+          <button type="button" id="dmResultCopyRevised" class="ai-modal-btn" data-i18n>Kopier revidert</button>
+          <button type="button" id="dmResultReplaceScript" class="ai-modal-btn primary" data-i18n>Erstatt scriptet</button>
         </div>
       </div>
       <div class="ai-modal-actions" style="margin-top: 8px;">
-        <button type="button" id="dmResultCancel" class="ai-modal-btn">Avbryt</button>
-        <button type="button" id="dmResultCopy" class="ai-modal-btn">Kopier</button>
-        <button type="button" id="dmResultClose" class="ai-modal-btn primary">Lukk</button>
+        <button type="button" id="dmResultCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
+        <button type="button" id="dmResultCopy" class="ai-modal-btn" data-i18n>Kopier</button>
+        <button type="button" id="dmResultClose" class="ai-modal-btn primary" data-i18n>Lukk</button>
       </div>
     </div>
   </div>
 
   <div id="dmOptionsBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 540px;">
-      <h3 style="font-size: 1.25em;">Vurder dataminimering</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+      <h3 style="font-size: 1.25em;" data-i18n>Vurder dataminimering</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n>
         AI vurderer om scriptet ditt henter og bruker minimum nødvendig data.
       </p>
 
-      <button type="button" id="dmOptToggleAdvanced" class="ai-modal-btn"
+      <button type="button" id="dmOptToggleAdvanced" class="ai-modal-btn" data-i18n-title
         title="Vis valg for språk, rapportlengde, revidert script og formål"
         style="width: 100%; text-align: left; margin: 8px 0;">⚙ Flere valg</button>
 
       <div id="dmOptAdvanced" style="display:none;">
-        <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;"
+        <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;" data-i18n-title
           title="Hvilket språk scriptet er i. «Automatisk» lar AI gjette ut fra koden.">
-          <label for="dmOptLanguage" style="min-width: 80px;">Språk:</label>
+          <label for="dmOptLanguage" style="min-width: 80px;" data-i18n>Språk:</label>
           <select id="dmOptLanguage" style="flex: 1; padding: 6px;">
-            <option value="auto">Automatisk</option>
+            <option value="auto" data-i18n>Automatisk</option>
             <option value="microdata">microdata.no</option>
             <option value="r">R</option>
             <option value="python">Python</option>
           </select>
         </div>
 
-        <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;"
+        <div style="display: flex; gap: 16px; margin: 12px 0; align-items: center;" data-i18n-title
           title="Kort: de 3–5 viktigste observasjonene. Lang: full gjennomgang av alle dimensjoner med lovreferanser.">
-          <span style="min-width: 80px;">Rapport:</span>
+          <span style="min-width: 80px;" data-i18n>Rapport:</span>
           <label style="margin-right: 16px;">
-            <input type="radio" name="dmOptDetail" value="kort" checked> Kort
+            <input type="radio" name="dmOptDetail" value="kort" checked> <span data-i18n>Kort</span>
           </label>
           <label>
-            <input type="radio" name="dmOptDetail" value="lang"> Lang
+            <input type="radio" name="dmOptDetail" value="lang"> <span data-i18n>Lang</span>
           </label>
         </div>
 
         <div style="margin: 12px 0;">
-          <label title="AI foreslår en konkret, minimert versjon av scriptet som du kan sette rett inn i editoren.">
-            <input type="checkbox" id="dmOptRevise"> Generer også revidert script
+          <label data-i18n-title title="AI foreslår en konkret, minimert versjon av scriptet som du kan sette rett inn i editoren.">
+            <input type="checkbox" id="dmOptRevise"> <span data-i18n>Generer også revidert script</span>
           </label>
           <label style="display:block; margin: 6px 0 0 22px; font-size: 13px; color: var(--text-muted);"
-            title="Lar det reviderte scriptet foreslå scrub-kommandoer (jitter, winsorize, collapse …) for å minimere/de-identifisere data. Krever at «revidert script» er på.">
-            <input type="checkbox" id="dmOptUseScrub"> Bruk scrub-kommandoer (dataminimering) i forslaget
+            data-i18n-title title="Lar det reviderte scriptet foreslå scrub-kommandoer (jitter, winsorize, collapse …) for å minimere/de-identifisere data. Krever at «revidert script» er på.">
+            <input type="checkbox" id="dmOptUseScrub"> <span data-i18n>Bruk scrub-kommandoer (dataminimering) i forslaget</span>
           </label>
         </div>
 
         <div style="margin: 16px 0 12px 0; padding-top: 12px; border-top: 1px solid var(--border);">
-          <div style="margin-bottom: 6px;">Formål og bakgrunn:</div>
-          <button type="button" id="dmOptContextBtn" class="ai-modal-btn" style="width: 100%; text-align: left;"
+          <div style="margin-bottom: 6px;" data-i18n>Formål og bakgrunn:</div>
+          <button type="button" id="dmOptContextBtn" class="ai-modal-btn" style="width: 100%; text-align: left;" data-i18n data-i18n-title
             title="Beskriv formålet med analysen, så vurderer AI ut fra det — ikke bare koden. Reduserer falske «unødvendig variabel»-treff.">Spesifiser formål / kontekst</button>
-          <p id="dmOptContextStatus" style="font-size: 12px; color: var(--text-muted); margin: 6px 0 0 0;">
+          <p id="dmOptContextStatus" style="font-size: 12px; color: var(--text-muted); margin: 6px 0 0 0;" data-i18n>
             Hvis ikke spesifisert, vurderer AI ut fra scriptet alene.
           </p>
         </div>
       </div>
 
       <div class="ai-modal-actions" style="margin-top: 16px;">
-        <button type="button" id="dmOptCancel" class="ai-modal-btn">Avbryt</button>
-        <button type="button" id="dmOptSubmit" class="ai-modal-btn primary"
+        <button type="button" id="dmOptCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
+        <button type="button" id="dmOptSubmit" class="ai-modal-btn primary" data-i18n data-i18n-title
           title="Send scriptet til AI for vurdering med valgene over (eller standardvalg).">Start vurderingen</button>
       </div>
     </div>
@@ -8829,12 +8894,12 @@ def _run_microdata_chunk(_code):
 
   <div id="dmContextBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 600px;">
-      <h3 style="font-size: 1.25em;">Formål og kontekst</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+      <h3 style="font-size: 1.25em;" data-i18n>Formål og kontekst</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n>
         Beskriv formålet og bakgrunnen for analysen. AI bruker dette for å gjøre
         en mer presis vurdering. Alt er valgfritt.
       </p>
-      <textarea id="dmContextTextarea"
+      <textarea id="dmContextTextarea" data-i18n-placeholder
                 style="width: 100%; min-height: 200px; padding: 10px; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.5; box-sizing: border-box;"
                 placeholder="Eksempler på hva som er nyttig:
 - Formålet med analysen
@@ -8845,23 +8910,23 @@ def _run_microdata_chunk(_code):
       <div style="margin-top: 12px;">
         <label>
           <input type="checkbox" id="dmContextSave" checked>
-          Lagre dette som <code>// personvern</code>-blokk i scriptet
+          <span data-i18n-html>Lagre dette som <code>// personvern</code>-blokk i scriptet</span>
         </label>
-        <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0 22px;">
+        <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0 22px;" data-i18n>
           Da plukker neste vurdering opp konteksten automatisk.
         </p>
       </div>
       <div class="ai-modal-actions" style="margin-top: 16px;">
-        <button type="button" id="dmContextCancel" class="ai-modal-btn">Avbryt</button>
-        <button type="button" id="dmContextSubmit" class="ai-modal-btn primary">Bruk</button>
+        <button type="button" id="dmContextCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
+        <button type="button" id="dmContextSubmit" class="ai-modal-btn primary" data-i18n>Bruk</button>
       </div>
     </div>
   </div>
 
   <div id="adminSharedCodeBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 520px;">
-      <h3 style="font-size: 1.25em;">Generer tilgangskode</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+      <h3 style="font-size: 1.25em;" data-i18n>Generer tilgangskode</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n>
         Lager en delt kode som hvem som helst kan lime inn for å logge inn anonymt.
         Bruk for workshop, demo eller midlertidig tilgang.
       </p>
@@ -8869,58 +8934,58 @@ def _run_microdata_chunk(_code):
       <!-- Form (shown initially) -->
       <div id="adminSharedCodeForm">
         <div style="margin: 12px 0;">
-          <label for="adminCodeLabel">Etikett (intern, kun for deg)</label>
+          <label for="adminCodeLabel" data-i18n>Etikett (intern, kun for deg)</label>
           <input type="text" id="adminCodeLabel" placeholder="workshop-2026-06-15" maxlength="100" style="width: 100%; padding: 6px;">
         </div>
 
         <div style="margin: 12px 0;">
-          <label for="adminCodeExpires">Utløper om</label>
+          <label for="adminCodeExpires" data-i18n>Utløper om</label>
           <select id="adminCodeExpires" style="padding: 6px;">
-            <option value="1">1 dag</option>
-            <option value="3" selected>3 dager</option>
-            <option value="7">1 uke</option>
-            <option value="30">30 dager</option>
-            <option value="90">90 dager</option>
+            <option value="1" data-i18n>1 dag</option>
+            <option value="3" selected data-i18n>3 dager</option>
+            <option value="7" data-i18n>1 uke</option>
+            <option value="30" data-i18n>30 dager</option>
+            <option value="90" data-i18n>90 dager</option>
           </select>
         </div>
 
         <div style="margin: 12px 0;">
-          <div>Maks antall bruk</div>
+          <div data-i18n>Maks antall bruk</div>
           <label style="display: block; margin: 4px 0;">
-            <input type="radio" name="adminCodeMaxUses" value="unlimited" checked> Ubegrenset
+            <input type="radio" name="adminCodeMaxUses" value="unlimited" checked> <span data-i18n>Ubegrenset</span>
           </label>
           <label style="display: block;">
             <input type="radio" name="adminCodeMaxUses" value="limited">
-            <input type="number" id="adminCodeMaxUsesInput" min="1" max="10000" value="25" style="width: 80px; padding: 4px;" disabled> bruk
+            <input type="number" id="adminCodeMaxUsesInput" min="1" max="10000" value="25" style="width: 80px; padding: 4px;" disabled> <span data-i18n>bruk</span>
           </label>
         </div>
 
         <div id="adminCodeError" style="color: var(--accent-danger, #d00); font-size: 12px; min-height: 1.2em;"></div>
 
         <div class="ai-modal-actions" style="margin-top: 16px;">
-          <button type="button" id="adminCodeCancel" class="ai-modal-btn">Avbryt</button>
-          <button type="button" id="adminCodeSubmit" class="ai-modal-btn primary">Generer</button>
+          <button type="button" id="adminCodeCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
+          <button type="button" id="adminCodeSubmit" class="ai-modal-btn primary" data-i18n>Generer</button>
         </div>
       </div>
 
       <!-- Result (shown after success) -->
       <div id="adminSharedCodeResult" style="display:none;">
-        <p style="margin: 12px 0 4px 0;">&#10003; Kode generert:</p>
+        <p style="margin: 12px 0 4px 0;" data-i18n>&#10003; Kode generert:</p>
         <div style="background: var(--bg); padding: 12px; border-radius: 4px; margin: 8px 0;">
           <code id="adminCodeResultCode" style="font-size: 18px; font-family: ui-monospace, monospace;"></code>
         </div>
-        <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0;">
+        <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0;" data-i18n-html>
           Utløper: <span id="adminCodeResultExpires"></span><br>
           Maks bruk: <span id="adminCodeResultMaxUses"></span>
         </p>
-        <p style="font-size: 13px; margin: 12px 0;">
+        <p style="font-size: 13px; margin: 12px 0;" data-i18n>
           Gi koden til brukere via Slack, mail, eller på papir.
           De limer den inn i login-modalen som om de fikk den på mail.
         </p>
         <div class="ai-modal-actions" style="margin-top: 16px;">
-          <button type="button" id="adminCodeCopy" class="ai-modal-btn">Kopier</button>
-          <button type="button" id="adminCodeNew" class="ai-modal-btn">Generer ny</button>
-          <button type="button" id="adminCodeClose" class="ai-modal-btn primary">Lukk</button>
+          <button type="button" id="adminCodeCopy" class="ai-modal-btn" data-i18n>Kopier</button>
+          <button type="button" id="adminCodeNew" class="ai-modal-btn" data-i18n>Generer ny</button>
+          <button type="button" id="adminCodeClose" class="ai-modal-btn primary" data-i18n>Lukk</button>
         </div>
       </div>
     </div>
@@ -8929,8 +8994,8 @@ def _run_microdata_chunk(_code):
   <!-- Åpne fra URL -->
   <div id="openUrlBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 560px;">
-      <h3 style="font-size: 1.25em;">&#197;pne script fra URL</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+      <h3 style="font-size: 1.25em;" data-i18n>&#197;pne script fra URL</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n>
         Lim inn en direkte lenke til en tekstfil. Fungerer med GitHub &laquo;raw&raquo;-lenker, GitHub gist og Dropbox.
         Innholdet hentes inn i editoren &mdash; det du har n&aring; blir erstattet.
       </p>
@@ -8939,12 +9004,12 @@ def _run_microdata_chunk(_code):
       </div>
       <div id="openUrlError" style="color: var(--accent-danger,#d00); font-size:12px; min-height:1.2em;"></div>
       <div id="openUrlRecentWrap" style="margin: 8px 0; display:none;">
-        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px;">Nylige</div>
+        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px;" data-i18n>Nylige</div>
         <div id="openUrlRecent"></div>
       </div>
       <div class="ai-modal-actions" style="margin-top:16px;">
-        <button type="button" id="openUrlCancel" class="ai-modal-btn">Avbryt</button>
-        <button type="button" id="openUrlGo" class="ai-modal-btn primary">&#197;pne</button>
+        <button type="button" id="openUrlCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
+        <button type="button" id="openUrlGo" class="ai-modal-btn primary" data-i18n>&#197;pne</button>
       </div>
     </div>
   </div>
@@ -8952,13 +9017,13 @@ def _run_microdata_chunk(_code):
   <!-- Søk om data -->
   <div id="sokDataBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 480px;">
-      <h3 style="font-size: 1.25em;">S&#248;k om data</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+      <h3 style="font-size: 1.25em;" data-i18n>S&#248;k om data</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n>
         Send en foresp&#248;rsel om tilgang til individdata.
       </p>
       <div class="ai-modal-actions" style="margin-top:16px;">
-        <button type="button" id="sokDataCancel" class="ai-modal-btn">Avbryt</button>
-        <button type="button" id="sokDataSend" class="ai-modal-btn primary">Send foresp&#248;rsel</button>
+        <button type="button" id="sokDataCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
+        <button type="button" id="sokDataSend" class="ai-modal-btn primary" data-i18n>Send foresp&#248;rsel</button>
       </div>
     </div>
   </div>
@@ -8966,13 +9031,13 @@ def _run_microdata_chunk(_code):
   <!-- Søknaden er godkjent -->
   <div id="sokDataApprovedBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 480px;">
-      <h3 style="font-size: 1.25em;">S&#248;knaden er godkjent.</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+      <h3 style="font-size: 1.25em;" data-i18n>S&#248;knaden er godkjent.</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n>
         Du har n&#229; tilgang p&#229; individdata. Du kan se data ved &#229; trykke p&#229; &laquo;Se data&raquo;.
       </p>
       <div class="ai-modal-actions" style="margin-top:16px;">
-        <button type="button" id="sokDataApprovedClose" class="ai-modal-btn">Lukk</button>
-        <button type="button" id="sokDataApprovedVis" class="ai-modal-btn primary">Se data</button>
+        <button type="button" id="sokDataApprovedClose" class="ai-modal-btn" data-i18n>Lukk</button>
+        <button type="button" id="sokDataApprovedVis" class="ai-modal-btn primary" data-i18n>Se data</button>
       </div>
     </div>
   </div>
@@ -8981,8 +9046,8 @@ def _run_microdata_chunk(_code):
   <!-- GitHub: innstillinger (oppsett) -->
   <div id="githubBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 560px;">
-      <h3 style="font-size: 1.25em;">GitHub-innstillinger</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+      <h3 style="font-size: 1.25em;" data-i18n>GitHub-innstillinger</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n-html>
         Lagre og hent scripts i ditt eget GitHub-repo. Krever et fine-grained personal access token (PAT)
         med <strong>Contents: Read and write</strong> p&aring; repoet
         (<a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener">lag token</a>).
@@ -8990,24 +9055,24 @@ def _run_microdata_chunk(_code):
       </p>
       <div style="margin:10px 0; display:flex; gap:8px; align-items:flex-end;">
         <div style="flex:1;">
-          <label for="ghProfileSelect">Profil</label>
+          <label for="ghProfileSelect" data-i18n>Profil</label>
           <select id="ghProfileSelect" style="width:100%; padding:6px;"></select>
         </div>
-        <button type="button" id="ghProfileNew" class="ai-modal-btn">Ny</button>
-        <button type="button" id="ghProfileDelete" class="ai-modal-btn">Slett</button>
+        <button type="button" id="ghProfileNew" class="ai-modal-btn" data-i18n>Ny</button>
+        <button type="button" id="ghProfileDelete" class="ai-modal-btn" data-i18n>Slett</button>
       </div>
       <div style="margin:10px 0;">
         <label for="ghPat">Token (PAT)</label>
         <div style="display:flex; gap:6px;">
           <input type="password" id="ghPat" placeholder="github_pat_&#8230;" autocomplete="off" style="flex:1; padding:6px;">
-          <button type="button" id="ghPatToggle" class="ai-modal-btn">Vis</button>
-          <button type="button" id="ghPatCopy" class="ai-modal-btn">Kopier</button>
+          <button type="button" id="ghPatToggle" class="ai-modal-btn" data-i18n>Vis</button>
+          <button type="button" id="ghPatCopy" class="ai-modal-btn" data-i18n>Kopier</button>
         </div>
       </div>
       <div style="display:flex; gap:8px;">
         <div style="flex:2;">
-          <label for="ghRepo">Repo (eier/navn)</label>
-          <input type="text" id="ghRepo" placeholder="brukernavn/mine-scripts" style="width:100%; padding:6px;">
+          <label for="ghRepo" data-i18n>Repo (eier/navn)</label>
+          <input type="text" id="ghRepo" data-i18n-placeholder placeholder="brukernavn/mine-scripts" style="width:100%; padding:6px;">
         </div>
         <div style="flex:1;">
           <label for="ghBranch">Branch</label>
@@ -9017,9 +9082,9 @@ def _run_microdata_chunk(_code):
       <div id="ghError" style="color:var(--accent-danger,#d00); font-size:12px; min-height:1.2em;"></div>
       <div id="ghStatus" style="font-size:12px; color:var(--text-muted); min-height:1.2em;"></div>
       <div class="ai-modal-actions" style="margin-top:16px;">
-        <button type="button" id="ghSettingsClose" class="ai-modal-btn">Lukk</button>
-        <button type="button" id="ghSettingsTest" class="ai-modal-btn">Test tilkobling</button>
-        <button type="button" id="ghSettingsSave" class="ai-modal-btn primary">Lagre innstillinger</button>
+        <button type="button" id="ghSettingsClose" class="ai-modal-btn" data-i18n>Lukk</button>
+        <button type="button" id="ghSettingsTest" class="ai-modal-btn" data-i18n>Test tilkobling</button>
+        <button type="button" id="ghSettingsSave" class="ai-modal-btn primary" data-i18n>Lagre innstillinger</button>
       </div>
     </div>
   </div>
@@ -9027,13 +9092,13 @@ def _run_microdata_chunk(_code):
   <!-- GitHub: filvelger -->
   <div id="ghPickerBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 600px; max-height: 80vh; display: flex; flex-direction: column;">
-      <h3 style="font-size: 1.25em;">&#197;pne fil fra GitHub</h3>
-      <input type="text" id="ghPickerFilter" placeholder="Filtrer filer&#8230;" style="width:100%; padding:6px; margin:8px 0;">
+      <h3 style="font-size: 1.25em;" data-i18n>&#197;pne fil fra GitHub</h3>
+      <input type="text" id="ghPickerFilter" data-i18n-placeholder placeholder="Filtrer filer&#8230;" style="width:100%; padding:6px; margin:8px 0;">
       <div id="ghPickerError" style="color:var(--accent-danger,#d00); font-size:12px; min-height:1.2em;"></div>
       <div id="ghPickerList" style="overflow:auto; flex:1; min-height:140px; max-height:50vh; border:1px solid var(--border); border-radius:6px; padding:4px;"></div>
       <div class="ai-modal-actions" style="margin-top:12px;">
-        <button type="button" id="ghPickerCancel" class="ai-modal-btn">Avbryt</button>
-        <button type="button" id="ghPickerRefresh" class="ai-modal-btn">Oppdater liste</button>
+        <button type="button" id="ghPickerCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
+        <button type="button" id="ghPickerRefresh" class="ai-modal-btn" data-i18n>Oppdater liste</button>
       </div>
     </div>
   </div>
@@ -9041,17 +9106,17 @@ def _run_microdata_chunk(_code):
   <!-- GitHub: lagre som -->
   <div id="ghSaveAsBackdrop" class="ai-modal-backdrop" style="display:none;">
     <div class="ai-modal" style="max-width: 520px;">
-      <h3 style="font-size: 1.25em;">Lagre som&#8230; (GitHub)</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;">
+      <h3 style="font-size: 1.25em;" data-i18n>Lagre som&#8230; (GitHub)</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n-html>
         Skriv filstien i repoet. Bruk skr&aring;strek for mapper, f.eks. <code>analyser/inntekt</code>.
         Endelsen (<code>.txt</code>) legges til automatisk hvis du ikke skriver en.
       </p>
-      <input type="text" id="ghSaveAsPath" list="ghFolderList" placeholder="mappe/filnavn" style="width:100%; padding:6px; margin:8px 0;">
+      <input type="text" id="ghSaveAsPath" list="ghFolderList" data-i18n-placeholder placeholder="mappe/filnavn" style="width:100%; padding:6px; margin:8px 0;">
       <datalist id="ghFolderList"></datalist>
       <div id="ghSaveAsError" style="color:var(--accent-danger,#d00); font-size:12px; min-height:1.2em;"></div>
       <div class="ai-modal-actions" style="margin-top:16px;">
-        <button type="button" id="ghSaveAsCancel" class="ai-modal-btn">Avbryt</button>
-        <button type="button" id="ghSaveAsConfirm" class="ai-modal-btn primary">Lagre</button>
+        <button type="button" id="ghSaveAsCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
+        <button type="button" id="ghSaveAsConfirm" class="ai-modal-btn primary" data-i18n>Lagre</button>
       </div>
     </div>
   </div>

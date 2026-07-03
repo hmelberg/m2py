@@ -6,13 +6,14 @@ import {
   type ScriptContext,
 } from "./_lib/parse-script-context.ts";
 import { streamAnthropic } from "./_lib/anthropic.ts";
-import { gate } from "./_lib/auth.ts";
+import { extractByokKey, gate, upstreamErrorResponse } from "./_lib/auth.ts";
 
 interface RequestBody {
   script: string;
   kontekst?: string;          // user-provided context text (free-form)
   språk?: "auto" | "microdata" | "python" | "r";
   detaljnivå?: "kort" | "lang";
+  ui_lang?: "no" | "en";   // rapportspråk (UI-språket); default norsk
   ønsker_revidert_script?: boolean;
   bruk_scrub?: boolean;       // la revidert script foreslå scrub-kommandoer
 }
@@ -180,7 +181,9 @@ SPRÅK
 
 {{DETAIL_LEVEL}}
 
-OUTPUT (norsk, markdown)
+OUTPUT (markdown)
+
+{{OUTPUT_LANGUAGE}}
 
 ## Klassifisering
 Kategori: <A|B|C>
@@ -353,7 +356,7 @@ function languageInstruction(requested: string, detected: Language): string {
 
 export default async (request: Request): Promise<Response> => {
   const MAX_BODY_BYTES = 50_000;
-  const gateResp = await gate(request, { endpoint: "dm-vurder", maxBodyBytes: MAX_BODY_BYTES });
+  const gateResp = await gate(request, { endpoint: "dm-vurder", maxBodyBytes: MAX_BODY_BYTES, allowByok: true });
   if (gateResp) return gateResp;
 
   let body: RequestBody;
@@ -369,7 +372,8 @@ export default async (request: Request): Promise<Response> => {
     return new Response("Missing script", { status: 400 });
   }
 
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  const byokKey = extractByokKey(request);
+  const apiKey = byokKey ?? Deno.env.get("ANTHROPIC_API_KEY");
   const model = Deno.env.get("ANTHROPIC_MODEL") ?? "claude-sonnet-4-6";
   if (!apiKey) {
     console.error("ANTHROPIC_API_KEY is not set");
@@ -385,6 +389,14 @@ export default async (request: Request): Promise<Response> => {
     ? directives.revider_script
     : (body.ønsker_revidert_script ?? false);
   const requestedLanguage = body.språk ?? "auto";
+  const uiLang = body.ui_lang === "en" ? "en" : "no";
+  const outputLanguage = uiLang === "en"
+    ? `Write the ENTIRE report in English. Translate the section headings exactly as:
+«Klassifisering» → «Classification», «Samlet vurdering» → «Overall assessment»,
+«Observasjoner» → «Observations», «Særlig sensitive variabler» → «Especially sensitive variables»,
+«Spørsmål til forsker» → «Questions for the researcher», «Revidert script» → «Revised script».
+If the revised-script section proposes no changes, write exactly: "No changes suggested."`
+    : "Skriv hele rapporten på norsk.";
   const effectiveLanguage = requestedLanguage === "auto" ? detected : requestedLanguage;
   const detailLevel = body.detaljnivå === "lang" ? DETAIL_LEVEL_LANG : DETAIL_LEVEL_KORT;
 
@@ -408,6 +420,7 @@ export default async (request: Request): Promise<Response> => {
     .replaceAll("{{SCRUB_REFERENCE}}", () => includeScrubRef ? SCRUB_REFERENCE + "\n" : "")
     .replaceAll("{{CONTEXT_SECTION}}", () => contextSection)
     .replaceAll("{{LANGUAGE}}", () => languageInstruction(requestedLanguage, detected))
+    .replaceAll("{{OUTPUT_LANGUAGE}}", () => outputLanguage)
     .replaceAll("{{DETAIL_LEVEL}}", () => detailLevel)
     .replaceAll("{{REVISION_BLOCK}}", () => revisionBlock)
     .replaceAll("{{SCRIPT}}", () => body.script);
@@ -431,6 +444,6 @@ export default async (request: Request): Promise<Response> => {
       },
     });
   } catch (e) {
-    return new Response(`Upstream error: ${e}`, { status: 502 });
+    return upstreamErrorResponse(e, byokKey);
   }
 };

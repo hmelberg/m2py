@@ -3,6 +3,7 @@
  * Web component: <forklar-widget-shell> (én instans på body)
  */
 (function () {
+  var T = window.t || function (s, p) { return p ? s.replace(/\{(\w+)\}/g, function (m, k) { return k in p ? p[k] : m; }) : s; };
   'use strict';
 
   function escapeHtml(s) {
@@ -625,7 +626,7 @@
 
   async function renderQuestion(payload, explainAbortRef, api) {
     const p = payload || {};
-    const prompt = String(p.prompt || 'Spørsmål');
+    const prompt = String(p.prompt || T('Spørsmål'));
     const choices = Array.isArray(p.choices) ? p.choices.map(String) : null;
     const shuffle = !!p.shuffle;
     const caseSensitive = !!p.case_sensitive;
@@ -666,7 +667,7 @@
     const tb = sh.querySelector('#forklarWidgetTitlebar');
     const body = sh.querySelector('#forklarWidgetBody');
     const act = sh.querySelector('#forklarWidgetActions');
-    tb.textContent = 'Spørsmål';
+    tb.textContent = T('Spørsmål');
     const outer = document.createElement('div');
     outer.className = 'forklar-w-q-outer';
     const msgEl = document.createElement('div');
@@ -747,7 +748,7 @@
                 if (p.on_wrong === 'show_correct' && choices) {
                   hint = 'Riktig svar: ' + choices[correctIndex];
                 }
-                msgEl.textContent = hint || 'Ikke riktig, prøv igjen.';
+                msgEl.textContent = hint || T('Ikke riktig, prøv igjen.');
                 return;
               }
               msgEl.textContent = '';
@@ -788,7 +789,7 @@
               if (p.on_wrong === 'show_correct' && correctStr) {
                 msgEl.textContent = 'Riktig svar: ' + correctStr;
               } else {
-                msgEl.textContent = 'Ikke riktig, prøv igjen.';
+                msgEl.textContent = T('Ikke riktig, prøv igjen.');
               }
               return;
             }
