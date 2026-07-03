@@ -125,9 +125,22 @@ Skjema per kilde:
   "join_nokler": ["kommunenummer", "fylkesnummer", "år"],
   "oppskrift": { "python": "…", "r": "…", "duckdb": "…" },
   "sporrings_url_mal": "…/table/{id}?valueCodes[{var}]={koder}&format=csv",
+  "auth": { "type": "api_key", "env": "FRED_API_KEY", "plassering": "query:api_key" },
   "quirks": "JSON-stat2; maks 800k celler per uttak; …"
 }
 ```
+
+**Kilder som krever API-nøkkel** (`auth`-feltet): nøkler lagres som
+Netlify-miljøvariabler (edge-funksjonene leser `Deno.env`) og injiseres
+**kun server-side** — i tool-laget (search/metadata/probe) og i `/api/hent`.
+Nøkkelen skal aldri stå i genererte script eller nå nettleseren: keyed kilder
+hentes alltid via proxyen (`/api/hent?url=…` uten nøkkel; proxyen slår opp i
+registeret og legger på nøkkelen). Injisering skjer BARE når URL-verten
+matcher registeroppføringens vert — ellers kunne en vilkårlig URL lure
+proxyen til å sende nøkkelen til fremmed vert. Netlify-env er riktig hjem for
+nøklene (samme trust-domene som edge-funksjonene, ingen ekstra rundtur);
+Anvil er alternativet den dagen vi trenger *runtime-redigerbar* lagring
+(f.eks. dynamisk register eller bruker-spesifikke nøkler) — ikke nødvendig nå.
 
 `sporrings_url_mal` dokumenterer hvordan et **variabel-nivå uttrekk**
 materialiseres som én GET-URL (PxWebApi v2 GET med valueCodes, Eurostats
@@ -161,6 +174,10 @@ videresending av auth-/cookie-headere; størrelsestak ~50 MB (strømmet, avbryt
 over taket); timeout; `Access-Control-Allow-Origin` mot eget origin. Samme
 auth-gate som AI-endepunktene (Bearer-token) + admin-krav så lenge featuren er
 admin-only, så proxyen ikke er et åpent relé.
+
+Nøkkel-injisering: for kilder med `auth` i registeret legger proxyen på
+API-nøkkelen fra Netlify-env — kun når URL-verten matcher registeroppføringen
+(se registerseksjonen). FRED i seed-lista er første bruker av dette.
 
 ### 5b. Levering: `# require <url> as navn` (eksisterende D1-mekanisme)
 
