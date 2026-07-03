@@ -12,113 +12,113 @@
 <body data-theme="light">
   <header class="topbar">
     <div style="position: relative;">
-      <button type="button" class="hamburger" id="hamburgerBtn" aria-label="Meny" title="Meny">&#9776;</button>
+      <button type="button" class="hamburger" id="hamburgerBtn" aria-label="Meny" title="Meny" data-i18n-aria data-i18n-title>&#9776;</button>
       <div class="hamburger-dropdown" id="hamburgerDropdown">
         <div class="topbar-examples-wrap" style="position:relative">
-          <button type="button" id="menuFilBtn">Fil</button>
+          <button type="button" id="menuFilBtn" data-i18n>Fil</button>
           <div class="examples-dropdown" id="filSubmenu">
-            <button type="button" id="menuNew">Nytt script</button>
-            <button type="button" id="menuOpenUrl">&#197;pne fra URL</button>
-            <button type="button" id="menuLoad">&#197;pne lokal fil</button>
-            <button type="button" id="menuShareLink">Del (kopier lenke)</button>
-            <button type="button" id="menuSave">Last ned kode</button>
+            <button type="button" id="menuNew" data-i18n>Nytt script</button>
+            <button type="button" id="menuOpenUrl" data-i18n>&#197;pne fra URL</button>
+            <button type="button" id="menuLoad" data-i18n>&#197;pne lokal fil</button>
+            <button type="button" id="menuShareLink" data-i18n>Del (kopier lenke)</button>
+            <button type="button" id="menuSave" data-i18n>Last ned kode</button>
           </div>
         </div>
         <div class="topbar-examples-wrap" style="position:relative">
-          <button type="button" id="menuExamplesBtn">Eksempler</button>
+          <button type="button" id="menuExamplesBtn" data-i18n>Eksempler</button>
           <div class="examples-dropdown" id="examplesDropdown">
             <div class="examples-section" data-section-mode="microdata">
-              <button type="button" data-example="01_beskrivende_statistikk.txt" data-mode="microdata">Beskrivende statistikk</button>
-              <button type="button" data-example="02_tabeller_og_kategorier.txt" data-mode="microdata">Tabeller og kategorier</button>
-              <button type="button" data-example="03_visualiseringer.txt" data-mode="microdata">Visualiseringer</button>
-              <button type="button" data-example="04_aggregat_og_generate.txt" data-mode="microdata">Aggregat og nye variabler</button>
-              <button type="button" data-example="05_regresjon.txt" data-mode="microdata">Regresjon</button>
-              <button type="button" data-example="06_avansert_analyse.txt" data-mode="microdata">Avansert analyse</button>
+              <button type="button" data-example="01_beskrivende_statistikk.txt" data-mode="microdata" data-i18n>Beskrivende statistikk</button>
+              <button type="button" data-example="02_tabeller_og_kategorier.txt" data-mode="microdata" data-i18n>Tabeller og kategorier</button>
+              <button type="button" data-example="03_visualiseringer.txt" data-mode="microdata" data-i18n>Visualiseringer</button>
+              <button type="button" data-example="04_aggregat_og_generate.txt" data-mode="microdata" data-i18n>Aggregat og nye variabler</button>
+              <button type="button" data-example="05_regresjon.txt" data-mode="microdata" data-i18n>Regresjon</button>
+              <button type="button" data-example="06_avansert_analyse.txt" data-mode="microdata" data-i18n>Avansert analyse</button>
               <hr style="margin:4px 0;border-color:#334155;">
             </div>
             <div class="examples-section" data-section-mode="python">
-              <button type="button" data-example="py01_pandas_basics.txt" data-mode="python">pandas &mdash; grunnleggende</button>
+              <button type="button" data-example="py01_pandas_basics.txt" data-mode="python" data-i18n>pandas &mdash; grunnleggende</button>
               <button type="button" data-example="py02_pandas_microdata.txt" data-mode="python">pandas + #micro</button>
-              <button type="button" data-example="py03_statsmodels_regression.txt" data-mode="python">statsmodels &mdash; OLS-regresjon</button>
+              <button type="button" data-example="py03_statsmodels_regression.txt" data-mode="python" data-i18n>statsmodels &mdash; OLS-regresjon</button>
               <button type="button" data-example="py04_pandas_plot.txt" data-mode="python">matplotlib + #micro</button>
-              <button type="button" data-example="py05_duckdb_block.txt" data-mode="python">pandas + #duckdb (SQL-blokk)</button>
+              <button type="button" data-example="py05_duckdb_block.txt" data-mode="python" data-i18n>pandas + #duckdb (SQL-blokk)</button>
               <hr style="margin:4px 0;border-color:#334155;">
             </div>
             <div class="examples-section" data-section-mode="r">
-              <button type="button" data-example="r01_base_basics.txt" data-mode="r">base R &mdash; grunnleggende</button>
-              <button type="button" data-example="r02_tidyverse_groupby.txt" data-mode="r">tidyverse &mdash; gruppestatistikk</button>
+              <button type="button" data-example="r01_base_basics.txt" data-mode="r" data-i18n>base R &mdash; grunnleggende</button>
+              <button type="button" data-example="r02_tidyverse_groupby.txt" data-mode="r" data-i18n>tidyverse &mdash; gruppestatistikk</button>
               <button type="button" data-example="r03_tidyverse_microdata.txt" data-mode="r">tidyverse + #micro</button>
               <button type="button" data-example="r04_ggplot_microdata.txt" data-mode="r">ggplot2 + #micro</button>
-              <button type="button" data-example="r05_dplyr_recode.txt" data-mode="r">dplyr &mdash; omkoding (case_when/ifelse)</button>
-              <button type="button" data-example="r06_base_r_idioms.txt" data-mode="r">base R &mdash; subset/transform/aggregate</button>
-              <button type="button" data-example="r07_regresjon.txt" data-mode="r">regresjon &mdash; lm + glm</button>
-              <button type="button" data-example="r08_across_sample.txt" data-mode="r">dplyr &mdash; across + slice_sample</button>
+              <button type="button" data-example="r05_dplyr_recode.txt" data-mode="r" data-i18n>dplyr &mdash; omkoding (case_when/ifelse)</button>
+              <button type="button" data-example="r06_base_r_idioms.txt" data-mode="r" data-i18n>base R &mdash; subset/transform/aggregate</button>
+              <button type="button" data-example="r07_regresjon.txt" data-mode="r" data-i18n>regresjon &mdash; lm + glm</button>
+              <button type="button" data-example="r08_across_sample.txt" data-mode="r" data-i18n>dplyr &mdash; across + slice_sample</button>
               <hr style="margin:4px 0;border-color:#334155;">
             </div>
             <div class="examples-section" data-section-mode="statx">
-              <button type="button" data-example="st01_stata_basics.txt" data-mode="statx">Stata &mdash; beskrivende</button>
-              <button type="button" data-example="st02_stata_regresjon.txt" data-mode="statx">Stata &mdash; regresjon</button>
-              <button type="button" data-example="st03_stata_generate.txt" data-mode="statx">Stata &mdash; generate/egen</button>
-              <button type="button" data-example="st04_stata_use.txt" data-mode="statx">Stata &mdash; use (flere datasett)</button>
+              <button type="button" data-example="st01_stata_basics.txt" data-mode="statx" data-i18n>Stata &mdash; beskrivende</button>
+              <button type="button" data-example="st02_stata_regresjon.txt" data-mode="statx" data-i18n>Stata &mdash; regresjon</button>
+              <button type="button" data-example="st03_stata_generate.txt" data-mode="statx" data-i18n>Stata &mdash; generate/egen</button>
+              <button type="button" data-example="st04_stata_use.txt" data-mode="statx" data-i18n>Stata &mdash; use (flere datasett)</button>
             </div>
             <div class="examples-section" data-section-mode="duckdb">
-              <button type="button" data-example="sql01_select_basics.txt" data-mode="duckdb">SQL &mdash; grunnleggende SELECT</button>
-              <button type="button" data-example="sql02_aggregate_groupby.txt" data-mode="duckdb">SQL &mdash; GROUP BY og aggregering</button>
+              <button type="button" data-example="sql01_select_basics.txt" data-mode="duckdb" data-i18n>SQL &mdash; grunnleggende SELECT</button>
+              <button type="button" data-example="sql02_aggregate_groupby.txt" data-mode="duckdb" data-i18n>SQL &mdash; GROUP BY og aggregering</button>
               <button type="button" data-example="sql03_join.txt" data-mode="duckdb">SQL &mdash; JOIN</button>
-              <button type="button" data-example="sql04_create_table.txt" data-mode="duckdb">SQL &mdash; CREATE TABLE (bygg datasett)</button>
-              <button type="button" data-example="sql05_cte_window.txt" data-mode="duckdb">SQL &mdash; CTE + vindusfunksjon</button>
-              <button type="button" data-example="sql06_case_recode.txt" data-mode="duckdb">SQL &mdash; CASE WHEN (omkoding)</button>
-              <button type="button" data-example="sql07_multi_statement.txt" data-mode="duckdb">SQL &mdash; flere setninger</button>
-              <button type="button" data-example="sql08_describe_summary.txt" data-mode="duckdb">SQL &mdash; profilering/oppsummering</button>
+              <button type="button" data-example="sql04_create_table.txt" data-mode="duckdb" data-i18n>SQL &mdash; CREATE TABLE (bygg datasett)</button>
+              <button type="button" data-example="sql05_cte_window.txt" data-mode="duckdb" data-i18n>SQL &mdash; CTE + vindusfunksjon</button>
+              <button type="button" data-example="sql06_case_recode.txt" data-mode="duckdb" data-i18n>SQL &mdash; CASE WHEN (omkoding)</button>
+              <button type="button" data-example="sql07_multi_statement.txt" data-mode="duckdb" data-i18n>SQL &mdash; flere setninger</button>
+              <button type="button" data-example="sql08_describe_summary.txt" data-mode="duckdb" data-i18n>SQL &mdash; profilering/oppsummering</button>
               <button type="button" data-example="sql09_micro_then_sql.txt" data-mode="duckdb">SQL &mdash; #micro &rarr; DuckDB (hybrid)</button>
               <button type="button" data-example="sql10_py_then_sql.txt" data-mode="duckdb">SQL &mdash; #py &rarr; DuckDB (hybrid)</button>
             </div>
             <div class="examples-section" data-section-mode="safestat">
-              <button type="button" data-example="safestat01_url_csv.txt" data-mode="safestat">SafeStat &mdash; CSV fra URL</button>
+              <button type="button" data-example="safestat01_url_csv.txt" data-mode="safestat" data-i18n>SafeStat &mdash; CSV fra URL</button>
             </div>
-            <button type="button" id="menuWebExamples">Flere eksempler p&#229; web</button>
+            <button type="button" id="menuWebExamples" data-i18n>Flere eksempler p&#229; web</button>
           </div>
         </div>
-        <button type="button" id="menuUploadData">Last opp data</button>
+        <button type="button" id="menuUploadData" data-i18n>Last opp data</button>
         <hr style="margin:4px 0;border-color:#334155;">
         <div class="topbar-examples-wrap" style="position:relative">
           <button type="button" id="menuGithubBtn">GitHub</button>
           <div class="examples-dropdown" id="githubSubmenu">
             <div class="examples-dropdown-title">GitHub</div>
-            <button type="button" id="ghMenuSettings">Innstillinger</button>
-            <button type="button" id="ghMenuOpen">&#197;pne fil</button>
-            <button type="button" id="ghMenuSave">Lagre</button>
-            <button type="button" id="ghMenuSaveAs">Lagre som</button>
-            <button type="button" id="ghMenuRefresh" title="Hent gjeldende fil p&#229; nytt fra GitHub og forkast ulagrede lokale endringer. Dette henter (leser) &mdash; det lagrer ikke.">Hent p&#229; nytt</button>
+            <button type="button" id="ghMenuSettings" data-i18n>Innstillinger</button>
+            <button type="button" id="ghMenuOpen" data-i18n>&#197;pne fil</button>
+            <button type="button" id="ghMenuSave" data-i18n>Lagre</button>
+            <button type="button" id="ghMenuSaveAs" data-i18n>Lagre som</button>
+            <button type="button" id="ghMenuRefresh" data-i18n data-i18n-title title="Hent gjeldende fil p&#229; nytt fra GitHub og forkast ulagrede lokale endringer. Dette henter (leser) &mdash; det lagrer ikke.">Hent p&#229; nytt</button>
           </div>
         </div>
-        <button type="button" id="menuForklar" title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">Kj&#248;r skrittvis</button>
+        <button type="button" id="menuForklar" data-i18n data-i18n-title title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">Kj&#248;r skrittvis</button>
         <div class="topbar-examples-wrap" id="offlineMenuWrap" style="position:relative;display:none">
-          <button type="button" id="menuOfflineBtn" title="Oversett microdata-scriptet til frittst&#229;ende Python (pandas/polars) som kan kj&#248;res utenfor nettleseren, f.eks. p&#229; Anvil">Vis offline Python</button>
+          <button type="button" id="menuOfflineBtn" data-i18n data-i18n-title title="Oversett microdata-scriptet til frittst&#229;ende Python (pandas/polars) som kan kj&#248;res utenfor nettleseren, f.eks. p&#229; Anvil">Vis offline Python</button>
           <div class="examples-dropdown" id="offlineSubmenu">
             <div class="examples-dropdown-title">Offline Python</div>
-            <button type="button" id="menuOfflinePandas" title="Frittst&#229;ende pandas-script (vises i output)">pandas</button>
-            <button type="button" id="menuOfflinePolars" title="Frittst&#229;ende polars-script (krever polars; vises i output)">polars</button>
+            <button type="button" id="menuOfflinePandas" data-i18n-title title="Frittst&#229;ende pandas-script (vises i output)">pandas</button>
+            <button type="button" id="menuOfflinePolars" data-i18n-title title="Frittst&#229;ende polars-script (krever polars; vises i output)">polars</button>
           </div>
         </div>
-        <button type="button" id="menuSokData" title="S&#248;k om tilgang til individdata" style="display:flex;align-items:center;gap:8px;">
+        <button type="button" id="menuSokData" data-i18n-title title="S&#248;k om tilgang til individdata" style="display:flex;align-items:center;gap:8px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
             <circle cx="11" cy="11" r="7"/>
             <line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
-          <span>S&#248;k om data</span>
+          <span data-i18n>S&#248;k om data</span>
         </button>
-        <button type="button" id="menuVisData" title="&#197;pne sidemenyen for &#229; velge og se data" style="display:flex;align-items:center;gap:8px;">
+        <button type="button" id="menuVisData" data-i18n-title title="&#197;pne sidemenyen for &#229; velge og se data" style="display:flex;align-items:center;gap:8px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
             <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/>
             <circle cx="12" cy="12" r="3"/>
           </svg>
-          <span>Se data</span>
+          <span data-i18n>Se data</span>
         </button>
         <button type="button" id="menuRunnerMode" style="display:none">Kjøremodus: Microdata</button>
         <button type="button" id="menuToggleOutputMode" style="display:none">Output-modus: String</button>
         <button type="button" id="menuToggleSafestatOutput" style="display:none">SafeStat-output: Formatert</button>
-        <button type="button" id="menuShowIndividata" title="Når PÅ: klikk på datasett-navnet i sidemenyen for å åpne en tabellvisning av rådataene (sorter, filtrer, bla). Når AV: dataset-navnet er inaktivt." style="display:flex;align-items:center;gap:8px;">
+        <button type="button" id="menuShowIndividata" data-i18n-title title="Når PÅ: klikk på datasett-navnet i sidemenyen for å åpne en tabellvisning av rådataene (sorter, filtrer, bla). Når AV: dataset-navnet er inaktivt." style="display:flex;align-items:center;gap:8px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
             <rect x="3" y="4" width="18" height="16" rx="2"/>
             <line x1="3" y1="10" x2="21" y2="10"/>
@@ -126,15 +126,22 @@
             <line x1="9" y1="4" x2="9" y2="20"/>
             <line x1="15" y1="4" x2="15" y2="20"/>
           </svg>
-          <span id="menuShowIndividataLabel">Datatilgang: AV</span>
+          <span id="menuShowIndividataLabel" data-i18n>Datatilgang: AV</span>
         </button>
         <hr style="margin:4px 0;border-color:#334155;">
-        <button type="button" id="menuSettings">Innstillinger</button>
-        <button type="button" id="btnLoginWithCode">Logg inn</button>
+        <div class="topbar-examples-wrap" style="position:relative">
+          <button type="button" id="menuLangBtn">Spr&#229;k / Language</button>
+          <div class="examples-dropdown" id="langSubmenu">
+            <button type="button" data-lang="no">Norsk</button>
+            <button type="button" data-lang="en">English</button>
+          </div>
+        </div>
+        <button type="button" id="menuSettings" data-i18n>Innstillinger</button>
+        <button type="button" id="btnLoginWithCode" data-i18n>Logg inn</button>
         <div id="adminMenuSection" style="display:none;">
           <hr style="margin:4px 0;border-color:#334155;">
           <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Admin</div>
-          <button type="button" id="btnAdminSharedCode">Generer tilgangskode</button>
+          <button type="button" id="btnAdminSharedCode" data-i18n>Generer tilgangskode</button>
         </div>
       </div>
     </div>
@@ -703,6 +710,8 @@
     <input type="checkbox" id="plotSeaborn">
   </div>
   <link href="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/css/tabulator_simple.min.css" rel="stylesheet">
+  <script src="js/i18n/en.js"></script>
+  <script src="js/i18n.js"></script>
   <script src="https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
@@ -710,6 +719,10 @@
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
   <script>
+    // Fallback hvis js/i18n.js ikke lastet (404 e.l.): vis norsk uendret.
+    window.t = window.t || function (s) { return s; };
+    window.i18nField = window.i18nField || function (obj, field) { return obj && obj[field]; };
+
     window.M2PY_VERSION = '2026-05-25g';
 
     // One-time migration: remove obsolete localStorage keys from previous milestones
@@ -2155,6 +2168,34 @@
         });
       });
 
+      // Språkmeny: hake på aktivt språk; bytte lagrer valget og laster siden
+      // på nytt (m2pySetLang i js/i18n.js tar vare på editorinnholdet).
+      (function initLangMenu() {
+        const btn = document.getElementById('menuLangBtn');
+        const sub = document.getElementById('langSubmenu');
+        if (!btn || !sub) return;
+        sub.querySelectorAll('button[data-lang]').forEach(function(b) {
+          if (b.getAttribute('data-lang') === (window.M2PY_LANG || 'no')) {
+            b.textContent = '✓ ' + b.textContent;
+          }
+          b.addEventListener('click', function() {
+            sub.classList.remove('open');
+            dropdown.classList.remove('open');
+            if (window.m2pySetLang) window.m2pySetLang(this.getAttribute('data-lang'));
+          });
+        });
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          const willOpen = !sub.classList.contains('open');
+          document.querySelectorAll('#hamburgerDropdown .examples-dropdown.open').forEach(function(d) {
+            d.classList.remove('open');
+          });
+          if (willOpen) sub.classList.add('open');
+        });
+        sub.addEventListener('click', function(e) { e.stopPropagation(); });
+        document.addEventListener('click', function() { sub.classList.remove('open'); });
+      })();
+
       document.getElementById('menuNew').addEventListener('click', function() {
         scriptInput.value = '';
         scriptName.value = 'Script navn';
@@ -2201,10 +2242,10 @@
         Array.from(outputModeRadios).forEach(function(r) {
           if (r.checked) currentMode = r.value;
         });
-        if (modeBtn) modeBtn.textContent = 'Output-modus: ' + (currentMode === 'html' ? 'HTML' : 'String');
-        if (suppressBtn) suppressBtn.textContent = suppressEmbedded.checked ? 'Skjul innebygde: PÅ' : 'Skjul innebygde: AV';
-        if (staticBtn) staticBtn.textContent = plotStatic.checked ? 'Plot: Statisk' : 'Plot: Interaktiv';
-        if (seabornBtn) seabornBtn.textContent = plotSeaborn.checked ? 'Plot-stil: Seaborn' : 'Plot-stil: Standard';
+        if (modeBtn) modeBtn.textContent = t('Output-modus: {mode}', { mode: currentMode === 'html' ? 'HTML' : 'String' });
+        if (suppressBtn) suppressBtn.textContent = suppressEmbedded.checked ? t('Skjul innebygde: PÅ') : t('Skjul innebygde: AV');
+        if (staticBtn) staticBtn.textContent = plotStatic.checked ? t('Plot: Statisk') : t('Plot: Interaktiv');
+        if (seabornBtn) seabornBtn.textContent = plotSeaborn.checked ? t('Plot-stil: Seaborn') : t('Plot-stil: Standard');
       }
 
       updateOutputMenuLabels();
@@ -2226,7 +2267,7 @@
         const btn = document.getElementById('menuRunnerMode');
         if (!btn) return;
         const m = getRunnerModeFromStorage();
-        btn.textContent = m === 'pyodide' ? 'Kjøremodus: Pyodide (start: Python)' : 'Kjøremodus: Microdata (start: microdata)';
+        btn.textContent = m === 'pyodide' ? t('Kjøremodus: Pyodide (start: Python)') : t('Kjøremodus: Microdata (start: microdata)');
       }
       updateRunnerModeMenuLabel();
       const menuRunnerModeBtn = document.getElementById('menuRunnerMode');
@@ -2256,7 +2297,7 @@
       function updateDCLabel() {
         const btn = document.getElementById('menuDisclosureControl');
         if (!btn) return;
-        btn.textContent = 'Avsløringskontroll: ' + (getDisclosureControl() ? 'PÅ' : 'AV');
+        btn.textContent = getDisclosureControl() ? t('Avsløringskontroll: PÅ') : t('Avsløringskontroll: AV');
       }
       updateDCLabel();
       const menuDCBtn = document.getElementById('menuDisclosureControl');
@@ -2279,7 +2320,7 @@
       (function(){
         var b = document.getElementById('menuToggleSafestatOutput');
         if (!b) return;
-        function lbl(){ b.textContent = 'SafeStat-output: ' + (safeStatFormat === 'raw' ? 'Rå' : 'Formatert'); }
+        function lbl(){ b.textContent = (safeStatFormat === 'raw') ? t('SafeStat-output: Rå') : t('SafeStat-output: Formatert'); }
         lbl();
         b.addEventListener('click', function(){
           safeStatFormat = (safeStatFormat === 'raw') ? 'formatted' : 'raw';
@@ -2305,7 +2346,7 @@
       function updateShowIndividataLabel() {
         const lbl = document.getElementById('menuShowIndividataLabel');
         if (!lbl) return;
-        lbl.textContent = 'Datatilgang: ' + (getShowIndividata() ? 'PÅ' : 'AV');
+        lbl.textContent = getShowIndividata() ? t('Datatilgang: PÅ') : t('Datatilgang: AV');
       }
       function applyShowIndividataToSidebar() {
         var on = getShowIndividata();

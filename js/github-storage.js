@@ -3,7 +3,7 @@
       const $ = (id) => document.getElementById(id);
       const dropdown = $('hamburgerDropdown');
       function closeAllSubmenus() {
-        ['filSubmenu', 'githubSubmenu', 'examplesDropdown'].forEach((id) => {
+        ['filSubmenu', 'githubSubmenu', 'examplesDropdown', 'langSubmenu'].forEach((id) => {
           const el = $(id); if (el) el.classList.remove('open');
         });
       }
