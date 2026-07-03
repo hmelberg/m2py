@@ -31,11 +31,12 @@ gjelder python/r/duckdb.
 7. **Kuratert-men-dynamisk**: et register over nøkkelkilder (kan utvides over
    tid) + fritt websøk etter relevante datafiler (CSV o.l.) som kan brukes
    dersom de er svært relevante — men bare etter probe-verifisering.
-8. **require/import-linjer er leveringsmekanismen** for data som kan hentes
+8. **connect/import-linjer er leveringsmekanismen** for data som kan hentes
    med én forespørsel (GET direkte, eller POST innpakket via proxyen):
-   `# require <kilde> as alias` (pek på kilden) + `# import <url> as NAVN`
-   (uttrekket) — microdata-parallellen, se 5c. Ikke ad-hoc nedlastingskode.
-   Dagens D1-form (`# require <url> as navn` som uttrekk) forblir gyldig.
+   `# connect <kilde> as alias` (koble til kilden) + `# import <url> as NAVN`
+   (uttrekket) — se terminologi i 5c. Ikke ad-hoc nedlastingskode. Dagens
+   D1-form (`# require <url> as navn` som uttrekk) forblir gyldig (legacy),
+   og microdata-modusens require/import er urørt.
 9. **Variabel-nivå uttrekk, ikke bare hele datasett**: nasjonale byrå-API-er
    (PxWeb, Eurostat, WB) støtter uttak av utvalgte variabler/dimensjoner —
    pipelinen bygger analysedatasett fra variabler, som i microdata-tankegangen.
@@ -54,7 +55,7 @@ Spørsmål ──▶ 1 TOLK: estimand, enhet, geografi/periode,
              (tomt søk → synonymer/annet språk/annen kilde;
               feilet probe → neste kandidat — planen revideres naturlig)
          ──▶ 3 GENERER: script i aktiv modus, mot OBSERVERTE skjemaer:
-             kilder som `# require <base|register-id> as alias`,
+             kilder som `# connect <base|register-id> as alias`,
              uttrekk som `# import <url-eller-alias/sti> as navn`
              (GET direkte; POST-API-er GET-innpakket via /api/hent;
               editoren materialiserer som DataFrame/tabell),
@@ -150,9 +151,9 @@ Anvil er alternativet den dagen vi trenger *runtime-redigerbar* lagring
 `sporrings_url_mal` dokumenterer hvordan et **variabel-nivå uttrekk**
 materialiseres som én GET-URL (PxWebApi v2 GET med valueCodes, Eurostats
 CSV/TSV-endepunkt med dimensjonsfiltre, WB `…/indicator/{id}?format=json`).
-En slik URL er require-bar (se «Levering» under); API-er som krever POST
-(PxWeb v1, f.eks. StatFin) blir require-bare via proxyens GET-innpakking
-(require-utvidelse 3 under «Levering»).
+En slik URL er import-bar (se «Levering» under); API-er som krever POST
+(PxWeb v1, f.eks. StatFin) blir import-bare via proxyens GET-innpakking
+(loader-utvidelse 3 under «Levering»).
 
 Seed-liste: SSB, Eurostat, Verdensbanken, OECD, WHO GHO, Our World in Data
 (grapher-CSV), FRED (ikke-CORS → proxy), Norges Bank, NAV, FHI,
@@ -185,7 +186,7 @@ Nøkkel-injisering: for kilder med `auth` i registeret legger proxyen på
 API-nøkkelen fra Netlify-env — kun når URL-verten matcher registeroppføringen
 (se registerseksjonen). FRED i seed-lista er første bruker av dette.
 
-### 5b. Levering: require/import-linjer (utvidet D1-mekanisme)
+### 5b. Levering: connect/import-linjer (utvidet D1-mekanisme)
 
 Alt som kan hentes med én forespørsel deklareres i genererte script som
 import-linjer (`#`/`--`/`//` per språk; terminologi og to-nivå-form i 5c):
@@ -197,23 +198,23 @@ import-linjer (`#`/`--`/`//` per språk; terminologi og to-nivå-form i 5c):
 
 Editoren henter URL-ene og materialiserer dem som DataFrame (python),
 data.frame (r) eller tabell (duckdb) med aliaset som navn — nøyaktig slik
-require fungerer i dag. Gevinster: scriptet forblir en selvdokumenterende,
+URL-require fungerer i dag (D1). Gevinster: scriptet forblir en selvdokumenterende,
 reproduserbar enhet (kilde-URL-er står øverst); ingen per-språk
 nedlastingskode for enkle uttrekk; og ruting/proxy håndteres ett sted.
-Nødvendig utvidelse av require-lasteren: **fallback til `/api/hent`** når
+Nødvendig utvidelse av loaderen: **fallback til `/api/hent`** når
 direkte fetch feiler på CORS (probe-resultatet forteller genereringen hvilke
 kilder det gjelder, så scriptet kan også skrive proxy-URL-en eksplisitt).
 Proxy-kall fra editoren sender brukerens Bearer-token (samme auth som
-AI-endepunktene) — require mot offentlige CORS-åpne URL-er er uendret og
+AI-endepunktene) — import mot offentlige CORS-åpne URL-er er uendret og
 krever ingen innlogging.
 
-**Nødvendige require-utvidelser (i scope, dagens tilstand i parentes):**
+**Nødvendige loader-utvidelser (i scope, dagens tilstand i parentes):**
 
 1. **Innholdsbasert format-deteksjon.** Dagens loader matcher kun URL-er som
    slutter på `.csv`/`.parquet` (`index.html`-regexen) — API-URL-er som
    `…/data?valueCodes[…]=…&outputFormat=csv` matcher ikke. Nytt: match enhver
    http(s)-URL og avgjør format via respons `Content-Type` (evt.
-   format-hint i URL-en). Uten dette er ingen API-URL require-bar.
+   format-hint i URL-en). Uten dette er ingen API-URL import-bar.
 2. **Lokal materialisering i dialekt-modusene.** URL-fetch → WASM-FS →
    DataFrame finnes i dag bare på safestat-stien; i python/r/duckdb-modus er
    en `# require <url>`-kommentar ikke materialisert lokalt. Implementeres
@@ -224,7 +225,7 @@ krever ingen innlogging.
    enkelt GET-URL finnes. `/api/hent` utvides med en `body`-parameter:
    `# import /api/hent?url=<endepunkt>&body=<url-enkodet-json> as tyollisyys`
    — proxyen gjør POST-en server-side og strømmer svaret tilbake. Dermed er
-   selv POST-API-er require-bare, og alle datakilder i et generert script står
+   selv POST-API-er import-bare, og alle datakilder i et generert script står
    deklarert øverst på én selvdokumenterende linje. Samme SSRF-vern;
    `body` sendes kun som `application/json`, størrelsesbegrenset.
 
@@ -240,37 +241,45 @@ prefiks-substitusjon i parseren, før noe hentes. Målet kan være en full
 base-URL **eller en register-id** (henter `base_url` fra `data-sources.json`;
 keyed kilder får dermed proxy-ruting og nøkkelinjisering automatisk).
 
-**Terminologi-diskusjon.** Microdata-DSL-en har allerede ordparet for
-nøyaktig disse to rollene: `require <databank> as fd` (pek på kilden — ingen
-data flyttes) + `import fd/VARIABEL as alias` (uttrekket). D1-direktivet
-(`# require <url> as alias`) bruker derimot `require` om *uttrekket*. Å
-innføre `# source` + `# require` ville gitt tre ord for to roller, og ordet
-`require` ville byttet betydning mellom modusene — verst tenkelig for både
-brukere og AI-prompt.
+**Terminologi-diskusjon.** Microdata-DSL-en (microdata.no sitt språk — ikke
+vårt å endre) bruker `require <databank> as fd` om kilden og
+`import fd/VARIABEL as alias` om uttrekk av enkeltvariabler (alias = kolonne).
+D1-direktivet (`# require <url> as alias`) bruker derimot `require` om
+*uttrekket*. Å gjenbruke `require` i web-direktivene — uansett rolle — gir
+ordkollisjon med subtilt ulik betydning på tvers av moduser. Valget falt på
+`connect`: ordet sier presist hva linja gjør (etabler et håndtak til kilden,
+ingen data flyttes), og `require` forblir microdatas ord alene.
 
-**Beslutning: gjenbruk microdata-parallellen.**
+**Beslutning: `connect` (kilde) + `import` (uttrekk).**
 
 ```
-# require https://data.ssb.no/api/pxwebapi/v2/tables as ssb   ← kilde (base-URL)
-# require fred                                                 ← kilde (register-id; alias = id)
+# connect https://data.ssb.no/api/pxwebapi/v2/tables as ssb   ← kilde (base-URL)
+# connect fred                                                 ← kilde (register-id; alias = id)
 # import ssb/07459/data?valueCodes[Alder]=15-74&outputFormat=csv as ledighet
 # import fred/series/observations?series_id=UNRATE as us_ledighet
 # import https://raw.githubusercontent.com/owid/…/co2.csv as co2   ← direkte uttrekk, implisitt kilde
 ```
 
-- `# require <base-url|register-id> [as alias]` — deklarerer en kilde.
-  Samme rolle som microdatas `require no.ssb.fdb:53 as fd`.
+- `# connect <base-url|register-id> [as alias]` — deklarerer en kilde.
+  Tilsvarer rollen microdatas `require no.ssb.fdb:53 as fd` har.
 - `# import <alias>/<sti+spørring> as navn` — uttrekk under en kilde;
-  `# import <full-url> as navn` — enkeltstående uttrekk. Samme rolle som
-  microdatas `import fd/VARIABEL as alias`.
-- Én mental modell på tvers av moduser: **require = pek på kilden,
-  import = hent noe derfra som navngitt ramme.**
+  `# import <full-url> as navn` — enkeltstående uttrekk. Bredere enn
+  microdatas import: ett uttrekk kan gi flere variabler/kolonner eller en
+  hel CSV, og aliaset binder en **hel ramme** (DataFrame/data.frame/tabell),
+  ikke en kolonne. Denne forskjellen sies eksplisitt i dokumentasjon og
+  AI-prompt (én linje per modus), ikke gjemmes.
+- Mental modell: **connect = koble til kilden, import = hent data derfra
+  under et navn.**
 
-**Bakoverkompatibilitet:** dagens deployede `# require <url|navn> as alias`
-med uttrekks-semantikk (D1) fortsetter å virke — parseren godtar begge
-stavemåter for uttrekk i en overgangsperiode; dokumentasjon og AI-prompt
-bruker kun den nye formen. Ruting-logikken (`maybeRunRemote` m.fl.) utvides
-til å gjenkjenne `import`-linjer på samme måte som require-linjer.
+**Bakoverkompatibilitet (krav):** dagens deployede `# require <url|navn> as
+alias` med uttrekks-semantikk (D1) skal fortsette å virke uendret — parseren
+godtar `require` som legacy-alias for uttrekk på ubestemt tid, og i
+microdata-modus er `require`/`import` selvsagt urørt (konformitet med
+microdata.no). Dokumentasjon og AI-prompt lærer kun bort connect/import.
+Implementasjonskrav: `connect`/`import`-formene finnes ikke i dag og må
+bygges — parser-regexene (`deriveSafeStatExecutor`, `maybeRunRemote` m.fl.,
+en håndfull steder i `index.html`) utvides til å gjenkjenne alle tre verbene;
+serveren berøres ikke (den mottar ferdig-resolverte kilder).
 
 **Mulige tillegg (samme opsjons-hale som D1 allerede planlegger):**
 `, exec(local|remote)` (finnes), `format(csv|json-stat|parquet)` (hint når
@@ -305,7 +314,7 @@ reduserer gjentakelse *på tvers av* uttrekk, ikke innenfor ett.
   probe-verifisert vs. modellkunnskap; aldri fabrikker datasett-ID; finner du
   ingenting — si det, og foreslå omformuleringer.
 - **Flerkilde og sammenslåing**: kombinasjon oppmuntres. Mønsteret: hver
-  require-linje gir én DataFrame per variabel/serie; **første analysesteg er å
+  import-linje gir én DataFrame per variabel/serie; **første analysesteg er å
   merge/joine dem til ÉN analysedataframe** når det er mulig og nyttig (join
   på år, landkode, kommunenummer — nøkler fra registeret), i stedet for å
   analysere fragmenter hver for seg. Harmoniser koder (ISO-land, NUTS,
@@ -315,8 +324,9 @@ reduserer gjentakelse *på tvers av* uttrekk, ikke innenfor ett.
 - **Minimal-uttrekk**: hent variablene analysen trenger (variabel-nivå
   spørring via `table_metadata`), ikke hele tabeller — mindre data, klarere
   script, snillere mot kilde-API-ene.
-- **Levering**: GET-bare uttrekk som `# require <url> as navn` øverst;
-  POST-/komplekse kall som kode med kilde-URL i kommentar.
+- **Levering**: kilder som `# connect <base|register-id> as alias`, uttrekk
+  som `# import <url|alias/sti> as navn` øverst (POST-API-er GET-innpakket
+  via proxyen); flertrinns-kall som kode med kilde-URL i kommentar.
 - **Språkregler per modus**: python (pandas/statsmodels/matplotlib …, micropip
   ved behov), r (tidyverse/fixest …, webr::install), duckdb (httpfs-lesing av
   CSV/parquet direkte i SQL; analyse i SQL eller hybrid med #py).
@@ -330,7 +340,7 @@ reduserer gjentakelse *på tvers av* uttrekk, ikke innenfor ett.
 2. **Arv, ikke nyskriv**: start fra det som beviselig virker —
    `INFERENCE_STRATEGY_PYR` (utvides), `VISUALIZATION_RULES`-tankegangen,
    språk-preamblene. Nye blokker skrives kun for det som er genuint nytt
-   (kilderegler, discovery-fasing, require-levering, flerkilde-merge).
+   (kilderegler, discovery-fasing, connect/import-levering, flerkilde-merge).
 3. **Evalsett-drevet iterasjon**: hver promptendring kjøres mot evalsettet
    (~10 spørsmål, se Testing) før deploy; feilmønstre fra evalene og fra
    reparasjonsrunder i bruk omsettes til nye promptregler eller
