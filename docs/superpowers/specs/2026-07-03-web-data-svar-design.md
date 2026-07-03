@@ -31,9 +31,9 @@ gjelder python/r/duckdb.
 7. **Kuratert-men-dynamisk**: et register over nøkkelkilder (kan utvides over
    tid) + fritt websøk etter relevante datafiler (CSV o.l.) som kan brukes
    dersom de er svært relevante — men bare etter probe-verifisering.
-8. **connect/import-linjer er leveringsmekanismen** for data som kan hentes
+8. **connect/load-linjer er leveringsmekanismen** for data som kan hentes
    med én forespørsel (GET direkte, eller POST innpakket via proxyen):
-   `# connect <kilde> as alias` (koble til kilden) + `# import <url> as NAVN`
+   `# connect <kilde> as alias` (koble til kilden) + `# load <url> as NAVN`
    (uttrekket) — se terminologi i 5c. Ikke ad-hoc nedlastingskode. Dagens
    D1-form (`# require <url> as navn` som uttrekk) forblir gyldig (legacy),
    og microdata-modusens require/import er urørt.
@@ -56,7 +56,7 @@ Spørsmål ──▶ 1 TOLK: estimand, enhet, geografi/periode,
               feilet probe → neste kandidat — planen revideres naturlig)
          ──▶ 3 GENERER: script i aktiv modus, mot OBSERVERTE skjemaer:
              kilder som `# connect <base|register-id> as alias`,
-             uttrekk som `# import <url-eller-alias/sti> as navn`
+             uttrekk som `# load <url-eller-alias/sti> as navn`
              (GET direkte; POST-API-er GET-innpakket via /api/hent;
               editoren materialiserer som DataFrame/tabell),
              merge/join til ÉN analysedataframe der det er nyttig,
@@ -151,8 +151,8 @@ Anvil er alternativet den dagen vi trenger *runtime-redigerbar* lagring
 `sporrings_url_mal` dokumenterer hvordan et **variabel-nivå uttrekk**
 materialiseres som én GET-URL (PxWebApi v2 GET med valueCodes, Eurostats
 CSV/TSV-endepunkt med dimensjonsfiltre, WB `…/indicator/{id}?format=json`).
-En slik URL er import-bar (se «Levering» under); API-er som krever POST
-(PxWeb v1, f.eks. StatFin) blir import-bare via proxyens GET-innpakking
+En slik URL er load-bar (se «Levering» under); API-er som krever POST
+(PxWeb v1, f.eks. StatFin) blir load-bare via proxyens GET-innpakking
 (loader-utvidelse 3 under «Levering»).
 
 Seed-liste: SSB, Eurostat, Verdensbanken, OECD, WHO GHO, Our World in Data
@@ -186,14 +186,14 @@ Nøkkel-injisering: for kilder med `auth` i registeret legger proxyen på
 API-nøkkelen fra Netlify-env — kun når URL-verten matcher registeroppføringen
 (se registerseksjonen). FRED i seed-lista er første bruker av dette.
 
-### 5b. Levering: connect/import-linjer (utvidet D1-mekanisme)
+### 5b. Levering: connect/load-linjer (utvidet D1-mekanisme)
 
 Alt som kan hentes med én forespørsel deklareres i genererte script som
-import-linjer (`#`/`--`/`//` per språk; terminologi og to-nivå-form i 5c):
+load-linjer (`#`/`--`/`//` per språk; terminologi og to-nivå-form i 5c):
 
 ```
-# import https://data.ssb.no/…/tabell?valueCodes[Region]=…&format=csv as arbeidsledighet
-# import https://raw.githubusercontent.com/owid/…/co2.csv as co2
+# load https://data.ssb.no/…/tabell?valueCodes[Region]=…&format=csv as arbeidsledighet
+# load https://raw.githubusercontent.com/owid/…/co2.csv as co2
 ```
 
 Editoren henter URL-ene og materialiserer dem som DataFrame (python),
@@ -205,7 +205,7 @@ Nødvendig utvidelse av loaderen: **fallback til `/api/hent`** når
 direkte fetch feiler på CORS (probe-resultatet forteller genereringen hvilke
 kilder det gjelder, så scriptet kan også skrive proxy-URL-en eksplisitt).
 Proxy-kall fra editoren sender brukerens Bearer-token (samme auth som
-AI-endepunktene) — import mot offentlige CORS-åpne URL-er er uendret og
+AI-endepunktene) — load mot offentlige CORS-åpne URL-er er uendret og
 krever ingen innlogging.
 
 **Nødvendige loader-utvidelser (i scope, dagens tilstand i parentes):**
@@ -214,7 +214,7 @@ krever ingen innlogging.
    slutter på `.csv`/`.parquet` (`index.html`-regexen) — API-URL-er som
    `…/data?valueCodes[…]=…&outputFormat=csv` matcher ikke. Nytt: match enhver
    http(s)-URL og avgjør format via respons `Content-Type` (evt.
-   format-hint i URL-en). Uten dette er ingen API-URL import-bar.
+   format-hint i URL-en). Uten dette er ingen API-URL load-bar.
 2. **Lokal materialisering i dialekt-modusene.** URL-fetch → WASM-FS →
    DataFrame finnes i dag bare på safestat-stien; i python/r/duckdb-modus er
    en `# require <url>`-kommentar ikke materialisert lokalt. Implementeres
@@ -223,9 +223,9 @@ krever ingen innlogging.
 3. **GET-innpakking av POST-API-er via proxyen.** Eldre PxWeb v1-installasjoner
    (f.eks. Statistics Finland/StatFin) krever POST med JSON-spørring — ingen
    enkelt GET-URL finnes. `/api/hent` utvides med en `body`-parameter:
-   `# import /api/hent?url=<endepunkt>&body=<url-enkodet-json> as tyollisyys`
+   `# load /api/hent?url=<endepunkt>&body=<url-enkodet-json> as tyollisyys`
    — proxyen gjør POST-en server-side og strømmer svaret tilbake. Dermed er
-   selv POST-API-er import-bare, og alle datakilder i et generert script står
+   selv POST-API-er load-bare, og alle datakilder i et generert script står
    deklarert øverst på én selvdokumenterende linje. Samme SSRF-vern;
    `body` sendes kun som `application/json`, størrelsesbegrenset.
 
@@ -250,33 +250,43 @@ ordkollisjon med subtilt ulik betydning på tvers av moduser. Valget falt på
 `connect`: ordet sier presist hva linja gjør (etabler et håndtak til kilden,
 ingen data flyttes), og `require` forblir microdatas ord alene.
 
-**Beslutning: `connect` (kilde) + `import` (uttrekk).**
+`import` som uttrekksverb ble vurdert og forkastet av én avgjørende grunn:
+direktivene bor i *kommentarer*, og `# import <X> as <Y>` er nøyaktig hva en
+utkommentert python-import ser ut som (`# import pandas as pd` — svært vanlig
+i ekte script). Parseren måtte hatt lekk heuristikk for å skille dem, og en
+utkommentert kodelinje kunne utløst datahenting. `load` har ikke denne
+formen i noe av vertsspråkene (R's `load(...)` og DuckDBs `LOAD ext` matcher
+ikke `X as Y`-mønsteret), leser naturlig («load data into the session»), og
+unngår den falske parallellen til microdatas import, som binder en *kolonne*
+der load binder en *hel ramme*.
+
+**Beslutning: `connect` (kilde) + `load` (uttrekk).**
 
 ```
 # connect https://data.ssb.no/api/pxwebapi/v2/tables as ssb   ← kilde (base-URL)
 # connect fred                                                 ← kilde (register-id; alias = id)
-# import ssb/07459/data?valueCodes[Alder]=15-74&outputFormat=csv as ledighet
-# import fred/series/observations?series_id=UNRATE as us_ledighet
-# import https://raw.githubusercontent.com/owid/…/co2.csv as co2   ← direkte uttrekk, implisitt kilde
+# load ssb/07459/data?valueCodes[Alder]=15-74&outputFormat=csv as ledighet
+# load fred/series/observations?series_id=UNRATE as us_ledighet
+# load https://raw.githubusercontent.com/owid/…/co2.csv as co2   ← direkte uttrekk, implisitt kilde
 ```
 
 - `# connect <base-url|register-id> [as alias]` — deklarerer en kilde.
   Tilsvarer rollen microdatas `require no.ssb.fdb:53 as fd` har.
-- `# import <alias>/<sti+spørring> as navn` — uttrekk under en kilde;
-  `# import <full-url> as navn` — enkeltstående uttrekk. Bredere enn
+- `# load <alias>/<sti+spørring> as navn` — uttrekk under en kilde;
+  `# load <full-url> as navn` — enkeltstående uttrekk. Bredere enn
   microdatas import: ett uttrekk kan gi flere variabler/kolonner eller en
   hel CSV, og aliaset binder en **hel ramme** (DataFrame/data.frame/tabell),
   ikke en kolonne. Denne forskjellen sies eksplisitt i dokumentasjon og
   AI-prompt (én linje per modus), ikke gjemmes.
-- Mental modell: **connect = koble til kilden, import = hent data derfra
+- Mental modell: **connect = koble til kilden, load = hent data derfra
   under et navn.**
 
 **Bakoverkompatibilitet (krav):** dagens deployede `# require <url|navn> as
 alias` med uttrekks-semantikk (D1) skal fortsette å virke uendret — parseren
 godtar `require` som legacy-alias for uttrekk på ubestemt tid, og i
 microdata-modus er `require`/`import` selvsagt urørt (konformitet med
-microdata.no). Dokumentasjon og AI-prompt lærer kun bort connect/import.
-Implementasjonskrav: `connect`/`import`-formene finnes ikke i dag og må
+microdata.no). Dokumentasjon og AI-prompt lærer kun bort connect/load.
+Implementasjonskrav: `connect`/`load`-formene finnes ikke i dag og må
 bygges — parser-regexene (`deriveSafeStatExecutor`, `maybeRunRemote` m.fl.,
 en håndfull steder i `index.html`) utvides til å gjenkjenne alle tre verbene;
 serveren berøres ikke (den mottar ferdig-resolverte kilder).
@@ -314,7 +324,7 @@ reduserer gjentakelse *på tvers av* uttrekk, ikke innenfor ett.
   probe-verifisert vs. modellkunnskap; aldri fabrikker datasett-ID; finner du
   ingenting — si det, og foreslå omformuleringer.
 - **Flerkilde og sammenslåing**: kombinasjon oppmuntres. Mønsteret: hver
-  import-linje gir én DataFrame per variabel/serie; **første analysesteg er å
+  load-linje gir én DataFrame per variabel/serie; **første analysesteg er å
   merge/joine dem til ÉN analysedataframe** når det er mulig og nyttig (join
   på år, landkode, kommunenummer — nøkler fra registeret), i stedet for å
   analysere fragmenter hver for seg. Harmoniser koder (ISO-land, NUTS,
@@ -325,7 +335,7 @@ reduserer gjentakelse *på tvers av* uttrekk, ikke innenfor ett.
   spørring via `table_metadata`), ikke hele tabeller — mindre data, klarere
   script, snillere mot kilde-API-ene.
 - **Levering**: kilder som `# connect <base|register-id> as alias`, uttrekk
-  som `# import <url|alias/sti> as navn` øverst (POST-API-er GET-innpakket
+  som `# load <url|alias/sti> as navn` øverst (POST-API-er GET-innpakket
   via proxyen); flertrinns-kall som kode med kilde-URL i kommentar.
 - **Språkregler per modus**: python (pandas/statsmodels/matplotlib …, micropip
   ved behov), r (tidyverse/fixest …, webr::install), duckdb (httpfs-lesing av
@@ -340,7 +350,7 @@ reduserer gjentakelse *på tvers av* uttrekk, ikke innenfor ett.
 2. **Arv, ikke nyskriv**: start fra det som beviselig virker —
    `INFERENCE_STRATEGY_PYR` (utvides), `VISUALIZATION_RULES`-tankegangen,
    språk-preamblene. Nye blokker skrives kun for det som er genuint nytt
-   (kilderegler, discovery-fasing, connect/import-levering, flerkilde-merge).
+   (kilderegler, discovery-fasing, connect/load-levering, flerkilde-merge).
 3. **Evalsett-drevet iterasjon**: hver promptendring kjøres mot evalsettet
    (~10 spørsmål, se Testing) før deploy; feilmønstre fra evalene og fra
    reparasjonsrunder i bruk omsettes til nye promptregler eller
