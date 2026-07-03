@@ -31,10 +31,11 @@ gjelder python/r/duckdb.
 7. **Kuratert-men-dynamisk**: et register over nøkkelkilder (kan utvides over
    tid) + fritt websøk etter relevante datafiler (CSV o.l.) som kan brukes
    dersom de er svært relevante — men bare etter probe-verifisering.
-8. **`# require <url> as NAVN` er leveringsmekanismen** for data som kan
-   hentes med én forespørsel (GET direkte, eller POST innpakket via proxyen):
-   genererte script deklarerer datakilder med editorens eksisterende
-   require-linjer (D1-mekanismen), ikke ad-hoc nedlastingskode.
+8. **require/import-linjer er leveringsmekanismen** for data som kan hentes
+   med én forespørsel (GET direkte, eller POST innpakket via proxyen):
+   `# require <kilde> as alias` (pek på kilden) + `# import <url> as NAVN`
+   (uttrekket) — microdata-parallellen, se 5c. Ikke ad-hoc nedlastingskode.
+   Dagens D1-form (`# require <url> as navn` som uttrekk) forblir gyldig.
 9. **Variabel-nivå uttrekk, ikke bare hele datasett**: nasjonale byrå-API-er
    (PxWeb, Eurostat, WB) støtter uttak av utvalgte variabler/dimensjoner —
    pipelinen bygger analysedatasett fra variabler, som i microdata-tankegangen.
@@ -53,7 +54,8 @@ Spørsmål ──▶ 1 TOLK: estimand, enhet, geografi/periode,
              (tomt søk → synonymer/annet språk/annen kilde;
               feilet probe → neste kandidat — planen revideres naturlig)
          ──▶ 3 GENERER: script i aktiv modus, mot OBSERVERTE skjemaer:
-             uttrekk deklareres som `# require <url> as navn`
+             kilder som `# require <base|register-id> as alias`,
+             uttrekk som `# import <url-eller-alias/sti> as navn`
              (GET direkte; POST-API-er GET-innpakket via /api/hent;
               editoren materialiserer som DataFrame/tabell),
              merge/join til ÉN analysedataframe der det er nyttig,
@@ -183,14 +185,14 @@ Nøkkel-injisering: for kilder med `auth` i registeret legger proxyen på
 API-nøkkelen fra Netlify-env — kun når URL-verten matcher registeroppføringen
 (se registerseksjonen). FRED i seed-lista er første bruker av dette.
 
-### 5b. Levering: `# require <url> as navn` (eksisterende D1-mekanisme)
+### 5b. Levering: require/import-linjer (utvidet D1-mekanisme)
 
-Alt som kan hentes med én GET-URL deklareres i genererte script som en
-require-linje (`#`/`--`/`//` per språk):
+Alt som kan hentes med én forespørsel deklareres i genererte script som
+import-linjer (`#`/`--`/`//` per språk; terminologi og to-nivå-form i 5c):
 
 ```
-# require https://data.ssb.no/…/tabell?valueCodes[Region]=…&format=csv as arbeidsledighet
-# require https://raw.githubusercontent.com/owid/…/co2.csv as co2
+# import https://data.ssb.no/…/tabell?valueCodes[Region]=…&format=csv as arbeidsledighet
+# import https://raw.githubusercontent.com/owid/…/co2.csv as co2
 ```
 
 Editoren henter URL-ene og materialiserer dem som DataFrame (python),
@@ -220,7 +222,7 @@ krever ingen innlogging.
 3. **GET-innpakking av POST-API-er via proxyen.** Eldre PxWeb v1-installasjoner
    (f.eks. Statistics Finland/StatFin) krever POST med JSON-spørring — ingen
    enkelt GET-URL finnes. `/api/hent` utvides med en `body`-parameter:
-   `# require /api/hent?url=<endepunkt>&body=<url-enkodet-json> as tyollisyys`
+   `# import /api/hent?url=<endepunkt>&body=<url-enkodet-json> as tyollisyys`
    — proxyen gjør POST-en server-side og strømmer svaret tilbake. Dermed er
    selv POST-API-er require-bare, og alle datakilder i et generert script står
    deklarert øverst på én selvdokumenterende linje. Samme SSRF-vern;
@@ -228,6 +230,55 @@ krever ingen innlogging.
 
 Flertrinns-interaksjoner som ikke lar seg uttrykke som én (ev. innpakket)
 forespørsel skrives fortsatt som kode i scriptet med kilde-URL i kommentar.
+
+### 5c. To-nivå kildedeklarasjon og terminologi
+
+**Behovet:** flere uttrekk fra samme kilde skal ikke gjenta base-URL-en
+(spesielt stygt for proxy-innpakkede POST-kilder). Løsning: en valgfri
+kildedeklarasjon som uttrekkslinjene refererer til — ren statisk
+prefiks-substitusjon i parseren, før noe hentes. Målet kan være en full
+base-URL **eller en register-id** (henter `base_url` fra `data-sources.json`;
+keyed kilder får dermed proxy-ruting og nøkkelinjisering automatisk).
+
+**Terminologi-diskusjon.** Microdata-DSL-en har allerede ordparet for
+nøyaktig disse to rollene: `require <databank> as fd` (pek på kilden — ingen
+data flyttes) + `import fd/VARIABEL as alias` (uttrekket). D1-direktivet
+(`# require <url> as alias`) bruker derimot `require` om *uttrekket*. Å
+innføre `# source` + `# require` ville gitt tre ord for to roller, og ordet
+`require` ville byttet betydning mellom modusene — verst tenkelig for både
+brukere og AI-prompt.
+
+**Beslutning: gjenbruk microdata-parallellen.**
+
+```
+# require https://data.ssb.no/api/pxwebapi/v2/tables as ssb   ← kilde (base-URL)
+# require fred                                                 ← kilde (register-id; alias = id)
+# import ssb/07459/data?valueCodes[Alder]=15-74&outputFormat=csv as ledighet
+# import fred/series/observations?series_id=UNRATE as us_ledighet
+# import https://raw.githubusercontent.com/owid/…/co2.csv as co2   ← direkte uttrekk, implisitt kilde
+```
+
+- `# require <base-url|register-id> [as alias]` — deklarerer en kilde.
+  Samme rolle som microdatas `require no.ssb.fdb:53 as fd`.
+- `# import <alias>/<sti+spørring> as navn` — uttrekk under en kilde;
+  `# import <full-url> as navn` — enkeltstående uttrekk. Samme rolle som
+  microdatas `import fd/VARIABEL as alias`.
+- Én mental modell på tvers av moduser: **require = pek på kilden,
+  import = hent noe derfra som navngitt ramme.**
+
+**Bakoverkompatibilitet:** dagens deployede `# require <url|navn> as alias`
+med uttrekks-semantikk (D1) fortsetter å virke — parseren godtar begge
+stavemåter for uttrekk i en overgangsperiode; dokumentasjon og AI-prompt
+bruker kun den nye formen. Ruting-logikken (`maybeRunRemote` m.fl.) utvides
+til å gjenkjenne `import`-linjer på samme måte som require-linjer.
+
+**Mulige tillegg (samme opsjons-hale som D1 allerede planlegger):**
+`, exec(local|remote)` (finnes), `format(csv|json-stat|parquet)` (hint når
+Content-Type er tvetydig), `via(proxy)` (tving proxy-ruting), og på sikt
+`body({...})` som penere alternativ til URL-enkodet POST-innpakking.
+Promptregelen fra flerkilde-avsnittet står: ett uttrekk per tabell med flere
+variabler i samme uttrekk der API-et tillater det — kildedeklarasjonen
+reduserer gjentakelse *på tvers av* uttrekk, ikke innenfor ett.
 
 ### 6. Frontend (`js/ai-chat.js`, `index.html`)
 
