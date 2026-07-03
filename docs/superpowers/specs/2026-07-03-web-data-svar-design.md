@@ -334,8 +334,11 @@ bort søkehåndverk (`site:data.norge.no`, `filetype:csv`, norsk+engelsk søk).
 
 ### 6. Frontend (`js/ai-chat.js`, `index.html`)
 
-- Tredje modusvalg «Web»; rendres kun når `user.is_admin`; lagres i
-  `md_ai_mode`. I microdata-modus skjules Web-valget (faller tilbake til Rask).
+- Web er en egen, dedikert send-knapp (`#aiSendWebBtn`) ved siden av
+  Send/Send⚗︎ — ikke en tredje syklus-verdi på hurtigmeny-bryteren «AI-svar:»
+  (den forblir fast/anvil). Knappen rendres kun når `user.is_admin` og aktiv
+  editor-modus er python/r/duckdb (`webModeEligible()`); den skjules i
+  microdata-modus og for ikke-admin-brukere, og bruker ikke `md_ai_mode`.
 - Progress-linjer fra SSE (`type:"progress"`) vises løpende, kildemanifest
   (`type:"sources"`) vises under svaret med verifisert-merke per kilde.
 - Auto-reparasjon: etter generering kjøres syntakssjekk (Pyodide-parse for

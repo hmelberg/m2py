@@ -4,7 +4,7 @@
     (function aiModule() {
       const LS_KEY_BASE = 'md_ai_api_base';
       const LS_KEY_APIKEY = 'md_ai_api_key';
-      const LS_KEY_AIMODE = 'md_ai_mode';   // 'fast' | 'anvil' | 'web'
+      const LS_KEY_AIMODE = 'md_ai_mode';   // 'fast' | 'anvil'
       const DEFAULT_BASE = 'https://mdataapi.anvil.app';
 
       const state = {
@@ -12,31 +12,35 @@
         history: [],   // {role, html|text, raw}
         get apiBase() { return (localStorage.getItem(LS_KEY_BASE) || DEFAULT_BASE).replace(/\/+$/, ''); },
         get apiKey()  { return localStorage.getItem(LS_KEY_APIKEY) || ''; },
-        // AI mode: 'fast' = rask edge-funksjon, 'anvil' = full vurdering via Anvil-API,
-        // 'web' = agentisk web-søk + generering (admin-only, python/r/duckdb — se
-        // webModeEligible()/effectiveAiMode() lenger ned).
+        // AI mode: 'fast' = rask edge-funksjon, 'anvil' = full vurdering via
+        // Anvil-API. Web (agentisk web-søk + generering; admin-only,
+        // python/r/duckdb) is NOT part of this menu cycle — it has its own
+        // dedicated send button (aiSendWebBtn) and never touches md_ai_mode;
+        // see webModeEligible()/syncWebBtnVisibility() below. A legacy 'web'
+        // value from before that button existed collapses to 'fast' here.
         get aiMode() {
           const v = localStorage.getItem(LS_KEY_AIMODE);
-          return v === 'anvil' || v === 'web' ? v : 'fast';
+          return v === 'anvil' ? v : 'fast';
         },
         set aiMode(v) { localStorage.setItem(LS_KEY_AIMODE, v); },
         get anvilMode() { return this.aiMode === 'anvil'; },   // back-compat: existing callers keep working
       };
 
       // Web mode is admin-only and only meaningful in python/r/duckdb editor
-      // modes (there's no `# connect`/`# load` story for microdata). When the
-      // stored preference is 'web' but the user is no longer eligible (logged
-      // out, non-admin, or switched to microdata), every call site below falls
-      // back to 'fast' via effectiveAiMode() rather than silently trying Web.
+      // modes (there's no `# connect`/`# load` story for microdata). It is
+      // surfaced only via its own send button (syncWebBtnVisibility() shows/
+      // hides #aiSendWebBtn); it is never reachable via the fast/anvil menu
+      // cycle, so there's no "silently falls back" case to handle anymore.
       function webModeEligible() {
         const auth = window.mdAuth;
         const isAdmin = !!(auth && auth.user && auth.user.is_admin);
         const mode = (typeof activeEditorMode !== 'undefined' && activeEditorMode) ? activeEditorMode : 'microdata';
         return isAdmin && (mode === 'python' || mode === 'r' || mode === 'duckdb');
       }
+      // Kept for back-compat with existing call sites (menu label + cycle);
+      // now just mirrors state.aiMode since 'web' is no longer a cycle value.
       function effectiveAiMode() {
-        const stored = state.aiMode;
-        return (stored === 'web' && !webModeEligible()) ? 'fast' : stored;
+        return state.aiMode;
       }
 
       const md = (window.markdownit ? window.markdownit({ breaks: true, linkify: true }) : null);
@@ -45,7 +49,7 @@
       const dom = {};
       function cacheDom() {
         ['aiToggleBtn','aiSidebar','aiCloseBtn','aiSettingsBtn','aiClearBtn',
-         'aiThread','aiInput','aiSendFastBtn','aiSendV2Btn','aiAbortBtn',
+         'aiThread','aiInput','aiSendFastBtn','aiSendV2Btn','aiSendWebBtn','aiAbortBtn',
          'aiIncludeScript','menuAiMode',
          'aiSettingsBackdrop','aiCfgBaseUrl','aiCfgApiKey','aiCfgSave','aiCfgCancel',
          'aiCfgLoggedIn','aiCfgLoggedOut','aiCfgUserEmail','aiCfgUserMeta',
@@ -489,6 +493,7 @@
         }
         state.sending = true;
         if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = true;
+        if (dom.aiSendWebBtn) dom.aiSendWebBtn.disabled = true;
 
         // Clear empty state on first message
         if (state.history.length === 0) dom.aiThread.innerHTML = '';
@@ -521,6 +526,7 @@
             if (dom.aiAbortBtn) dom.aiAbortBtn.style.display = 'none';
             state.sending = false;
             if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = false;
+            if (dom.aiSendWebBtn) dom.aiSendWebBtn.disabled = false;
             dom.aiInput.focus();
           }
           return;
@@ -592,6 +598,7 @@
         } finally {
           state.sending = false;
           if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = false;
+          if (dom.aiSendWebBtn) dom.aiSendWebBtn.disabled = false;
           dom.aiInput.focus();
         }
       }
@@ -1226,6 +1233,7 @@
         }
         state.sending = true;
         if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = true;
+        if (dom.aiSendWebBtn) dom.aiSendWebBtn.disabled = true;
         if (state.history.length === 0) dom.aiThread.innerHTML = '';
         appendUserMessage(text);
         state.history.push({ role: 'user', text });
@@ -1240,6 +1248,7 @@
         } finally {
           state.sending = false;
           if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = false;
+          if (dom.aiSendWebBtn) dom.aiSendWebBtn.disabled = false;
           dom.aiInput.focus();
         }
       }
@@ -1396,6 +1405,8 @@
         if (offlineWrap) {
           offlineWrap.style.display = (user && user.is_admin) ? '' : 'none';
         }
+        // Admin status just (re)synced — re-check dedicated Web send button eligibility.
+        if (window.mdSyncWebBtnVisibility) window.mdSyncWebBtnVisibility();
       }
 
       function openSettings() {
@@ -1455,14 +1466,19 @@
           });
         }
 
-        // Send uses the AI mode chosen in the hamburger menu: fast edge-fn,
-        // full Anvil-path, or (admin-only) Web mode.
+        // Send uses the AI mode chosen in the hamburger menu: fast edge-fn or
+        // full Anvil-path. Web mode is never reached through this path — it
+        // has its own dedicated button (aiSendWebBtn) below.
         function sendCurrent() {
-          if (effectiveAiMode() === 'web') { sendWebMessage(); return; }
           sendMessage(!state.anvilMode);
         }
         if (dom.aiSendFastBtn) dom.aiSendFastBtn.addEventListener('click', sendCurrent);
         if (dom.aiSendV2Btn) dom.aiSendV2Btn.addEventListener('click', () => sendMessage(true, true));
+        // Web is a dedicated send button (admin-only, python/r/duckdb), not a
+        // hidden state of the fast/anvil menu cycler — see syncWebBtnVisibility().
+        // It consumes the same textarea/state.sending discipline as the other
+        // send buttons; sendWebMessage() itself does its own auth/sending gate.
+        if (dom.aiSendWebBtn) dom.aiSendWebBtn.addEventListener('click', () => { sendWebMessage(); });
         if (dom.aiAbortBtn) dom.aiAbortBtn.addEventListener('click', () => { if (state.abortCtrl) state.abortCtrl.abort(); });
         dom.aiInput.addEventListener('input', autoresize);
         dom.aiInput.addEventListener('keydown', (e) => {
@@ -1472,20 +1488,27 @@
           }
         });
 
-        // AI-modus-bryter i hamburgermenyen — sykler fast → anvil → web → fast.
-        // Web hoppes over i syklusen når brukeren ikke er kvalifisert (ikke
-        // admin, eller editor står i microdata-modus); se webModeEligible().
+        // Shows/hides the dedicated Web send button: admin + python/r/duckdb only.
+        // Called after login/user fetch (refreshUserPanel), on editor-mode changes
+        // (see switchEditorMode() in index.html), and once here at init.
+        function syncWebBtnVisibility() {
+          if (!dom.aiSendWebBtn) return;
+          dom.aiSendWebBtn.style.display = webModeEligible() ? '' : 'none';
+        }
+        window.mdSyncWebBtnVisibility = syncWebBtnVisibility;
+        syncWebBtnVisibility();
+
+        // AI-modus-bryter i hamburgermenyen — sykler fast ↔ anvil. Web is not
+        // part of this cycle; it has its own send button (see above).
         function updateAiModeLabel() {
           if (!dom.menuAiMode) return;
           const eff = effectiveAiMode();
-          const label = eff === 'anvil' ? 'Anvil (full vurdering)' : eff === 'web' ? 'Web (søk + generer)' : 'Rask';
+          const label = eff === 'anvil' ? 'Anvil (full vurdering)' : 'Rask';
           dom.menuAiMode.textContent = 'AI-svar: ' + label;
         }
         if (dom.menuAiMode) {
           dom.menuAiMode.addEventListener('click', () => {
-            const cur = effectiveAiMode();
-            const eligible = webModeEligible();
-            state.aiMode = cur === 'fast' ? 'anvil' : (cur === 'anvil' ? (eligible ? 'web' : 'fast') : 'fast');
+            state.aiMode = effectiveAiMode() === 'fast' ? 'anvil' : 'fast';
             updateAiModeLabel();
             const dd = document.getElementById('hamburgerDropdown');
             if (dd) dd.classList.remove('open');
@@ -1526,7 +1549,6 @@
           setOpen(true);
           dom.aiInput.value = question;
           autoresize();
-          if (effectiveAiMode() === 'web') { sendWebMessage(); return; }
           sendMessage(!state.anvilMode);
         };
 
@@ -1545,6 +1567,7 @@
           const thinkingNode = appendThinking();
           state.sending = true;
           if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = true;
+          if (dom.aiSendWebBtn) dom.aiSendWebBtn.disabled = true;
           const ctrl = new AbortController();
           state.abortCtrl = ctrl;
           if (dom.aiAbortBtn) dom.aiAbortBtn.style.display = '';
@@ -1555,6 +1578,7 @@
               if (dom.aiAbortBtn) dom.aiAbortBtn.style.display = 'none';
               state.sending = false;
               if (dom.aiSendFastBtn) dom.aiSendFastBtn.disabled = false;
+              if (dom.aiSendWebBtn) dom.aiSendWebBtn.disabled = false;
               if (dom.aiInput) dom.aiInput.focus();
             });
         };

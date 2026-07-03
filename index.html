@@ -253,6 +253,7 @@
         <button type="button" class="ai-send-fast-btn ai-send-v2-btn" id="aiSendV2Btn"
           title="Eksperimentell: 2-stegs variabelvalg + auto-retting (kan være tregere)"
           aria-label="Send (eksperimentell)">Send⚗︎</button>
+        <button type="button" class="ai-send-fast-btn ai-send-web-btn" id="aiSendWebBtn" style="display:none;" title="Web: finn åpne data og generer script (kun admin; python/r/duckdb-modus)" aria-label="Send (web)">Web</button>
       </div>
     </div>
   </aside>
@@ -3369,6 +3370,9 @@
       // Refresh the GitHub save indicator: hide the floppy when the bound file's
       // extension no longer matches the active mode (cross-IIFE via window).
       if (window.mdGithubRefreshIndicator) window.mdGithubRefreshIndicator();
+      // Web send button is only shown in python/r/duckdb modes (admin-gated);
+      // re-check eligibility now that the mode changed (cross-IIFE via window).
+      if (window.mdSyncWebBtnVisibility) window.mdSyncWebBtnVisibility();
     }
 
     function updateModeButtonsUi() {

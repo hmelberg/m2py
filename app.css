@@ -980,6 +980,8 @@
     .ai-send-fast-btn:hover:not(:disabled) { filter: brightness(1.1); }
     .ai-send-v2-btn { opacity: 0.85; }
     .ai-send-v2-btn:hover { opacity: 1; }
+    .ai-send-web-btn { border-color: #2b6cb0; background: #2b6cb0; }
+    .ai-send-web-btn:hover:not(:disabled) { filter: brightness(1.1); }
     .ai-abort-btn {
       height: 32px; padding: 0 9px; border: 1px solid #c0392b; background: transparent;
       color: #c0392b; border-radius: 8px; cursor: pointer; display: inline-flex;
