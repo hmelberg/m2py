@@ -9,7 +9,7 @@ Deno.test("isPublicHttpUrl blocks non-http, private and local hosts", () => {
     "http://0.0.0.0/x", "http://[::1]/x", "http://foo.local/x", "http://db.internal/x",
   ];
   for (const u of bad) assertEquals(isPublicHttpUrl(u), false, u);
-  const good = ["https://data.ssb.no/api/", "http://api.worldbank.org/v2/", "https://172.15.1.1/edge"];
+  const good = ["https://data.ssb.no/api/", "http://api.worldbank.org/v2/", "https://172.15.1.1/edge", "https://data.ssb.no/api/pxwebapi/v2-beta/tables/05839/data?valueCodes[Kjonn]=0&outputFormat=csv"];
   for (const u of good) assertEquals(isPublicHttpUrl(u), true, u);
 });
 

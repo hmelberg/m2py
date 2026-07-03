@@ -15,7 +15,7 @@ export function isPublicHttpUrl(raw: string): boolean {
   if (u.protocol !== "http:" && u.protocol !== "https:") return false;
   const host = u.hostname.toLowerCase();
   if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) return false;
-  if (host.includes(":") || raw.includes("[")) return false; // IPv6 literals: reject
+  if (host.includes(":")) return false; // IPv6 literals: reject
   if (/^\d+\.\d+\.\d+\.\d+$/.test(host) && PRIVATE_V4.some((re) => re.test(host))) return false;
   return true;
 }
