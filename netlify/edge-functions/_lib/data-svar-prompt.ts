@@ -52,7 +52,20 @@ Datakilder deklareres ØVERST i scriptet som kommentar-direktiver
 - Flertrinns-API-kall som ikke passer i én load-linje skrives som kode med
   kilde-URL i kommentar.
 - Siter HVER kilde med URL i en kommentar ved bruksstedet, og merk hvilke
-  som er probe-verifisert.`;
+  som er probe-verifisert.
+- KRAV: \`navn\` fra en \`# load\`-linje er FERDIG INNLASTET data FØR koden
+  kjører (kjøretiden har allerede håndtert proxy/CORS/POST-innpakking) —
+  ALDRI skriv kode som henter samme kilde på nytt (read.csv/pd.read_csv/
+  requests.get/post/pyfetch mot samme URL). Bruk \`navn\` direkte. Dette
+  gjelder også POST-innpakkede kilder: skriv \`# load /api/hent?...&body=...
+  as navn\`, ikke egen fetch/pyfetch-kode mot /api/hent.
+- KRAV: merk en kilde «probe-verifisert» BARE når probe faktisk returnerte
+  ok=true for NØYAKTIG den URL-en scriptet bruker (ikke en annen/bredere
+  URL, og aldri når probe feilet eller ikke ble kjørt for den). Fant du
+  ingen fungerende kilde etter forsøk: si det rett ut i svarteksten («fant
+  ingen fungerende datakilde for X etter N forsøk») — ALDRI lever en
+  ubekreftet URL/tabell-ID/tall framstilt som verifisert eller som om et
+  spesifikt HTTP-feilsvar (f.eks. 503) faktisk ble observert.`;
 
 const SCIENCE = `\
 ## Vitenskapelig kjerne (effekt- og sammenligningsspørsmål)

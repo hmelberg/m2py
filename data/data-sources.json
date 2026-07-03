@@ -4,10 +4,10 @@
     "tillit": "offisiell", "tilgang": "pxweb",
     "base_url": "https://data.ssb.no/api/pxwebapi/v2-beta/",
     "sok_endepunkt": "https://data.ssb.no/api/pxwebapi/v2-beta/tables?query={q}&lang=no",
-    "cors": true,
+    "cors": false,
     "join_nokler": ["kommunenummer", "fylkesnummer", "år"],
-    "sporrings_url_mal": "https://data.ssb.no/api/pxwebapi/v2-beta/tables/{id}/data?valueCodes[{var}]={koder}&outputFormat=csv",
-    "quirks": "GET med valueCodes per dimensjon; outputFormat=csv gir CSV direkte"
+    "sporrings_url_mal": "https://data.ssb.no/api/pxwebapi/v2/tables/{id}/data?valueCodes[{var}]={koder}&outputFormat=csv",
+    "quirks": "GET med valueCodes per dimensjon; outputFormat=csv gir CSV direkte. Verifisert 2026-07-03: /v2-beta/.../data probet gjentatte ganger til å feile (bruk /v2/ uten -beta for selve datauttrekket — søk og /metadata funker fint på v2-beta); data-endepunktet sender ingen Access-Control-Allow-Origin, så uttrekk MÅ gå via /api/hent-proxy uansett hva denne cors-flagget sier andre steder i registeret."
   },
   {
     "id": "eurostat", "navn": "Eurostat (dissemination API)", "utgiver": "Eurostat",
