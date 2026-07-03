@@ -34,6 +34,19 @@ ENDRINGSLOGG
   AbortError (90s non-streaming-turngrense nådd under et 11-verktøykall-forløp) —
   logget som infra-observasjon, ikke en promptfeil. `data-svar-prompt.test.ts`
   grønn etter endringen (115/115 i hele `_lib/`-suiten).
+- 2026-07-03: v1.2 — Final-review fiksrunde: DELIVERY-eksempelet motsa det
+  rettede `ssb`-registeret (viste fortsatt `v2-beta/.../data` og en direkte
+  `ssb/…`-load uten proxy). Eksempelet er nå justert til å stemme eksakt med
+  `data/data-sources.json`s `ssb`-oppføring: `# connect ssb` (register-id,
+  som `fred`) + `# load /api/hent?url=<url-enkodet v2 data-URL…> as ledighet`
+  (proxy obligatorisk, `cors:false`; datauttrekk MÅ bruke `/v2/`, ikke
+  `/v2-beta/`). OWID- og fred-eksempellinjene er uendret. Samtidig:
+  `_lib/anthropic.ts`s `AGENTIC_TIMEOUT_MS` hevet 90s → 180s (Q11 i evalsettet
+  traff denne grensen med `AbortError` under et langt multi-probe-forløp;
+  streaming av siste runde er den riktige langsiktige fiksen, se kommentar i
+  fila). Q3/Q5/Q11 kjørt på nytt mot evalsettet — se
+  `docs/eval/data-svar-evalsett.md` for resultatene. `data-svar-prompt.test.ts`
+  og hele `_lib/`-suiten grønn etter endringen.
 -->
 
 Se `_lib/data-svar-prompt.ts` — innholdet er inlinet som TS-konstanter fordi

@@ -37,9 +37,9 @@ Datakilder deklareres ØVERST i scriptet som kommentar-direktiver
 (kommentartegn per språk: #, --, //):
 
 \`\`\`
-# connect https://data.ssb.no/api/pxwebapi/v2-beta/tables as ssb
+# connect ssb
 # connect fred
-# load ssb/05839/data?valueCodes[Kjonn]=0&outputFormat=csv as ledighet
+# load /api/hent?url=<url-enkodet v2 data-URL, f.eks. .../v2/tables/05839/data?valueCodes[Kjonn]=0&outputFormat=csv> as ledighet
 # load https://ourworldindata.org/grapher/co2.csv as co2
 \`\`\`
 

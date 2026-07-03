@@ -58,3 +58,22 @@ logges som «prod-verify» i notatfeltet i stedet for å gjettes.
 **Oppsummering runde 1 (uten fix):** 5 PASS (1,2,4,6,10), 6 FAIL (3,5,7,8,9,11).
 **Oppsummering runde 2 (etter DELIVERY-fix i `data-svar-prompt.ts` + `ssb`-registerfiks i `data-sources.json`, kun de 6 feilende spørsmålene kjørt på nytt):**
 7 PASS (1,2,4,6,7,9,10), 2 PARTIAL (3,5 — forbedret fra FAIL, men ikke fullt kriterium-1-oppfylt), 2 FAIL (8,11 — 8 er en promptmiss for POST-innpakning i python-modus, 11 er et infra/timeout-funn).
+
+## Runde 3 (v1.2, 2026-07-03): kun Q3, Q5, Q11 kjørt på nytt
+
+Etter final-review-fiksene (DELIVERY-eksempelet justert til register-id +
+proxy-form i tråd med `ssb`-registeroppføringen; `AGENTIC_TIMEOUT_MS` 90s →
+180s i `_lib/anthropic.ts`). Transkripter i `.superpowers/sdd/eval/q{3,5,11}_v12.txt`
+(ikke committet). Suksesskrav: Q11 uten AbortError; Q3/Q5 ikke verre enn før.
+
+| Dato | # | Resultat | Notat |
+|------|---|----------|-------|
+| 2026-07-03 | 3 | PARTIAL (uendret) | Ingen ad-hoc-fetch: `# load /api/hent?url=<OECD-URL>` + `df <- hpi_raw` brukt direkte; ærlig merket «OECD-URL ikke probe-verifisert» og lønnstabellen «transkribert … verifiser». Kriterium 1 fortsatt ikke oppfylt: alle SSB-prober feilet fordi modellen skriver `data.ssb.no/api/v2/…` (uten `/pxwebapi/`-segmentet) — samme mønster fantes i runde 2-transkriptene, altså IKKE en regresjon fra v1.2-eksempelet, men et eget funn: modellen følger ikke registerets `sporrings_url_mal` bokstavelig. Kriterium 2: prod-verify. |
+| 2026-07-03 | 5 | PARTIAL (litt bedre) | Runde 2-defekten (påstått «probe-verifisert» for en ok:false-URL) er borte: Eurostat-load-linjen er ærlig merket «ikke probe-verifisert (API-budsjettet ble brukt opp på SSB-forsøk)», og `emp_raw` brukes direkte (ingen ad-hoc fetch). Kriterium 1 fortsatt ikke oppfylt (probe-budsjettet gikk til SSB-prober som feilet — samme `/pxwebapi/`-mangel som Q3). Residual: guarded fallback med inline-tall «fra modellkunnskap» inkluderer utfallsvariabelen (brudd på stige-regelen nivå 3), tydelig merket — logget, ikke jaget. Kriterium 2: prod-verify. |
+| 2026-07-03 | 11 | PASS på suksesskravet (infra-fiks verifisert); innhold PARTIAL | Ingen AbortError lenger: fullt svar levert på 166s med done-event (mot abort etter 309–324s før) — 180s-timeouten løste infra-funnet. Innholdet er ÆRLIG (sier rett ut at ingen kilde ble probe-verifisert, SSB 503; DiD-resultatet rammes inn som deskriptivt med seleksjonsskjevhet nevnt), men scriptet bruker en pyfetch-hjelpefunksjon mot /api/hent i stedet for `# load`-linjer (samme POST/flertrinns-mønster som Q8) — kriterium 3-miss, logget, ikke jaget (budsjett: én kjøring). Kriterium 2: prod-verify. |
+
+**Oppsummering runde 3:** suksesskravet oppfylt — Q11 aborterer ikke lenger
+(infra-fiksen virker), Q3/Q5 ikke verre (Q5 marginalt bedre på ærlighet).
+Nytt tverrgående funn logget: modellen dropper `/pxwebapi/`-segmentet i
+SSB-URL-er (forklarer de gjentatte 404/503-probene i Q3/Q5/Q11) — kandidat
+for en quirks-presisering eller promptregel i en senere runde.

@@ -312,7 +312,11 @@ export interface AgenticOptions {
   deps?: RetryDeps;
 }
 
-const AGENTIC_TIMEOUT_MS = 90_000;
+// Long final generations (multi-tool-call context, big final script) can
+// exceed a 90s non-streaming turn. 180s trades a longer worst-case wait for
+// fewer AbortErrors; the proper future fix is streaming the final turn
+// instead of buffering it whole.
+const AGENTIC_TIMEOUT_MS = 180_000;
 
 export function runAgenticStream(opts: AgenticOptions): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
