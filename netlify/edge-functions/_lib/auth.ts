@@ -43,6 +43,31 @@ export function clientIp(request: Request): string {
   return request.headers.get("x-nf-client-connection-ip") ?? "";
 }
 
+/**
+ * BYOK: user-supplied Anthropic key from the X-Anthropic-Key header. Only a
+ * well-formed key (sk-ant-…, sane charset, ≤250 chars) counts; anything else
+ * is treated as absent so the normal token path (and its 401) applies.
+ * The value must never be logged or cached.
+ */
+export function extractByokKey(request: Request): string | null {
+  const raw = (request.headers.get("x-anthropic-key") ?? "").trim();
+  if (raw.length === 0 || raw.length > 250) return null;
+  return /^sk-ant-[A-Za-z0-9_-]+$/.test(raw) ? raw : null;
+}
+
+/**
+ * Map an upstream Anthropic failure to a client response. With BYOK, a 401
+ * from Anthropic means the user's own key is invalid — surface that directly
+ * instead of a generic 502 (the anthropic.ts helpers throw
+ * `Error("Anthropic API error <status>")`).
+ */
+export function upstreamErrorResponse(e: unknown, byokKey: string | null): Response {
+  if (byokKey && String(e).includes("Anthropic API error 401")) {
+    return new Response("Ugyldig Anthropic-nøkkel", { status: 401 });
+  }
+  return new Response(`Upstream error: ${e}`, { status: 502 });
+}
+
 export interface GateOptions {
   endpoint: string;
   maxBodyBytes: number;

@@ -1,9 +1,11 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   clientIp,
+  extractByokKey,
   type GateDeps,
   runGate,
   timingSafeEqual,
+  upstreamErrorResponse,
 } from "./auth.ts";
 
 function req(opts: {
@@ -12,6 +14,7 @@ function req(opts: {
   contentLength?: number;
   ip?: string;
   xff?: string;
+  byok?: string;
 } = {}): Request {
   const headers = new Headers();
   if (opts.token !== undefined) headers.set("authorization", `Bearer ${opts.token}`);
@@ -20,6 +23,7 @@ function req(opts: {
   }
   if (opts.ip) headers.set("x-nf-client-connection-ip", opts.ip);
   if (opts.xff) headers.set("x-forwarded-for", opts.xff);
+  if (opts.byok !== undefined) headers.set("x-anthropic-key", opts.byok);
   return new Request("https://example.test/", {
     method: opts.method ?? "POST",
     headers,
@@ -180,4 +184,45 @@ Deno.test("makeAnvilUserFetcher maps /auth/me shape", async () => {
   assertEquals(await mk({ user: { is_admin: false } })("t"), { ok: true, isAdmin: false });
   assertEquals(await mk({ user: {} })("t"), { ok: true, isAdmin: false });
   assertEquals(await mk({}, 401)("t"), { ok: false, isAdmin: false });
+});
+
+// ── BYOK: user-supplied Anthropic key ──
+
+const GOOD_KEY = "sk-ant-api03-abc123_DEF-456";
+
+Deno.test("extractByokKey: accepts well-formed sk-ant key", () => {
+  assertEquals(extractByokKey(req({ byok: GOOD_KEY })), GOOD_KEY);
+});
+
+Deno.test("extractByokKey: trims surrounding whitespace", () => {
+  assertEquals(extractByokKey(req({ byok: `  ${GOOD_KEY}  ` })), GOOD_KEY);
+});
+
+Deno.test("extractByokKey: rejects wrong prefix, bad chars, empty, absent", () => {
+  assertEquals(extractByokKey(req({ byok: "sk-live-abc" })), null);
+  assertEquals(extractByokKey(req({ byok: "sk-ant-abc def" })), null);
+  assertEquals(extractByokKey(req({ byok: "sk-ant-abc!" })), null);
+  assertEquals(extractByokKey(req({ byok: "" })), null);
+  assertEquals(extractByokKey(req({})), null);
+});
+
+Deno.test("extractByokKey: rejects keys longer than 250 chars", () => {
+  const long = "sk-ant-" + "a".repeat(244); // total 251
+  assertEquals(extractByokKey(req({ byok: long })), null);
+  const ok = "sk-ant-" + "a".repeat(243); // total 250
+  assertEquals(extractByokKey(req({ byok: ok })), ok);
+});
+
+Deno.test("upstreamErrorResponse: BYOK + Anthropic 401 -> 401 Ugyldig", async () => {
+  const resp = upstreamErrorResponse(new Error("Anthropic API error 401"), GOOD_KEY);
+  assertEquals(resp.status, 401);
+  assertEquals(await resp.text(), "Ugyldig Anthropic-nøkkel");
+});
+
+Deno.test("upstreamErrorResponse: BYOK + other error -> 502", () => {
+  assertEquals(upstreamErrorResponse(new Error("Anthropic API error 529"), GOOD_KEY).status, 502);
+});
+
+Deno.test("upstreamErrorResponse: no BYOK -> always 502", () => {
+  assertEquals(upstreamErrorResponse(new Error("Anthropic API error 401"), null).status, 502);
 });
