@@ -8479,7 +8479,10 @@ options(width = 200)
         var _ctx = { py: py, rightStatus: rightStatus, showCommands: _showCmds };
         // Compute-to-data: i python/r/duckdb-modus ruter et `# require <navn> as <alias>`-
         // direktiv scriptet til serveren (safepy). Uten direktiv kjøres lokalt som før.
-        var _remoteDialect = { python: 'pandas', r: 'r', duckdb: 'duckdb', he: 'he' }[activeEditorMode];
+        // 'python' is a meta-dialect: the server picks pandas vs polars from the
+        // script's imports (and he/polars-he for encrypted sources). See
+        // safepy detect_python_dialect / spec 2026-07-04-python-meta-dialect-design.
+        var _remoteDialect = { python: 'python', r: 'r', duckdb: 'duckdb', he: 'he' }[activeEditorMode];
         if (_remoteDialect && await maybeRunRemote(effectiveScript, _ctx, _remoteDialect)) return;
         // Microdata-modus, katalog-først: server-kilder ruter til legacy m2py-motoren
         if (activeEditorMode === 'microdata' && await maybeRunRemoteMicrodata(effectiveScript, _ctx)) return;
