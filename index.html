@@ -142,6 +142,7 @@
           <hr style="margin:4px 0;border-color:#334155;">
           <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Admin</div>
           <button type="button" id="btnAdminSharedCode" data-i18n>Generer tilgangskode</button>
+          <button type="button" id="btnAdminAuditLog" data-i18n>Analyser kjøringslogg</button>
         </div>
       </div>
     </div>
@@ -3341,6 +3342,95 @@
           } finally {
             uploadLoadBtn.disabled = false;
             uploadLoadBtn.textContent = t('Last inn');
+          }
+        });
+      })();
+
+      // ── Admin: analyser kjøringslogg (audit_log) ──────────────────────────
+      // Henter audit_export CSV fra API-serveren, laster den inn som datasettet
+      // "kjoringslogg" (samme opplastingsflyt som Last opp data) og setter opp
+      // et python-startscript i editoren.
+      (function initAdminAuditLog() {
+        var btn = document.getElementById('btnAdminAuditLog');
+        if (!btn) return;
+
+        var STARTER_SCRIPT = [
+          '# Kjøringslogg (audit_log) — lastet inn som datasettet «kjoringslogg»',
+          'import pandas as pd',
+          'logg = kjoringslogg.copy()',
+          "logg['ts'] = pd.to_datetime(logg['ts'])",
+          "logg['dag'] = logg['ts'].dt.date",
+          '',
+          '# Kjøringer per bruker: totalt og siste 7 dager',
+          "grense = logg['ts'].max() - pd.Timedelta(days=7)",
+          'per_bruker = (logg.assign(siste_uke=logg[\'ts\'] > grense)',
+          "    .groupby('principal')",
+          "    .agg(totalt=('request_id', 'count'), siste_uke=('siste_uke', 'sum'))",
+          "    .sort_values('totalt', ascending=False))",
+          'per_bruker',
+          '',
+          '# Flere oppslag (fjern # for å kjøre):',
+          "# logg.groupby('dag').size()                    # kjøringer per dag",
+          "# logg[logg['status'] != 'ok'][['ts','principal','status','error']]",
+          "# logg[logg['script_head'].str.contains('regress', case=False, na=False)][['ts','principal','script_head']]",
+        ].join('\n');
+
+        btn.addEventListener('click', async function() {
+          var dd = document.getElementById('hamburgerDropdown');
+          if (dd) dd.classList.remove('open');
+
+          if (!window.mdAuth || !window.mdAuth.token) {
+            alert(t('Du må være logget inn som admin for å analysere kjøringsloggen.'));
+            return;
+          }
+          var apiBase = (window.mdAuth.apiBase ? window.mdAuth.apiBase()
+            : (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app')).replace(/\/+$/, '');
+          var token = window.mdAuth.token;
+
+          var origLabel = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = t('Henter logg…');
+          try {
+            var resp = await fetch(apiBase + '/_/api/admin/audit_export?days=90', {
+              headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (resp.status === 403) {
+              alert(t('Krever admin.'));
+              return;
+            }
+            if (!resp.ok) {
+              alert(t('Kunne ikke hente kjøringslogg (status {status}).', { status: resp.status }));
+              return;
+            }
+            var text = await resp.text();
+            var uint8 = new TextEncoder().encode(text);
+
+            var py = await loadPyodideAndM2py();
+            py.globals.set('_upload_bytes', py.toPy(uint8));
+            await py.runPythonAsync(
+              'import io, pandas as pd\n' +
+              '_buf = io.BytesIO(bytes(_upload_bytes))\n' +
+              '_upload_df = pd.read_csv(_buf)\n' +
+              'del _buf\n' +
+              'del _upload_bytes'
+            );
+            await py.runPythonAsync(
+              'to_microdata(_upload_df, "kjoringslogg", make_active=True)\n' +
+              'del _upload_df'
+            );
+            await refreshDatasetSidebarFromPy(py);
+
+            if (typeof editorContent !== 'undefined') editorContent.python = STARTER_SCRIPT;
+            if (typeof switchEditorMode === 'function' && typeof activeEditorMode !== 'undefined' && activeEditorMode !== 'python') {
+              switchEditorMode('python');
+            }
+            scriptInput.value = STARTER_SCRIPT;
+            scriptInput.dispatchEvent(new Event('input', { bubbles: true }));
+          } catch (err) {
+            alert(t('Feil ved henting av kjøringslogg:\n{msg}', { msg: err && err.message ? err.message : String(err) }));
+          } finally {
+            btn.disabled = false;
+            btn.textContent = origLabel;
           }
         });
       })();

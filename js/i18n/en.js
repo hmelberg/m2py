@@ -630,4 +630,12 @@ window.M2PY_I18N.en = {
   "Kopier alle resultater": "Copy all results",
   "Kopier til utklippstavle": "Copy to clipboard",
   "Kopier figur som bilde": "Copy figure as image",
+
+  // ── Admin: kjøringslogg ──
+  "Analyser kjøringslogg": "Analyse run log",
+  "Henter logg…": "Fetching log…",
+  "Du må være logget inn som admin for å analysere kjøringsloggen.": "You must be logged in as admin to analyse the run log.",
+  "Krever admin.": "Requires admin.",
+  "Kunne ikke hente kjøringslogg (status {status}).": "Could not fetch the run log (status {status}).",
+  "Feil ved henting av kjøringslogg:\n{msg}": "Error fetching the run log:\n{msg}",
 };
