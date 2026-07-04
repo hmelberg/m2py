@@ -414,7 +414,7 @@
       </button>
       <div style="width:1px;height:20px;background:var(--border);margin:0 6px;flex-shrink:0"></div>
       <div class="mode-dropdown-wrap">
-        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg modus (Microdata, Python, R, Statx, jamovi, DuckDB, SafeStat)">
+        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg modus (Microdata, Python, R, Statx, jamovi, DuckDB, Kryptert, SafeStat)">
           <span id="editorModeLabel">Microdata</span>
           <span class="chevron">▲</span>
         </button>
@@ -425,6 +425,7 @@
           <button type="button" data-mode="statx">Statx</button>
           <button type="button" data-mode="jamovi">jamovi</button>
           <button type="button" data-mode="duckdb">DuckDB</button>
+          <button type="button" data-mode="he" data-i18n>Kryptert</button>
           <button type="button" data-mode="safestat">SafeStat</button>
         </div>
       </div>
@@ -3493,6 +3494,12 @@
         runSelf: async function (script, ctx) { await runStatxScript(script, ctx); } },
       duckdb: { id: 'duckdb', label: 'DuckDB', hlConfig: SQL_HL_CFG, handleTab: microdataHandleTab,
         translate: { showsButton: false }, runDefault: 'duckdb' },
+      // Kryptert (Plane B): scripts run server-side against a homomorphically
+      // encrypted source (dialect "he"). The facade verbs are group_agg /
+      // value_counts / crosstab / ols on an EncryptedSource; the data is never
+      // decrypted. Same require-directive routing as the other remote dialects.
+      he: { id: 'he', label: 'Kryptert', handleTab: microdataHandleTab,
+        translate: { showsButton: false }, runDefault: 'he' },
       // SafeStat: same microdata language, but runs by translating to pandas and
       // executing the generated code (offline path) rather than the emulator.
       // Execution is local now; a remote compute-to-data executor is a placeholder.
@@ -8472,7 +8479,7 @@ options(width = 200)
         var _ctx = { py: py, rightStatus: rightStatus, showCommands: _showCmds };
         // Compute-to-data: i python/r/duckdb-modus ruter et `# require <navn> as <alias>`-
         // direktiv scriptet til serveren (safepy). Uten direktiv kjøres lokalt som før.
-        var _remoteDialect = { python: 'pandas', r: 'r', duckdb: 'duckdb' }[activeEditorMode];
+        var _remoteDialect = { python: 'pandas', r: 'r', duckdb: 'duckdb', he: 'he' }[activeEditorMode];
         if (_remoteDialect && await maybeRunRemote(effectiveScript, _ctx, _remoteDialect)) return;
         // Microdata-modus, katalog-først: server-kilder ruter til legacy m2py-motoren
         if (activeEditorMode === 'microdata' && await maybeRunRemoteMicrodata(effectiveScript, _ctx)) return;
