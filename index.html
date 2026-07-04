@@ -5640,10 +5640,10 @@ json.dumps(out)
       Plotly.newPlot(div, data, layout, { responsive: true, autosizable: true, staticPlot: staticPlot }).catch(function(){});
     }
 
-    function renderOutput(raw, asHtml, suppress) {
+    function buildOutputNodes(raw, asHtml, suppress) {
       const parts = parseOutput(raw);
+      const frag = document.createDocumentFragment();
       if (asHtml) {
-        const frag = document.createDocumentFragment();
         for (const p of parts) {
           if (p.type === 'text') {
             var textBlocks = splitTextIntoBlocks(p.content);
@@ -5784,9 +5784,6 @@ json.dumps(out)
             }
           }
         }
-        purgePlots(outputArea);
-        outputArea.innerHTML = '';
-        outputArea.appendChild(frag);
       } else {
         let text = '';
         for (const p of parts) {
@@ -5798,12 +5795,25 @@ json.dumps(out)
             text += firstLine ? `[${p.embedType}: ${firstLine.substring(0, 60)}...]\n` : `[${p.embedType}]\n`;
           } else text += `\n[${p.embedType}]\n${p.payload || ''}\n`;
         }
-        purgePlots(outputArea);
-        outputArea.innerHTML = '';
         const pre = document.createElement('pre');
         pre.textContent = text;
-        outputArea.appendChild(pre);
+        frag.appendChild(pre);
       }
+      return frag;
+    }
+
+    function renderOutput(raw, asHtml, suppress) {
+      const frag = buildOutputNodes(raw, asHtml, suppress);
+      purgePlots(outputArea);
+      outputArea.innerHTML = '';
+      outputArea.appendChild(frag);
+    }
+
+    // Inkrementell variant: legg nye output-deler til uten å røre det som
+    // allerede er rendret (brukes av den segmentvise kjøringen).
+    function appendOutput(raw, asHtml, suppress) {
+      if (!raw || !raw.trim()) return;
+      outputArea.appendChild(buildOutputNodes(raw, asHtml, suppress));
     }
 
     // Frigjør Plotly-interne ressurser (handlers/WebGL) før innholdet
