@@ -207,6 +207,32 @@
     }
     .output-jump-last-btn:hover { background: rgba(21, 128, 61, 0.9); }
     .output-jump-last-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    /* B1: "Kopier alle resultater" — synlig topp-høyre i output-panelet når det finnes resultater */
+    .copy-all-results-btn {
+      position: absolute;
+      right: 22px;
+      top: 10px;
+      z-index: 8;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      margin: 0;
+      border: none;
+      border-radius: 4px;
+      background: rgba(37, 99, 235, 0.82);
+      color: #eff6ff;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 5px rgba(15, 23, 42, 0.2);
+      pointer-events: auto;
+      transition: background 0.15s;
+    }
+    .copy-all-results-btn:hover { background: rgba(29, 78, 216, 0.9); }
+    .copy-all-results-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .copy-all-results-btn.copied { background: rgba(21, 128, 61, 0.9); }
     body { --base-font-size: 13px; --line-h: 20px; }
     body[data-font-size="small"] { --base-font-size: 12px; --line-h: 18px; }
     body[data-font-size="large"] { --base-font-size: 15px; --line-h: 22px; }
@@ -469,7 +495,12 @@
       color: var(--text);
       font-weight: 500;
     }
-    .output-area pre.m2py-stmt-code:first-child { margin-top: 2px; }
+    .output-area > pre.m2py-stmt-code:first-child { margin-top: 2px; }
+    /* B1: samme unntak når den første pre.m2py-stmt-code er pakket i en
+       .result-copy-wrap (kopier-knapp-overlegg) — ellers mister ALLE
+       statement-blokker sin topp-margin fordi hver er "first-child" i sin
+       egen (ett-elements) wrapper. */
+    .output-area > .result-copy-wrap:first-child > pre.m2py-stmt-code:first-child { margin-top: 2px; }
     /* R-mode: tekst-output (det R ville skrevet til konsoll) — ikke soft-wrap,
        så kolonner i print.data.frame / table / matrix forblir innrettet. */
     .output-area pre.m2py-stmt-output {
@@ -491,9 +522,14 @@
     .output-copy-btn { position: absolute; top: 4px; left: 4px; width: 20px; height: 20px; padding: 0; font-size: 11px; border-radius: 999px; border: none; background: var(--accent); color: #f9fafb; cursor: pointer; opacity: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(15,23,42,0.25); transition: opacity 0.15s, transform 0.1s; }
     body[data-theme="dark"] .output-copy-btn { background: var(--accent); color: #e5e7eb; box-shadow: 0 1px 4px rgba(0,0,0,0.6); }
     .output-copy-btn:hover { transform: scale(1.05); }
+    .output-copy-btn.copied { background: #16a34a; }
     .output-table-wrap:hover .output-copy-btn, .output-table-wrap:focus-within .output-copy-btn { opacity: 1; }
     .plotly-container { width: 480px; max-width: 100%; box-sizing: border-box; min-height: 260px; height: 340px; padding: 4px; margin: 0.15em auto; background: var(--bg-code); overflow-x: auto; overflow-y: hidden; }
     .plotly-container.seaborn-style { background: #fff; }
+    /* B1: generisk kopier-knapp-overlegg for resultatblokker (table/pre/plot/safestat) */
+    .result-copy-wrap { position: relative; }
+    .result-copy-wrap:hover .output-copy-btn, .result-copy-wrap:focus-within .output-copy-btn { opacity: 1; }
+    .result-copy-wrap > .plotly-container { margin-left: auto; margin-right: auto; }
     .output-matplotlib-img { display: block; max-width: 100%; height: auto; margin: 12px auto; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-code); }
     .status { font-size: var(--base-font-size); color: var(--text-muted); margin-right: 12px; }
     .error { color: #e11d48; }

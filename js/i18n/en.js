@@ -89,7 +89,8 @@ window.M2PY_I18N.en = {
   "Skjul/vis inndatapanel (bare output)": "Hide/show the input panel (output only)",
   "Skjul inndatapanel": "Hide input panel",
   "CSV omkodingsverktøy": "CSV recoding tool",
-  "Velg modus (Microdata, Python, R, Statx, jamovi, DuckDB, SafeStat)": "Select mode (Microdata, Python, R, Statx, jamovi, DuckDB, SafeStat)",
+  "Velg modus (Microdata, Python, R, Statx, jamovi, DuckDB, Kryptert, SafeStat)": "Select mode (Microdata, Python, R, Statx, jamovi, DuckDB, Encrypted, SafeStat)",
+  "Kryptert": "Encrypted",
   "Vurder personvern": "Assess privacy",
   "Vurder personvern: sjekk om scriptet henter mer detaljerte data enn nødvendig (dataminimering), og få forslag til å aggregere/forenkle. Krever innlogging.": "Assess privacy: check whether the script fetches more detailed data than necessary (data minimisation), and get suggestions for aggregating/simplifying. Requires login.",
   "Hva vil du undersøke?": "What do you want to investigate?",
@@ -619,7 +620,23 @@ window.M2PY_I18N.en = {
   "Web-modus krever innlogging eller egen Anthropic-nøkkel.": "Web mode requires login or your own Anthropic key.",
   "Web-modus krever admin eller egen Anthropic-nøkkel.": "Web mode requires admin or your own Anthropic key.",
 
+  "Egen Anthropic-nøkkel er lagret i denne nettleseren. Den brukes bare når du er logget ut.": "Your own Anthropic key is stored in this browser. It is only used while you are logged out.",
+  "Fjern nøkkel": "Remove key",
+
   // ── Datasettviser: remote-datasett (B2) ──
   "Server-datasett: viser metadata fra kilden — fordeling og statistikk beregnes ikke lokalt.": "Remote dataset: showing metadata from the source — distributions and statistics are not computed locally.",
   "Ingen informasjon tilgjengelig for denne variabelen.": "No information available for this variable.",
+
+  // ── B1: kopier resultater ──
+  "Kopier alle resultater": "Copy all results",
+  "Kopier til utklippstavle": "Copy to clipboard",
+  "Kopier figur som bilde": "Copy figure as image",
+
+  // ── Admin: kjøringslogg ──
+  "Analyser kjøringslogg": "Analyse run log",
+  "Henter logg…": "Fetching log…",
+  "Du må være logget inn som admin for å analysere kjøringsloggen.": "You must be logged in as admin to analyse the run log.",
+  "Krever admin.": "Requires admin.",
+  "Kunne ikke hente kjøringslogg (status {status}).": "Could not fetch the run log (status {status}).",
+  "Feil ved henting av kjøringslogg:\n{msg}": "Error fetching the run log:\n{msg}",
 };

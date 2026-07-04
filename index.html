@@ -142,6 +142,7 @@
           <hr style="margin:4px 0;border-color:#334155;">
           <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Admin</div>
           <button type="button" id="btnAdminSharedCode" data-i18n>Generer tilgangskode</button>
+          <button type="button" id="btnAdminAuditLog" data-i18n>Analyser kjøringslogg</button>
         </div>
       </div>
     </div>
@@ -210,6 +211,7 @@
           <div class="output-area" id="outputArea"></div>
         </div>
         <button type="button" class="output-jump-last-btn" id="outputJumpLastBtn" data-i18n-title data-i18n-aria title="Bla ned til resultat fra siste linje" aria-label="Bla ned til resultat fra siste linje"><span aria-hidden="true">&#8595;</span></button>
+        <button type="button" class="copy-all-results-btn" id="copyAllResultsBtn" style="display:none" data-i18n-title data-i18n-aria title="Kopier alle resultater" aria-label="Kopier alle resultater"><span aria-hidden="true">&#10697;</span></button>
       </div>
     </div>
       </div>
@@ -276,6 +278,10 @@
         <div class="ai-modal-actions" style="margin-bottom:18px;">
           <button type="button" class="ai-modal-btn" id="aiCfgLogout" data-i18n>Logg ut</button>
           <button type="button" class="ai-modal-btn primary" id="aiCfgAdmin" style="display:none;" data-i18n>Åpne admin-panel</button>
+        </div>
+        <div id="aiCfgByokStored" style="display:none; margin-bottom:18px;">
+          <div class="ai-modal-help" style="margin-bottom:6px;" data-i18n>Egen Anthropic-nøkkel er lagret i denne nettleseren. Den brukes bare når du er logget ut.</div>
+          <button type="button" class="ai-modal-btn" id="aiCfgByokRemove" data-i18n>Fjern nøkkel</button>
         </div>
       </div>
 
@@ -408,7 +414,7 @@
       </button>
       <div style="width:1px;height:20px;background:var(--border);margin:0 6px;flex-shrink:0"></div>
       <div class="mode-dropdown-wrap">
-        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg modus (Microdata, Python, R, Statx, jamovi, DuckDB, SafeStat)">
+        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg modus (Microdata, Python, R, Statx, jamovi, DuckDB, Kryptert, SafeStat)">
           <span id="editorModeLabel">Microdata</span>
           <span class="chevron">▲</span>
         </button>
@@ -419,6 +425,7 @@
           <button type="button" data-mode="statx">Statx</button>
           <button type="button" data-mode="jamovi">jamovi</button>
           <button type="button" data-mode="duckdb">DuckDB</button>
+          <button type="button" data-mode="he" data-i18n>Kryptert</button>
           <button type="button" data-mode="safestat">SafeStat</button>
         </div>
       </div>
@@ -3340,6 +3347,95 @@
         });
       })();
 
+      // ── Admin: analyser kjøringslogg (audit_log) ──────────────────────────
+      // Henter audit_export CSV fra API-serveren, laster den inn som datasettet
+      // "kjoringslogg" (samme opplastingsflyt som Last opp data) og setter opp
+      // et python-startscript i editoren.
+      (function initAdminAuditLog() {
+        var btn = document.getElementById('btnAdminAuditLog');
+        if (!btn) return;
+
+        var STARTER_SCRIPT = [
+          '# Kjøringslogg (audit_log) — lastet inn som datasettet «kjoringslogg»',
+          'import pandas as pd',
+          'logg = kjoringslogg.copy()',
+          "logg['ts'] = pd.to_datetime(logg['ts'])",
+          "logg['dag'] = logg['ts'].dt.date",
+          '',
+          '# Kjøringer per bruker: totalt og siste 7 dager',
+          "grense = logg['ts'].max() - pd.Timedelta(days=7)",
+          'per_bruker = (logg.assign(siste_uke=logg[\'ts\'] > grense)',
+          "    .groupby('principal')",
+          "    .agg(totalt=('request_id', 'count'), siste_uke=('siste_uke', 'sum'))",
+          "    .sort_values('totalt', ascending=False))",
+          'per_bruker',
+          '',
+          '# Flere oppslag (fjern # for å kjøre):',
+          "# logg.groupby('dag').size()                    # kjøringer per dag",
+          "# logg[logg['status'] != 'ok'][['ts','principal','status','error']]",
+          "# logg[logg['script_head'].str.contains('regress', case=False, na=False)][['ts','principal','script_head']]",
+        ].join('\n');
+
+        btn.addEventListener('click', async function() {
+          var dd = document.getElementById('hamburgerDropdown');
+          if (dd) dd.classList.remove('open');
+
+          if (!window.mdAuth || !window.mdAuth.token) {
+            alert(t('Du må være logget inn som admin for å analysere kjøringsloggen.'));
+            return;
+          }
+          var apiBase = (window.mdAuth.apiBase ? window.mdAuth.apiBase()
+            : (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app')).replace(/\/+$/, '');
+          var token = window.mdAuth.token;
+
+          var origLabel = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = t('Henter logg…');
+          try {
+            var resp = await fetch(apiBase + '/_/api/admin/audit_export?days=90', {
+              headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (resp.status === 403) {
+              alert(t('Krever admin.'));
+              return;
+            }
+            if (!resp.ok) {
+              alert(t('Kunne ikke hente kjøringslogg (status {status}).', { status: resp.status }));
+              return;
+            }
+            var text = await resp.text();
+            var uint8 = new TextEncoder().encode(text);
+
+            var py = await loadPyodideAndM2py();
+            py.globals.set('_upload_bytes', py.toPy(uint8));
+            await py.runPythonAsync(
+              'import io, pandas as pd\n' +
+              '_buf = io.BytesIO(bytes(_upload_bytes))\n' +
+              '_upload_df = pd.read_csv(_buf)\n' +
+              'del _buf\n' +
+              'del _upload_bytes'
+            );
+            await py.runPythonAsync(
+              'to_microdata(_upload_df, "kjoringslogg", make_active=True)\n' +
+              'del _upload_df'
+            );
+            await refreshDatasetSidebarFromPy(py);
+
+            if (typeof editorContent !== 'undefined') editorContent.python = STARTER_SCRIPT;
+            if (typeof switchEditorMode === 'function' && typeof activeEditorMode !== 'undefined' && activeEditorMode !== 'python') {
+              switchEditorMode('python');
+            }
+            scriptInput.value = STARTER_SCRIPT;
+            scriptInput.dispatchEvent(new Event('input', { bubbles: true }));
+          } catch (err) {
+            alert(t('Feil ved henting av kjøringslogg:\n{msg}', { msg: err && err.message ? err.message : String(err) }));
+          } finally {
+            btn.disabled = false;
+            btn.textContent = origLabel;
+          }
+        });
+      })();
+
     })();
 
     // Authoring-shell seam (reserved for a future jamovi-style ribbon, NOT built):
@@ -3398,6 +3494,12 @@
         runSelf: async function (script, ctx) { await runStatxScript(script, ctx); } },
       duckdb: { id: 'duckdb', label: 'DuckDB', hlConfig: SQL_HL_CFG, handleTab: microdataHandleTab,
         translate: { showsButton: false }, runDefault: 'duckdb' },
+      // Kryptert (Plane B): scripts run server-side against a homomorphically
+      // encrypted source (dialect "he"). The facade verbs are group_agg /
+      // value_counts / crosstab / ols on an EncryptedSource; the data is never
+      // decrypted. Same require-directive routing as the other remote dialects.
+      he: { id: 'he', label: 'Kryptert', handleTab: microdataHandleTab,
+        translate: { showsButton: false }, runDefault: 'he' },
       // SafeStat: same microdata language, but runs by translating to pandas and
       // executing the generated code (offline path) rather than the emulator.
       // Execution is local now; a remote compute-to-data executor is a placeholder.
@@ -5712,6 +5814,201 @@ json.dumps(out)
         try { Plotly.purge(el); } catch (e) {}
       });
     }
+
+    // ── B1: kopier/last ned enkeltresultater + "kopier alt" ────────────────
+    // Generisk post-render-forsterkning: finner resultatblokker inni #outputArea
+    // (table, pre, .plotly-container, .safestat-result) og legger en liten
+    // hover-synlig kopier-knapp over hver av dem. Kalles etter hver rendering
+    // via en debounced MutationObserver på #outputArea (se lenger ned), så vi
+    // trenger ikke endre alle stedene som setter outputArea.innerHTML.
+    var RESULT_COPY_SELECTOR = 'table, pre, .plotly-container, .safestat-result';
+
+    function copyPlainTextToClipboard(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text);
+      }
+      return new Promise(function(resolve) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch (e) {}
+        document.body.removeChild(ta);
+        resolve();
+      });
+    }
+
+    function flashCopyBtn(btn) {
+      if (!btn) return;
+      var origHtml = btn.innerHTML;
+      var origTitle = btn.title;
+      btn.innerHTML = '&#10003;';
+      btn.title = t('Kopiert!');
+      btn.classList.add('copied');
+      setTimeout(function() {
+        btn.innerHTML = origHtml;
+        btn.title = origTitle;
+        btn.classList.remove('copied');
+      }, 1200);
+    }
+
+    function downloadBlobAs(blob, filename) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
+    }
+
+    // Tekstrepresentasjon av ett resultatelement: tabell → TSV (rad/celle-tekst),
+    // alt annet (pre, .safestat-result) → textContent. Knappen selv ligger
+    // utenfor elementet (søsken i .result-copy-wrap), så den er aldri med i teksten.
+    function resultElementToText(el) {
+      if (el.tagName === 'TABLE') {
+        var lines = [];
+        el.querySelectorAll('tr').forEach(function(tr) {
+          var cells = [];
+          tr.querySelectorAll('th, td').forEach(function(c) { cells.push(c.textContent.trim()); });
+          lines.push(cells.join('\t'));
+        });
+        return lines.join('\n');
+      }
+      return (el.textContent || '').trim();
+    }
+
+    function copyPlotAsImage(div, btn) {
+      if (typeof Plotly === 'undefined' || !Plotly.toImage) return;
+      Plotly.toImage(div, { format: 'png', width: div.clientWidth || 480, height: div.clientHeight || 300 })
+        .then(function(dataUrl) {
+          return fetch(dataUrl).then(function(r) { return r.blob(); });
+        })
+        .then(function(blob) {
+          if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+            return navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+              .then(function() { flashCopyBtn(btn); })
+              .catch(function() { downloadBlobAs(blob, 'figur.png'); flashCopyBtn(btn); });
+          }
+          downloadBlobAs(blob, 'figur.png');
+          flashCopyBtn(btn);
+        })
+        .catch(function(e) { console.warn('Kunne ikke kopiere figur som bilde', e); });
+    }
+
+    // Går fra el og opp til (men ikke forbi) container: true hvis en forfeder
+    // matcher RESULT_COPY_SELECTOR eller allerede er en .result-copy-wrap —
+    // da skal el IKKE få sin egen knapp (unngår doble knapper, f.eks. en
+    // <table> inni et .safestat-result, eller en tabell SafeStat sitt eget df-html).
+    function isNestedResultCandidate(el, container) {
+      var p = el.parentElement;
+      while (p && p !== container) {
+        // Elementets EGEN wrap (laget av attachResultCopyButtons) teller ikke
+        // som nesting — ellers filtreres alle allerede-pakkede resultater bort
+        // (og «Kopier alt» ble tom).
+        if (p.classList && p.classList.contains('result-copy-wrap') && p !== el.parentElement) return true;
+        if (p.matches && p.matches(RESULT_COPY_SELECTOR)) return true;
+        p = p.parentElement;
+      }
+      return false;
+    }
+
+    function attachResultCopyButtons(container) {
+      if (!container || !container.querySelectorAll) return;
+      var candidates = container.querySelectorAll(RESULT_COPY_SELECTOR);
+      candidates.forEach(function(el) {
+        if (el.hasAttribute('data-copybtn-done')) return;
+        // Tabeller som allerede er pakket av det eksisterende mikrodata-mønsteret
+        // (.output-table-wrap, se attachTableCopyHandler) har sin egen knapp.
+        if (el.tagName === 'TABLE' && el.closest('.output-table-wrap')) {
+          el.setAttribute('data-copybtn-done', '1');
+          return;
+        }
+        if (isNestedResultCandidate(el, container)) {
+          el.setAttribute('data-copybtn-done', '1');
+          return;
+        }
+
+        var isPlot = el.classList.contains('plotly-container');
+        var wrap = document.createElement('div');
+        wrap.className = 'result-copy-wrap';
+        el.parentNode.insertBefore(wrap, el);
+        wrap.appendChild(el);
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'output-copy-btn';
+        btn.innerHTML = isPlot ? '&#8681;' : '&#10697;';
+        btn.title = isPlot ? t('Kopier figur som bilde') : t('Kopier til utklippstavle');
+        btn.setAttribute('aria-label', btn.title);
+        wrap.appendChild(btn);
+
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          e.preventDefault();
+          if (isPlot) {
+            copyPlotAsImage(el, btn);
+          } else {
+            copyPlainTextToClipboard(resultElementToText(el)).then(function() { flashCopyBtn(btn); }).catch(function() {});
+          }
+        });
+
+        el.setAttribute('data-copybtn-done', '1');
+      });
+    }
+
+    // "Kopier alt": tekstrepresentasjon av alle resultatblokker i outputArea,
+    // slått sammen (tabeller som TSV, pre/tekst som ren tekst); figurer hoppes over.
+    function collectAllResultsText(container) {
+      if (!container || !container.querySelectorAll) return '';
+      var blocks = [];
+      container.querySelectorAll(RESULT_COPY_SELECTOR).forEach(function(el) {
+        if (el.classList.contains('plotly-container')) return;
+        if (isNestedResultCandidate(el, container)) return;
+        var txt = resultElementToText(el);
+        if (txt && txt.trim()) blocks.push(txt);
+      });
+      return blocks.join('\n\n');
+    }
+
+    function updateCopyAllResultsVisibility() {
+      var btn = document.getElementById('copyAllResultsBtn');
+      if (!btn) return;
+      var hasContent = !!(outputArea && outputArea.textContent && outputArea.textContent.trim());
+      btn.style.display = hasContent ? 'flex' : 'none';
+    }
+
+    (function wireCopyAllResultsBtn() {
+      var btn = document.getElementById('copyAllResultsBtn');
+      if (!btn) return;
+      btn.addEventListener('click', function() {
+        var text = collectAllResultsText(outputArea);
+        if (!text) return;
+        copyPlainTextToClipboard(text).then(function() { flashCopyBtn(btn); }).catch(function() {});
+      });
+    })();
+
+    // Debounced MutationObserver: fanger opp alle stedene i koden som setter
+    // outputArea.innerHTML/appendChild uten at vi må endre hvert enkelt sted.
+    // Idempotent via data-copybtn-done, så gjentatte kall er billige no-ops.
+    (function observeOutputAreaForCopyButtons() {
+      if (!outputArea || typeof MutationObserver === 'undefined') return;
+      var pending = null;
+      var observer = new MutationObserver(function() {
+        if (pending) clearTimeout(pending);
+        pending = setTimeout(function() {
+          pending = null;
+          attachResultCopyButtons(outputArea);
+          updateCopyAllResultsVisibility();
+        }, 150);
+      });
+      observer.observe(outputArea, { childList: true, subtree: true });
+      attachResultCopyButtons(outputArea);
+      updateCopyAllResultsVisibility();
+    })();
 
     function updatePlotOptionsVisibility() {
       const asHtml = document.querySelector('input[name="outputMode"]:checked').value === 'html';
@@ -8182,7 +8479,10 @@ options(width = 200)
         var _ctx = { py: py, rightStatus: rightStatus, showCommands: _showCmds };
         // Compute-to-data: i python/r/duckdb-modus ruter et `# require <navn> as <alias>`-
         // direktiv scriptet til serveren (safepy). Uten direktiv kjøres lokalt som før.
-        var _remoteDialect = { python: 'pandas', r: 'r', duckdb: 'duckdb' }[activeEditorMode];
+        // 'python' is a meta-dialect: the server picks pandas vs polars from the
+        // script's imports (and he/polars-he for encrypted sources). See
+        // safepy detect_python_dialect / spec 2026-07-04-python-meta-dialect-design.
+        var _remoteDialect = { python: 'python', r: 'r', duckdb: 'duckdb', he: 'he' }[activeEditorMode];
         if (_remoteDialect && await maybeRunRemote(effectiveScript, _ctx, _remoteDialect)) return;
         // Microdata-modus, katalog-først: server-kilder ruter til legacy m2py-motoren
         if (activeEditorMode === 'microdata' && await maybeRunRemoteMicrodata(effectiveScript, _ctx)) return;

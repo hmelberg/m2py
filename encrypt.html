@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Krypter datasett · microdata</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --ink: #1a1d21; --muted: #5b6470;
+    --line: #e2e5ea; --accent: #2f6fed; --accent-ink: #fff;
+    --warn-bg: #fff6e6; --warn-line: #e8c66a; --ok: #1a7f4b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --card: #1c1f25; --ink: #e9ecf1; --muted: #9aa4b2;
+      --line: #2b2f37; --accent: #5b8bff; --accent-ink: #0b1220;
+      --warn-bg: #2a2410; --warn-line: #6b5a1f; --ok: #4bd08a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 2rem 1rem;
+  }
+  main { max-width: 820px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+  .lead { color: var(--muted); margin: 0 0 1.5rem; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 1.25rem 1.4rem; margin-bottom: 1.1rem;
+  }
+  .card h2 { font-size: 1rem; margin: 0 0 .9rem; letter-spacing: .01em; }
+  .step-n {
+    display: inline-flex; width: 1.5rem; height: 1.5rem; border-radius: 50%;
+    background: var(--accent); color: var(--accent-ink); align-items: center;
+    justify-content: center; font-size: .85rem; margin-right: .5rem;
+  }
+  label { display: block; font-weight: 600; margin: .8rem 0 .3rem; }
+  input[type=file], input[type=number], select {
+    font: inherit; color: inherit; background: transparent;
+    border: 1px solid var(--line); border-radius: 8px; padding: .45rem .55rem;
+  }
+  input[type=number] { width: 8rem; }
+  .cols { display: grid; grid-template-columns: 1fr auto; gap: .4rem .8rem;
+          align-items: center; margin-top: .5rem; }
+  .cols .name { font-family: ui-monospace, monospace; font-size: .92rem;
+                overflow-x: auto; }
+  .cols select { padding: .3rem .4rem; }
+  .row { display: flex; gap: 1.2rem; flex-wrap: wrap; align-items: flex-end; }
+  .row > div { display: flex; flex-direction: column; }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer;
+    background: var(--accent); color: var(--accent-ink); border: 0;
+    border-radius: 8px; padding: .6rem 1.1rem;
+  }
+  button.secondary { background: transparent; color: var(--accent);
+                     border: 1px solid var(--accent); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .muted { color: var(--muted); font-size: .9rem; }
+  .warn {
+    background: var(--warn-bg); border: 1px solid var(--warn-line);
+    border-radius: 8px; padding: .7rem .9rem; font-size: .92rem;
+  }
+  .fp { font-family: ui-monospace, monospace; font-size: .82rem;
+        word-break: break-all; background: var(--bg); padding: .5rem .6rem;
+        border-radius: 6px; border: 1px solid var(--line); }
+  .hide { display: none; }
+  #status { margin-top: .8rem; font-size: .92rem; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .actions { display: flex; gap: .7rem; flex-wrap: wrap; margin-top: .8rem; }
+  a.download { text-decoration: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Krypter datasett</h1>
+  <p class="lead">
+    Krypter en CSV lokalt i nettleseren. Fila lastes <strong>aldri opp</strong> —
+    du får en kryptert artefakt du kan publisere hvor som helst (f.eks. GitHub),
+    og en nøkkel som analysetjenesten bruker for å frigi kun trygge aggregater.
+  </p>
+
+  <section class="card">
+    <h2><span class="step-n">1</span>Velg CSV-fil</h2>
+    <input type="file" id="file" accept=".csv,text/csv">
+    <p class="muted" id="fileInfo"></p>
+  </section>
+
+  <section class="card hide" id="configCard">
+    <h2><span class="step-n">2</span>Velg kolonner og innstillinger</h2>
+    <p class="muted">
+      <strong>Verdi</strong> = krypteres (tallkolonner du vil analysere).
+      <strong>Gruppe</strong> = holdes i klartekst for gruppering/filtrering
+      (grovinndel identifiserende kolonner selv før kryptering).
+      <strong>Ignorer</strong> = utelates.
+    </p>
+    <div class="cols" id="colPicker"></div>
+    <div class="row" style="margin-top:1.1rem">
+      <div>
+        <label for="scale">Skala (desimalpresisjon)</label>
+        <input type="number" id="scale" value="1000000" min="1" step="1">
+      </div>
+      <div>
+        <label for="keybits">Nøkkelstørrelse (bit)</label>
+        <select id="keybits">
+          <option value="2048" selected>2048 (anbefalt)</option>
+          <option value="3072">3072</option>
+          <option value="1024">1024 (rask, mindre sikker)</option>
+        </select>
+      </div>
+      <div>
+        <label for="winsor">Winsorisering</label>
+        <select id="winsor">
+          <option value="">Ingen</option>
+          <option value="0.01,0.99" selected>1 % / 99 % (for «protected»)</option>
+          <option value="0.05,0.95">5 % / 95 %</option>
+        </select>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:.9rem">
+      Merk: for «protected»-nivå må winsorisering settes til 1 %/99 % for at
+      gjennomsnitt/varians skal frigis. Median og filtre på krypterte kolonner
+      er ikke mulig — bruk grupper i klartekst.
+    </p>
+    <div class="actions">
+      <button id="encryptBtn">Krypter</button>
+      <span id="status"></span>
+    </div>
+  </section>
+
+  <section class="card hide" id="resultCard">
+    <h2><span class="step-n">3</span>Last ned og registrer</h2>
+    <p class="warn">
+      <strong>Ta vare på nøkkelfila.</strong> Den lar analysetjenesten regne på
+      dataene dine. Del den kun med tjenesten (autoriteten), aldri med analytikere.
+      Uten nøkkelen kan ingen — heller ikke du — dekryptere resultater.
+    </p>
+    <p style="margin:.9rem 0 .3rem"><strong>Fingeravtrykk</strong>
+      (registreres hos tjenesten som beskyttelse mot fil-bytte):</p>
+    <div class="fp" id="fpOut"></div>
+    <div class="actions">
+      <a class="download" id="dlDataset"><button>Last ned kryptert datasett</button></a>
+      <a class="download" id="dlKey"><button class="secondary">Last ned nøkkel</button></a>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+import * as paillier from "https://esm.sh/paillier-bigint@3";
+import { encryptDataframe } from "./js/he-encrypt.js";
+
+const $ = (id) => document.getElementById(id);
+let rows = [], columns = [];
+
+// --- minimal RFC-4180-ish CSV parser (handles quotes and embedded commas) ---
+function parseCsv(text) {
+  const out = []; let field = "", row = [], inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+      else field += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      if (field !== "" || row.length) { row.push(field); out.push(row); row = []; field = ""; }
+    } else field += c;
+  }
+  if (field !== "" || row.length) { row.push(field); out.push(row); }
+  return out;
+}
+
+function toRows(matrix) {
+  const header = matrix[0].map((h) => h.trim());
+  const body = matrix.slice(1).filter((r) => r.length === header.length);
+  const num = (v) => (v === "" ? NaN : Number(v));
+  return {
+    columns: header,
+    rows: body.map((r) => {
+      const o = {};
+      header.forEach((h, j) => { o[h] = r[j]; });
+      // keep numeric where every non-empty value parses as a number
+      return o;
+    }),
+    numericGuess: header.filter((h) =>
+      body.some((r) => r[header.indexOf(h)] !== "") &&
+      body.every((r) => r[header.indexOf(h)] === "" ||
+        Number.isFinite(num(r[header.indexOf(h)])))),
+  };
+}
+
+$("file").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const text = await f.text();
+  const parsed = toRows(parseCsv(text));
+  rows = parsed.rows; columns = parsed.columns;
+  $("fileInfo").textContent =
+    `${f.name} — ${rows.length} rader, ${columns.length} kolonner`;
+  const picker = $("colPicker"); picker.innerHTML = "";
+  for (const c of columns) {
+    const isNum = parsed.numericGuess.includes(c);
+    const nameEl = document.createElement("div");
+    nameEl.className = "name"; nameEl.textContent = c;
+    const sel = document.createElement("select");
+    sel.dataset.col = c;
+    for (const [val, txt] of [["ignore", "Ignorer"], ["group", "Gruppe (klartekst)"],
+                              ["value", "Verdi (krypter)"]]) {
+      const o = document.createElement("option");
+      o.value = val; o.textContent = txt; sel.appendChild(o);
+    }
+    sel.value = isNum ? "value" : "group";   // sensible default
+    picker.appendChild(nameEl); picker.appendChild(sel);
+  }
+  $("configCard").classList.remove("hide");
+  $("resultCard").classList.add("hide");
+});
+
+function download(anchorId, filename, obj) {
+  const blob = new Blob([JSON.stringify(obj)], { type: "application/json" });
+  const a = $(anchorId);
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+}
+
+$("encryptBtn").addEventListener("click", async () => {
+  const picks = [...document.querySelectorAll("#colPicker select")];
+  const valueCols = picks.filter((s) => s.value === "value").map((s) => s.dataset.col);
+  const groupCols = picks.filter((s) => s.value === "group").map((s) => s.dataset.col);
+  if (!valueCols.length) { $("status").textContent = "Velg minst én verdikolonne."; return; }
+
+  const w = $("winsor").value;
+  const opts = {
+    valueCols, groupCols,
+    scale: Number($("scale").value) || 1_000_000,
+    keyBits: Number($("keybits").value),
+    winsorize: w ? w.split(",").map(Number) : null,
+    onProgress: (done, total) => {
+      $("status").textContent = `Krypterer … ${done} / ${total} celler`;
+    },
+  };
+  $("encryptBtn").disabled = true;
+  $("status").textContent = "Genererer nøkkel …";
+  try {
+    // yield so the "Genererer nøkkel" paint lands before the blocking keygen
+    await new Promise((r) => setTimeout(r, 30));
+    const { dataset, key, fingerprint } = await encryptDataframe(paillier, rows, opts);
+    $("fpOut").textContent = fingerprint;
+    const base = (rows.length ? "datasett" : "datasett");
+    download("dlDataset", `${base}.he.json`, dataset);
+    download("dlKey", `${base}.key.json`, key);
+    $("status").innerHTML = '<span class="ok">Ferdig.</span>';
+    $("resultCard").classList.remove("hide");
+    $("resultCard").scrollIntoView({ behavior: "smooth" });
+  } catch (err) {
+    $("status").textContent = "Feil: " + (err && err.message || err);
+  } finally {
+    $("encryptBtn").disabled = false;
+  }
+});
+</script>
+</body>
+</html>
