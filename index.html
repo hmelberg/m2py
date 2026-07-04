@@ -7977,6 +7977,19 @@ has and "int" in (m.get_microdata_functions() or {})
       });
     }
 
+    // Progressiv visning under server-kjøring: task_state-fragmenter, ett per
+    // frigitt statement. Det endelige svaret rendres autoritativt av
+    // renderSafeStatResult når status blir 'completed' (figurer kommer der).
+    function renderSafeStatProgress(fragments, done, polls) {
+      var head = '<div style="padding:8px;opacity:.6">' + t('SafeStat: kjører på server… ({n})', { n: polls })
+        + (done ? ' &middot; ' + t('{done} resultat(er) frigitt', { done: done }) : '') + '</div>';
+      var body = '';
+      (fragments || []).forEach(function(f) {
+        if (f && f.html) body += '<div class="safestat-result">' + f.html + '</div>';
+      });
+      outputArea.innerHTML = head + body;
+    }
+
     async function runSafeStatRemote(script, ctx, sources, reason, dialect) {
       var apiBase = (window.mdAuth && window.mdAuth.apiBase) ? window.mdAuth.apiBase()
         : (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app').replace(/\/+$/, '');
@@ -7997,8 +8010,13 @@ has and "int" in (m.get_microdata_functions() or {})
         if (!sub || sub.error || !sub.task_id) { outputArea.innerHTML = '<pre class="error">SafeStat remote: ' + escapeHtmlOutput((sub && sub.error) || t('uventet svar')) + '</pre>'; return; }
         var taskId = sub.task_id;
         var pollHeaders = token ? { 'Authorization': 'Bearer ' + token } : {};
-        for (var i = 0; i < 80; i++) {
+        // Keep-alive: 80 polls (~2 min) uten fremdrift avbryter; hver ny
+        // frigivelse nullstiller telleren, så lange men produktive kjøringer
+        // ikke forlates. Gamle servere (uten done/partial) oppfører seg som før.
+        var lastDone = 0, idle = 0, polls = 0;
+        while (idle < 80) {
           await new Promise(function(r){ setTimeout(r, 1500); });
+          polls++;
           var st = await fetch(apiBase + '/_/api/run_extended_status?task_id=' + encodeURIComponent(taskId), { headers: pollHeaders })
             .then(function(r){ return r.json(); });
           if (st.status === 'completed') { renderSafeStatResult(st.result || {}, script, ctx, 'remote &middot; compute-to-data'); return; }
@@ -8006,7 +8024,9 @@ has and "int" in (m.get_microdata_functions() or {})
             outputArea.innerHTML = '<pre class="error">' + t('SafeStat remote feilet: {msg}', { msg: escapeHtmlOutput(st.error || st.status) }) + '</pre>';
             return;
           }
-          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('SafeStat: kjører på server… ({n})', { n: i + 1 }) + '</div>';
+          var done = (typeof st.done === 'number') ? st.done : 0;
+          if (done > lastDone) { lastDone = done; idle = 0; } else { idle++; }
+          renderSafeStatProgress(st.partial || [], done, polls);
         }
         outputArea.innerHTML = '<pre class="error">' + t('SafeStat remote: tidsavbrudd (ingen svar fra server)') + '</pre>';
       } catch (e) {
