@@ -19,6 +19,15 @@ execution. Three access modes, chosen by the owner:
 3. **whitelist-only** — analyst must be logged in and on the allowlist; Anvil
    stores the key (wrapped) and releases it after the permission check.
 
+Orthogonal to the access mode, every registered source carries a **protection
+level** (`public` / `protected` / `sensitive`), declared by the owner at
+registration. Key release for local analysis applies **only to public-level
+sources**. Protected and sensitive sources — encrypted or not — are
+**remote-only**: the script runs on Anvil under the restricted engines with
+logging, quotas and output suppression, and rows never reach the browser.
+Self-service registration covers plain (unencrypted) URL files too, so an
+ordinary online csv/parquet can be marked remote-only the same way.
+
 Alongside this, the script vocabulary is unified: `connect` names a source,
 `load` materializes a table. This sets the frame for the later language-cleanup
 project (variable-level `import`, `create-dataset ... join()`), which is
@@ -34,6 +43,7 @@ project (variable-level `import`, `create-dataset ... join()`), which is
 | D4 | **Key input: `key(<literal>)` and `key(ask)`.** | Literal for the quick low-stakes case (owner's explicit wish); `ask` prompts in the UI and keeps keys out of scripts saved to GitHub / sent to the AI. |
 | D5 | **Local + remote parity in v1.** | Same script must behave the same locally and on Anvil; the server side is small because the HE plumbing (fingerprint check, wrapped keys, `load_encrypted_source`) already exists to copy. |
 | D6 | **Unified `connect`/`load` vocabulary; `require` kept as compatibility alias.** | One mental model for every mode; ends the require/load/connect overlap without breaking existing scripts; reserves `import`/`create-dataset` for the follow-on language project. |
+| D7 | **Protection level is declared by the owner at registration and is orthogonal to encryption and key custody.** Public → local analysis (key release) allowed; protected/sensitive → remote-only under the strict, suppressed, logged engines; format `he` → remote-only under the HE facade. | Encrypted-but-protected data gets compute-to-data guarantees (logged scripts, restricted commands, suppressed outputs) instead of key release. Reuses the existing level machinery unchanged, and self-registration of plain URL files gives remote-only marking for unencrypted data too. |
 
 ## 1. Language
 
@@ -204,13 +214,40 @@ pattern copied):
   `source_registry.py:10-13`. `format` remains the payload format;
   `encrypted=True`.
 
-Mode → registration mapping:
+Mode → registration mapping (**modes 2–3 key release applies to
+`level="public"` sources only** — see the level table below):
 
 | Mode | Registered? | `enc_key` stored? | Login + policy required? | Anvil releases |
 |---|---|---|---|---|
 | 1 key-only | no (raw URL) | — | no | nothing (Anvil uninvolved) |
 | 2 key + whitelist | yes | no | yes | location only |
 | 3 whitelist-only | yes | yes | yes | location + key |
+
+### Protection level × execution
+
+The owner declares the level at registration; it is stored on the source row
+and never trusted from a request (existing invariant). Level decides *where*
+the script may run and what the browser may receive; encryption decides the
+at-rest format; key custody (`enc_key` stored or not) decides who supplies
+the key. All three are orthogonal:
+
+| Level | Local (browser) | Remote engine | Output rules |
+|---|---|---|---|
+| `public` | allowed — `/source_access` releases location (+ key per mode) | unrestricted dialect run | raw preview (`head(50)`) allowed, no suppression |
+| `protected` | refused — never location, never key | safepy STRICT dialects (pandas/polars/r/duckdb, `profile="strict"`) | scripts logged, quotas, result-side suppression |
+| `sensitive` | refused — never location, never key | safepy STRICT + input pre-recipe (`microdata_no` profile) | as protected, plus secondary suppression; api-key principals refused |
+| format `he` (any level) | refused (ciphertext useless without authority) | HE facade dialects (`he`, `r-he`, …): `group_agg`, `value_counts`, `crosstab`, `ols` only | k-gated authority decryption (existing Plane B) |
+
+For protected/sensitive encrypted sources, remote runs decrypt in memory with
+the stored `enc_key`, or with a per-run `source_keys` entry when the owner
+chose not to store the key (§5). This is the "three kinds of remote":
+public-unrestricted, strict-safepy, and the restricted HE language — all
+selected by registry metadata, no grammar change.
+
+Plain (unencrypted) URL files are registrable the same way (`kind="url"`,
+which already exists): an owner can publish an ordinary csv/parquet URL and
+mark it `protected` — making it remote-only with logged scripts and
+suppressed outputs, no encryption involved.
 
 **New endpoint** `GET /source_access?id=<name>` (Bearer token required):
 
@@ -224,9 +261,10 @@ Mode → registration mapping:
   source_id, action `key_released`).
 
 **Self-service registration**: new page in m2py (working name
-`deldata.html`), logged-in users only. Fields: dataset name, ciphertext URL,
-fingerprint, payload format, access mode (2/3), key (mode 3 only), allowed
-emails/domains. Server endpoint validates by fetching the URL and checking
+`deldata.html`), logged-in users only. Fields: dataset name, URL (ciphertext
+or plain file), **protection level (public/protected/sensitive)**,
+fingerprint (encrypted files), payload format, access mode (2/3), key (mode 3
+only, or protected/sensitive with stored key), allowed emails/domains. Server endpoint validates by fetching the URL and checking
 the envelope + fingerprint before activating. `encrypt.html` gets a
 "Registrer hos Anvil →" hand-off that pre-fills fingerprint and format.
 Owners can list, edit, and deactivate their own sources. File *upload*
@@ -241,6 +279,11 @@ Extends the two existing JS modules; no new architecture:
 2. Bare name → `GET /source_access` with the session token
    (`window.mdAuth.token`). Not logged in → open the existing magic-code
    login prompt, then retry. 404 → clear error (§6).
+   **Non-public source** → the response grants nothing local
+   (`{"remote_only": true}`); the run handler routes the whole script to
+   remote execution with the sources list, exactly as bare-name protected
+   sources route today. `exec(local)` on such a source is refused with a
+   clear message (existing forcing rule).
 3. Browser fetches the ciphertext from the owner's URL. GitHub raw is
    CORS-open; other hosts fall back to the existing `/api/hent` proxy (same
    `viaProxy` mechanism as registry sources with `cors:false`).
@@ -269,6 +312,12 @@ Server mirror of §4 step 4, copying the HE plumbing:
   (invariant from `safepy_shim.py:49`). Protected/sensitive sources keep
   their suppression policies — **encryption is orthogonal to sensitivity
   level**.
+- The three remote regimes (see §3 level table) need no new engine work:
+  public → unrestricted dialect run with raw preview; protected/sensitive →
+  safepy STRICT dialects with logging/quotas/suppression (the decrypted
+  frame enters the same path as plaintext); `format="he"` → the HE facade
+  dialects, auto-switched by `safepy_shim` as today. The only new code is
+  the AES decrypt step in `load_dataframe`.
 - **Key scrubbing**: `script_head` is stored in the audit log today, so a
   `key(<literal>)` in a script would be logged. All logging and AI-prompt
   paths scrub `key(...)` arguments to `key(***)` — browser side and server
@@ -332,3 +381,7 @@ Server mirror of §4 step 4, copying the HE plumbing:
   untouched; `key()` is separate and does not collide.
 - Per-column symmetric encryption — unnecessary while decryption is local
   and whole-file.
+- Remote-only enforcement by authorities other than Anvil (federated or
+  third-party registries) — the level lives on the Anvil source row in v1;
+  the resolution step is the seam where another authority could answer
+  `/source_access` later.
