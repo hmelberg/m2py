@@ -18,7 +18,10 @@ function ensurePy(pyodideURL, zipURL) {
     py.unpackArchive(await resp.arrayBuffer(), 'zip', { extractDir: '/home/pyodide/' });
     py.runPython("import sys\nsys.path.insert(0, '/home/pyodide')");
     return py;
-  })();
+  })().catch(function (e) {
+    pyReady = null;   // ikke cache en feilet init — «prøv igjen» skal faktisk prøve igjen
+    throw e;
+  });
   return pyReady;
 }
 
