@@ -7463,17 +7463,55 @@ json.dumps(out)
 
       // Web-modus: connect/load-direktiver — hent kilder og bind dem inn i R
       // FØR koden kjører (ingen-op når scriptet ikke har direktiver).
-      var _dlR = await window.DataLoader.resolveAndFetchLoads(src, {
+      var _rDeps = {
         authToken: getAuthToken(), anthropicKey: getAnthropicKey(),
         apiBase: getMdApiBase(), promptKey: mdPromptKey,
-        authorizeStrict: function (ids) { return mdAuthorizeStrictRun(ids, src); } });
-      if (_dlR.remote.length) throw new Error(t('ikke-offentlige kilder i R-modus kjøres via require-direktivet (server) — connect/load støtter det ikke her ennå'));
-      var _loadsR = _dlR.loads;
+        authorizeStrict: function (ids) { return mdAuthorizeStrictRun(ids, src); } };
+      // Project A: monteringsverb i R-modus — bygg datasettene i Pyodide (delt
+      // executor safepy.assembly), serialiser til CSV og last inn i webR som
+      // data.frames (samme bro som #micro→#r). Kilde-binding-løkka hoppes over.
+      var _hasAssemblyR = /^[ \t]*(?:#|--|\/\/)[ \t]*(create-dataset|import|join)\b/im.test(src)
+        || /^[ \t]*(?:#|--|\/\/)[ \t]*load[ \t]+[A-Za-z_]\w*[ \t]+as\b/im.test(src);
+      var _loadsR;
+      if (_hasAssemblyR) {
+        var _asmR = await window.DataLoader.resolveAndAssemble(src, _rDeps);
+        if (_asmR.remote.length) throw new Error(t('ikke-offentlige kilder i R-modus kjøres via require-direktivet (server) — connect/load støtter det ikke her ennå'));
+        if (_asmR.sources.some(function (l) { return l.envelope || l.strict; })) throw new Error(t('strict-/kryptert-kilder med montering i R-modus støttes ikke ennå — bruk python-modus'));
+        var _pyR2 = await loadPyodideAndM2py();
+        await ensureSafepyLoaded(_pyR2);
+        if (_asmR.sources.some(function (l) { return l.bytes; })) _pyR2.FS.mkdirTree('/home/pyodide/_webdata');
+        var _srcMetaR = _asmR.sources.map(function (l) {
+          var _p = '/home/pyodide/_webdata/' + l.alias + '.' + l.format;
+          _pyR2.FS.writeFile(_p, l.bytes);
+          return { alias: l.alias, format: l.format, path: _p };
+        });
+        var _asmGlue = [
+          'import json, base64, pandas as _pd',
+          'from safepy import assembly as _A',
+          '_src = {}',
+          'for _a in json.loads(' + JSON.stringify(JSON.stringify(_srcMetaR)) + '):',
+          "    _src[_a['alias']] = (_pd.read_parquet(_a['path']) if _a['format']=='parquet' else _pd.read_csv(_a['path']))",
+          '_ds, _notes = _A.build_datasets(json.loads(' + JSON.stringify(JSON.stringify(_asmR.spec)) + '), lambda a: _src[a])',
+          "_out = {n: base64.b64encode(df.to_csv(index=False).encode('utf-8')).decode('ascii') for n, df in _ds.items()}",
+          'json.dumps({"data": _out, "notes": _notes})',
+        ].join('\n');
+        var _asmRes = JSON.parse(await _pyR2.runPythonAsync(_asmGlue));
+        try { await webR.installPackages(['base64enc'], { quiet: true }); } catch (e) { console.warn('base64enc install:', e); }
+        for (var _dn in _asmRes.data) {
+          await webR.evalRVoid(_dn + ' <- read.csv(textConnection(rawToChar(base64enc::base64decode(' + JSON.stringify(_asmRes.data[_dn]) + '))), stringsAsFactors=FALSE, check.names=FALSE)');
+        }
+        (_asmRes.notes || []).forEach(function (n) { console.log('[montering]', n); });
+        _loadsR = [];   // datasettene er allerede montert og bundet i webR
+      } else {
+        var _dlR = await window.DataLoader.resolveAndFetchLoads(src, _rDeps);
+        if (_dlR.remote.length) throw new Error(t('ikke-offentlige kilder i R-modus kjøres via require-direktivet (server) — connect/load støtter det ikke her ennå'));
+        _loadsR = _dlR.loads;
+      }
       // Lokal strict-kjøring i R-modus: safepy oversetter R til kjernen —
       // webR er aldri involvert; rammene legges i Pyodide i stedet. Utløses av
       // "# options.profile = strict" (via runOpts — options-linjene er alt
       // strippet fra src) ELLER av en strict-grant på en av kildene (spec V2).
-      if (runOpts.profile === 'strict' || _loadsR.some(function (l) { return l.strict; })) {
+      if (!_hasAssemblyR && (runOpts.profile === 'strict' || _loadsR.some(function (l) { return l.strict; }))) {
         var _pyLoadsR = [];
         if (_loadsR.length) {
           var _pyR = await loadPyodideAndM2py();
