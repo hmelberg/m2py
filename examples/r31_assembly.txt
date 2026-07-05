@@ -1,0 +1,14 @@
+#r
+# Variabel-nivå montering i R-modus: datasettene bygges av den delte
+# executoren og lastes inn i R som data.frames før analysen kjører.
+
+# connect https://raw.githubusercontent.com/mwaskom/seaborn-data/master/penguins.csv as pen
+# load pen as pingviner
+
+aggregate(body_mass_g ~ island, data = pingviner, FUN = function(x) mean(x, na.rm = TRUE))
+
+# ── Import + join (kilder med felles nøkkel) ──
+# connect https://x.example/personer.csv as p
+# create-dataset panel, key(pid)
+# import p/inntekt, p/region into panel
+# aggregate(inntekt ~ region, data = panel, FUN = mean)

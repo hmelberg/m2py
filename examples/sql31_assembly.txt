@@ -1,0 +1,17 @@
+#duckdb
+-- Variabel-nivå montering i DuckDB-modus. To veier:
+-- (1) De felles monteringsverbene (samme som python/r):
+-- connect https://raw.githubusercontent.com/mwaskom/seaborn-data/master/penguins.csv as pen
+-- load pen as pingviner
+SELECT island, avg(body_mass_g) AS snitt_masse
+FROM pingviner
+GROUP BY island
+ORDER BY island;
+
+-- (2) DuckDB-native SQL er den kraftigere «power path»-en: JOIN, WHERE og
+--     beregnede kolonner uttrykkes rett i SQL (kildene registreres som views):
+-- connect https://x.example/personer.csv as p
+-- connect https://x.example/salg.csv as s
+-- SELECT p.region, avg(s.belop) AS snitt_belop
+-- FROM p JOIN s ON p.pid = s.pid
+-- GROUP BY p.region;
