@@ -240,3 +240,43 @@ Deno.test("strict encrypted grant uses authorizeStrict for keys", async () => {
   assertEquals(out.loads[0].key, key);
   assertEquals(out.loads[0].strict, true);
 });
+
+Deno.test("resolveAndAssemble: fetches spec sources + returns spec", async () => {
+  const fetchImpl = ((input: string | URL | Request) => {
+    const url = String(input);
+    const body = url.includes("people") ? "pid,income\n1,10\n2,20" : "pid,amount\n1,5";
+    return Promise.resolve(new Response(body, { status: 200, headers: { "content-type": "text/csv" } }));
+  }) as typeof fetch;
+  const script = [
+    "# connect https://x.example/people.csv as p",
+    "# connect https://x.example/sales.csv as s",
+    "# create-dataset panel, key(pid)",
+    "# import p/income into panel",
+    "# load s as sales",
+    "# join sales into panel on pid",
+  ].join("\n");
+  const out = await DL.resolveAndAssemble(script, { fetchImpl, registry: [] });
+  assertEquals(out.remote, []);
+  assertEquals(out.sources.map((x: {alias: string}) => x.alias).sort(), ["p", "s"]);
+  assertEquals(out.spec.datasets.find((d: {name: string}) => d.name === "panel").key, "pid");
+  const p = out.sources.find((x: {alias: string}) => x.alias === "p");
+  assertEquals(new TextDecoder().decode(p.bytes), "pid,income\n1,10\n2,20");
+});
+
+Deno.test("resolveAndAssemble: a remote source routes the whole run remote", async () => {
+  const fetchImpl = ((input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/source_access")) return Promise.resolve(
+      new Response(JSON.stringify({ remote_only: true, default_exec: "remote" }),
+        { status: 200, headers: { "content-type": "application/json" } }));
+    return Promise.resolve(new Response("pid,x\n1,2", { status: 200, headers: { "content-type": "text/csv" } }));
+  }) as typeof fetch;
+  const script = [
+    "# connect helse2025 as h",
+    "# create-dataset panel, key(pid)",
+    "# import h/x into panel",
+  ].join("\n");
+  const out = await DL.resolveAndAssemble(script, { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T" });
+  assertEquals(out.remote, [{ alias: "h", sourceId: "helse2025", key: undefined }]);
+  assertEquals(out.sources, []);
+});
