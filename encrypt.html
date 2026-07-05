@@ -180,7 +180,13 @@
     <div class="actions">
       <a class="download" id="dlDataset"><button>Last ned kryptert datasett</button></a>
       <a class="download" id="dlKey"><button class="secondary">Last ned nøkkel</button></a>
+      <a id="heRegisterLink"><button class="secondary">Registrer hos tjenesten →</button></a>
     </div>
+    <p class="muted" style="margin:.6rem 0 0">
+      Ved registrering: lim inn innholdet i nøkkelfila i feltet «Homomorf
+      autoritetsnøkkel». Velg hvem som får bruke kilden (også «alle uten
+      innlogging» er mulig) — HE-analyse skjer alltid på serveren.
+    </p>
   </section>
 </main>
 
@@ -337,6 +343,7 @@ $("encryptBtn").addEventListener("click", async () => {
     const base = (rows.length ? "datasett" : "datasett");
     download("dlDataset", `${base}.he.json`, dataset);
     download("dlKey", `${base}.key.json`, key);
+    $("heRegisterLink").href = `deldata.html?he=1&format=he&name=${encodeURIComponent(base)}`;
     $("status").innerHTML = '<span class="ok">Ferdig.</span>';
     $("resultCard").classList.remove("hide");
     $("resultCard").scrollIntoView({ behavior: "smooth" });

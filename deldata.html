@@ -97,16 +97,34 @@
           <option value="none">ingen — kun server-kjøring</option>
         </select></div>
     </div>
-    <label for="fEmails">Hvem får tilgang? E-poster (kommaseparert)</label>
-    <input type="text" id="fEmails" placeholder="ana@fhi.no, per@uio.no" style="width:100%">
-    <label for="fDomains">…og/eller e-postdomener</label>
-    <input type="text" id="fDomains" placeholder="fhi.no, uio.no" style="width:100%">
-    <p class="muted" style="margin:.4rem 0 0">Tomme lister = kun du (eieren) har tilgang.</p>
-    <label for="fKey">Dekrypteringsnøkkel (valgfritt)</label>
+    <label for="fAudience">Hvem får bruke kilden?</label>
+    <select id="fAudience">
+      <option value="listed">Utvalgte — e-poster/domener under (tomt = kun du)</option>
+      <option value="owner">Kun du (eieren)</option>
+      <option value="authenticated">Alle innloggede brukere</option>
+      <option value="anyone">Alle — også uten innlogging (anonymt, logget)</option>
+    </select>
+    <div id="listedFields">
+      <label for="fEmails">E-poster (kommaseparert)</label>
+      <input type="text" id="fEmails" placeholder="ana@fhi.no, per@uio.no" style="width:100%">
+      <label for="fDomains">…og/eller e-postdomener</label>
+      <input type="text" id="fDomains" placeholder="fhi.no, uio.no" style="width:100%">
+      <p class="muted" style="margin:.4rem 0 0">Tomme lister = kun du (eieren) har tilgang.</p>
+    </div>
+    <p class="muted" id="anyoneNote" style="margin:.4rem 0 0;display:none">
+      «Alle uten innlogging» kjører alltid på serveren (aldri lokalt med nøkkel):
+      resultatene undertrykkes som vanlig, og scriptene logges anonymt. Egnet
+      for homomorfe (HE) kilder og åpne aggregat-tjenester.
+    </p>
+    <label for="fKey">Dekrypteringsnøkkel — AES (valgfritt)</label>
     <input type="password" id="fKey" autocomplete="off" style="width:100%">
     <label class="plain"><input type="checkbox" id="fStoreKey">
       Lagre nøkkelen hos tjenesten — autoriserte brukere slipper å taste den.
       Uten lagring må brukerne få nøkkelen av deg og bruke <code>key(...)</code> i scriptet.</label>
+    <label for="fHeKey">Homomorf autoritetsnøkkel — kun for HE-artefakter (lim inn nøkkel-JSON)</label>
+    <textarea id="fHeKey" rows="2" autocomplete="off" style="width:100%;font-family:ui-monospace,monospace;font-size:.8rem"></textarea>
+    <p class="muted" style="margin:.3rem 0 0">HE-kilder analyseres alltid på serveren
+      i den homomorfe dialekten — individdata frigis aldri.</p>
     <div class="actions">
       <button id="registerBtn">Registrer</button>
       <span id="regStatus" class="muted"></span>
@@ -138,6 +156,14 @@
     return d.innerHTML;
   }
 
+  // audience-veksling: skjul e-post/domene-feltene når de ikke gjelder
+  function syncAudience() {
+    var a = $('fAudience').value;
+    $('listedFields').style.display = (a === 'listed') ? '' : 'none';
+    $('anyoneNote').style.display = (a === 'anyone') ? '' : 'none';
+  }
+  $('fAudience').addEventListener('change', syncAudience);
+
   // querystring-prefill fra encrypt.html
   var qs = new URLSearchParams(location.search);
   if (qs.get('name')) {
@@ -145,6 +171,11 @@
     $('fName').value = qs.get('name');
   }
   if (qs.get('format')) $('fFormat').value = qs.get('format');
+  if (qs.get('he')) {   // HE-hand-off fra encrypt.html: sett nivå/audience-hint
+    $('fLevel').value = 'protected';
+    $('fHeKey').focus();
+  }
+  syncAudience();
 
   function refreshMine() {
     fetch(API + '/_/api/sources/mine', { headers: hdrs(false) })
@@ -155,6 +186,7 @@
         $('mineList').innerHTML = list.map(function (s) {
           return '<div class="srcrow"><span><code>' + esc(s.source_id) + '</code> · '
             + esc(s.level) + ' · ' + esc(s.kind)
+            + (s.audience ? ' · ' + esc(s.audience) : '')
             + (s.local_mode ? ' · lokal: ' + esc(s.local_mode) : '')
             + (s.has_key ? ' · nøkkel lagret' : '') + '</span>'
             + '<button class="secondary" data-sid="' + esc(s.source_id) + '">Deaktiver</button></div>';
@@ -193,9 +225,11 @@
       format: $('fFormat').value,
       emails: splitList($('fEmails').value),
       domains: splitList($('fDomains').value),
+      audience: $('fAudience').value || undefined,
       local_mode: $('fLocalMode').value || undefined,
       key: $('fKey').value.trim() || null,
       store_key: $('fStoreKey').checked,
+      he_private_key: $('fHeKey').value.trim() || undefined,
     };
     fetch(API + '/_/api/sources/register', {
       method: 'POST', headers: hdrs(true), body: JSON.stringify(body),
@@ -206,6 +240,7 @@
           return;
         }
         $('fKey').value = '';
+        $('fHeKey').value = '';
         $('regStatus').textContent = 'Registrert som «' + data.source_id + '» (' + data.kind + '). '
           + 'Bruk i script: # connect ' + data.source_id + ' as kilde';
         refreshMine();

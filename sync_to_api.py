@@ -162,6 +162,8 @@ def main(argv=None) -> int:
     ap.add_argument("--dest", default=str(DEST_ROOT))
     args = ap.parse_args(argv)
 
+    # --web alene: bygg bare browser-zippen. --apply bygger den OGSÅ (safepy
+    # endres ett sted, begge kopiene — Anvil + Pyodide — oppdateres i én kommando).
     if args.web:
         members = build_web_zip(Path(args.safepy), WEB_ZIP)
         print(f"Built {WEB_ZIP}: {len(members)} member(s)")
@@ -179,6 +181,8 @@ def main(argv=None) -> int:
     if args.apply:
         copied = apply_sync(statuses)
         print(f"\nApplied: copied {len(copied)} file(s): {', '.join(copied) or '(none)'}")
+        members = build_web_zip(Path(args.safepy), WEB_ZIP)
+        print(f"Built {WEB_ZIP}: {len(members)} member(s)")
     else:
         print(f"\nReport-only. {len(pending)} file(s) would change. "
               f"Re-run with --apply to copy.")
