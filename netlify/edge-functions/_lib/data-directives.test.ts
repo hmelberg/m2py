@@ -137,8 +137,11 @@ Deno.test("parseAssembly: import into missing dataset errors", () => {
   if (!errors.some((e: string) => e.includes("ghost"))) throw new Error("ventet feil for ukjent datasett");
 });
 
-Deno.test("parseAssembly: bare load still works (backward compat)", () => {
-  const { spec } = DD.parseAssembly("# load https://x.example/d.csv as df");
-  assertEquals(spec.datasets[0], {name: "df", load: "df"});
-  assertEquals(spec.sources, ["df"]);
+Deno.test("parseAssembly: inline-URL load is NOT assembly (stays on the old path)", () => {
+  // Assembly sources must be connect'd; a bare `load <url> as df` is the
+  // legacy web-data path, so parseAssembly ignores it (empty spec).
+  const { spec, errors } = DD.parseAssembly("# load https://x.example/d.csv as df");
+  assertEquals(errors, []);
+  assertEquals(spec.datasets, []);
+  assertEquals(spec.sources, []);
 });

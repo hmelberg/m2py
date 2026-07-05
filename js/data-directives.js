@@ -147,15 +147,6 @@
       if (!byName[m[1]]) { errors.push('ukjent datasett «' + m[1] + '» i join'); continue; }
       d3.steps.push({ op: 'join', from: m[1], on: m[3], how: (m[4] || 'left') });
     }
-    // Backward compat: a plain `load <url|registry-path> as <alias>` line
-    // (handled by the existing parse()/LOAD_RE) that isn't part of an
-    // assembly (no create-dataset/import/join/bare-load-as touched it) still
-    // yields a single-dataset spec — the alias doubles as its own source id.
-    parse(script).loads.forEach(function (l) {
-      if (byName[l.alias]) return;
-      var dl2 = { name: l.alias, load: l.alias };
-      datasets.push(dl2); byName[l.alias] = dl2; sources[l.alias] = true;
-    });
     return { spec: { sources: Object.keys(sources), datasets: datasets }, errors: errors };
   }
 
