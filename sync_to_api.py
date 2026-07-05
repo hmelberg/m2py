@@ -19,6 +19,7 @@ HERE = Path(__file__).resolve().parent                       # m2py repo root
 PROTECT_ROOT = HERE.parent / "protect"
 SAFEPY_ROOT = HERE.parent / "safepy" / "safepy"              # the package dir, not repo root
 DEST_ROOT = HERE.parent / "microdata-api" / "server_code"
+WEB_ZIP = HERE / "vendor" / "safepy.zip"
 
 
 def _generated_header(repo: str) -> str:
@@ -122,15 +123,51 @@ def apply_sync(statuses):
     return copied
 
 
+def build_web_zip(safepy_root: Path, out_path: Path,
+                  protect_root: Path | None = None) -> list[str]:
+    """Zip the safepy package (GENERATED headers included) for the browser
+    strict runner. Members: safepy/<mod>.py + safepy/adapters/<mod>.py +
+    protect.py (safepy delegates result-side suppression to protect)."""
+    import zipfile
+    h = _generated_header("safepy")
+    members = []
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as z:
+        for p in sorted(safepy_root.glob("*.py")):
+            name = f"safepy/{p.name}"
+            z.writestr(name, _desired_bytes(p, h))
+            members.append(name)
+        adapters = safepy_root / "adapters"
+        if adapters.is_dir():
+            for p in sorted(adapters.glob("*.py")):
+                name = f"safepy/adapters/{p.name}"
+                z.writestr(name, _desired_bytes(p, h))
+                members.append(name)
+        protect_py = (protect_root or PROTECT_ROOT) / "protect.py"
+        if protect_py.is_file():
+            z.writestr("protect.py", _desired_bytes(protect_py, _generated_header("protect")))
+            members.append("protect.py")
+    return members
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Sync engine files into microdata-api/server_code.")
     ap.add_argument("--apply", action="store_true",
                     help="copy drift/missing files (default: report only)")
+    ap.add_argument("--web", action="store_true",
+                    help="build vendor/safepy.zip for browser strict runs (Pyodide)")
     ap.add_argument("--source", default=str(HERE))
     ap.add_argument("--protect", default=str(PROTECT_ROOT))
     ap.add_argument("--safepy", default=str(SAFEPY_ROOT))
     ap.add_argument("--dest", default=str(DEST_ROOT))
     args = ap.parse_args(argv)
+
+    # --web alene: bygg bare browser-zippen. --apply bygger den OGSÅ (safepy
+    # endres ett sted, begge kopiene — Anvil + Pyodide — oppdateres i én kommando).
+    if args.web:
+        members = build_web_zip(Path(args.safepy), WEB_ZIP)
+        print(f"Built {WEB_ZIP}: {len(members)} member(s)")
+        return 0
 
     manifest = build_manifest(Path(args.source), Path(args.protect), Path(args.safepy))
     statuses = compute_status(manifest, Path(args.dest))
@@ -144,6 +181,8 @@ def main(argv=None) -> int:
     if args.apply:
         copied = apply_sync(statuses)
         print(f"\nApplied: copied {len(copied)} file(s): {', '.join(copied) or '(none)'}")
+        members = build_web_zip(Path(args.safepy), WEB_ZIP)
+        print(f"Built {WEB_ZIP}: {len(members)} member(s)")
     else:
         print(f"\nReport-only. {len(pending)} file(s) would change. "
               f"Re-run with --apply to copy.")

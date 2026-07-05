@@ -318,6 +318,20 @@
     </div>
   </div>
 
+  <div class="ai-modal-backdrop" id="keyPromptBackdrop">
+    <div class="ai-modal" style="max-width:420px;">
+      <h3 data-i18n>Dekrypteringsnøkkel</h3>
+      <div class="ai-modal-help" style="margin-bottom:10px;">
+        <span data-i18n>Kilden</span> «<span id="keyPromptAlias"></span>»
+        <span data-i18n>er kryptert. Lim inn nøkkelen (deles aldri med serveren).</span>
+      </div>
+      <input type="password" id="keyPromptInput" autocomplete="off" style="width:100%;">
+      <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.8rem;">
+        <button id="keyPromptCancel" data-i18n>Avbryt</button>
+        <button id="keyPromptOk" data-i18n>Bruk nøkkel</button>
+      </div>
+    </div>
+  </div>
   <div class="ai-modal-backdrop" id="loginBackdrop">
     <div class="ai-modal" style="max-width:420px;">
       <h3 data-i18n>Logg inn</h3>
@@ -2933,6 +2947,62 @@
     function getAnthropicKey() {
       return localStorage.getItem('md_anthropic_key') || null;
     }
+    // API-base for /source_access m.m. — samme kilde som login.js.
+    function getMdApiBase() {
+      return ((window.mdAuth && window.mdAuth.apiBase) ? window.mdAuth.apiBase()
+        : (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app')).replace(/\/+$/, '');
+    }
+    // V3 (spec browser-strict): hver lokale strict-kjøring autoriseres og
+    // logges server-side; svaret bærer nøklene for kjøringen. Ingen caching.
+    async function mdAuthorizeStrictRun(sourceIds, script) {
+      var headers = { 'Content-Type': 'application/json' };
+      var tok = getAuthToken();
+      if (tok) headers['Authorization'] = 'Bearer ' + tok;
+      var r = await fetch(getMdApiBase() + '/_/api/local_run_authorize', {
+        method: 'POST', headers: headers,
+        body: JSON.stringify({ source_ids: sourceIds, script: script })
+      });
+      if (!r.ok) throw new Error(t('kjøringen ble ikke autorisert — mangler du tilgang? (logg inn og prøv igjen)'));
+      var d = await r.json();
+      return d.source_keys || {};
+    }
+
+    // key(ask): modal passordfelt; nøkkelen caches KUN i minnet for økten.
+    var __encKeyCache = {};
+    function mdPromptKey(alias) {
+      if (__encKeyCache[alias]) return Promise.resolve(__encKeyCache[alias]);
+      return new Promise(function (resolve, reject) {
+        var bd = document.getElementById('keyPromptBackdrop');
+        var input = document.getElementById('keyPromptInput');
+        var okBtn = document.getElementById('keyPromptOk');
+        var cancelBtn = document.getElementById('keyPromptCancel');
+        if (!bd || !input || !okBtn || !cancelBtn) {
+          return reject(new Error(t('nøkkeldialogen mangler — bruk key(<nøkkel>) i scriptet')));
+        }
+        document.getElementById('keyPromptAlias').textContent = alias;
+        input.value = '';
+        bd.classList.add('open');
+        setTimeout(function () { input.focus(); }, 60);
+        function done(ok) {
+          bd.classList.remove('open');
+          okBtn.removeEventListener('click', onOk);
+          cancelBtn.removeEventListener('click', onCancel);
+          input.removeEventListener('keydown', onKey);
+          if (!ok) return reject(new Error(t('avbrutt — ingen nøkkel oppgitt for «{alias}»', { alias: alias })));
+          var v = input.value.trim();
+          input.value = '';
+          if (!v) return reject(new Error(t('tom nøkkel for «{alias}»', { alias: alias })));
+          __encKeyCache[alias] = v;
+          resolve(v);
+        }
+        function onOk() { done(true); }
+        function onCancel() { done(false); }
+        function onKey(ev) { if (ev.key === 'Enter') done(true); }
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        input.addEventListener('keydown', onKey);
+      });
+    }
 
     // ── Datakilde: dynamisk (generer) vs statisk (DuckDB-WASM + Parquet) ──────
     const DATA_SOURCE_KEY = 'microdata_data_source';
@@ -3484,7 +3554,7 @@
             if (!webRReady) throw new Error('WebR ikke klar.');
             return await translateRThroughR2m(src); } },
         runSelf: async function (script, ctx) {
-          await runHybridR(script, ctx.py, { showCommands: ctx.showCommands });
+          await runHybridR(script, ctx.py, { showCommands: ctx.showCommands, profile: ctx.profile });
         } },
       statx: { id: 'statx', label: 'Statx',
         hlConfig: STATA_HL_CFG,
@@ -4582,7 +4652,7 @@
       return parts.join('');
     }
 
-    function updateSidebarDatasets(info) {
+    function updateSidebarDatasets(info, badge) {
       var emptyEl = document.getElementById('sidebarEmpty');
       var datasetsEl = document.getElementById('sidebarDatasets');
       var names = Object.keys(info);
@@ -4605,8 +4675,9 @@
           var typeCell = getSidebarTypeCellHtml(v, dtypeStr);
           return '<div class="sidebar-var-row" data-ds="' + escapeHtml(dsName) + '" data-var="' + escapeHtml(v) + '">' + typeCell + '<span class="sidebar-var-name">' + escapeHtml(v) + '</span></div>';
         }).join('');
+        var badgeHtml = badge ? ' <span style="opacity:.55;font-size:11px;font-weight:400">(' + escapeHtml(badge) + ')</span>' : '';
         return '<div class="sidebar-dataset">' +
-          '<div class="sidebar-dataset-name" data-ds="' + escapeHtml(dsName) + '">' + escapeHtml(dsName) + '</div>' +
+          '<div class="sidebar-dataset-name" data-ds="' + escapeHtml(dsName) + '">' + escapeHtml(dsName) + badgeHtml + '</div>' +
           metaLine +
           '<div class="sidebar-vars">' + varsHtml + '</div></div>';
       }).join('');
@@ -5640,10 +5711,10 @@ json.dumps(out)
       Plotly.newPlot(div, data, layout, { responsive: true, autosizable: true, staticPlot: staticPlot }).catch(function(){});
     }
 
-    function renderOutput(raw, asHtml, suppress) {
+    function buildOutputNodes(raw, asHtml, suppress) {
       const parts = parseOutput(raw);
+      const frag = document.createDocumentFragment();
       if (asHtml) {
-        const frag = document.createDocumentFragment();
         for (const p of parts) {
           if (p.type === 'text') {
             var textBlocks = splitTextIntoBlocks(p.content);
@@ -5784,9 +5855,6 @@ json.dumps(out)
             }
           }
         }
-        purgePlots(outputArea);
-        outputArea.innerHTML = '';
-        outputArea.appendChild(frag);
       } else {
         let text = '';
         for (const p of parts) {
@@ -5798,12 +5866,25 @@ json.dumps(out)
             text += firstLine ? `[${p.embedType}: ${firstLine.substring(0, 60)}...]\n` : `[${p.embedType}]\n`;
           } else text += `\n[${p.embedType}]\n${p.payload || ''}\n`;
         }
-        purgePlots(outputArea);
-        outputArea.innerHTML = '';
         const pre = document.createElement('pre');
         pre.textContent = text;
-        outputArea.appendChild(pre);
+        frag.appendChild(pre);
       }
+      return frag;
+    }
+
+    function renderOutput(raw, asHtml, suppress) {
+      const frag = buildOutputNodes(raw, asHtml, suppress);
+      purgePlots(outputArea);
+      outputArea.innerHTML = '';
+      outputArea.appendChild(frag);
+    }
+
+    // Inkrementell variant: legg nye output-deler til uten å røre det som
+    // allerede er rendret (brukes av den segmentvise kjøringen).
+    function appendOutput(raw, asHtml, suppress) {
+      if (!raw || !raw.trim()) return;
+      outputArea.appendChild(buildOutputNodes(raw, asHtml, suppress));
     }
 
     // Frigjør Plotly-interne ressurser (handlers/WebGL) før innholdet
@@ -7362,7 +7443,39 @@ json.dumps(out)
 
       // Web-modus: connect/load-direktiver — hent kilder og bind dem inn i R
       // FØR koden kjører (ingen-op når scriptet ikke har direktiver).
-      var _loadsR = await window.DataLoader.resolveAndFetchLoads(src, { authToken: getAuthToken(), anthropicKey: getAnthropicKey() });
+      var _dlR = await window.DataLoader.resolveAndFetchLoads(src, {
+        authToken: getAuthToken(), anthropicKey: getAnthropicKey(),
+        apiBase: getMdApiBase(), promptKey: mdPromptKey,
+        authorizeStrict: function (ids) { return mdAuthorizeStrictRun(ids, src); } });
+      if (_dlR.remote.length) throw new Error(t('ikke-offentlige kilder i R-modus kjøres via require-direktivet (server) — connect/load støtter det ikke her ennå'));
+      var _loadsR = _dlR.loads;
+      // Lokal strict-kjøring i R-modus: safepy oversetter R til kjernen —
+      // webR er aldri involvert; rammene legges i Pyodide i stedet. Utløses av
+      // "# options.profile = strict" (via runOpts — options-linjene er alt
+      // strippet fra src) ELLER av en strict-grant på en av kildene (spec V2).
+      if (runOpts.profile === 'strict' || _loadsR.some(function (l) { return l.strict; })) {
+        var _pyLoadsR = [];
+        if (_loadsR.length) {
+          var _pyR = await loadPyodideAndM2py();
+          if (_loadsR.some(function (l) { return l.bytes; })) _pyR.FS.mkdirTree('/home/pyodide/_webdata');
+          _pyLoadsR = _loadsR.map(function (l) {
+            if (l.envelope) return { alias: l.alias, format: l.format, envelope: l.envelope, key: l.key };
+            var _p = '/home/pyodide/_webdata/' + l.alias + '.' + l.format;
+            _pyR.FS.writeFile(_p, l.bytes);
+            return { alias: l.alias, format: l.format, path: _p, strict: !!l.strict };
+          });
+        }
+        var _lvOrderR = { public: 0, protected: 1, sensitive: 2 };
+        var _lvlR = 'public';
+        _loadsR.forEach(function (l) {
+          if (l.strict && (_lvOrderR[l.level] || 0) > _lvOrderR[_lvlR]) _lvlR = l.level;
+        });
+        var _srcClean = src.replace(/^\s*(?:#|\/\/)\s*options\.[A-Za-z_]\w*\s*=.*$\n?/gm, '');
+        await runStrictLocal(_srcClean, _pyLoadsR, { level: _lvlR, dialect: 'r' }, { rightStatus: leftStatus });
+        setRunButtonsUi('idle');
+        scriptRunInProgress = false;
+        return;
+      }
       if (_loadsR.length && _loadsR.some(function (l) { return l.format === 'json'; })) {
         try { await webR.installPackages(['jsonlite'], { quiet: true }); } catch (e) {
           console.warn('R jsonlite install error:', e);
@@ -7977,7 +8090,20 @@ has and "int" in (m.get_microdata_functions() or {})
       });
     }
 
-    async function runSafeStatRemote(script, ctx, sources, reason, dialect) {
+    // Progressiv visning under server-kjøring: task_state-fragmenter, ett per
+    // frigitt statement. Det endelige svaret rendres autoritativt av
+    // renderSafeStatResult når status blir 'completed' (figurer kommer der).
+    function renderSafeStatProgress(fragments, done, polls) {
+      var head = '<div style="padding:8px;opacity:.6">' + t('SafeStat: kjører på server… ({n})', { n: polls })
+        + (done ? ' &middot; ' + t('{done} resultat(er) frigitt', { done: done }) : '') + '</div>';
+      var body = '';
+      (fragments || []).forEach(function(f) {
+        if (f && f.html) body += '<div class="safestat-result">' + f.html + '</div>';
+      });
+      outputArea.innerHTML = head + body;
+    }
+
+    async function runSafeStatRemote(script, ctx, sources, reason, dialect, sourceKeys) {
       var apiBase = (window.mdAuth && window.mdAuth.apiBase) ? window.mdAuth.apiBase()
         : (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app').replace(/\/+$/, '');
       var token = window.mdAuth && window.mdAuth.token;
@@ -7986,6 +8112,9 @@ has and "int" in (m.get_microdata_functions() or {})
       if (token) headers['Authorization'] = 'Bearer ' + token;
       var body = { script: script, sources: sources, backend: 'pandas', raw: safeStatFormat === 'raw' };
       if (dialect) body.dialect = dialect;   // pandas/polars/r/duckdb -> safepy-motoren; utelatt = m2py-DSL
+      // Per-run dekrypteringsnøkler for encrypted_url-kilder (mode 2) — reiser
+      // i source_keys, aldri i selve scriptet (direktivlinjene strippes før send).
+      if (sourceKeys && Object.keys(sourceKeys).length) body.source_keys = sourceKeys;
       outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('SafeStat: sender til server ({reason})…', { reason: escapeHtmlOutput(reason || t('server-kjøring')) }) + '</div>';
       try {
         var resp = await fetch(apiBase + '/_/api/run_extended', {
@@ -7997,8 +8126,13 @@ has and "int" in (m.get_microdata_functions() or {})
         if (!sub || sub.error || !sub.task_id) { outputArea.innerHTML = '<pre class="error">SafeStat remote: ' + escapeHtmlOutput((sub && sub.error) || t('uventet svar')) + '</pre>'; return; }
         var taskId = sub.task_id;
         var pollHeaders = token ? { 'Authorization': 'Bearer ' + token } : {};
-        for (var i = 0; i < 80; i++) {
+        // Keep-alive: 80 polls (~2 min) uten fremdrift avbryter; hver ny
+        // frigivelse nullstiller telleren, så lange men produktive kjøringer
+        // ikke forlates. Gamle servere (uten done/partial) oppfører seg som før.
+        var lastDone = 0, idle = 0, polls = 0;
+        while (idle < 80) {
           await new Promise(function(r){ setTimeout(r, 1500); });
+          polls++;
           var st = await fetch(apiBase + '/_/api/run_extended_status?task_id=' + encodeURIComponent(taskId), { headers: pollHeaders })
             .then(function(r){ return r.json(); });
           if (st.status === 'completed') { renderSafeStatResult(st.result || {}, script, ctx, 'remote &middot; compute-to-data'); return; }
@@ -8006,12 +8140,138 @@ has and "int" in (m.get_microdata_functions() or {})
             outputArea.innerHTML = '<pre class="error">' + t('SafeStat remote feilet: {msg}', { msg: escapeHtmlOutput(st.error || st.status) }) + '</pre>';
             return;
           }
-          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('SafeStat: kjører på server… ({n})', { n: i + 1 }) + '</div>';
+          var done = (typeof st.done === 'number') ? st.done : 0;
+          if (done > lastDone) { lastDone = done; idle = 0; } else { idle++; }
+          renderSafeStatProgress(st.partial || [], done, polls);
         }
         outputArea.innerHTML = '<pre class="error">' + t('SafeStat remote: tidsavbrudd (ingen svar fra server)') + '</pre>';
       } catch (e) {
         outputArea.innerHTML = '<pre class="error">' + t('SafeStat remote-feil: {msg}', { msg: escapeHtmlOutput(String(e && e.message ? e.message : e)) }) + '</pre>';
       }
+    }
+
+    // ---- Lokal STRICT-kjøring (spec 2026-07-05-browser-strict-execution) ----
+    // safepy-pakken hentes som zip (bygget av sync_to_api.py --web) og pakkes
+    // ut i Pyodide. Kritisk invariant: feiler noe her, nektes kjøringen —
+    // en strict-kilde kjøres ALDRI på den åpne motoren.
+    async function ensureSafepyLoaded(py) {
+      if (window.__safepyLoaded) return;
+      if (!window.__safepyZipUnpacked) {
+        var resp = await fetch('vendor/safepy.zip');
+        if (!resp.ok) throw new Error(t('kunne ikke laste strict-motoren — prøv igjen'));
+        var buf = await resp.arrayBuffer();
+        py.unpackArchive(buf, 'zip', { extractDir: '/home/pyodide/' });
+        window.__safepyZipUnpacked = true;
+      }
+      // encfile (safepy-enc-v1) trenger cryptography — i Pyodide-distroen,
+      // men ikke forhåndslastet
+      try { await py.loadPackage('cryptography'); } catch (e) {
+        throw new Error(t('kunne ikke laste strict-motoren — prøv igjen'));
+      }
+      window.__safepyLoaded = true;
+    }
+
+    // Kjør hele scriptet gjennom safepy STRICT i Pyodide og render resultatet
+    // med samme renderer som remote-kjøringer (identisk oppførsel lokalt/remote).
+    function buildStrictGlue(script, loads, opts) {
+      return [
+        'import json, os, secrets',
+        '# klient-side salt (settes én gang per motor/worker): støy-nivået er',
+        '# uansett dekorativt lokalt (dokumentert i spec)',
+        "os.environ.setdefault('SAFEPY_NOISE_SALT', secrets.token_hex(16))",
+        'import pandas as _pd',
+        'import safepy',
+        'from safepy import client_shape as _cs',
+        '_code = ' + JSON.stringify(script),
+        '_dialect = ' + JSON.stringify(opts.dialect),
+        '_frames = {}',
+        '_loads = []',
+        '# HELE kjeden (nøkkel-JSON + dekryptering + rammebygging + kjøring) ligger i',
+        '# try/finally: klartekst, nøkler og strict-filer ryddes ALLTID — også når',
+        '# rammebyggingen feiler halvveis (C1/C2 i sluttgjennomgangen).',
+        'try:',
+        "    if _dialect == 'python':",
+        '        _dialect = safepy.detect_python_dialect(_code)',
+        '    _loads = json.loads(' + JSON.stringify(JSON.stringify(loads)) + ')',
+        '    for _l in _loads:',
+        "        if _l.get('envelope'):",
+        '            # V4: dekrypter først HER — klartekst kun i minnet, kun under kjøringen',
+        '            from safepy import encfile as _ef',
+        '            import io as _io',
+        "            _plain = _ef.decrypt_envelope(_l['envelope'], _l['key'])",
+        '            _buf = _io.BytesIO(_plain)',
+        "            _frames[_l['alias']] = (_pd.read_parquet(_buf)",
+        "                if _l['format'] == 'parquet' else _pd.read_csv(_buf))",
+        '            del _plain, _buf',
+        '        else:',
+        "            _frames[_l['alias']] = (_pd.read_parquet(_l['path'])",
+        "                if _l['format'] == 'parquet' else _pd.read_csv(_l['path']))",
+        '    _res = safepy.run(_code, _frames, level=' + JSON.stringify(opts.level) + ',',
+        "                      profile='strict', dialect=_dialect, render='plotly')",
+        '    _out = _cs.to_client_shape(_code, _res.as_dict())',
+        'except Exception as _e:',
+        "    _out = _cs.error_shape(_code, f'{type(_e).__name__}: {_e}')",
+        'finally:',
+        '    # V4: slipp klartekst-rammer, nøkler, konvolutter og strict-filer på FS,',
+        '    # og fjern kjøre-temporærene fra det delte namespacet — mellom kjøringer',
+        '    # finnes bare ciphertext for strict-kilder',
+        '    for _l in _loads:',
+        "        _l.pop('key', None)",
+        "        _l.pop('envelope', None)",
+        "        if _l.get('strict') and _l.get('path'):",
+        '            try:',
+        "                os.remove(_l['path'])",
+        '            except OSError:',
+        '                pass',
+        '    for _k in list(_frames):',
+        '        del _frames[_k]',
+        '    del _frames',
+        "    for _n in ('_res', '_plain', '_buf', '_l', '_k', '_loads'):",
+        '        globals().pop(_n, None)',
+        '    import gc as _gc',
+        '    _gc.collect()',
+        'json.dumps(_out)',
+      ].join('\n');
+    }
+
+    // V4b: strict-kjøringer i egen worker når alle rammer kan sendes som data
+    // (konvolutt) — klartekst finnes da aldri i hovedtråden. FS-stier finnes
+    // bare i hovedtrådens Pyodide, så de kjører strict der (fortsatt aldri åpent).
+    var __strictWorker = null;
+    var __PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/';
+    function runStrictInWorker(glue) {
+      return new Promise(function (resolve, reject) {
+        if (!__strictWorker) __strictWorker = new Worker('js/strict-worker.js');
+        __strictWorker.onmessage = function (ev) {
+          var d = ev.data || {};
+          if (d.ok) resolve(JSON.parse(d.result));
+          else reject(new Error(d.error || 'strict-worker feilet'));
+        };
+        __strictWorker.onerror = function (e) { reject(new Error('strict-worker: ' + (e.message || 'feilet'))); };
+        __strictWorker.postMessage({
+          glue: glue,
+          pyodideURL: __PYODIDE_URL,
+          zipURL: new URL('vendor/safepy.zip', window.location.href).href,
+        });
+      });
+    }
+
+    async function runStrictLocal(script, loads, opts, ctx) {
+      if (ctx.rightStatus) setStatus(ctx.rightStatus, t('Kjører lokalt i strict-modus…'));
+      var glue = buildStrictGlue(script, loads, opts);
+      var out;
+      var fsLoads = loads.some(function (l) { return l.path; });
+      if (window.Worker && !fsLoads) {
+        out = await runStrictInWorker(glue);
+      } else {
+        var py = await loadPyodideAndM2py();
+        await ensureSafepyLoaded(py);
+        out = JSON.parse(await py.runPythonAsync(glue));
+      }
+      renderSafeStatResult(out, script, ctx, t('lokal · strict'));
+      // sidebar-merking: datasett i en strict-kjøring er "kun strict" (spec V2)
+      try { updateSidebarDatasets(out.datasetInfo || {}, t('kun strict')); } catch (e) {}
+      if (ctx.rightStatus) setStatus(ctx.rightStatus, '');
     }
 
     // Inspect a script's `require` lines and decide where it runs.
@@ -8436,6 +8696,7 @@ options(width = 200)
       setRunButtonsUi('running');
       setStatus(rightStatus, 'Starting...');
       let py = null;
+      let incrementalStarted = false;
       try {
         py = await loadPyodideAndM2py();
         let stdout = '';
@@ -8476,7 +8737,7 @@ options(width = 200)
           ? _scriptOpts.show_commands
           : getShowCommandsDefault();
         var _mr = currentMode();
-        var _ctx = { py: py, rightStatus: rightStatus, showCommands: _showCmds };
+        var _ctx = { py: py, rightStatus: rightStatus, showCommands: _showCmds, profile: _scriptOpts.profile };
         // Compute-to-data: i python/r/duckdb-modus ruter et `# require <navn> as <alias>`-
         // direktiv scriptet til serveren (safepy). Uten direktiv kjøres lokalt som før.
         // 'python' is a meta-dialect: the server picks pandas vs polars from the
@@ -8494,17 +8755,64 @@ options(width = 200)
         // Ingen-op når scriptet ikke har load-direktiver (tom liste).
         var _pyLoads = [];
         if (activeEditorMode === 'python' || activeEditorMode === 'duckdb') {
-          var _rawLoads = await window.DataLoader.resolveAndFetchLoads(effectiveScript, { authToken: getAuthToken(), anthropicKey: getAnthropicKey() });
+          var _dl = await window.DataLoader.resolveAndFetchLoads(effectiveScript, {
+            authToken: getAuthToken(), anthropicKey: getAnthropicKey(),
+            apiBase: getMdApiBase(), promptKey: mdPromptKey,
+            authorizeStrict: function (ids) { return mdAuthorizeStrictRun(ids, effectiveScript); } });
+          if (_dl.remote.length) {
+            // Ikke-offentlig registrert kilde via connect: hele scriptet kjøres
+            // på serveren (spec §4). Nøkler reiser i source_keys, aldri i script.
+            var _rSources = [], _rKeys = {};
+            for (var _ri = 0; _ri < _dl.remote.length; _ri++) {
+              var _r = _dl.remote[_ri];
+              _rSources.push({ alias: _r.alias, source_id: _r.sourceId });
+              if (_r.key === 'ask') _rKeys[_r.sourceId] = await mdPromptKey(_r.alias);
+              else if (_r.key) _rKeys[_r.sourceId] = _r.key;
+            }
+            var _stripped = effectiveScript.replace(/^[ \t]*(?:#|--|\/\/)[ \t]*(?:connect|load|require)\s+\S+[^\n]*\n?/gim, '');
+            await runSafeStatRemote(_stripped, _ctx, _rSources, t('ikke-offentlig kilde'),
+              activeEditorMode === 'duckdb' ? 'duckdb' : 'python', _rKeys);
+            return;
+          }
+          var _rawLoads = _dl.loads;
           if (activeEditorMode === 'duckdb') {
             var _htmlLoad = _rawLoads.find(function (l) { return l.format === 'html'; });
             if (_htmlLoad) throw new Error(t('html-kilder støttes ikke i duckdb-modus ({alias}) — bruk python/r', { alias: _htmlLoad.alias }));
           }
-          if (_rawLoads.length) py.FS.mkdirTree('/home/pyodide/_webdata');
+          if (_rawLoads.some(function (l) { return l.bytes; })) py.FS.mkdirTree('/home/pyodide/_webdata');
           _pyLoads = _rawLoads.map(function (l) {
+            if (l.envelope) {
+              // V4: strict-kryptert — klartekst finnes ALDRI på FS; konvolutten
+              // dekrypteres inne i strict-kjøringen og slippes etterpå.
+              return { alias: l.alias, format: l.format, envelope: l.envelope, key: l.key };
+            }
             var _path = '/home/pyodide/_webdata/' + l.alias + '.' + l.format;
             py.FS.writeFile(_path, l.bytes);
-            return { alias: l.alias, format: l.format, path: _path };
+            // strict-flagget følger med: strict path-filer slettes av kjøringens finally
+            return { alias: l.alias, format: l.format, path: _path, strict: !!l.strict };
           });
+        }
+        // Lokal strict-kjøring: manuelt opt-in via "# options.profile = strict",
+        // ELLER grant-styrt — en kilde med local_profile=strict tvinger hele
+        // kjøringen inn i safepy-fasaden (mest-restriktive-vinner, spec V2).
+        var _strictLoads = (typeof _rawLoads !== 'undefined' && _rawLoads ? _rawLoads : []).filter(function (l) { return l.strict; });
+        var _strictRun = _scriptOpts.profile === 'strict' || _strictLoads.length > 0;
+        if (_strictRun && activeEditorMode === 'duckdb') {
+          outputArea.innerHTML = '<pre class="error">' + t('strict-kilder støttes foreløpig i python/r — ikke duckdb-modus') + '</pre>';
+          return;
+        }
+        if (_strictRun && activeEditorMode === 'python') {
+          if (parseHybridScript(effectiveScript, 'pyodide').some(function (s) { return s.kind === 'microdata'; })) {
+            outputArea.innerHTML = '<pre class="error">' + t('strict-kilder kan ikke blandes med #micro-segmenter (ennå)') + '</pre>';
+            return;
+          }
+          var _lvOrder = { public: 0, protected: 1, sensitive: 2 };
+          var _lvl = 'public';
+          (_rawLoads || []).forEach(function (l) {
+            if (l.strict && (_lvOrder[l.level] || 0) > _lvOrder[_lvl]) _lvl = l.level;
+          });
+          await runStrictLocal(effectiveScript, _pyLoads, { level: _lvl, dialect: 'python' }, _ctx);
+          return;
         }
         const catalogJson = microdataCatalog && microdataCatalog.variables
           ? JSON.stringify(microdataCatalog.variables)
@@ -8531,7 +8839,7 @@ options(width = 200)
           } catch (e) { console.warn('pyarrow ensure:', e); }
         }
         const segmentsStr = JSON.stringify(segments);
-        const runCode = getInterpreterCorePython(catalogArg, pageBase, segmentsStr) + buildWebDataLoaderPreamble(_pyLoads) + `
+        const setupCode = getInterpreterCorePython(catalogArg, pageBase, segmentsStr) + buildWebDataLoaderPreamble(_pyLoads) + `
 import asyncio as _asyncio
 # ── Statisk datakilde: pre-fetch alle importer via DuckDB-WASM (JS) før kjøring ──
 if getattr(_m2py_mod, 'M2PY_DATA_SOURCE', 'dynamic') == 'static' and getattr(e, 'static_source', None) is not None:
@@ -8551,10 +8859,13 @@ if getattr(_m2py_mod, 'M2PY_DATA_SOURCE', 'dynamic') == 'static' and getattr(e, 
         print('(static pre-fetch feilet, faller tilbake til generering:', _pe, ')')
         _m2py_mod.M2PY_DATA_SOURCE = 'dynamic'
 result = None
-for _seg in _segments:
+async def _m2py_run_segment(_seg_json):
+    # Ett hybrid-segment; "stop" avbryter kjøringen (DuckDB-feil, som før).
+    global result
+    _seg = json.loads(_seg_json)
     _st = (_seg.get("text") or "").strip()
     if not _st:
-        continue
+        return "ok"
     _k = _seg.get("kind") or "microdata"
     if _k == "microdata":
         if hasattr(e, 'run_script_async'):
@@ -8582,29 +8893,44 @@ for _seg in _segments:
             print(await _run_duck_sql(_st))
         except Exception as _de:
             print("DuckDB-feil: " + str(_de))
-            break
+            return "stop"
         e.sync_datasets_to_globals(_g)
         _apply_labels_to_globals(_g, catalog)
         _g["show"] = show
         _g["to_microdata"] = to_microdata
+    return "ok"
 `;
         setStatus(rightStatus, 'Running...');
-        await py.runPythonAsync(runCode);
+        await py.runPythonAsync(setupCode);
+        // Segmentvis kjøring drevet fra JS: output rendres etter hvert segment,
+        // og nettleseren får tegnet mellom segmentene (progressiv visning).
+        const asHtml = document.querySelector('input[name="outputMode"]:checked').value === 'html';
+        const suppress = suppressEmbedded.checked;
+        purgePlots(outputArea);
+        outputArea.innerHTML = '';
+        incrementalStarted = true;
+        let renderedLen = 0;
+        for (let i = 0; i < segments.length; i++) {
+          if (segments.length > 1) setStatus(rightStatus, t('Kjører del {i} av {n}…', { i: i + 1, n: segments.length }));
+          py.globals.set('_m2py_seg_json', JSON.stringify(segments[i]));
+          const rc = await py.runPythonAsync('await _m2py_run_segment(_m2py_seg_json)');
+          appendOutput(stdout.slice(renderedLen), asHtml, suppress);
+          renderedLen = stdout.length;
+          if (rc === 'stop') break;
+        }
         if (py && typeof py.setStdout === 'function') py.setStdout();
         if (py && typeof py.setStderr === 'function') py.setStderr();
         lastOutput = (stdout || '').trim();
         await refreshDatasetSidebarFromPy(py);
         if (stderr) console.warn('[stderr]', stderr.trim());
         lastOutputMode = 'run';
-        const asHtml = document.querySelector('input[name="outputMode"]:checked').value === 'html';
-        const suppress = suppressEmbedded.checked;
-        renderOutput(lastOutput, asHtml, suppress);
         setStatus(rightStatus, '');
       } catch (e) {
         const errMsg = (e && e.message) ? e.message : String(e);
         lastOutput = 'ERROR:\n' + errMsg;
-        purgePlots(outputArea);
-        outputArea.innerHTML = '';
+        // Segmentvis kjøring: allerede rendret output beholdes, feilen legges
+        // til under (speiler remote-adferden: delresultater + feil).
+        if (!incrementalStarted) { purgePlots(outputArea); outputArea.innerHTML = ''; }
         const pre = document.createElement('pre');
         pre.className = 'error';
         pre.textContent = lastOutput;
@@ -9143,6 +9469,7 @@ def _run_microdata_chunk(_code):
   </script>
   <script src="js/login.js"></script>
   <script src="js/data-directives.js"></script>
+  <script src="js/enc-crypto.js"></script>
   <script src="js/data-loader.js"></script>
   <script src="js/ai-chat.js"></script>
   <script src="js/github-storage.js"></script>

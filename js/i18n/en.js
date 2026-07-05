@@ -403,6 +403,8 @@ window.M2PY_I18N.en = {
   "uventet svar": "unexpected response",
   "SafeStat remote feilet: {msg}": "SafeStat remote failed: {msg}",
   "SafeStat: kjører på server… ({n})": "SafeStat: running on the server… ({n})",
+  "{done} resultat(er) frigitt": "{done} result(s) released",
+  "Kjører del {i} av {n}…": "Running part {i} of {n}…",
   "SafeStat remote: tidsavbrudd (ingen svar fra server)": "SafeStat remote: timeout (no response from the server)",
   "SafeStat remote-feil: {msg}": "SafeStat remote error: {msg}",
   "source_info feilet for «{raw}»: {msg}": "source_info failed for “{raw}”: {msg}",
