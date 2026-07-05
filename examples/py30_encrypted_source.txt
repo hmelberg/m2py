@@ -1,0 +1,15 @@
+#py
+# Kryptert kilde på nett (safepy-enc-v1) — tre måter:
+#
+# 1) Nøkkel i scriptet (enkelt, minst sikkert):
+# load https://raw.githubusercontent.com/<bruker>/<repo>/main/helse.enc.json as df, key(LIM-INN-NØKKEL)
+#
+# 2) Nøkkel via ledetekst (nøkkelen havner aldri i scriptet):
+# connect https://raw.githubusercontent.com/<bruker>/<repo>/main/helse.enc.json as h, key(ask)
+# load h as df
+#
+# 3) Registrert kilde (eieren har delt tilgang med deg — logg inn først):
+# connect helse2025 as h
+# load h as df
+
+df.head()
