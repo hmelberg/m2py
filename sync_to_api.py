@@ -123,9 +123,11 @@ def apply_sync(statuses):
     return copied
 
 
-def build_web_zip(safepy_root: Path, out_path: Path) -> list[str]:
+def build_web_zip(safepy_root: Path, out_path: Path,
+                  protect_root: Path | None = None) -> list[str]:
     """Zip the safepy package (GENERATED headers included) for the browser
-    strict runner. Members: safepy/<mod>.py + safepy/adapters/<mod>.py."""
+    strict runner. Members: safepy/<mod>.py + safepy/adapters/<mod>.py +
+    protect.py (safepy delegates result-side suppression to protect)."""
     import zipfile
     h = _generated_header("safepy")
     members = []
@@ -141,6 +143,10 @@ def build_web_zip(safepy_root: Path, out_path: Path) -> list[str]:
                 name = f"safepy/adapters/{p.name}"
                 z.writestr(name, _desired_bytes(p, h))
                 members.append(name)
+        protect_py = (protect_root or PROTECT_ROOT) / "protect.py"
+        if protect_py.is_file():
+            z.writestr("protect.py", _desired_bytes(protect_py, _generated_header("protect")))
+            members.append("protect.py")
     return members
 
 

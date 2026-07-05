@@ -17,6 +17,7 @@ def test_build_web_zip_members_and_importability(tmp_path):
     assert "safepy/client_shape.py" in members
     assert "safepy/encfile.py" in members
     assert any(m.startswith("safepy/adapters/") for m in members)
+    assert "protect.py" in members          # safepy delegerer undertrykking til protect
     with zipfile.ZipFile(out) as z:
         header = z.read("safepy/client_shape.py").decode()
     assert "GENERATED COPY" in header

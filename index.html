@@ -8216,11 +8216,40 @@ has and "int" in (m.get_microdata_functions() or {})
       ].join('\n');
     }
 
+    // V4b: strict-kjøringer i egen worker når alle rammer kan sendes som data
+    // (konvolutt) — klartekst finnes da aldri i hovedtråden. FS-stier finnes
+    // bare i hovedtrådens Pyodide, så de kjører strict der (fortsatt aldri åpent).
+    var __strictWorker = null;
+    var __PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/';
+    function runStrictInWorker(glue) {
+      return new Promise(function (resolve, reject) {
+        if (!__strictWorker) __strictWorker = new Worker('js/strict-worker.js');
+        __strictWorker.onmessage = function (ev) {
+          var d = ev.data || {};
+          if (d.ok) resolve(JSON.parse(d.result));
+          else reject(new Error(d.error || 'strict-worker feilet'));
+        };
+        __strictWorker.onerror = function (e) { reject(new Error('strict-worker: ' + (e.message || 'feilet'))); };
+        __strictWorker.postMessage({
+          glue: glue,
+          pyodideURL: __PYODIDE_URL,
+          zipURL: new URL('vendor/safepy.zip', window.location.href).href,
+        });
+      });
+    }
+
     async function runStrictLocal(script, loads, opts, ctx) {
-      var py = await loadPyodideAndM2py();
-      await ensureSafepyLoaded(py);
       if (ctx.rightStatus) setStatus(ctx.rightStatus, t('Kjører lokalt i strict-modus…'));
-      var out = JSON.parse(await py.runPythonAsync(buildStrictGlue(script, loads, opts)));
+      var glue = buildStrictGlue(script, loads, opts);
+      var out;
+      var fsLoads = loads.some(function (l) { return l.path; });
+      if (window.Worker && !fsLoads) {
+        out = await runStrictInWorker(glue);
+      } else {
+        var py = await loadPyodideAndM2py();
+        await ensureSafepyLoaded(py);
+        out = JSON.parse(await py.runPythonAsync(glue));
+      }
       renderSafeStatResult(out, script, ctx, t('lokal · strict'));
       // sidebar-merking: datasett i en strict-kjøring er "kun strict" (spec V2)
       try { updateSidebarDatasets(out.datasetInfo || {}, t('kun strict')); } catch (e) {}
