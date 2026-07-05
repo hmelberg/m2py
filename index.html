@@ -318,6 +318,20 @@
     </div>
   </div>
 
+  <div class="ai-modal-backdrop" id="keyPromptBackdrop">
+    <div class="ai-modal" style="max-width:420px;">
+      <h3 data-i18n>Dekrypteringsnøkkel</h3>
+      <div class="ai-modal-help" style="margin-bottom:10px;">
+        <span data-i18n>Kilden</span> «<span id="keyPromptAlias"></span>»
+        <span data-i18n>er kryptert. Lim inn nøkkelen (deles aldri med serveren).</span>
+      </div>
+      <input type="password" id="keyPromptInput" autocomplete="off" style="width:100%;">
+      <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.8rem;">
+        <button id="keyPromptCancel" data-i18n>Avbryt</button>
+        <button id="keyPromptOk" data-i18n>Bruk nøkkel</button>
+      </div>
+    </div>
+  </div>
   <div class="ai-modal-backdrop" id="loginBackdrop">
     <div class="ai-modal" style="max-width:420px;">
       <h3 data-i18n>Logg inn</h3>
@@ -2932,6 +2946,47 @@
     // data-loaderen mot /api/hent når brukeren ikke er innlogget.
     function getAnthropicKey() {
       return localStorage.getItem('md_anthropic_key') || null;
+    }
+    // API-base for /source_access m.m. — samme kilde som login.js.
+    function getMdApiBase() {
+      return ((window.mdAuth && window.mdAuth.apiBase) ? window.mdAuth.apiBase()
+        : (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app')).replace(/\/+$/, '');
+    }
+    // key(ask): modal passordfelt; nøkkelen caches KUN i minnet for økten.
+    var __encKeyCache = {};
+    function mdPromptKey(alias) {
+      if (__encKeyCache[alias]) return Promise.resolve(__encKeyCache[alias]);
+      return new Promise(function (resolve, reject) {
+        var bd = document.getElementById('keyPromptBackdrop');
+        var input = document.getElementById('keyPromptInput');
+        var okBtn = document.getElementById('keyPromptOk');
+        var cancelBtn = document.getElementById('keyPromptCancel');
+        if (!bd || !input || !okBtn || !cancelBtn) {
+          return reject(new Error(t('nøkkeldialogen mangler — bruk key(<nøkkel>) i scriptet')));
+        }
+        document.getElementById('keyPromptAlias').textContent = alias;
+        input.value = '';
+        bd.classList.add('open');
+        setTimeout(function () { input.focus(); }, 60);
+        function done(ok) {
+          bd.classList.remove('open');
+          okBtn.removeEventListener('click', onOk);
+          cancelBtn.removeEventListener('click', onCancel);
+          input.removeEventListener('keydown', onKey);
+          if (!ok) return reject(new Error(t('avbrutt — ingen nøkkel oppgitt for «{alias}»', { alias: alias })));
+          var v = input.value.trim();
+          input.value = '';
+          if (!v) return reject(new Error(t('tom nøkkel for «{alias}»', { alias: alias })));
+          __encKeyCache[alias] = v;
+          resolve(v);
+        }
+        function onOk() { done(true); }
+        function onCancel() { done(false); }
+        function onKey(ev) { if (ev.key === 'Enter') done(true); }
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        input.addEventListener('keydown', onKey);
+      });
     }
 
     // ── Datakilde: dynamisk (generer) vs statisk (DuckDB-WASM + Parquet) ──────
@@ -7372,7 +7427,11 @@ json.dumps(out)
 
       // Web-modus: connect/load-direktiver — hent kilder og bind dem inn i R
       // FØR koden kjører (ingen-op når scriptet ikke har direktiver).
-      var _loadsR = await window.DataLoader.resolveAndFetchLoads(src, { authToken: getAuthToken(), anthropicKey: getAnthropicKey() });
+      var _dlR = await window.DataLoader.resolveAndFetchLoads(src, {
+        authToken: getAuthToken(), anthropicKey: getAnthropicKey(),
+        apiBase: getMdApiBase(), promptKey: mdPromptKey });
+      if (_dlR.remote.length) throw new Error(t('ikke-offentlige kilder i R-modus kjøres via require-direktivet (server) — connect/load støtter det ikke her ennå'));
+      var _loadsR = _dlR.loads;
       if (_loadsR.length && _loadsR.some(function (l) { return l.format === 'json'; })) {
         try { await webR.installPackages(['jsonlite'], { quiet: true }); } catch (e) {
           console.warn('R jsonlite install error:', e);
@@ -8000,7 +8059,7 @@ has and "int" in (m.get_microdata_functions() or {})
       outputArea.innerHTML = head + body;
     }
 
-    async function runSafeStatRemote(script, ctx, sources, reason, dialect) {
+    async function runSafeStatRemote(script, ctx, sources, reason, dialect, sourceKeys) {
       var apiBase = (window.mdAuth && window.mdAuth.apiBase) ? window.mdAuth.apiBase()
         : (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app').replace(/\/+$/, '');
       var token = window.mdAuth && window.mdAuth.token;
@@ -8009,6 +8068,9 @@ has and "int" in (m.get_microdata_functions() or {})
       if (token) headers['Authorization'] = 'Bearer ' + token;
       var body = { script: script, sources: sources, backend: 'pandas', raw: safeStatFormat === 'raw' };
       if (dialect) body.dialect = dialect;   // pandas/polars/r/duckdb -> safepy-motoren; utelatt = m2py-DSL
+      // Per-run dekrypteringsnøkler for encrypted_url-kilder (mode 2) — reiser
+      // i source_keys, aldri i selve scriptet (direktivlinjene strippes før send).
+      if (sourceKeys && Object.keys(sourceKeys).length) body.source_keys = sourceKeys;
       outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('SafeStat: sender til server ({reason})…', { reason: escapeHtmlOutput(reason || t('server-kjøring')) }) + '</div>';
       try {
         var resp = await fetch(apiBase + '/_/api/run_extended', {
@@ -8525,7 +8587,25 @@ options(width = 200)
         // Ingen-op når scriptet ikke har load-direktiver (tom liste).
         var _pyLoads = [];
         if (activeEditorMode === 'python' || activeEditorMode === 'duckdb') {
-          var _rawLoads = await window.DataLoader.resolveAndFetchLoads(effectiveScript, { authToken: getAuthToken(), anthropicKey: getAnthropicKey() });
+          var _dl = await window.DataLoader.resolveAndFetchLoads(effectiveScript, {
+            authToken: getAuthToken(), anthropicKey: getAnthropicKey(),
+            apiBase: getMdApiBase(), promptKey: mdPromptKey });
+          if (_dl.remote.length) {
+            // Ikke-offentlig registrert kilde via connect: hele scriptet kjøres
+            // på serveren (spec §4). Nøkler reiser i source_keys, aldri i script.
+            var _rSources = [], _rKeys = {};
+            for (var _ri = 0; _ri < _dl.remote.length; _ri++) {
+              var _r = _dl.remote[_ri];
+              _rSources.push({ alias: _r.alias, source_id: _r.sourceId });
+              if (_r.key === 'ask') _rKeys[_r.sourceId] = await mdPromptKey(_r.alias);
+              else if (_r.key) _rKeys[_r.sourceId] = _r.key;
+            }
+            var _stripped = effectiveScript.replace(/^[ \t]*(?:#|--|\/\/)[ \t]*(?:connect|load|require)\s+\S+[^\n]*\n?/gim, '');
+            await runSafeStatRemote(_stripped, _ctx, _rSources, t('ikke-offentlig kilde'),
+              activeEditorMode === 'duckdb' ? 'duckdb' : 'python', _rKeys);
+            return;
+          }
+          var _rawLoads = _dl.loads;
           if (activeEditorMode === 'duckdb') {
             var _htmlLoad = _rawLoads.find(function (l) { return l.format === 'html'; });
             if (_htmlLoad) throw new Error(t('html-kilder støttes ikke i duckdb-modus ({alias}) — bruk python/r', { alias: _htmlLoad.alias }));
@@ -9192,6 +9272,7 @@ def _run_microdata_chunk(_code):
   </script>
   <script src="js/login.js"></script>
   <script src="js/data-directives.js"></script>
+  <script src="js/enc-crypto.js"></script>
   <script src="js/data-loader.js"></script>
   <script src="js/ai-chat.js"></script>
   <script src="js/github-storage.js"></script>

@@ -9,6 +9,13 @@
       const LS_KEY_AIMODE = 'md_ai_mode';   // 'fast' | 'anvil'
       const DEFAULT_BASE = 'https://mdataapi.anvil.app';
 
+      // key(<literal>) i scriptet er en hemmelighet — maskeres før scriptet
+      // sendes til AI-endepunkter (spec 2026-07-05 §5). key(ask) beholdes.
+      function scrubScript(s) {
+        return (window.DataDirectives && window.DataDirectives.scrubKeys)
+          ? window.DataDirectives.scrubKeys(s || '') : (s || '');
+      }
+
       const state = {
         sending: false,
         history: [],   // {role, html|text, raw}
@@ -534,8 +541,8 @@
           if (dom.aiAbortBtn) dom.aiAbortBtn.style.display = '';
           try {
             const meta = useV2
-              ? await runFastQueryV2(text, lang, includeScript ? dom.scriptInput.value : '', thinkingNode, ctrl.signal)
-              : await runFastQuery(text, lang, includeScript ? dom.scriptInput.value : '', thinkingNode, ctrl.signal);
+              ? await runFastQueryV2(text, lang, includeScript ? scrubScript(dom.scriptInput.value) : '', thinkingNode, ctrl.signal)
+              : await runFastQuery(text, lang, includeScript ? scrubScript(dom.scriptInput.value) : '', thinkingNode, ctrl.signal);
             state.history.push({ role: 'assistant', meta });
           } catch (e) {
             if (e.name !== 'AbortError') appendError(thinkingNode, '✗ ' + e.message);
@@ -554,7 +561,7 @@
           let resp, intent, result;
           if (includeScript) {
             resp = await callApi('/revise', {
-              script: dom.scriptInput.value,
+              script: scrubScript(dom.scriptInput.value),
               revision: text,
               lang,
               max_repair: 1,
@@ -1074,7 +1081,7 @@
             body: JSON.stringify({
               question,
               mode,
-              script: (dom.scriptInput && dom.scriptInput.value) || '',
+              script: scrubScript((dom.scriptInput && dom.scriptInput.value) || ''),
               repair: repair ? { script: repair.script, error: repair.error, round } : undefined,
               resume: resume || undefined,
             }),
