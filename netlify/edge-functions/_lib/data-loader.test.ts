@@ -145,3 +145,34 @@ Deno.test("grant fingerprint mismatch is refused (byttet fil)", async () => {
       { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T" }),
     Error, "endret siden den ble registrert");
 });
+
+Deno.test("strict grant marks the load and carries level", async () => {
+  const plain = new TextEncoder().encode("a,b\n1,2\n");
+  const { envelope, key } = await EC.encryptBytes(plain, "csv");
+  const fetchImpl = ((input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/source_access")) return Promise.resolve(jsonResp({
+      remote_only: false, location: "https://x.example/d.enc.json",
+      payload_format: "csv", fingerprint: envelope.fingerprint,
+      encrypted: true, local_profile: "strict", level: "protected", key }));
+    return Promise.resolve(jsonResp(envelope));
+  }) as typeof fetch;
+  const out = await DL.resolveAndFetchLoads("# connect helse as h\n# load h as df",
+    { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T" });
+  assertEquals(out.loads[0].strict, true);
+  assertEquals(out.loads[0].level, "protected");
+});
+
+Deno.test("open grant leaves strict undefined", async () => {
+  const fetchImpl = ((input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/source_access")) return Promise.resolve(jsonResp({
+      remote_only: false, location: "https://x.example/d.csv",
+      payload_format: "csv", fingerprint: null, encrypted: false,
+      local_profile: "open", level: "public" }));
+    return Promise.resolve(new Response("a,b\n1,2", { status: 200, headers: { "content-type": "text/csv" } }));
+  }) as typeof fetch;
+  const out = await DL.resolveAndFetchLoads("# connect demo as d\n# load d as df",
+    { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T" });
+  assertEquals(out.loads[0].strict, undefined);
+});

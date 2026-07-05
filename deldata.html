@@ -89,6 +89,13 @@
         </select></div>
       <div><label for="fFormat">Format (for ukrypterte filer)</label>
         <select id="fFormat"><option value="csv">csv</option><option value="parquet">parquet</option></select></div>
+      <div><label for="fLocalMode">Lokal analyse</label>
+        <select id="fLocalMode">
+          <option value="">automatisk (public → åpen; ellers ingen)</option>
+          <option value="open">åpen — vanlig analyse i nettleseren</option>
+          <option value="strict">kun strict — bare safepy-fasaden, logget</option>
+          <option value="none">ingen — kun server-kjøring</option>
+        </select></div>
     </div>
     <label for="fEmails">Hvem får tilgang? E-poster (kommaseparert)</label>
     <input type="text" id="fEmails" placeholder="ana@fhi.no, per@uio.no" style="width:100%">
@@ -148,6 +155,7 @@
         $('mineList').innerHTML = list.map(function (s) {
           return '<div class="srcrow"><span><code>' + esc(s.source_id) + '</code> · '
             + esc(s.level) + ' · ' + esc(s.kind)
+            + (s.local_mode ? ' · lokal: ' + esc(s.local_mode) : '')
             + (s.has_key ? ' · nøkkel lagret' : '') + '</span>'
             + '<button class="secondary" data-sid="' + esc(s.source_id) + '">Deaktiver</button></div>';
         }).join('') || '<p class="muted">Ingen registrerte kilder ennå.</p>';
@@ -185,6 +193,7 @@
       format: $('fFormat').value,
       emails: splitList($('fEmails').value),
       domains: splitList($('fDomains').value),
+      local_mode: $('fLocalMode').value || undefined,
       key: $('fKey').value.trim() || null,
       store_key: $('fStoreKey').checked,
     };

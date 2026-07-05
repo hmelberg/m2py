@@ -93,7 +93,14 @@
       var buf = new Uint8Array(await resp.arrayBuffer());
       var format = sniffFormat(resp, item.url);
       var dec = await maybeDecrypt(item, buf, format, deps);
-      return { alias: item.alias, bytes: dec.bytes, format: dec.format };
+      var out = { alias: item.alias, bytes: dec.bytes, format: dec.format };
+      if (item.grant && item.grant.local_profile === 'strict') {
+        // strict-grant (spec 2026-07-05-browser-strict-execution §2): rammen
+        // får KUN gå inn i safepy-fasaden; nivået velger policy-tier lokalt.
+        out.strict = true;
+        out.level = item.grant.level || 'protected';
+      }
+      return out;
     }));
     return { loads: loads, remote: remote };
   }

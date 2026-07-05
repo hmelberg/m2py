@@ -4637,7 +4637,7 @@
       return parts.join('');
     }
 
-    function updateSidebarDatasets(info) {
+    function updateSidebarDatasets(info, badge) {
       var emptyEl = document.getElementById('sidebarEmpty');
       var datasetsEl = document.getElementById('sidebarDatasets');
       var names = Object.keys(info);
@@ -4660,8 +4660,9 @@
           var typeCell = getSidebarTypeCellHtml(v, dtypeStr);
           return '<div class="sidebar-var-row" data-ds="' + escapeHtml(dsName) + '" data-var="' + escapeHtml(v) + '">' + typeCell + '<span class="sidebar-var-name">' + escapeHtml(v) + '</span></div>';
         }).join('');
+        var badgeHtml = badge ? ' <span style="opacity:.55;font-size:11px;font-weight:400">(' + escapeHtml(badge) + ')</span>' : '';
         return '<div class="sidebar-dataset">' +
-          '<div class="sidebar-dataset-name" data-ds="' + escapeHtml(dsName) + '">' + escapeHtml(dsName) + '</div>' +
+          '<div class="sidebar-dataset-name" data-ds="' + escapeHtml(dsName) + '">' + escapeHtml(dsName) + badgeHtml + '</div>' +
           metaLine +
           '<div class="sidebar-vars">' + varsHtml + '</div></div>';
       }).join('');
@@ -7432,10 +7433,11 @@ json.dumps(out)
         apiBase: getMdApiBase(), promptKey: mdPromptKey });
       if (_dlR.remote.length) throw new Error(t('ikke-offentlige kilder i R-modus kjøres via require-direktivet (server) — connect/load støtter det ikke her ennå'));
       var _loadsR = _dlR.loads;
-      // Lokal strict-kjøring i R-modus (V1): safepy oversetter R til kjernen —
-      // webR er aldri involvert; rammene legges i Pyodide i stedet. (options-
-      // linjene er alt strippet fra src av run-handleren — profilen kommer via runOpts.)
-      if (runOpts.profile === 'strict') {
+      // Lokal strict-kjøring i R-modus: safepy oversetter R til kjernen —
+      // webR er aldri involvert; rammene legges i Pyodide i stedet. Utløses av
+      // "# options.profile = strict" (via runOpts — options-linjene er alt
+      // strippet fra src) ELLER av en strict-grant på en av kildene (spec V2).
+      if (runOpts.profile === 'strict' || _loadsR.some(function (l) { return l.strict; })) {
         var _pyLoadsR = [];
         if (_loadsR.length) {
           var _pyR = await loadPyodideAndM2py();
@@ -7446,8 +7448,13 @@ json.dumps(out)
             return { alias: l.alias, format: l.format, path: _p };
           });
         }
+        var _lvOrderR = { public: 0, protected: 1, sensitive: 2 };
+        var _lvlR = 'public';
+        _loadsR.forEach(function (l) {
+          if (l.strict && (_lvOrderR[l.level] || 0) > _lvOrderR[_lvlR]) _lvlR = l.level;
+        });
         var _srcClean = src.replace(/^\s*(?:#|\/\/)\s*options\.[A-Za-z_]\w*\s*=.*$\n?/gm, '');
-        await runStrictLocal(_srcClean, _pyLoadsR, { level: 'public', dialect: 'r' }, { rightStatus: leftStatus });
+        await runStrictLocal(_srcClean, _pyLoadsR, { level: _lvlR, dialect: 'r' }, { rightStatus: leftStatus });
         setRunButtonsUi('idle');
         scriptRunInProgress = false;
         return;
@@ -8174,6 +8181,8 @@ has and "int" in (m.get_microdata_functions() or {})
       if (ctx.rightStatus) setStatus(ctx.rightStatus, t('Kjører lokalt i strict-modus…'));
       var out = JSON.parse(await py.runPythonAsync(buildStrictGlue(script, loads, opts)));
       renderSafeStatResult(out, script, ctx, t('lokal · strict'));
+      // sidebar-merking: datasett i en strict-kjøring er "kun strict" (spec V2)
+      try { updateSidebarDatasets(out.datasetInfo || {}, t('kun strict')); } catch (e) {}
       if (ctx.rightStatus) setStatus(ctx.rightStatus, '');
     }
 
@@ -8688,10 +8697,26 @@ options(width = 200)
             return { alias: l.alias, format: l.format, path: _path };
           });
         }
-        // Lokal strict-kjøring (V1: manuelt opt-in via "# options.profile = strict";
-        // grant-styrt ruting kommer i V2). Kun python-modus her; r-modus ruter i sin runner.
-        if (_scriptOpts.profile === 'strict' && activeEditorMode === 'python') {
-          await runStrictLocal(effectiveScript, _pyLoads, { level: 'public', dialect: 'python' }, _ctx);
+        // Lokal strict-kjøring: manuelt opt-in via "# options.profile = strict",
+        // ELLER grant-styrt — en kilde med local_profile=strict tvinger hele
+        // kjøringen inn i safepy-fasaden (mest-restriktive-vinner, spec V2).
+        var _strictLoads = (typeof _rawLoads !== 'undefined' && _rawLoads ? _rawLoads : []).filter(function (l) { return l.strict; });
+        var _strictRun = _scriptOpts.profile === 'strict' || _strictLoads.length > 0;
+        if (_strictRun && activeEditorMode === 'duckdb') {
+          outputArea.innerHTML = '<pre class="error">' + t('strict-kilder støttes foreløpig i python/r — ikke duckdb-modus') + '</pre>';
+          return;
+        }
+        if (_strictRun && activeEditorMode === 'python') {
+          if (parseHybridScript(effectiveScript, 'pyodide').some(function (s) { return s.kind === 'microdata'; })) {
+            outputArea.innerHTML = '<pre class="error">' + t('strict-kilder kan ikke blandes med #micro-segmenter (ennå)') + '</pre>';
+            return;
+          }
+          var _lvOrder = { public: 0, protected: 1, sensitive: 2 };
+          var _lvl = 'public';
+          (_rawLoads || []).forEach(function (l) {
+            if (l.strict && (_lvOrder[l.level] || 0) > _lvOrder[_lvl]) _lvl = l.level;
+          });
+          await runStrictLocal(effectiveScript, _pyLoads, { level: _lvl, dialect: 'python' }, _ctx);
           return;
         }
         const catalogJson = microdataCatalog && microdataCatalog.variables
