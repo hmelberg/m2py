@@ -217,7 +217,24 @@ mistake (a non-unique key) without blocking legitimate one-to-many joins.
 
 ## 8. Deferred
 
-- **Composite keys** (`key(pid, year)`) — panels; single key in v1.
+- **Composite keys** (`key(pid, year)`) — panels; single key in v1. This also
+  covers microdata-style *panel* import: joining on `(pid, year)` is the same
+  mechanism, no separate verb.
+- **Temporal / as-of `import`** (microdata `import-event` analogue) — an
+  optional date modifier such as `import p/income at 2020-06-30` or
+  `during 2020-01-01 to 2020-12-31`, performing an as-of / interval join
+  ("the value valid on date D") against interval-structured sources
+  (`valid_from`/`valid_to`). Data-model-dependent: it only activates when a
+  source is *registered as* interval-structured (which columns are the
+  date/interval — metadata generic files don't self-describe), and temporal
+  joins carry their own correctness concerns (overlaps, gaps, point-in-time).
+  Out of v1 deliberately: the common verbs stay columns + equi-joins, and
+  **duckdb mode's SQL power path already expresses as-of joins, date windows,
+  and interval logic today** — so the capability exists now, just in the
+  mode-native path rather than the common core. Build the common-verb version
+  when a concrete event-structured dataset needs it. (Plain date-window
+  *filtering* on long-format rows is not this item — that is row filtering,
+  which stays in the analysis script body.)
 - **Column pushdown** (parquet/duckdb) for large-file `import`.
 - **Assembly-time filter / derive / aggregate** — stays in the analysis script
   in v1 (`keep-if`, computed columns, collapse).
@@ -226,3 +243,12 @@ mistake (a non-unique key) without blocking legitimate one-to-many joins.
 - **`use <name>` active-dataset switching** — v1 uses explicit `into <name>` on
   every statement (no implicit active dataset), which is clearer for the
   non-microdata audience.
+- **Runtime-conditional / interleaved dataset creation** — a dataset whose
+  *definition* depends on a runtime result of earlier analysis. Assembly is a
+  static preamble (parsed and executed before any analysis), so this is out of
+  scope — and deliberately so for the safe modes, where the full set of
+  protected data a run touches must be known up front to authorize and log it.
+  Multiple datasets analysed in sequence ARE supported (directives are
+  order-free and all materialized before the script); only *data-dependent*
+  definitions are excluded. True conditional loading, if ever needed, is a
+  separate re-run-with-a-new-spec feature, not part of Project A.
