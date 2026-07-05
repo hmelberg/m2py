@@ -1,0 +1,21 @@
+#py
+# Variabel-nivå montering (Project A): bygg ett datasett fra flere kilder.
+# connect names the source, load/import/join reference the connect alias.
+
+# connect https://raw.githubusercontent.com/mwaskom/seaborn-data/master/penguins.csv as pen
+
+# create-dataset studie, key(rowid)
+# Kildene her har ingen felles nøkkel, så eksempelet under bruker penguins
+# direkte som en hel tabell:
+# load pen as pingviner
+
+pingviner.groupby("island")["body_mass_g"].mean()
+
+# ── Mønster med import + join (krever kilder med felles nøkkelkolonne) ──
+# connect https://x.example/personer.csv as p      # kolonner: pid, inntekt, region
+# connect https://x.example/salg.csv as s          # kolonner: pid, belop
+# create-dataset panel, key(pid)
+# import p/inntekt, p/region into panel
+# load s as salg
+# join salg into panel on pid                       # left-join (standard); inner/outer valgfritt
+# panel.groupby("region")["inntekt"].mean()

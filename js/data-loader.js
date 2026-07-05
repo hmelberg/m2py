@@ -170,5 +170,27 @@
     return { bytes: plain, format: env.payload_format || 'csv' };
   }
 
-  global.DataLoader = { resolveAndFetchLoads: resolveAndFetchLoads, _sniffFormat: sniffFormat };
+  // Project A: fetch the SOURCES a spec needs (each connect alias as a whole
+  // table), honoring grants/decrypt/remote routing exactly like load does, and
+  // return the spec so the runtime can assemble. Same fetch layer as
+  // resolveAndFetchLoads — only the shape of the request changes.
+  async function resolveAndAssemble(script, deps) {
+    deps = deps || {};
+    var DD = global.DataDirectives;
+    if (!DD) return { sources: [], remote: [], spec: { sources: [], datasets: [] } };
+    var parsed = DD.parseAssembly(script);
+    if (parsed.errors.length) throw new Error('Monteringsfeil: ' + parsed.errors.join('; '));
+    var spec = parsed.spec;
+    if (!spec.sources.length) return { sources: [], remote: [], spec: spec };
+
+    // Synthesize a "load <alias> as <alias>" per source and run the existing
+    // pipeline against just the connect lines, so each source is fetched
+    // exactly once (skip any original bare `load` lines from the script).
+    var connectLines = script.split(/\r?\n/).filter(function (ln) { return /^[ \t]*(?:#|--|\/\/)[ \t]*connect\b/i.test(ln); }).join('\n');
+    var srcScript = connectLines + '\n' + spec.sources.map(function (a) { return '# load ' + a + ' as ' + a; }).join('\n');
+    var loaded = await resolveAndFetchLoads(srcScript, deps);
+    return { sources: loaded.loads, remote: loaded.remote, spec: spec };
+  }
+
+  global.DataLoader = { resolveAndFetchLoads: resolveAndFetchLoads, resolveAndAssemble: resolveAndAssemble, _sniffFormat: sniffFormat };
 })(typeof window !== 'undefined' ? window : globalThis);
