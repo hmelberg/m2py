@@ -158,13 +158,50 @@ Deno.test("strict grant marks the load and carries level", async () => {
     return Promise.resolve(jsonResp(envelope));
   }) as typeof fetch;
   const out = await DL.resolveAndFetchLoads("# connect helse as h\n# load h as df",
-    { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T" });
+    { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T",
+      authorizeStrict: () => Promise.resolve({}) });
   assertEquals(out.loads[0].strict, true);
   assertEquals(out.loads[0].level, "protected");
   // V4: strict+kryptert dekrypteres ALDRI i JS — konvolutt + nøkkel videre
   assertEquals(out.loads[0].bytes, null);
   assertEquals(out.loads[0].envelope.format, "safepy-enc-v1");
   assertEquals(out.loads[0].key, key);
+});
+
+Deno.test("strict without authorize callback is refused", async () => {
+  const fetchImpl = ((input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/source_access")) return Promise.resolve(jsonResp({
+      remote_only: false, location: "https://x.example/d.enc.json",
+      payload_format: "csv", fingerprint: null, encrypted: true,
+      local_profile: "strict", level: "protected" }));
+    return Promise.resolve(jsonResp({}));
+  }) as typeof fetch;
+  await assertRejects(
+    () => DL.resolveAndFetchLoads("# connect helse as h\n# load h as df",
+      { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T" }),
+    Error, "authorizeStrict");
+});
+
+Deno.test("strict without any key never prompts — hard refusal", async () => {
+  const plain = new TextEncoder().encode("a\n1\n");
+  const { envelope } = await EC.encryptBytes(plain, "csv");
+  let prompted = false;
+  const fetchImpl = ((input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/source_access")) return Promise.resolve(jsonResp({
+      remote_only: false, location: "https://x.example/d.enc.json",
+      payload_format: "csv", fingerprint: envelope.fingerprint,
+      encrypted: true, local_profile: "strict", level: "protected" }));
+    return Promise.resolve(jsonResp(envelope));
+  }) as typeof fetch;
+  await assertRejects(
+    () => DL.resolveAndFetchLoads("# connect helse as h\n# load h as df",
+      { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T",
+        authorizeStrict: () => Promise.resolve({}),
+        promptKey: () => { prompted = true; return Promise.resolve("x".repeat(43)); } }),
+    Error, "ikke autorisert med nøkkel");
+  if (prompted) throw new Error("strict skal aldri bruke promptKey");
 });
 
 Deno.test("open grant leaves strict undefined", async () => {

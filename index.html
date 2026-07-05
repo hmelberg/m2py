@@ -7462,7 +7462,7 @@ json.dumps(out)
             if (l.envelope) return { alias: l.alias, format: l.format, envelope: l.envelope, key: l.key };
             var _p = '/home/pyodide/_webdata/' + l.alias + '.' + l.format;
             _pyR.FS.writeFile(_p, l.bytes);
-            return { alias: l.alias, format: l.format, path: _p };
+            return { alias: l.alias, format: l.format, path: _p, strict: !!l.strict };
           });
         }
         var _lvOrderR = { public: 0, protected: 1, sensitive: 2 };
@@ -8156,10 +8156,13 @@ has and "int" in (m.get_microdata_functions() or {})
     // en strict-kilde kjøres ALDRI på den åpne motoren.
     async function ensureSafepyLoaded(py) {
       if (window.__safepyLoaded) return;
-      var resp = await fetch('vendor/safepy.zip');
-      if (!resp.ok) throw new Error(t('kunne ikke laste strict-motoren — prøv igjen'));
-      var buf = await resp.arrayBuffer();
-      py.unpackArchive(buf, 'zip', { extractDir: '/home/pyodide/' });
+      if (!window.__safepyZipUnpacked) {
+        var resp = await fetch('vendor/safepy.zip');
+        if (!resp.ok) throw new Error(t('kunne ikke laste strict-motoren — prøv igjen'));
+        var buf = await resp.arrayBuffer();
+        py.unpackArchive(buf, 'zip', { extractDir: '/home/pyodide/' });
+        window.__safepyZipUnpacked = true;
+      }
       // encfile (safepy-enc-v1) trenger cryptography — i Pyodide-distroen,
       // men ikke forhåndslastet
       try { await py.loadPackage('cryptography'); } catch (e) {
@@ -8173,43 +8176,57 @@ has and "int" in (m.get_microdata_functions() or {})
     function buildStrictGlue(script, loads, opts) {
       return [
         'import json, os, secrets',
-        '# klient-side salt: støy-nivået er dekorativt lokalt (dokumentert i spec)',
+        '# klient-side salt (settes én gang per motor/worker): støy-nivået er',
+        '# uansett dekorativt lokalt (dokumentert i spec)',
         "os.environ.setdefault('SAFEPY_NOISE_SALT', secrets.token_hex(16))",
         'import pandas as _pd',
         'import safepy',
         'from safepy import client_shape as _cs',
         '_loads = json.loads(' + JSON.stringify(JSON.stringify(loads)) + ')',
-        '_frames = {}',
-        'for _l in _loads:',
-        "    if _l.get('envelope'):",
-        '        # V4: dekrypter først HER — klartekst kun i minnet, kun under kjøringen',
-        '        from safepy import encfile as _ef',
-        '        import io as _io',
-        "        _plain = _ef.decrypt_envelope(_l['envelope'], _l['key'])",
-        '        _buf = _io.BytesIO(_plain)',
-        "        _frames[_l['alias']] = (_pd.read_parquet(_buf)",
-        "            if _l['format'] == 'parquet' else _pd.read_csv(_buf))",
-        '        del _plain, _buf',
-        "        _l.pop('key', None); _l.pop('envelope', None)",
-        '    else:',
-        "        _frames[_l['alias']] = (_pd.read_parquet(_l['path'])",
-        "            if _l['format'] == 'parquet' else _pd.read_csv(_l['path']))",
         '_code = ' + JSON.stringify(script),
         '_dialect = ' + JSON.stringify(opts.dialect),
         "if _dialect == 'python':",
         '    _dialect = safepy.detect_python_dialect(_code)',
+        '_frames = {}',
+        '# HELE kjeden (dekryptering + rammebygging + kjøring) ligger i try/finally:',
+        '# klartekst, nøkler og strict-filer ryddes ALLTID — også når rammebyggingen',
+        '# feiler halvveis (C1/C2 i sluttgjennomgangen).',
         'try:',
+        '    for _l in _loads:',
+        "        if _l.get('envelope'):",
+        '            # V4: dekrypter først HER — klartekst kun i minnet, kun under kjøringen',
+        '            from safepy import encfile as _ef',
+        '            import io as _io',
+        "            _plain = _ef.decrypt_envelope(_l['envelope'], _l['key'])",
+        '            _buf = _io.BytesIO(_plain)',
+        "            _frames[_l['alias']] = (_pd.read_parquet(_buf)",
+        "                if _l['format'] == 'parquet' else _pd.read_csv(_buf))",
+        '            del _plain, _buf',
+        '        else:',
+        "            _frames[_l['alias']] = (_pd.read_parquet(_l['path'])",
+        "                if _l['format'] == 'parquet' else _pd.read_csv(_l['path']))",
         '    _res = safepy.run(_code, _frames, level=' + JSON.stringify(opts.level) + ',',
         "                      profile='strict', dialect=_dialect, render='plotly')",
         '    _out = _cs.to_client_shape(_code, _res.as_dict())',
         'except Exception as _e:',
         "    _out = _cs.error_shape(_code, f'{type(_e).__name__}: {_e}')",
         'finally:',
-        '    # V4: slipp klartekst-rammene og tving GC — mellom kjøringer finnes',
-        '    # bare ciphertext i minnet for strict-kilder',
+        '    # V4: slipp klartekst-rammer, nøkler, konvolutter og strict-filer på FS,',
+        '    # og fjern kjøre-temporærene fra det delte namespacet — mellom kjøringer',
+        '    # finnes bare ciphertext for strict-kilder',
+        '    for _l in _loads:',
+        "        _l.pop('key', None)",
+        "        _l.pop('envelope', None)",
+        "        if _l.get('strict') and _l.get('path'):",
+        '            try:',
+        "                os.remove(_l['path'])",
+        '            except OSError:',
+        '                pass',
         '    for _k in list(_frames):',
         '        del _frames[_k]',
         '    del _frames',
+        "    for _n in ('_res', '_plain', '_buf', '_l', '_k', '_loads'):",
+        '        globals().pop(_n, None)',
         '    import gc as _gc',
         '    _gc.collect()',
         'json.dumps(_out)',
@@ -8770,7 +8787,8 @@ options(width = 200)
             }
             var _path = '/home/pyodide/_webdata/' + l.alias + '.' + l.format;
             py.FS.writeFile(_path, l.bytes);
-            return { alias: l.alias, format: l.format, path: _path };
+            // strict-flagget følger med: strict path-filer slettes av kjøringens finally
+            return { alias: l.alias, format: l.format, path: _path, strict: !!l.strict };
           });
         }
         // Lokal strict-kjøring: manuelt opt-in via "# options.profile = strict",

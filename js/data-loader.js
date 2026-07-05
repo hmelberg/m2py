@@ -88,17 +88,17 @@
       localItems.push(item);
     }
 
-    // V3 (spec browser-strict): strict-krypterte kilder får ALDRI nøkkel via
-    // /source_access — hver kjøring autoriseres og logges via
-    // /local_run_authorize (deps.authorizeStrict), som utleverer nøklene.
-    // Ingen caching: callbacken kalles per kjøring.
-    var needAuthorize = localItems.filter(function (it) {
-      return it.grant && it.grant.local_profile === 'strict' && it.grant.encrypted
-        && !it.grant.key && (!it.key || it.key === 'ask');
+    // V3 (spec browser-strict): strict-kilder får ALDRI nøkkel via
+    // /source_access — HVER strict-kjøring (kryptert eller ei) autoriseres og
+    // logges via /local_run_authorize (deps.authorizeStrict), som utleverer
+    // eventuelle nøkler. Ingen caching: callbacken kalles per kjøring.
+    var strictItems = localItems.filter(function (it) {
+      return it.grant && it.grant.local_profile === 'strict';
     });
-    if (needAuthorize.length && deps.authorizeStrict) {
-      var runKeys = await deps.authorizeStrict(needAuthorize.map(function (it) { return it.anvil; }));
-      needAuthorize.forEach(function (it) {
+    if (strictItems.length) {
+      if (!deps.authorizeStrict) throw new Error('strict-kilder krever autorisert kjøring — mangler authorizeStrict');
+      var runKeys = await deps.authorizeStrict(strictItems.map(function (it) { return it.anvil; }));
+      strictItems.forEach(function (it) {
         if (runKeys && runKeys[it.anvil]) it.grant = Object.assign({}, it.grant, { key: runKeys[it.anvil] });
       });
     }
@@ -146,11 +146,20 @@
       throw new Error('«' + item.alias + '»: ødelagt fil (fingerprint stemmer ikke)');
     if (item.grant && item.grant.fingerprint && computed !== item.grant.fingerprint)
       throw new Error('«' + item.alias + '»: filen er endret siden den ble registrert — kontakt eieren');
-    var key = (item.key && item.key !== 'ask') ? item.key
-            : (item.grant && item.grant.key) ? item.grant.key
-            : deps.promptKey ? await deps.promptKey(item.alias)
-            : null;
-    if (!key) throw new Error('«' + item.alias + '» er kryptert og krever nøkkel — bruk key(...) eller key(ask)');
+    var key;
+    if (item.grant && item.grant.local_profile === 'strict') {
+      // Strict: nøkkelen kommer fra per-kjørings-autorisasjonen (V3) eller et
+      // eksplisitt key()-literal (mode 2). ALDRI promptKey/økt-cache — mangler
+      // nøkkelen, nektes kjøringen.
+      key = (item.grant && item.grant.key) || (item.key && item.key !== 'ask' ? item.key : null);
+      if (!key) throw new Error('«' + item.alias + '»: kjøringen ble ikke autorisert med nøkkel — strict-kilder bruker aldri lagrede/spurte nøkler; prøv igjen eller bruk key(<nøkkel>)');
+    } else {
+      key = (item.key && item.key !== 'ask') ? item.key
+          : (item.grant && item.grant.key) ? item.grant.key
+          : deps.promptKey ? await deps.promptKey(item.alias)
+          : null;
+      if (!key) throw new Error('«' + item.alias + '» er kryptert og krever nøkkel — bruk key(...) eller key(ask)');
+    }
     if (item.grant && item.grant.local_profile === 'strict') {
       // V4 (spec browser-strict): ingen klartekst i JS eller på Pyodide-FS for
       // strict — konvolutten og nøkkelen sendes videre og dekrypteres først
