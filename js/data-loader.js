@@ -186,7 +186,7 @@
     // Synthesize a "load <alias> as <alias>" per source and run the existing
     // pipeline against just the connect lines, so each source is fetched
     // exactly once (skip any original bare `load` lines from the script).
-    var connectLines = script.split(/\r?\n/).filter(function (ln) { return /^[ \t]*(?:#|--|\/\/)[ \t]*connect\b/.test(ln); }).join('\n');
+    var connectLines = script.split(/\r?\n/).filter(function (ln) { return /^[ \t]*(?:#|--|\/\/)[ \t]*connect\b/i.test(ln); }).join('\n');
     var srcScript = connectLines + '\n' + spec.sources.map(function (a) { return '# load ' + a + ' as ' + a; }).join('\n');
     var loaded = await resolveAndFetchLoads(srcScript, deps);
     return { sources: loaded.loads, remote: loaded.remote, spec: spec };
