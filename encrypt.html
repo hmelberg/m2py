@@ -76,12 +76,50 @@
 <main>
   <h1>Krypter datasett</h1>
   <p class="lead">
-    Krypter en CSV lokalt i nettleseren. Fila lastes <strong>aldri opp</strong> —
-    du får en kryptert artefakt du kan publisere hvor som helst (f.eks. GitHub),
-    og en nøkkel som analysetjenesten bruker for å frigi kun trygge aggregater.
+    Krypter en fil lokalt i nettleseren. Fila lastes <strong>aldri opp</strong> —
+    du får en kryptert artefakt du kan publisere hvor som helst (f.eks. GitHub).
   </p>
 
   <section class="card">
+    <h2>Velg krypteringstype</h2>
+    <label style="display:block;margin-bottom:.4rem">
+      <input type="radio" name="encmode" value="he" checked>
+      <strong>Homomorf</strong> (safepy-he-v1) — analyse uten dekryptering; kun trygge aggregater frigis
+    </label>
+    <label style="display:block">
+      <input type="radio" name="encmode" value="aes">
+      <strong>Vanlig kryptering</strong> (safepy-enc-v1, AES-256-GCM) — hele filen krypteres;
+      autoriserte brukere dekrypterer lokalt i nettleseren
+    </label>
+  </section>
+
+  <section class="card hide" id="aesCard">
+    <h2><span class="step-n">1</span>Krypter fil (AES)</h2>
+    <input type="file" id="aesFile" accept=".csv,.parquet,text/csv">
+    <p class="muted" id="aesInfo"></p>
+    <div class="actions">
+      <button id="aesEncryptBtn" disabled>Krypter</button>
+      <span id="aesStatus"></span>
+    </div>
+    <div class="hide" id="aesResult">
+      <p class="warn" style="margin-top:1rem">
+        <strong>Nøkkelen vises kun én gang.</strong>
+        Del den bare med dem som skal lese dataene — eller lagre den hos
+        tjenesten ved registrering (da slipper brukerne å taste den).
+      </p>
+      <p style="margin:.9rem 0 .3rem"><strong>Nøkkel:</strong></p>
+      <div class="fp" id="aesKeyOut"></div>
+      <p style="margin:.9rem 0 .3rem"><strong>Fingeravtrykk</strong>
+        (registreres hos tjenesten som bytte-vern):</p>
+      <div class="fp" id="aesFpOut"></div>
+      <div class="actions">
+        <a class="download" id="aesDl"><button>Last ned kryptert fil (.enc.json)</button></a>
+        <a id="aesRegisterLink"><button class="secondary">Registrer hos tjenesten →</button></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="heFileCard">
     <h2><span class="step-n">1</span>Velg CSV-fil</h2>
     <input type="file" id="file" accept=".csv,text/csv">
     <p class="muted" id="fileInfo"></p>
@@ -146,6 +184,54 @@
   </section>
 </main>
 
+<script src="js/enc-crypto.js"></script>
+<script>
+// ---- AES-modus (safepy-enc-v1) — spec 2026-07-05 §2. Ren WebCrypto, ingen deps.
+(function () {
+  var EC = window.EncCrypto;
+  var $$ = function (id) { return document.getElementById(id); };
+  var aesBytes = null, aesName = "", aesFormat = "csv";
+
+  document.querySelectorAll('input[name="encmode"]').forEach(function (r) {
+    r.addEventListener("change", function () {
+      var aes = document.querySelector('input[name="encmode"]:checked').value === "aes";
+      $$("aesCard").classList.toggle("hide", !aes);
+      $$("heFileCard").classList.toggle("hide", aes);
+      // HE-kortene 2/3 vises av HE-flyten; skjul dem alltid ved bytte til AES
+      if (aes) { $$("configCard").classList.add("hide"); $$("resultCard").classList.add("hide"); }
+    });
+  });
+
+  $$("aesFile").addEventListener("change", function (ev) {
+    var f = ev.target.files[0];
+    if (!f) return;
+    f.arrayBuffer().then(function (buf) {
+      aesBytes = new Uint8Array(buf);
+      aesName = f.name.replace(/\.(csv|parquet)$/i, "");
+      aesFormat = /\.parquet$/i.test(f.name) ? "parquet" : "csv";
+      $$("aesInfo").textContent = f.name + " — " + (f.size / 1024).toFixed(1) + " kB (" + aesFormat + ")";
+      $$("aesEncryptBtn").disabled = false;
+    });
+  });
+
+  $$("aesEncryptBtn").addEventListener("click", function () {
+    $$("aesStatus").textContent = "Krypterer…";
+    EC.encryptBytes(aesBytes, aesFormat).then(function (res) {
+      var blob = new Blob([JSON.stringify(res.envelope)], { type: "application/json" });
+      $$("aesDl").href = URL.createObjectURL(blob);
+      $$("aesDl").download = aesName + ".enc.json";
+      $$("aesKeyOut").textContent = res.key;
+      $$("aesFpOut").textContent = res.envelope.fingerprint;
+      $$("aesRegisterLink").href = "deldata.html?fingerprint=" + res.envelope.fingerprint
+        + "&format=" + aesFormat + "&name=" + encodeURIComponent(aesName);
+      $$("aesResult").classList.remove("hide");
+      $$("aesStatus").textContent = "Ferdig — filen forlot aldri maskinen.";
+    }, function (e) {
+      $$("aesStatus").textContent = "Feil: " + (e && e.message ? e.message : e);
+    });
+  });
+})();
+</script>
 <script type="module">
 import * as paillier from "https://esm.sh/paillier-bigint@3";
 import { encryptDataframe } from "./js/he-encrypt.js";
