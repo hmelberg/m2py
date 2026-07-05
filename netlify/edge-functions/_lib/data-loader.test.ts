@@ -176,3 +176,23 @@ Deno.test("open grant leaves strict undefined", async () => {
     { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T" });
   assertEquals(out.loads[0].strict, undefined);
 });
+
+Deno.test("strict encrypted grant uses authorizeStrict for keys", async () => {
+  const plain = new TextEncoder().encode("a\n1\n");
+  const { envelope, key } = await EC.encryptBytes(plain, "csv");
+  let authorizedWith: string[] = [];
+  const fetchImpl = ((input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/source_access")) return Promise.resolve(jsonResp({
+      remote_only: false, location: "https://x.example/d.enc.json",
+      payload_format: "csv", fingerprint: envelope.fingerprint,
+      encrypted: true, local_profile: "strict", level: "protected" }));
+    return Promise.resolve(jsonResp(envelope));
+  }) as typeof fetch;
+  const out = await DL.resolveAndFetchLoads("# connect helse as h\n# load h as df",
+    { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T",
+      authorizeStrict: (ids: string[]) => { authorizedWith = ids; return Promise.resolve({ helse: key }); } });
+  assertEquals(authorizedWith, ["helse"]);
+  assertEquals(new TextDecoder().decode(out.loads[0].bytes), "a\n1\n");
+  assertEquals(out.loads[0].strict, true);
+});

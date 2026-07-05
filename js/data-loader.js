@@ -88,6 +88,21 @@
       localItems.push(item);
     }
 
+    // V3 (spec browser-strict): strict-krypterte kilder får ALDRI nøkkel via
+    // /source_access — hver kjøring autoriseres og logges via
+    // /local_run_authorize (deps.authorizeStrict), som utleverer nøklene.
+    // Ingen caching: callbacken kalles per kjøring.
+    var needAuthorize = localItems.filter(function (it) {
+      return it.grant && it.grant.local_profile === 'strict' && it.grant.encrypted
+        && !it.grant.key && (!it.key || it.key === 'ask');
+    });
+    if (needAuthorize.length && deps.authorizeStrict) {
+      var runKeys = await deps.authorizeStrict(needAuthorize.map(function (it) { return it.anvil; }));
+      needAuthorize.forEach(function (it) {
+        if (runKeys && runKeys[it.anvil]) it.grant = Object.assign({}, it.grant, { key: runKeys[it.anvil] });
+      });
+    }
+
     var loads = await Promise.all(localItems.map(async function (item) {
       var resp = await fetchLoadTarget(item, fetchImpl, deps.authToken || null, deps.anthropicKey || null);
       var buf = new Uint8Array(await resp.arrayBuffer());
