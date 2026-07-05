@@ -103,3 +103,42 @@ Deno.test("scrubKeys: literals masked, ask kept", () => {
   if (!out.includes("key(***)")) throw new Error("mangler maskering");
   if (!out.includes("key(ask)")) throw new Error("key(ask) skal bevares");
 });
+
+Deno.test("parseAssembly: create-dataset + import + join + load", () => {
+  const script = [
+    "# connect people as p",
+    "# connect sales_src as s",
+    "# create-dataset panel, key(pid)",
+    "# import p/income, p/edu into panel",
+    "# import p/region into panel",
+    "# load s as sales",
+    "# join sales into panel on pid",
+  ].join("\n");
+  const { spec, errors } = DD.parseAssembly(script);
+  assertEquals(errors, []);
+  assertEquals(spec.sources.sort(), ["p", "s"]);
+  const panel = spec.datasets.find((d: {name: string}) => d.name === "panel");
+  assertEquals(panel.key, "pid");
+  assertEquals(panel.steps.length, 3);
+  assertEquals(panel.steps[0], {op: "import", source: "p", columns: ["income", "edu"], how: "left"});
+  assertEquals(panel.steps[2], {op: "join", from: "sales", on: "pid", how: "left"});
+  const sales = spec.datasets.find((d: {name: string}) => d.name === "sales");
+  assertEquals(sales.load, "s");
+});
+
+Deno.test("parseAssembly: how override", () => {
+  const { spec } = DD.parseAssembly(
+    "# connect p as p\n# create-dataset d, key(id)\n# import p/x into d inner");
+  assertEquals(spec.datasets[0].steps[0].how, "inner");
+});
+
+Deno.test("parseAssembly: import into missing dataset errors", () => {
+  const { errors } = DD.parseAssembly("# connect p as p\n# import p/x into ghost");
+  if (!errors.some((e: string) => e.includes("ghost"))) throw new Error("ventet feil for ukjent datasett");
+});
+
+Deno.test("parseAssembly: bare load still works (backward compat)", () => {
+  const { spec } = DD.parseAssembly("# load https://x.example/d.csv as df");
+  assertEquals(spec.datasets[0], {name: "df", load: "df"});
+  assertEquals(spec.sources, ["df"]);
+});

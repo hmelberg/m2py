@@ -12,6 +12,13 @@
   var CONNECT_RE = /^[ \t]*(?:#|--|\/\/)[ \t]*connect[ \t]+(\S+)(?:[ \t]+as[ \t]+([A-Za-z_]\w*))?((?:[ \t]*,[ \t]*\w+\([^)]*\))*)[ \t]*$/gim;
   var LOAD_RE = /^[ \t]*(?:#|--|\/\/)[ \t]*(load|require)[ \t]+(\S+)[ \t]+as[ \t]+([A-Za-z_]\w*)((?:[ \t]*,[ \t]*\w+\([^)]*\))*)[ \t]*$/gim;
 
+  // Project A (variable-level assembly): create-dataset/import/join/load ->
+  // AssemblySpec. See docs/superpowers/plans/2026-07-05-variable-level-assembly.md.
+  var CREATE_RE = /^[ \t]*(?:#|--|\/\/)[ \t]*create-dataset[ \t]+([A-Za-z_]\w*)[ \t]*,[ \t]*key\(\s*([A-Za-z_]\w*)\s*\)[ \t]*$/gim;
+  var IMPORT_RE = /^[ \t]*(?:#|--|\/\/)[ \t]*import[ \t]+(\S+(?:[ \t]*,[ \t]*\S+)*)[ \t]+into[ \t]+([A-Za-z_]\w*)(?:[ \t]+(left|inner|outer))?[ \t]*$/gim;
+  var JOIN_RE = /^[ \t]*(?:#|--|\/\/)[ \t]*join[ \t]+([A-Za-z_]\w*)[ \t]+into[ \t]+([A-Za-z_]\w*)[ \t]+on[ \t]+([A-Za-z_]\w*)(?:[ \t]+(left|inner|outer))?[ \t]*$/gim;
+  var LOADAS_RE = /^[ \t]*(?:#|--|\/\/)[ \t]*load[ \t]+([A-Za-z_]\w*)[ \t]+as[ \t]+([A-Za-z_]\w*)[ \t]*$/gim;
+
   function isUrlish(target) {
     return /^https?:\/\//i.test(target) || target.indexOf('/api/hent?') === 0;
   }
@@ -96,5 +103,61 @@
     });
   }
 
-  global.DataDirectives = { parse: parse, resolve: resolve, scrubKeys: scrubKeys };
+  // Project A: parse create-dataset/import/join/load into a mode-neutral spec.
+  function parseAssembly(script) {
+    var errors = [], datasets = [], byName = {}, sources = {}, m;
+    // connect aliases (for source validation)
+    var conns = {};
+    parse(script).connects.forEach(function (c) { conns[c.alias] = true; });
+
+    CREATE_RE.lastIndex = 0;
+    while ((m = CREATE_RE.exec(script)) !== null) {
+      if (byName[m[1]]) { errors.push('datasettet «' + m[1] + '» er allerede opprettet'); continue; }
+      var d = { name: m[1], key: m[2], steps: [] };
+      datasets.push(d); byName[m[1]] = d;
+    }
+    LOADAS_RE.lastIndex = 0;
+    while ((m = LOADAS_RE.exec(script)) !== null) {
+      var srcL = m[1], nameL = m[2];
+      if (byName[nameL]) { errors.push('datasettet «' + nameL + '» er allerede opprettet'); continue; }
+      var dl = { name: nameL, load: srcL };
+      datasets.push(dl); byName[nameL] = dl; sources[srcL] = true;
+    }
+    IMPORT_RE.lastIndex = 0;
+    while ((m = IMPORT_RE.exec(script)) !== null) {
+      var target = m[2];
+      var d2 = byName[target];
+      if (!d2 || d2.load) { errors.push('ukjent datasett «' + target + '» (mangler create-dataset?)'); continue; }
+      var bySrc = {};
+      m[1].split(',').forEach(function (ref) {
+        var parts = ref.trim().split('/');
+        if (parts.length !== 2) { errors.push('import krever <kilde>/<kolonne>: ' + ref.trim()); return; }
+        var src = parts[0].trim(), col = parts[1].trim();
+        sources[src] = true;
+        (bySrc[src] = bySrc[src] || []).push(col);
+      });
+      Object.keys(bySrc).forEach(function (src) {
+        d2.steps.push({ op: 'import', source: src, columns: bySrc[src], how: (m[3] || 'left') });
+      });
+    }
+    JOIN_RE.lastIndex = 0;
+    while ((m = JOIN_RE.exec(script)) !== null) {
+      var tgt = m[2], d3 = byName[tgt];
+      if (!d3 || d3.load) { errors.push('ukjent datasett «' + tgt + '» (mangler create-dataset?)'); continue; }
+      if (!byName[m[1]]) { errors.push('ukjent datasett «' + m[1] + '» i join'); continue; }
+      d3.steps.push({ op: 'join', from: m[1], on: m[3], how: (m[4] || 'left') });
+    }
+    // Backward compat: a plain `load <url|registry-path> as <alias>` line
+    // (handled by the existing parse()/LOAD_RE) that isn't part of an
+    // assembly (no create-dataset/import/join/bare-load-as touched it) still
+    // yields a single-dataset spec — the alias doubles as its own source id.
+    parse(script).loads.forEach(function (l) {
+      if (byName[l.alias]) return;
+      var dl2 = { name: l.alias, load: l.alias };
+      datasets.push(dl2); byName[l.alias] = dl2; sources[l.alias] = true;
+    });
+    return { spec: { sources: Object.keys(sources), datasets: datasets }, errors: errors };
+  }
+
+  global.DataDirectives = { parse: parse, resolve: resolve, scrubKeys: scrubKeys, parseAssembly: parseAssembly };
 })(typeof window !== 'undefined' ? window : globalThis);
