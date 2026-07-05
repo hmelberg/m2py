@@ -6742,6 +6742,26 @@ for _wl in json.loads(${JSON.stringify(JSON.stringify(loads))}):
 `;
     }
 
+    // Project A: montér datasett fra kilder via den delte executoren
+    // safepy.assembly (samme kode som serveren). Kildene (connect-aliaser) ligger
+    // som hele tabeller på FS; datasettene bindes med navn for analyse-scriptet.
+    function buildAssemblyPreamble(loads, spec) {
+      if (!spec || !spec.datasets || !spec.datasets.length) return '';
+      var srcMeta = loads.map(function (l) { return { alias: l.alias, format: l.format, path: l.path }; });
+      return `
+# ── Project A: montér datasett fra kilder (delt executor safepy.assembly) ──
+from safepy import assembly as _asm
+_asm_src = {}
+for _al in json.loads(${JSON.stringify(JSON.stringify(srcMeta))}):
+    _asm_src[_al["alias"]] = (pd.read_parquet(_al["path"]) if _al["format"] == "parquet" else pd.read_csv(_al["path"]))
+_asm_ds, _asm_notes = _asm.build_datasets(json.loads(${JSON.stringify(JSON.stringify(spec))}), lambda a: _asm_src[a])
+for _n, _df in _asm_ds.items():
+    to_microdata(_df, name=_n, make_active=False)
+for _note in _asm_notes:
+    print(_note)
+`;
+    }
+
     function getInterpreterCorePython(catalogArg, pageBase, segmentsStrForInit) {
       const segAssign = segmentsStrForInit != null
         ? `_segments = json.loads(${JSON.stringify(segmentsStrForInit)})\n`
@@ -8103,7 +8123,7 @@ has and "int" in (m.get_microdata_functions() or {})
       outputArea.innerHTML = head + body;
     }
 
-    async function runSafeStatRemote(script, ctx, sources, reason, dialect, sourceKeys) {
+    async function runSafeStatRemote(script, ctx, sources, reason, dialect, sourceKeys, assembly) {
       var apiBase = (window.mdAuth && window.mdAuth.apiBase) ? window.mdAuth.apiBase()
         : (localStorage.getItem('md_ai_api_base') || 'https://mdataapi.anvil.app').replace(/\/+$/, '');
       var token = window.mdAuth && window.mdAuth.token;
@@ -8115,6 +8135,8 @@ has and "int" in (m.get_microdata_functions() or {})
       // Per-run dekrypteringsnøkler for encrypted_url-kilder (mode 2) — reiser
       // i source_keys, aldri i selve scriptet (direktivlinjene strippes før send).
       if (sourceKeys && Object.keys(sourceKeys).length) body.source_keys = sourceKeys;
+      // Project A: monteringsspesifikasjonen kjøres på serveren før analysen.
+      if (assembly && assembly.datasets && assembly.datasets.length) body.assembly = assembly;
       outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('SafeStat: sender til server ({reason})…', { reason: escapeHtmlOutput(reason || t('server-kjøring')) }) + '</div>';
       try {
         var resp = await fetch(apiBase + '/_/api/run_extended', {
@@ -8184,6 +8206,7 @@ has and "int" in (m.get_microdata_functions() or {})
         'from safepy import client_shape as _cs',
         '_code = ' + JSON.stringify(script),
         '_dialect = ' + JSON.stringify(opts.dialect),
+        '_ASM_SPEC = json.loads(' + JSON.stringify(JSON.stringify(opts.spec || null)) + ')',
         '_frames = {}',
         '_loads = []',
         '# HELE kjeden (nøkkel-JSON + dekryptering + rammebygging + kjøring) ligger i',
@@ -8206,7 +8229,13 @@ has and "int" in (m.get_microdata_functions() or {})
         '        else:',
         "            _frames[_l['alias']] = (_pd.read_parquet(_l['path'])",
         "                if _l['format'] == 'parquet' else _pd.read_csv(_l['path']))",
-        '    _res = safepy.run(_code, _frames, level=' + JSON.stringify(opts.level) + ',',
+        '    # Project A: montér datasett (samme executor) INNE i strict-kjøringen —',
+        '    # dekrypterte kilde-rammer inn, monterte datasett ut, før fasaden ser dem',
+        '    _analysis = _frames',
+        '    if _ASM_SPEC:',
+        '        from safepy import assembly as _asm',
+        '        _analysis, _asm_notes = _asm.build_datasets(_ASM_SPEC, lambda a: _frames[a])',
+        '    _res = safepy.run(_code, _analysis, level=' + JSON.stringify(opts.level) + ',',
         "                      profile='strict', dialect=_dialect, render='plotly')",
         '    _out = _cs.to_client_shape(_code, _res.as_dict())',
         'except Exception as _e:',
@@ -8226,7 +8255,7 @@ has and "int" in (m.get_microdata_functions() or {})
         '    for _k in list(_frames):',
         '        del _frames[_k]',
         '    del _frames',
-        "    for _n in ('_res', '_plain', '_buf', '_l', '_k', '_loads'):",
+        "    for _n in ('_res', '_plain', '_buf', '_l', '_k', '_loads', '_analysis', '_asm'):",
         '        globals().pop(_n, None)',
         '    import gc as _gc',
         '    _gc.collect()',
@@ -8754,14 +8783,27 @@ options(width = 200)
         // buildWebDataLoaderPreamble() (kjøres som del av runCode under).
         // Ingen-op når scriptet ikke har load-direktiver (tom liste).
         var _pyLoads = [];
+        var _asmSpec = null;
         if (activeEditorMode === 'python' || activeEditorMode === 'duckdb') {
-          var _dl = await window.DataLoader.resolveAndFetchLoads(effectiveScript, {
+          // Project A: monteringsverb (create-dataset/import/join) eller en bar
+          // alias-load ruter via resolveAndAssemble; ellers gammel connect/load.
+          var _hasAssembly = /^[ \t]*(?:#|--|\/\/)[ \t]*(create-dataset|import|join)\b/im.test(effectiveScript)
+            || /^[ \t]*(?:#|--|\/\/)[ \t]*load[ \t]+[A-Za-z_]\w*[ \t]+as\b/im.test(effectiveScript);
+          var _dlDeps = {
             authToken: getAuthToken(), anthropicKey: getAnthropicKey(),
             apiBase: getMdApiBase(), promptKey: mdPromptKey,
-            authorizeStrict: function (ids) { return mdAuthorizeStrictRun(ids, effectiveScript); } });
+            authorizeStrict: function (ids) { return mdAuthorizeStrictRun(ids, effectiveScript); } };
+          var _dl;
+          if (_hasAssembly) {
+            var _asm = await window.DataLoader.resolveAndAssemble(effectiveScript, _dlDeps);
+            _asmSpec = _asm.spec;
+            _dl = { loads: _asm.sources, remote: _asm.remote };
+          } else {
+            _dl = await window.DataLoader.resolveAndFetchLoads(effectiveScript, _dlDeps);
+          }
           if (_dl.remote.length) {
-            // Ikke-offentlig registrert kilde via connect: hele scriptet kjøres
-            // på serveren (spec §4). Nøkler reiser i source_keys, aldri i script.
+            // Ikke-offentlig registrert kilde via connect: hele scriptet (inkl.
+            // montering) kjøres på serveren. Nøkler reiser i source_keys, aldri i script.
             var _rSources = [], _rKeys = {};
             for (var _ri = 0; _ri < _dl.remote.length; _ri++) {
               var _r = _dl.remote[_ri];
@@ -8769,9 +8811,9 @@ options(width = 200)
               if (_r.key === 'ask') _rKeys[_r.sourceId] = await mdPromptKey(_r.alias);
               else if (_r.key) _rKeys[_r.sourceId] = _r.key;
             }
-            var _stripped = effectiveScript.replace(/^[ \t]*(?:#|--|\/\/)[ \t]*(?:connect|load|require)\s+\S+[^\n]*\n?/gim, '');
+            var _stripped = effectiveScript.replace(/^[ \t]*(?:#|--|\/\/)[ \t]*(?:connect|load|require|import|join|create-dataset)\b[^\n]*\n?/gim, '');
             await runSafeStatRemote(_stripped, _ctx, _rSources, t('ikke-offentlig kilde'),
-              activeEditorMode === 'duckdb' ? 'duckdb' : 'python', _rKeys);
+              activeEditorMode === 'duckdb' ? 'duckdb' : 'python', _rKeys, _asmSpec);
             return;
           }
           var _rawLoads = _dl.loads;
@@ -8811,7 +8853,7 @@ options(width = 200)
           (_rawLoads || []).forEach(function (l) {
             if (l.strict && (_lvOrder[l.level] || 0) > _lvOrder[_lvl]) _lvl = l.level;
           });
-          await runStrictLocal(effectiveScript, _pyLoads, { level: _lvl, dialect: 'python' }, _ctx);
+          await runStrictLocal(effectiveScript, _pyLoads, { level: _lvl, dialect: 'python', spec: _asmSpec }, _ctx);
           return;
         }
         const catalogJson = microdataCatalog && microdataCatalog.variables
@@ -8839,7 +8881,14 @@ options(width = 200)
           } catch (e) { console.warn('pyarrow ensure:', e); }
         }
         const segmentsStr = JSON.stringify(segments);
-        const setupCode = getInterpreterCorePython(catalogArg, pageBase, segmentsStr) + buildWebDataLoaderPreamble(_pyLoads) + `
+        // Project A: ved montering kjøres safepy.assembly-preamblet (krever
+        // safepy-pakken i Pyodide) i stedet for den enkle load-preamblen.
+        var _useAssembly = !!(_asmSpec && _asmSpec.datasets && _asmSpec.datasets.length);
+        if (_useAssembly) await ensureSafepyLoaded(py);
+        const _dataPreamble = _useAssembly
+          ? buildAssemblyPreamble(_pyLoads, _asmSpec)
+          : buildWebDataLoaderPreamble(_pyLoads);
+        const setupCode = getInterpreterCorePython(catalogArg, pageBase, segmentsStr) + _dataPreamble + `
 import asyncio as _asyncio
 # ── Statisk datakilde: pre-fetch alle importer via DuckDB-WASM (JS) før kjøring ──
 if getattr(_m2py_mod, 'M2PY_DATA_SOURCE', 'dynamic') == 'static' and getattr(e, 'static_source', None) is not None:
