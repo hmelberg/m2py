@@ -311,3 +311,25 @@ class TestDeterministicVerbsRejectPartialShare:
         df = pd.DataFrame({"x": [1.0, 2, 3, 4]})
         out = protect.coarsen(df, "x", to=10)  # share=1.0 default
         assert list(out["x"]) == [0.0, 0.0, 0.0, 0.0]
+
+
+def test_sync_datasets_keeps_dataset_named_df():
+    """Web-load binder datasett med alias 'df' (make_active=False): synken må
+    ikke klobre navnet med None når ingen dataset er aktivt."""
+    import pandas as pd
+    from m2py import MicroInterpreter
+    e = MicroInterpreter()
+    frame = pd.DataFrame({"x": [1, 2, 3]})
+    e.datasets["df"] = frame
+    e.active_name = None
+    g = {}
+    e.sync_datasets_to_globals(g)
+    assert g["df"] is frame
+    assert g["active_df"] is None
+    # og med et annet navn er 'df' fortsatt None som før
+    e2 = MicroInterpreter()
+    e2.datasets["helse"] = frame
+    e2.active_name = None
+    g2 = {}
+    e2.sync_datasets_to_globals(g2)
+    assert g2["df"] is None and g2["helse"] is frame
