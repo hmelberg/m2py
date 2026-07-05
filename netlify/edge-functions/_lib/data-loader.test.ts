@@ -1,6 +1,6 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertRejects } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
-for (const f of ["data-directives.js", "data-loader.js"]) {
+for (const f of ["data-directives.js", "data-loader.js", "enc-crypto.js"]) {
   (0, eval)(await Deno.readTextFile(new URL(`../../../js/${f}`, import.meta.url)));
 }
 // deno-lint-ignore no-explicit-any
@@ -20,8 +20,9 @@ Deno.test("resolveAndFetchLoads: fetches, sniffs format, proxy fallback on CORS"
     "# load https://blocked.example/d.csv as sperret",
   ].join("\n");
   const out = await DL.resolveAndFetchLoads(script, { fetchImpl, registry: [], authToken: "T" });
-  assertEquals(out.map((o: { alias: string; format: string }) => [o.alias, o.format]),
+  assertEquals(out.loads.map((o: { alias: string; format: string }) => [o.alias, o.format]),
     [["direkte", "csv"], ["sperret", "csv"]]);
+  assertEquals(out.remote, []);
   // blocked URL retried via proxy with auth header
   const proxyCall = calls.find((c) => c.includes("/api/hent?url=https%3A%2F%2Fblocked.example"));
   if (!proxyCall?.includes("[auth]")) throw new Error("proxy-fallback mangler auth: " + calls.join(" | "));
@@ -62,4 +63,85 @@ Deno.test("sniffFormat: content-type wins over URL", () => {
   assertEquals(DL._sniffFormat(mk("text/html; charset=utf-8"), "https://x/api"), "html");
   assertEquals(DL._sniffFormat(mk("application/json"), "https://x/d.csv"), "json");
   assertEquals(DL._sniffFormat(mk("text/csv"), "https://x/tabell?format=csv"), "csv");
+});
+
+// deno-lint-ignore no-explicit-any
+const EC = (globalThis as any).EncCrypto;
+
+function jsonResp(obj: unknown, status = 200) {
+  return new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json" } });
+}
+
+Deno.test("anvil grant: fetch + decrypt with released key (mode 3)", async () => {
+  const plain = new TextEncoder().encode("a,b\n1,2\n");
+  const { envelope, key } = await EC.encryptBytes(plain, "csv");
+  const fetchImpl = ((input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/source_access?id=helse2025"))
+      return Promise.resolve(jsonResp({ remote_only: false, location: "https://x.example/d.enc.json",
+        payload_format: "csv", fingerprint: envelope.fingerprint, encrypted: true, key }));
+    if (url === "https://x.example/d.enc.json")
+      return Promise.resolve(jsonResp(envelope));
+    throw new Error("uventet URL: " + url);
+  }) as typeof fetch;
+  const out = await DL.resolveAndFetchLoads("# connect helse2025 as h\n# load h as df",
+    { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T" });
+  assertEquals(out.remote, []);
+  assertEquals(out.loads[0].format, "csv");
+  assertEquals(new TextDecoder().decode(out.loads[0].bytes), "a,b\n1,2\n");
+});
+
+Deno.test("anvil remote_only routes to remote list", async () => {
+  const fetchImpl = (() =>
+    Promise.resolve(jsonResp({ remote_only: true, default_exec: "remote" }))) as typeof fetch;
+  const out = await DL.resolveAndFetchLoads("# connect kreft as k, key(ask)\n# load k as df",
+    { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T" });
+  assertEquals(out.loads, []);
+  assertEquals(out.remote, [{ alias: "df", sourceId: "kreft", key: "ask" }]);
+});
+
+Deno.test("anvil 404 gives norsk tilgangsfeil", async () => {
+  const fetchImpl = (() =>
+    Promise.resolve(jsonResp({ error: "unknown source: x" }, 404))) as typeof fetch;
+  await assertRejects(
+    () => DL.resolveAndFetchLoads("# connect ukjent as u\n# load u as df",
+      { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T" }),
+    Error, "mangler tilgang");
+});
+
+Deno.test("mode 1: url envelope + key literal decrypts without anvil", async () => {
+  const plain = new TextEncoder().encode("x,y\n9,8\n");
+  const { envelope, key } = await EC.encryptBytes(plain, "csv");
+  const fetchImpl = (() => Promise.resolve(jsonResp(envelope))) as typeof fetch;
+  const out = await DL.resolveAndFetchLoads(
+    `# load https://x.example/d.enc.json as df, key(${key})`,
+    { fetchImpl, registry: [] });
+  assertEquals(new TextDecoder().decode(out.loads[0].bytes), "x,y\n9,8\n");
+});
+
+Deno.test("envelope without key prompts via promptKey(ask)", async () => {
+  const plain = new TextEncoder().encode("q\n1\n");
+  const { envelope, key } = await EC.encryptBytes(plain, "csv");
+  const fetchImpl = (() => Promise.resolve(jsonResp(envelope))) as typeof fetch;
+  let asked = "";
+  const out = await DL.resolveAndFetchLoads(
+    "# load https://x.example/d.enc.json as df, key(ask)",
+    { fetchImpl, registry: [], promptKey: (alias: string) => { asked = alias; return Promise.resolve(key); } });
+  assertEquals(asked, "df");
+  assertEquals(new TextDecoder().decode(out.loads[0].bytes), "q\n1\n");
+});
+
+Deno.test("grant fingerprint mismatch is refused (byttet fil)", async () => {
+  const { envelope, key } = await EC.encryptBytes(new TextEncoder().encode("a\n1\n"), "csv");
+  const fetchImpl = ((input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/source_access")) return Promise.resolve(jsonResp({
+      remote_only: false, location: "https://x.example/d.enc.json",
+      payload_format: "csv", fingerprint: "feilfinger", encrypted: true, key }));
+    return Promise.resolve(jsonResp(envelope));
+  }) as typeof fetch;
+  await assertRejects(
+    () => DL.resolveAndFetchLoads("# connect s as s\n# load s as df",
+      { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T" }),
+    Error, "endret siden den ble registrert");
 });
