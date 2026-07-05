@@ -7457,8 +7457,9 @@ json.dumps(out)
         var _pyLoadsR = [];
         if (_loadsR.length) {
           var _pyR = await loadPyodideAndM2py();
-          _pyR.FS.mkdirTree('/home/pyodide/_webdata');
+          if (_loadsR.some(function (l) { return l.bytes; })) _pyR.FS.mkdirTree('/home/pyodide/_webdata');
           _pyLoadsR = _loadsR.map(function (l) {
+            if (l.envelope) return { alias: l.alias, format: l.format, envelope: l.envelope, key: l.key };
             var _p = '/home/pyodide/_webdata/' + l.alias + '.' + l.format;
             _pyR.FS.writeFile(_p, l.bytes);
             return { alias: l.alias, format: l.format, path: _p };
@@ -8159,6 +8160,11 @@ has and "int" in (m.get_microdata_functions() or {})
       if (!resp.ok) throw new Error(t('kunne ikke laste strict-motoren — prøv igjen'));
       var buf = await resp.arrayBuffer();
       py.unpackArchive(buf, 'zip', { extractDir: '/home/pyodide/' });
+      // encfile (safepy-enc-v1) trenger cryptography — i Pyodide-distroen,
+      // men ikke forhåndslastet
+      try { await py.loadPackage('cryptography'); } catch (e) {
+        throw new Error(t('kunne ikke laste strict-motoren — prøv igjen'));
+      }
       window.__safepyLoaded = true;
     }
 
@@ -8175,8 +8181,19 @@ has and "int" in (m.get_microdata_functions() or {})
         '_loads = json.loads(' + JSON.stringify(JSON.stringify(loads)) + ')',
         '_frames = {}',
         'for _l in _loads:',
-        "    _frames[_l['alias']] = (_pd.read_parquet(_l['path'])",
-        "        if _l['format'] == 'parquet' else _pd.read_csv(_l['path']))",
+        "    if _l.get('envelope'):",
+        '        # V4: dekrypter først HER — klartekst kun i minnet, kun under kjøringen',
+        '        from safepy import encfile as _ef',
+        '        import io as _io',
+        "        _plain = _ef.decrypt_envelope(_l['envelope'], _l['key'])",
+        '        _buf = _io.BytesIO(_plain)',
+        "        _frames[_l['alias']] = (_pd.read_parquet(_buf)",
+        "            if _l['format'] == 'parquet' else _pd.read_csv(_buf))",
+        '        del _plain, _buf',
+        "        _l.pop('key', None); _l.pop('envelope', None)",
+        '    else:',
+        "        _frames[_l['alias']] = (_pd.read_parquet(_l['path'])",
+        "            if _l['format'] == 'parquet' else _pd.read_csv(_l['path']))",
         '_code = ' + JSON.stringify(script),
         '_dialect = ' + JSON.stringify(opts.dialect),
         "if _dialect == 'python':",
@@ -8187,6 +8204,14 @@ has and "int" in (m.get_microdata_functions() or {})
         '    _out = _cs.to_client_shape(_code, _res.as_dict())',
         'except Exception as _e:',
         "    _out = _cs.error_shape(_code, f'{type(_e).__name__}: {_e}')",
+        'finally:',
+        '    # V4: slipp klartekst-rammene og tving GC — mellom kjøringer finnes',
+        '    # bare ciphertext i minnet for strict-kilder',
+        '    for _k in list(_frames):',
+        '        del _frames[_k]',
+        '    del _frames',
+        '    import gc as _gc',
+        '    _gc.collect()',
         'json.dumps(_out)',
       ].join('\n');
     }
@@ -8707,8 +8732,13 @@ options(width = 200)
             var _htmlLoad = _rawLoads.find(function (l) { return l.format === 'html'; });
             if (_htmlLoad) throw new Error(t('html-kilder støttes ikke i duckdb-modus ({alias}) — bruk python/r', { alias: _htmlLoad.alias }));
           }
-          if (_rawLoads.length) py.FS.mkdirTree('/home/pyodide/_webdata');
+          if (_rawLoads.some(function (l) { return l.bytes; })) py.FS.mkdirTree('/home/pyodide/_webdata');
           _pyLoads = _rawLoads.map(function (l) {
+            if (l.envelope) {
+              // V4: strict-kryptert — klartekst finnes ALDRI på FS; konvolutten
+              // dekrypteres inne i strict-kjøringen og slippes etterpå.
+              return { alias: l.alias, format: l.format, envelope: l.envelope, key: l.key };
+            }
             var _path = '/home/pyodide/_webdata/' + l.alias + '.' + l.format;
             py.FS.writeFile(_path, l.bytes);
             return { alias: l.alias, format: l.format, path: _path };

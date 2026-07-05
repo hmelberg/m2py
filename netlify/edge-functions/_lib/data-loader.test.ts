@@ -161,6 +161,10 @@ Deno.test("strict grant marks the load and carries level", async () => {
     { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T" });
   assertEquals(out.loads[0].strict, true);
   assertEquals(out.loads[0].level, "protected");
+  // V4: strict+kryptert dekrypteres ALDRI i JS — konvolutt + nøkkel videre
+  assertEquals(out.loads[0].bytes, null);
+  assertEquals(out.loads[0].envelope.format, "safepy-enc-v1");
+  assertEquals(out.loads[0].key, key);
 });
 
 Deno.test("open grant leaves strict undefined", async () => {
@@ -193,6 +197,9 @@ Deno.test("strict encrypted grant uses authorizeStrict for keys", async () => {
     { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T",
       authorizeStrict: (ids: string[]) => { authorizedWith = ids; return Promise.resolve({ helse: key }); } });
   assertEquals(authorizedWith, ["helse"]);
-  assertEquals(new TextDecoder().decode(out.loads[0].bytes), "a\n1\n");
+  // V4: nøkkelen fra authorize følger konvolutten — dekryptering skjer i kjøringen
+  assertEquals(out.loads[0].bytes, null);
+  assertEquals(out.loads[0].envelope.format, "safepy-enc-v1");
+  assertEquals(out.loads[0].key, key);
   assertEquals(out.loads[0].strict, true);
 });

@@ -109,6 +109,7 @@
       var format = sniffFormat(resp, item.url);
       var dec = await maybeDecrypt(item, buf, format, deps);
       var out = { alias: item.alias, bytes: dec.bytes, format: dec.format };
+      if (dec.envelope) { out.envelope = dec.envelope; out.key = dec.key; }
       if (item.grant && item.grant.local_profile === 'strict') {
         // strict-grant (spec 2026-07-05-browser-strict-execution §2): rammen
         // får KUN gå inn i safepy-fasaden; nivået velger policy-tier lokalt.
@@ -150,6 +151,12 @@
             : deps.promptKey ? await deps.promptKey(item.alias)
             : null;
     if (!key) throw new Error('«' + item.alias + '» er kryptert og krever nøkkel — bruk key(...) eller key(ask)');
+    if (item.grant && item.grant.local_profile === 'strict') {
+      // V4 (spec browser-strict): ingen klartekst i JS eller på Pyodide-FS for
+      // strict — konvolutten og nøkkelen sendes videre og dekrypteres først
+      // INNE i kjøringen (safepy.encfile); klartekst slippes etter kjøringen.
+      return { bytes: null, format: env.payload_format || 'csv', envelope: env, key: key };
+    }
     var plain = await EC.decryptEnvelope(env, key);
     return { bytes: plain, format: env.payload_format || 'csv' };
   }
