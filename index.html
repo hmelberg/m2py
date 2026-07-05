@@ -3539,7 +3539,7 @@
             if (!webRReady) throw new Error('WebR ikke klar.');
             return await translateRThroughR2m(src); } },
         runSelf: async function (script, ctx) {
-          await runHybridR(script, ctx.py, { showCommands: ctx.showCommands });
+          await runHybridR(script, ctx.py, { showCommands: ctx.showCommands, profile: ctx.profile });
         } },
       statx: { id: 'statx', label: 'Statx',
         hlConfig: STATA_HL_CFG,
@@ -7432,6 +7432,26 @@ json.dumps(out)
         apiBase: getMdApiBase(), promptKey: mdPromptKey });
       if (_dlR.remote.length) throw new Error(t('ikke-offentlige kilder i R-modus kjøres via require-direktivet (server) — connect/load støtter det ikke her ennå'));
       var _loadsR = _dlR.loads;
+      // Lokal strict-kjøring i R-modus (V1): safepy oversetter R til kjernen —
+      // webR er aldri involvert; rammene legges i Pyodide i stedet. (options-
+      // linjene er alt strippet fra src av run-handleren — profilen kommer via runOpts.)
+      if (runOpts.profile === 'strict') {
+        var _pyLoadsR = [];
+        if (_loadsR.length) {
+          var _pyR = await loadPyodideAndM2py();
+          _pyR.FS.mkdirTree('/home/pyodide/_webdata');
+          _pyLoadsR = _loadsR.map(function (l) {
+            var _p = '/home/pyodide/_webdata/' + l.alias + '.' + l.format;
+            _pyR.FS.writeFile(_p, l.bytes);
+            return { alias: l.alias, format: l.format, path: _p };
+          });
+        }
+        var _srcClean = src.replace(/^\s*(?:#|\/\/)\s*options\.[A-Za-z_]\w*\s*=.*$\n?/gm, '');
+        await runStrictLocal(_srcClean, _pyLoadsR, { level: 'public', dialect: 'r' }, { rightStatus: leftStatus });
+        setRunButtonsUi('idle');
+        scriptRunInProgress = false;
+        return;
+      }
       if (_loadsR.length && _loadsR.some(function (l) { return l.format === 'json'; })) {
         try { await webR.installPackages(['jsonlite'], { quiet: true }); } catch (e) {
           console.warn('R jsonlite install error:', e);
@@ -8106,6 +8126,57 @@ has and "int" in (m.get_microdata_functions() or {})
       }
     }
 
+    // ---- Lokal STRICT-kjøring (spec 2026-07-05-browser-strict-execution) ----
+    // safepy-pakken hentes som zip (bygget av sync_to_api.py --web) og pakkes
+    // ut i Pyodide. Kritisk invariant: feiler noe her, nektes kjøringen —
+    // en strict-kilde kjøres ALDRI på den åpne motoren.
+    async function ensureSafepyLoaded(py) {
+      if (window.__safepyLoaded) return;
+      var resp = await fetch('vendor/safepy.zip');
+      if (!resp.ok) throw new Error(t('kunne ikke laste strict-motoren — prøv igjen'));
+      var buf = await resp.arrayBuffer();
+      py.unpackArchive(buf, 'zip', { extractDir: '/home/pyodide/' });
+      window.__safepyLoaded = true;
+    }
+
+    // Kjør hele scriptet gjennom safepy STRICT i Pyodide og render resultatet
+    // med samme renderer som remote-kjøringer (identisk oppførsel lokalt/remote).
+    function buildStrictGlue(script, loads, opts) {
+      return [
+        'import json, os, secrets',
+        '# klient-side salt: støy-nivået er dekorativt lokalt (dokumentert i spec)',
+        "os.environ.setdefault('SAFEPY_NOISE_SALT', secrets.token_hex(16))",
+        'import pandas as _pd',
+        'import safepy',
+        'from safepy import client_shape as _cs',
+        '_loads = json.loads(' + JSON.stringify(JSON.stringify(loads)) + ')',
+        '_frames = {}',
+        'for _l in _loads:',
+        "    _frames[_l['alias']] = (_pd.read_parquet(_l['path'])",
+        "        if _l['format'] == 'parquet' else _pd.read_csv(_l['path']))",
+        '_code = ' + JSON.stringify(script),
+        '_dialect = ' + JSON.stringify(opts.dialect),
+        "if _dialect == 'python':",
+        '    _dialect = safepy.detect_python_dialect(_code)',
+        'try:',
+        '    _res = safepy.run(_code, _frames, level=' + JSON.stringify(opts.level) + ',',
+        "                      profile='strict', dialect=_dialect, render='plotly')",
+        '    _out = _cs.to_client_shape(_code, _res.as_dict())',
+        'except Exception as _e:',
+        "    _out = _cs.error_shape(_code, f'{type(_e).__name__}: {_e}')",
+        'json.dumps(_out)',
+      ].join('\n');
+    }
+
+    async function runStrictLocal(script, loads, opts, ctx) {
+      var py = await loadPyodideAndM2py();
+      await ensureSafepyLoaded(py);
+      if (ctx.rightStatus) setStatus(ctx.rightStatus, t('Kjører lokalt i strict-modus…'));
+      var out = JSON.parse(await py.runPythonAsync(buildStrictGlue(script, loads, opts)));
+      renderSafeStatResult(out, script, ctx, t('lokal · strict'));
+      if (ctx.rightStatus) setStatus(ctx.rightStatus, '');
+    }
+
     // Inspect a script's `require` lines and decide where it runs.
     //   require <X> as <alias> [, exec(local|remote)]
     // Dialekt-moduser (python/r/duckdb) skriver direktivet som kommentar
@@ -8569,7 +8640,7 @@ options(width = 200)
           ? _scriptOpts.show_commands
           : getShowCommandsDefault();
         var _mr = currentMode();
-        var _ctx = { py: py, rightStatus: rightStatus, showCommands: _showCmds };
+        var _ctx = { py: py, rightStatus: rightStatus, showCommands: _showCmds, profile: _scriptOpts.profile };
         // Compute-to-data: i python/r/duckdb-modus ruter et `# require <navn> as <alias>`-
         // direktiv scriptet til serveren (safepy). Uten direktiv kjøres lokalt som før.
         // 'python' is a meta-dialect: the server picks pandas vs polars from the
@@ -8616,6 +8687,12 @@ options(width = 200)
             py.FS.writeFile(_path, l.bytes);
             return { alias: l.alias, format: l.format, path: _path };
           });
+        }
+        // Lokal strict-kjøring (V1: manuelt opt-in via "# options.profile = strict";
+        // grant-styrt ruting kommer i V2). Kun python-modus her; r-modus ruter i sin runner.
+        if (_scriptOpts.profile === 'strict' && activeEditorMode === 'python') {
+          await runStrictLocal(effectiveScript, _pyLoads, { level: 'public', dialect: 'python' }, _ctx);
+          return;
         }
         const catalogJson = microdataCatalog && microdataCatalog.variables
           ? JSON.stringify(microdataCatalog.variables)
