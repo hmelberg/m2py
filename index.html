@@ -7470,8 +7470,8 @@ json.dumps(out)
       // Project A: monteringsverb i R-modus — bygg datasettene i Pyodide (delt
       // executor safepy.assembly), serialiser til CSV og last inn i webR som
       // data.frames (samme bro som #micro→#r). Kilde-binding-løkka hoppes over.
-      var _hasAssemblyR = /^[ \t]*(?:#|--|\/\/)[ \t]*(create-dataset|import|join)\b/im.test(src)
-        || /^[ \t]*(?:#|--|\/\/)[ \t]*load[ \t]+[A-Za-z_]\w*[ \t]+as\b/im.test(src);
+      var _hasAssemblyR = !!(window.DataDirectives
+        && window.DataDirectives.parseAssembly(src).spec.datasets.length);
       var _loadsR;
       if (_hasAssemblyR) {
         var _asmR = await window.DataLoader.resolveAndAssemble(src, _rDeps);
@@ -8270,12 +8270,17 @@ has and "int" in (m.get_microdata_functions() or {})
         '    # Project A: montér datasett (samme executor) INNE i strict-kjøringen —',
         '    # dekrypterte kilde-rammer inn, monterte datasett ut, før fasaden ser dem',
         '    _analysis = _frames',
+        '    _asm_notes = []',
         '    if _ASM_SPEC:',
         '        from safepy import assembly as _asm',
         '        _analysis, _asm_notes = _asm.build_datasets(_ASM_SPEC, lambda a: _frames[a])',
         '    _res = safepy.run(_code, _analysis, level=' + JSON.stringify(opts.level) + ',',
         "                      profile='strict', dialect=_dialect, render='plotly')",
         '    _out = _cs.to_client_shape(_code, _res.as_dict())',
+        '    if _asm_notes:',
+        '        # rad-multiplikasjons-varsler (spec §6) må vises også i strict',
+        "        import html as _html_m",
+        "        _out['results'] = [''.join('<pre style=\"opacity:.7\">' + _html_m.escape(str(_nn)) + '</pre>' for _nn in _asm_notes)] + (_out.get('results') or [])",
         'except Exception as _e:',
         "    _out = _cs.error_shape(_code, f'{type(_e).__name__}: {_e}')",
         'finally:',
@@ -8293,7 +8298,7 @@ has and "int" in (m.get_microdata_functions() or {})
         '    for _k in list(_frames):',
         '        del _frames[_k]',
         '    del _frames',
-        "    for _n in ('_res', '_plain', '_buf', '_l', '_k', '_loads', '_analysis', '_asm'):",
+        "    for _n in ('_res', '_plain', '_buf', '_l', '_k', '_loads', '_analysis', '_asm', '_asm_notes'):",
         '        globals().pop(_n, None)',
         '    import gc as _gc',
         '    _gc.collect()',
@@ -8823,10 +8828,12 @@ options(width = 200)
         var _pyLoads = [];
         var _asmSpec = null;
         if (activeEditorMode === 'python' || activeEditorMode === 'duckdb') {
-          // Project A: monteringsverb (create-dataset/import/join) eller en bar
-          // alias-load ruter via resolveAndAssemble; ellers gammel connect/load.
-          var _hasAssembly = /^[ \t]*(?:#|--|\/\/)[ \t]*(create-dataset|import|join)\b/im.test(effectiveScript)
-            || /^[ \t]*(?:#|--|\/\/)[ \t]*load[ \t]+[A-Za-z_]\w*[ \t]+as\b/im.test(effectiveScript);
+          // Project A: montering brukes KUN når direktivene faktisk gir et
+          // datasett (parseAssembly). En vanlig kommentar som «# Import the data»
+          // eller «# load <url> as df» produserer ingen datasett → gammel
+          // connect/load-bane (bakoverkompatibelt).
+          var _hasAssembly = !!(window.DataDirectives
+            && window.DataDirectives.parseAssembly(effectiveScript).spec.datasets.length);
           var _dlDeps = {
             authToken: getAuthToken(), anthropicKey: getAnthropicKey(),
             apiBase: getMdApiBase(), promptKey: mdPromptKey,
@@ -8840,6 +8847,12 @@ options(width = 200)
             _dl = await window.DataLoader.resolveAndFetchLoads(effectiveScript, _dlDeps);
           }
           if (_dl.remote.length) {
+            // Blandet montering av offentlige (lokale) og beskyttede (server)
+            // kilder støttes ikke: serveren kan ikke hente en inline-URL-kilde.
+            if (_asmSpec && _dl.loads.length) {
+              outputArea.innerHTML = '<pre class="error">' + t('montering kan ikke blande offentlige og beskyttede kilder i én kjøring (ennå) — bruk enten bare offentlige kilder lokalt, eller bare registrerte kilder på serveren') + '</pre>';
+              return;
+            }
             // Ikke-offentlig registrert kilde via connect: hele scriptet (inkl.
             // montering) kjøres på serveren. Nøkler reiser i source_keys, aldri i script.
             var _rSources = [], _rKeys = {};
