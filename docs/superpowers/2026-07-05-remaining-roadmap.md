@@ -191,6 +191,29 @@ the way, in `docs/superpowers/plans/2026-07-06-remote-columnar-sources.md`.
 
 ---
 
+## 6. Known bugs (surfaced incidentally, not yet investigated)
+
+- **`require`+`create-dataset`+`import` combined in one `MicroInterpreter.run_script()`
+  call produces wrong data for at least `BEFOLKNING_KJOENN`** — effort
+  unknown, needs its own investigation. Found 2026-07-06 while testing the
+  R-bridge Parquet swap (`#micro` hybrid segments call `run_script()` once
+  with the whole segment's multi-line text — exactly this pattern). Reproduced
+  in complete isolation from anything R/Parquet-related: a bare Python
+  diagnostic (`_MI().run_script("require no.ssb.fdb:51 as db\ncreate-dataset
+  df\nimport db/BEFOLKNING_KJOENN")`) returns `float64` garbage (e.g.
+  `604164.33...`) for the column instead of the expected categorical `1`/`2`
+  (Mann/Kvinne) codes — so this is a real interpreter bug, not an R-bridge
+  regression. The same `require`+`import` sequence works correctly when run
+  as separate top-level lines in the normal editor (confirmed earlier this
+  session in plain microdata mode). Not yet narrowed down further — could be
+  about how `require`'s connection alias resolves within a single
+  multi-statement `run_script()` call vs. line-by-line interactive execution,
+  or something specific to `BEFOLKNING_KJOENN` vs. other catalog variables.
+  Affects `#micro` hybrid segments in R/Python modes; does not affect plain
+  microdata-mode scripts (each line already runs as its own statement there).
+
+---
+
 ## Recommended order
 
 1. **§0 verify on deployed Anvil** — still not done, still the gate for
