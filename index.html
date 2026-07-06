@@ -7633,6 +7633,7 @@ json.dumps(out)
         if (_asmR.sources.some(function (l) { return l.envelope || l.strict; })) throw new Error(t('strict-/kryptert-kilder med montering i R-modus støttes ikke ennå — bruk python-modus'));
         var _pyR2 = await loadPyodideAndM2py();
         await ensureSafepyLoaded(_pyR2);
+        await ensurePyarrowFor(_pyR2);
         if (_asmR.sources.some(function (l) { return l.bytes; })) _pyR2.FS.mkdirTree('/home/pyodide/_webdata');
         var _srcMetaR = _asmR.sources.map(function (l) {
           var _p = '/home/pyodide/_webdata/' + l.alias + '.' + l.format;
@@ -7640,19 +7641,30 @@ json.dumps(out)
           return { alias: l.alias, format: l.format, path: _p };
         });
         var _asmGlue = [
-          'import json, base64, pandas as _pd',
+          'import json, base64, io, pandas as _pd',
           'from safepy import assembly as _A',
           '_src = {}',
           'for _a in json.loads(' + JSON.stringify(JSON.stringify(_srcMetaR)) + '):',
           "    _src[_a['alias']] = (_pd.read_parquet(_a['path']) if _a['format']=='parquet' else _pd.read_csv(_a['path']))",
           '_ds, _notes = _A.build_datasets(json.loads(' + JSON.stringify(JSON.stringify(_asmR.spec)) + '), lambda a: _src[a])',
-          "_out = {n: base64.b64encode(df.to_csv(index=False).encode('utf-8')).decode('ascii') for n, df in _ds.items()}",
+          '_out = {}',
+          'for _n, _df in _ds.items():',
+          '    _buf = io.BytesIO()',
+          '    _df.to_parquet(_buf, index=False)',
+          "    _out[_n] = base64.b64encode(_buf.getvalue()).decode('ascii')",
           'json.dumps({"data": _out, "notes": _notes})',
         ].join('\n');
         var _asmRes = JSON.parse(await _pyR2.runPythonAsync(_asmGlue));
-        try { await webR.installPackages(['base64enc'], { quiet: true }); } catch (e) { console.warn('base64enc install:', e); }
+        // Parquet er binært og typed (dato/tall/NA overlever eksakt) — CSV+
+        // read.csv var en tekst-tur-retur som mistet typer. base64 pakker
+        // fortsatt payloaden trygt gjennom evalR()-strengen; nanoparquet leser
+        // de rå bytene direkte (installert i loadWebR — se der).
         for (var _dn in _asmRes.data) {
-          await webR.evalRVoid(_dn + ' <- read.csv(textConnection(rawToChar(base64enc::base64decode(' + JSON.stringify(_asmRes.data[_dn]) + '))), stringsAsFactors=FALSE, check.names=FALSE)');
+          await webR.evalRVoid(
+            '.m2py_tmp_pq <- tempfile(fileext = ".parquet"); ' +
+            'writeBin(base64enc::base64decode(' + JSON.stringify(_asmRes.data[_dn]) + '), .m2py_tmp_pq); ' +
+            _dn + ' <- nanoparquet::read_parquet(.m2py_tmp_pq); ' +
+            'unlink(.m2py_tmp_pq); rm(.m2py_tmp_pq)');
         }
         (_asmRes.notes || []).forEach(function (n) { console.log('[montering]', n); });
         _loadsR = [];   // datasettene er allerede montert og bundet i webR
@@ -7693,12 +7705,18 @@ json.dumps(out)
           console.warn('R jsonlite install error:', e);
         }
       }
+      if (_loadsR.length && _loadsR.some(function (l) { return l.format === 'parquet'; })) {
+        try { await webR.installPackages(['nanoparquet'], { quiet: true }); } catch (e) {
+          console.warn('R nanoparquet install error:', e);
+        }
+      }
       for (var _ri = 0; _ri < _loadsR.length; _ri++) {
         var _lr = _loadsR[_ri];
-        if (_lr.format === 'parquet') throw new Error(t('parquet støttes ikke i R-modus ennå ({alias})', { alias: _lr.alias }));
         var _rp = '/home/web_user/_webdata_' + _lr.alias + '.' + _lr.format;
         await webR.FS.writeFile(_rp, _lr.bytes);
-        var _rcode = _lr.format === 'json'
+        var _rcode = _lr.format === 'parquet'
+          ? _lr.alias + ' <- nanoparquet::read_parquet(' + JSON.stringify(_rp) + ')'
+          : _lr.format === 'json'
           ? _lr.alias + ' <- jsonlite::fromJSON(' + JSON.stringify(_rp) + ')'
           : _lr.format === 'html'
           ? _lr.alias + ' <- paste(readLines(' + JSON.stringify(_rp) + ', warn = FALSE), collapse = "\\n")'
@@ -7715,8 +7733,8 @@ json.dumps(out)
       var outputParts  = [];
 
       // ── Phase 1: run all microdata segments with a shared interpreter ────
-      // Runs silently (setup). Datasets exported to WebR as typed tibbles via
-      // Arrow IPC with label metadata applied as factors.
+      // Runs silently (setup). Datasets exported to WebR via Parquet (typed —
+      // see ensurePyarrowFor/nanoparquet) with label metadata applied as factors.
       if (microdataSegs.length > 0) {
         try {
           setStatus(rightStatus, t('Setter opp data…'));
@@ -7724,8 +7742,9 @@ json.dumps(out)
           var _catJson = (microdataCatalog && microdataCatalog.variables)
             ? JSON.stringify(microdataCatalog.variables) : '{}';
 
+          await ensurePyarrowFor(py);
           var mdSetupCode =
-            'import json as _j, base64 as _b64, pandas as _pd3\n' +
+            'import json as _j, base64 as _b64, io as _io4, pandas as _pd3\n' +
             'from m2py import MicroInterpreter as _MI\n' +
             '_e_r = _MI()\n';
 
@@ -7737,30 +7756,31 @@ json.dumps(out)
             '_g_xfer = {}\n' +
             '_e_r.sync_datasets_to_globals(_g_xfer)\n' +
             '_result_b64 = {}\n' +
+            '_result_cols = {}\n' +
             'for _k, _v in list(_g_xfer.items()):\n' +
             '    if isinstance(_v, _pd3.DataFrame):\n' +
-            '        _csv = _v.to_csv(index=False)\n' +
-            '        _result_b64[_k] = _b64.b64encode(_csv.encode("utf-8")).decode("ascii")\n' +
-            '_j.dumps(_result_b64)\n';
+            '        _buf4 = _io4.BytesIO()\n' +
+            '        _v.to_parquet(_buf4, index=False)\n' +
+            '        _result_b64[_k] = _b64.b64encode(_buf4.getvalue()).decode("ascii")\n' +
+            '        _result_cols[_k] = list(_v.columns)\n' +
+            '_j.dumps({"data": _result_b64, "columns": _result_cols})\n';
 
-          var b64Json = String(await py.runPythonAsync(mdSetupCode));
-          var b64Map  = JSON.parse(b64Json);
+          var mdRes  = JSON.parse(String(await py.runPythonAsync(mdSetupCode)));
+          var b64Map = mdRes.data;
 
           var catVars = (microdataCatalog && microdataCatalog.variables) ? microdataCatalog.variables : {};
 
-          // Inject each dataframe into WebR via base64-CSV, then apply catalog factors in base R
+          // Inject each dataframe into WebR via Parquet (typed — dates/NA/int
+          // vs. double survive exactly, unlike the previous CSV round-trip),
+          // then apply catalog factors in base R.
           for (var dfName of Object.keys(b64Map)) {
             var b64 = b64Map[dfName];
-            // Decode CSV header in JS to know which columns are present
-            var dfCols = [];
-            try {
-              var hdrLine = atob(b64).split('\n')[0];
-              dfCols = hdrLine.split(',').map(function(c) { return c.replace(/^\s*"?|"?\s*$/g, ''); });
-            } catch(e2) {}
+            var dfCols = mdRes.columns[dfName] || [];
 
-            var rCode = dfName + ' <- read.csv(textConnection(rawToChar(' +
-              'base64enc::base64decode(' + JSON.stringify(b64) + '))),' +
-              ' stringsAsFactors=FALSE, check.names=FALSE)\n';
+            var rCode = '.m2py_tmp_pq <- tempfile(fileext = ".parquet"); ' +
+              'writeBin(base64enc::base64decode(' + JSON.stringify(b64) + '), .m2py_tmp_pq); ' +
+              dfName + ' <- nanoparquet::read_parquet(.m2py_tmp_pq); ' +
+              'unlink(.m2py_tmp_pq); rm(.m2py_tmp_pq)\n';
 
             // Apply catalog labels as factors using base R only
             dfCols.forEach(function(col) {
@@ -8368,6 +8388,33 @@ has and "int" in (m.get_microdata_functions() or {})
     // safepy-pakken hentes som zip (bygget av sync_to_api.py --web) og pakkes
     // ut i Pyodide. Kritisk invariant: feiler noe her, nektes kjøringen —
     // en strict-kilde kjøres ALDRI på den åpne motoren.
+    // Delt med den bredere "_needsParquetSupport"-blokken i hovedkjøringen
+    // (samme pyarrow-install + samme ArrowKeyError-patch som js/strict-worker.js)
+    // — brukes her for R-modus' egne df.to_parquet()-kall (montering og
+    // #micro-oppsett), som kjører i det delte pyodide-singleton-instansen fra
+    // loadPyodideAndM2py(), der pyarrow ikke er garantert lastet ennå.
+    async function ensurePyarrowFor(py) {
+      var needPa = await py.runPythonAsync('import importlib.util as _iu\n_iu.find_spec("pyarrow") is None');
+      if (needPa) {
+        await py.runPythonAsync('import micropip as _mp\nawait _mp.install("pyarrow")');
+      }
+      await py.runPythonAsync(
+        'import pyarrow as _pa\n' +
+        'if not getattr(_pa, "_m2py_unreg_patched", False):\n' +
+        '    _oru = _pa.unregister_extension_type\n' +
+        '    def _safe_unreg(name, _o=_oru):\n' +
+        '        try:\n' +
+        '            return _o(name)\n' +
+        '        except Exception:\n' +
+        '            return None\n' +
+        '    _pa.unregister_extension_type = _safe_unreg\n' +
+        '    _pa._m2py_unreg_patched = True\n' +
+        '    try:\n' +
+        '        import pandas.core.arrays.arrow.extension_types\n' +
+        '    except Exception:\n' +
+        '        pass\n');
+    }
+
     async function ensureSafepyLoaded(py) {
       if (window.__safepyLoaded) return;
       if (!window.__safepyZipUnpacked) {
@@ -8808,9 +8855,12 @@ _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
           });
           await webR.evalRVoid(src);
         }
-        // Install arrow + base64enc for typed dataframe transfer from Pyodide
-        setStatus(leftStatus, t('Installerer arrow, base64enc…'));
-        await webR.installPackages(['base64enc'], { quiet: true });
+        // base64enc + nanoparquet for typed dataframe transfer from Pyodide
+        // (Parquet er binært/typed — base64 pakker det trygt gjennom
+        // evalR()-strengen; nanoparquet leser de rå bytene tilbake. Erstatter
+        // den tidligere CSV-broen, som mistet typer i tur-returen.)
+        setStatus(leftStatus, t('Installerer base64enc, nanoparquet…'));
+        await webR.installPackages(['base64enc', 'nanoparquet'], { quiet: true });
         // Create a persistent Shelter for captureR (text + plot capture)
         webRShelter = await new webR.Shelter();
         // Override library() to auto-install missing packages at runtime

@@ -426,7 +426,7 @@ window.M2PY_I18N.en = {
   "lokal kjøring": "local execution",
   "Laster WebR…": "Loading WebR…",
   "Laster r2m…": "Loading r2m…",
-  "Installerer arrow, base64enc…": "Installing arrow, base64enc…",
+  "Installerer base64enc, nanoparquet…": "Installing base64enc, nanoparquet…",
   "WebR feilet: {msg}": "WebR failed: {msg}",
   "html-kilder støttes ikke i duckdb-modus ({alias}) — bruk python/r": "html sources are not supported in duckdb mode ({alias}) — use python/r",
   "Laster DuckDB-bro…": "Loading DuckDB bridge…",
