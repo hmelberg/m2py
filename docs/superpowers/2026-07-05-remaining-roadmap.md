@@ -1,6 +1,7 @@
 # Remaining roadmap — access control + verb consistency
 
 Date: 2026-07-05
+Updated: 2026-07-06 — reconciled against `docs/superpowers/specs/2026-07-06-remote-columnar-sources-design.md` (see §4 and "Recommended order" below).
 Status: planning map (not a build plan). Effort: S ≈ hours, M ≈ 1–2 days, L ≈ needs its own brainstorm+spec.
 
 Snapshot of what's DONE this cycle (all on `main`/`master`):
@@ -11,6 +12,13 @@ Snapshot of what's DONE this cycle (all on `main`/`master`):
   decrypt-at-run; worker isolation).
 - Audience model (owner/listed/authenticated/anyone) enforced local + remote.
 - Self-service registration incl. AES + HE artifacts (deldata.html).
+- **Project A — variable-level `import`/`create-dataset`/`join`** (was listed
+  below as "the headline unbuilt piece" as of 2026-07-05; shipped since — see
+  §1a). Parser (`js/data-directives.js`: `CREATE_RE`/`IMPORT_RE`/`JOIN_RE`/
+  `parseAssembly`), pandas executor (`safepy/safepy/assembly.py`, mirrored in
+  `microdata-api`), and `index.html` wiring (`_asmSpec`/`_pyLoads`,
+  `buildAssemblyPreamble`) all confirmed present and end-to-end connected for
+  python/r/duckdb modes.
 
 What follows is everything still deferred, grouped and sequenced.
 
@@ -34,24 +42,28 @@ Nothing has run end-to-end on deployed infrastructure. Highest value per hour.
 
 ## 1. Verb consistency (the original questions)
 
-### 1a. Project A — variable-level `import` + `create-dataset … join()` — effort L, BRAINSTORM FIRST
-The headline unbuilt piece; directly answers the original design questions.
-Today: microdata mode assembles datasets variable-by-variable with an implicit
-person-id; dialect modes (py/r/duckdb) only `load` whole tables. Unify them:
-`# create-dataset panel, join(pid)` then `# import h/income as inc` merges the
-column into `panel` on `pid`, in every mode, over real connected sources.
+### 1a. Project A — variable-level `import` + `create-dataset … join()` — **DONE** (was: effort L, brainstorm first)
+Shipped 2026-07-05/06 — see the snapshot above. `# create-dataset panel,
+key(pid)` then `# import h/income into panel` merges the column into `panel`
+on `pid`, in every dialect mode, over real connected sources. Design record:
+`docs/superpowers/specs/2026-07-05-variable-level-assembly-design.md`
+("approved in dialogue", D1–D7).
 
-Open design questions (why it needs a brainstorm, not just a plan):
-- How `import` extracts one column from a connected source: load-whole-then-
-  select (simple) vs parquet/duckdb column pushdown (lazy) vs server-side
-  extraction for protected/remote sources.
-- Join semantics: inner/outer/left; the emulator's `import` already has
-  `outer_join`/`inner_join` — reconcile with an explicit `join(col)`.
-- Multiple `create-dataset` blocks + `use <name>` switching — extend the
-  emulator's model to dialect modes, or a fresh uniform model.
-- Browser pandas-merge vs compute-to-data for protected sources.
-- Grammar was already reserved in the encrypted-sources spec so it won't
-  collide with connect/load.
+Resolved (v1, per that design doc):
+- `import` extracts by **load-whole-source-then-select** (D6) — no pushdown
+  yet. Pushdown is the explicit subject of the follow-on design in §4 below.
+- Join semantics: single key, left-onto-accumulator default, overridable
+  inner/outer/left (D5).
+- One `create-dataset` builds one named dataset; no `use <name>` switching in
+  v1 (not needed — multiple `create-dataset` blocks coexist by name).
+- Assembly runs where the data routes (browser for open/strict, server shim
+  for protected/remote) — reuses existing grant-driven routing (D3).
+
+Still open, carried into the follow-on design (§4): the `from X import Y`
+alternative syntax (undecided), and the `<table>.<column>` path grammar for
+duckdb sources — **owner has since indicated the dot form
+(`alias/table.column`) is acceptable**, so that question is effectively
+resolved in favor of dot; not yet reflected in the design doc's prose.
 
 ### 1b. Microdata-mode source parity — effort M
 Microdata mode still rejects URLs and registered/encrypted sources (knows only
@@ -95,12 +107,41 @@ Lets owners keep data in private repos. Orthogonal to the crypto work.
 
 ---
 
-## 4. Speculative / on-demand (only when a concrete need appears)
+## 4. Remote columnar sources — DuckDB/SQLite files + column pushdown
 
-- **DuckDB-as-browser-store / lazy column pushdown / `ATTACH`** — effort L.
-  The "radical" idea. Revisit only if files outgrow browser memory; the v1
-  benefit is near-zero because encrypted data must be fully decrypted locally
-  anyway.
+Full design: `docs/superpowers/specs/2026-07-06-remote-columnar-sources-design.md`
+(draft, 2026-07-06). Reconciles with — and supersedes — this section's earlier
+framing of "DuckDB-as-browser-store" as one speculative L-effort blob. It's
+actually two separable pieces with very different cost/risk, and the design
+doc's own §1→§3 order makes the split explicit: connecting to a source is a
+prerequisite for pruning reads from it, not a side effect of the executor
+swap.
+
+### 4a. `.duckdb`/`.sqlite` as connectable source kinds — effort M, do this first
+New source `kind`s (`duckdb_url`, alongside existing csv/parquet/json), an
+explicit `kind()` directive option to bypass fragile sniffing, and a
+`load db/table as x` path (dot grammar for `table.column`, per the owner's
+2026-07-06 confirmation — resolves the design doc's §10/open-questions dot-
+vs-slash question). Whole table/column is still materialized via the
+existing duckdb-wasm engine and handed to the **current, unchanged pandas
+`safepy.assembly`** (D6's "load-whole-then-select" already covers this — no
+network-pruning yet, just a new source type). SQLite rides the same
+`ATTACH '<url>' (TYPE sqlite)` mechanism at near-zero incremental cost (design
+doc §9). Low risk: doesn't touch the tested assembly executor at all.
+
+### 4b. DuckDB-backed assembly executor (network-level column/table pruning) — effort L, do this after 4a, on demand
+Replaces `safepy.assembly`'s pandas implementation with a DuckDB engine so
+`import`/`join`/`create-dataset` compile to pushdown queries
+(`read_parquet(url)`, `ATTACH`, `SELECT <col> FROM ...`) instead of a full
+download — design doc §3. This is the part that's genuinely risky (replaces
+shipped, tested code) and genuinely speculative in value: the benefit is
+"skip downloading bytes you don't need," which only matters once a source is
+large enough that full-download-then-select is actually slow or memory-
+heavy. That trigger condition — files outgrowing browser memory / download
+time becoming a real complaint — hasn't been confirmed as live yet, so this
+stays gated on demand, same as the original assessment. Do not start this
+before 4a ships, since 4a's `.duckdb`/`.sqlite` source support is exactly
+what 4b would prune reads from.
 - **Remote-only enforcement by non-Anvil authorities** (federated / third-party
   registries) — effort L, speculative. The `/source_access` resolution step is
   the seam where another authority could answer later.
@@ -115,10 +156,15 @@ Lets owners keep data in private repos. Orthogonal to the crypto work.
 ## Recommended order
 
 1. **§0 verify on deployed Anvil** — unblocks trusting everything else.
-2. **§1a Project A brainstorm** — the real verb-consistency payoff; kick off the
-   design while §0 runs.
-3. **§2a access-request** + **§1b microdata parity** — cheap completeness wins.
-4. **§3 browser-STRICT rounding-out** — as usage warrants (polars/duckdb strict
+2. ~~§1a Project A brainstorm~~ — **done**, see snapshot above.
+3. **§4a `.duckdb`/`.sqlite` source kinds** — the concrete, low-risk half of
+   the new design doc; delivers "connect to duckdb/sqlite via URL and import
+   columns from them" without touching the tested assembly executor.
+4. **§2a access-request** + **§1b microdata parity** — cheap completeness wins.
+5. **§3 browser-STRICT rounding-out** — as usage warrants (polars/duckdb strict
    is the most-requested-shaped).
-5. **§2b private-repo tokens** — when an owner actually needs it.
-6. **§4** — only on concrete demand.
+6. **§2b private-repo tokens** — when an owner actually needs it.
+7. **§4b DuckDB-backed assembly executor (network pruning)** — only once a
+   concrete need appears (large files, real download-time complaints); still
+   gated on demand, per the original assessment — just no longer bundled with
+   4a's independent, lower-risk source-kind work.

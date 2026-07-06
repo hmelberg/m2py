@@ -2,7 +2,14 @@
 
 Date: 2026-07-06
 Status: draft — proposal from exploratory discussion, revised to decouple assembly execution
-from analysis dialect (see §3); not yet reviewed with owner
+from analysis dialect (see §3); not yet fully reviewed with owner, but the `<table>.<column>`
+path grammar question (§8b, §10) is resolved — owner has confirmed the **dot** form
+(`alias/table.column`) is acceptable, in favor of introducing a second separator over adopting
+the `from X import Y` alternative syntax purely to sidestep it. Sequencing note (2026-07-06,
+reconciled with `docs/superpowers/2026-07-05-remaining-roadmap.md` §4): §1/§9 (source kinds)
+and §3 (DuckDB-backed assembly executor for pushdown) are staged separately — source-kind
+support ships first since it's the prerequisite and the lower-risk half; §3 is deferred until a
+concrete need for network-level pruning appears (large files, real download-time pain).
 Repos: m2py (primary), microdata-api (remote parity, later), safepy (unaffected — see §6)
 Builds on: `2026-07-05-variable-level-assembly-design.md` (`import`/`join`/`create-dataset`),
 `2026-06-28-duckdb-mode-design.md` (the DuckDB-WASM worker already running in the app),
@@ -258,8 +265,8 @@ or `duckdb` mode (§3), not just the last of those.
 One `ATTACH` (one catalog fetch) against `panel.duckdb`, then: `age`/`sex` pulled from just the
 `patients` table (not the whole file, not even the whole `patients` table if it has other
 columns); `visits` loaded as its own dataset in full (no column list given); the two joined on
-`pid`. (`db/patients.age` uses a dot to separate table from column — one candidate answer to
-the open "path grammar" question below, not a settled decision.)
+`pid`. `db/patients.age` uses a dot to separate table from column — **confirmed** grammar
+(owner, 2026-07-06), not just a candidate; see status note at top of document.
 
 **c) Mixing a Parquet source and a DuckDB-file source in one assembly**
 
@@ -381,9 +388,10 @@ before `import` ships (or gets its grammar extended for duckdb tables), not afte
 
 ## Open design questions (not resolved here)
 
-- Exact `import`/path grammar for a duckdb source's `<table>.<column>` vs. today's single opaque
-  `alias/path` slot — needs a decision (dot vs. slash vs. a second option, or the `from`
-  alternative in §10) before implementation.
+- ~~Exact `import`/path grammar for a duckdb source's `<table>.<column>`~~ — **resolved**: dot
+  form (`alias/table.column`), confirmed by owner 2026-07-06. The `from X import Y` alternative
+  in §10 remains undecided as a separate, independent question (it was never solely about the
+  path-separator choice).
 - Whether `kind(duckdb)` implies "may contain multiple tables" automatically, or whether a
   source also needs to declare which table `load <alias> as x` (no path) defaults to.
 - Whether schema-peeking should be cached per source for the lifetime of a session, and where
