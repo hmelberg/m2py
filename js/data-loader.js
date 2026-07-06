@@ -127,6 +127,13 @@
       if (item.table) out.table = item.table;
       if (item.kind) out.kind = item.kind;
       if (dec.envelope) { out.envelope = dec.envelope; out.key = dec.key; }
+      // out.level is exposed for ANY registered grant, not just strict — the
+      // sidebar's click-to-view gating needs the real level even for a
+      // protected/sensitive source whose local_mode happens to be "open"
+      // (allowed to run in the ordinary non-strict path). l.strict (only true
+      // for local_profile==='strict') still separately gates the actual
+      // STRICT execution route; this is purely informational for the UI.
+      if (item.grant && item.grant.level) out.level = item.grant.level;
       if (item.grant && item.grant.local_profile === 'strict') {
         // strict-grant (spec 2026-07-05-browser-strict-execution §2): rammen
         // får KUN gå inn i safepy-fasaden; nivået velger policy-tier lokalt.

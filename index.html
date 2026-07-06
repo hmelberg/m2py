@@ -76,13 +76,25 @@
             <div class="examples-section" data-section-mode="safestat">
               <button type="button" data-example="safestat01_url_csv.txt" data-mode="safestat" data-i18n>SafeStat &mdash; CSV fra URL</button>
             </div>
-            <button type="button" id="menuWebExamples" data-i18n>Flere eksempler p&#229; web</button>
+            <button type="button" id="menuWebExamples" data-i18n>Flere eksempler</button>
           </div>
         </div>
-        <button type="button" id="menuUploadData" data-i18n>Last opp data</button>
+        <button type="button" id="menuUploadData" data-i18n-title title="Last opp data" style="display:flex;align-items:center;gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <span data-i18n>Last opp data</span>
+        </button>
         <hr style="margin:4px 0;border-color:#334155;">
         <div class="topbar-examples-wrap" style="position:relative">
-          <button type="button" id="menuGithubBtn">GitHub</button>
+          <button type="button" id="menuGithubBtn" style="display:flex;align-items:center;gap:8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
+              <path d="M12 2a10 10 0 00-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.56 9.56 0 015 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0012 2z"/>
+            </svg>
+            <span>GitHub</span>
+          </button>
           <div class="examples-dropdown" id="githubSubmenu">
             <div class="examples-dropdown-title">GitHub</div>
             <button type="button" id="ghMenuSettings" data-i18n>Innstillinger</button>
@@ -92,15 +104,13 @@
             <button type="button" id="ghMenuRefresh" data-i18n data-i18n-title title="Hent gjeldende fil p&#229; nytt fra GitHub og forkast ulagrede lokale endringer. Dette henter (leser) &mdash; det lagrer ikke.">Hent p&#229; nytt</button>
           </div>
         </div>
-        <button type="button" id="menuForklar" data-i18n data-i18n-title title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale">Kj&#248;r skrittvis</button>
-        <div class="topbar-examples-wrap" id="offlineMenuWrap" style="position:relative;display:none">
-          <button type="button" id="menuOfflineBtn" data-i18n data-i18n-title title="Oversett microdata-scriptet til frittst&#229;ende Python (pandas/polars) som kan kj&#248;res utenfor nettleseren, f.eks. p&#229; Anvil">Vis offline Python</button>
-          <div class="examples-dropdown" id="offlineSubmenu">
-            <div class="examples-dropdown-title">Offline Python</div>
-            <button type="button" id="menuOfflinePandas" data-i18n-title title="Frittst&#229;ende pandas-script (vises i output)">pandas</button>
-            <button type="button" id="menuOfflinePolars" data-i18n-title title="Frittst&#229;ende polars-script (krever polars; vises i output)">polars</button>
-          </div>
-        </div>
+        <button type="button" id="menuForklar" data-i18n-title title="Kj&#248;r blokker adskilt av tomlinjer ett steg om gangen, og les opp kommentarer med tale" style="display:flex;align-items:center;gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
+            <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+            <path d="M15.5 8.5a5 5 0 010 7"/>
+          </svg>
+          <span data-i18n>Kj&#248;r skrittvis</span>
+        </button>
         <button type="button" id="menuSokData" data-i18n-title title="S&#248;k om tilgang til individdata" style="display:flex;align-items:center;gap:8px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
             <circle cx="11" cy="11" r="7"/>
@@ -108,45 +118,81 @@
           </svg>
           <span data-i18n>S&#248;k om data</span>
         </button>
-        <button type="button" id="menuVisData" data-i18n-title title="&#197;pne sidemenyen for &#229; velge og se data" style="display:flex;align-items:center;gap:8px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
-            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/>
-            <circle cx="12" cy="12" r="3"/>
-          </svg>
-          <span data-i18n>Se data</span>
-        </button>
         <button type="button" id="menuRunnerMode" style="display:none">Kjøremodus: Microdata</button>
         <button type="button" id="menuToggleOutputMode" style="display:none">Output-modus: String</button>
         <button type="button" id="menuToggleSafestatOutput" style="display:none">SafeStat-output: Formatert</button>
-        <button type="button" id="menuShowIndividata" data-i18n-title title="Når PÅ: klikk på datasett-navnet i sidemenyen for å åpne en tabellvisning av rådataene (sorter, filtrer, bla). Når AV: dataset-navnet er inaktivt." style="display:flex;align-items:center;gap:8px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
-            <rect x="3" y="4" width="18" height="16" rx="2"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
-            <line x1="3" y1="15" x2="21" y2="15"/>
-            <line x1="9" y1="4" x2="9" y2="20"/>
-            <line x1="15" y1="4" x2="15" y2="20"/>
-          </svg>
-          <span id="menuShowIndividataLabel" data-i18n>Datatilgang: AV</span>
-        </button>
         <hr style="margin:4px 0;border-color:#334155;">
-        <div class="topbar-examples-wrap" style="position:relative">
-          <button type="button" id="menuLangBtn">Spr&#229;k / Language</button>
-          <div class="examples-dropdown" id="langSubmenu">
-            <button type="button" data-lang="no">Norsk</button>
-            <button type="button" data-lang="en">English</button>
-          </div>
-        </div>
-        <button type="button" id="menuSettings" data-i18n>Innstillinger</button>
-        <button type="button" id="btnLoginWithCode" data-i18n>Logg inn</button>
-        <button type="button" id="btnRegisterSource" data-i18n>Del data</button>
+        <button type="button" id="menuSettings" data-i18n-title title="Innstillinger" style="display:flex;align-items:center;gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+          <span data-i18n>Innstillinger</span>
+        </button>
+        <button type="button" id="btnLoginWithCode" data-i18n-title title="Logg inn" style="display:flex;align-items:center;gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
+            <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/>
+            <polyline points="10 17 15 12 10 7"/>
+            <line x1="15" y1="12" x2="3" y2="12"/>
+          </svg>
+          <span data-i18n>Logg inn</span>
+        </button>
+        <button type="button" id="btnRegisterSource" data-i18n-title title="Del data" style="display:flex;align-items:center;gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
+            <circle cx="18" cy="5" r="3"/>
+            <circle cx="6" cy="12" r="3"/>
+            <circle cx="18" cy="19" r="3"/>
+            <line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/>
+            <line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/>
+          </svg>
+          <span data-i18n>Del data</span>
+        </button>
         <div id="adminMenuSection" style="display:none;">
           <hr style="margin:4px 0;border-color:#334155;">
           <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Admin</div>
-          <button type="button" id="btnAdminSharedCode" data-i18n>Generer tilgangskode</button>
-          <button type="button" id="btnAdminAuditLog" data-i18n>Analyser kjøringslogg</button>
+          <div class="topbar-examples-wrap" id="offlineMenuWrap" style="position:relative">
+            <button type="button" id="menuOfflineBtn" data-i18n-title title="Oversett microdata-scriptet til frittst&#229;ende Python (pandas/polars) som kan kj&#248;res utenfor nettleseren, f.eks. p&#229; Anvil" style="display:flex;align-items:center;gap:8px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
+                <polyline points="16 18 22 12 16 6"/>
+                <polyline points="8 6 2 12 8 18"/>
+              </svg>
+              <span data-i18n>Vis offline Python</span>
+            </button>
+            <div class="examples-dropdown" id="offlineSubmenu">
+              <div class="examples-dropdown-title">Offline Python</div>
+              <button type="button" id="menuOfflinePandas" data-i18n-title title="Frittst&#229;ende pandas-script (vises i output)">pandas</button>
+              <button type="button" id="menuOfflinePolars" data-i18n-title title="Frittst&#229;ende polars-script (krever polars; vises i output)">polars</button>
+            </div>
+          </div>
+          <button type="button" id="btnAdminSharedCode" data-i18n-title title="Generer tilgangskode" style="display:flex;align-items:center;gap:8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
+              <circle cx="7.5" cy="15.5" r="4.5"/>
+              <path d="M10.6 12.4L18 5l3 3-2 2-2-2-2 2 2 2-3 3"/>
+            </svg>
+            <span data-i18n>Generer tilgangskode</span>
+          </button>
+          <button type="button" id="btnAdminAuditLog" data-i18n-title title="Analyser kjøringslogg" style="display:flex;align-items:center;gap:8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
+              <path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2h-4"/>
+              <rect x="9" y="1" width="6" height="4" rx="1"/>
+              <line x1="8" y1="12" x2="16" y2="12"/>
+              <line x1="8" y1="16" x2="16" y2="16"/>
+              <line x1="8" y1="8" x2="12" y2="8"/>
+            </svg>
+            <span data-i18n>Analyser kjøringslogg</span>
+          </button>
         </div>
       </div>
     </div>
+    <button type="button" class="help-icon" id="menuVisData" data-i18n-aria data-i18n-title aria-label="Se data" title="Åpne sidemenyen for å velge og se data">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="16" rx="2"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+        <line x1="3" y1="15" x2="21" y2="15"/>
+        <line x1="9" y1="4" x2="9" y2="20"/>
+        <line x1="15" y1="4" x2="15" y2="20"/>
+      </svg>
+    </button>
     <input type="text" class="script-name" id="scriptName" data-i18n-placeholder placeholder="Script navn" value="Script navn">
     <button type="button" class="help-icon" id="helpBtn" data-i18n-aria data-i18n-title aria-label="Hjelp" title="Hjelp" style="margin-left:auto">&#63;</button>
     <button type="button" class="help-icon" id="clearOutputTopBtn" data-i18n-aria data-i18n-title aria-label="Tøm output" title="Tøm output"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg></button>
@@ -222,6 +268,13 @@
       <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" data-i18n-title data-i18n-aria title="Lukk sidemeny" aria-label="Lukk">&#10005;</button>
       </div>
     <div class="sidebar-content" id="sidebarContent">
+      <div class="sidebar-search-wrap">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="search" id="sidebarSearch" data-i18n-placeholder placeholder="Søk i datasett/variabler …" autocomplete="off">
+      </div>
       <div class="sidebar-empty" id="sidebarEmpty" data-i18n>Kjør et script for å se datasett.</div>
       <div id="sidebarDatasets"></div>
     </div>
@@ -1925,13 +1978,11 @@
 
       const examplesDropdown = document.getElementById('examplesDropdown');
       function updateAdminMenuVisibility() {
+        // offlineMenuWrap (Vis offline Python) now lives inside adminMenuSection,
+        // so one toggle covers both — no separate offlineWrap display needed.
         const adminSec = document.getElementById('adminMenuSection');
         if (adminSec) {
           adminSec.style.display = (window.mdAuth && window.mdAuth.user && window.mdAuth.user.is_admin) ? '' : 'none';
-        }
-        const offlineWrap = document.getElementById('offlineMenuWrap');
-        if (offlineWrap) {
-          offlineWrap.style.display = (window.mdAuth && window.mdAuth.user && window.mdAuth.user.is_admin) ? '' : 'none';
         }
       }
       function updateLoginMenuVisibility() {
@@ -2207,33 +2258,9 @@
         });
       });
 
-      // Språkmeny: hake på aktivt språk; bytte lagrer valget og laster siden
-      // på nytt (m2pySetLang i js/i18n.js tar vare på editorinnholdet).
-      (function initLangMenu() {
-        const btn = document.getElementById('menuLangBtn');
-        const sub = document.getElementById('langSubmenu');
-        if (!btn || !sub) return;
-        sub.querySelectorAll('button[data-lang]').forEach(function(b) {
-          if (b.getAttribute('data-lang') === (window.M2PY_LANG || 'no')) {
-            b.textContent = '✓ ' + b.textContent;
-          }
-          b.addEventListener('click', function() {
-            sub.classList.remove('open');
-            dropdown.classList.remove('open');
-            if (window.m2pySetLang) window.m2pySetLang(this.getAttribute('data-lang'));
-          });
-        });
-        btn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          const willOpen = !sub.classList.contains('open');
-          document.querySelectorAll('#hamburgerDropdown .examples-dropdown.open').forEach(function(d) {
-            d.classList.remove('open');
-          });
-          if (willOpen) sub.classList.add('open');
-        });
-        sub.addEventListener('click', function(e) { e.stopPropagation(); });
-        document.addEventListener('click', function() { sub.classList.remove('open'); });
-      })();
+      // Språkbytte flyttet til Innstillinger (settingLanguage) — se
+      // openSettings()/settingsSaveBtn lenger ned; ingen egen hamburgermeny-
+      // bryter lenger.
 
       document.getElementById('menuNew').addEventListener('click', function() {
         scriptInput.value = '';
@@ -2371,39 +2398,70 @@
         };
       })();
 
-      // Hent/Vis individata-bryter: når PÅ er datasett-navnet i sidebar
-      // klikkbart og åpner en Tabulator-modal med selve datatabellen.
-      const SHOW_INDIVIDATA_KEY = 'microdata_show_individata';
-      function getShowIndividata() {
-        try { return localStorage.getItem(SHOW_INDIVIDATA_KEY) === '1'; } catch (e) { return false; }
+      // Individdata-visning: et datasett er klikkbart i sidemenyen (åpner en
+      // Tabulator-modal med selve datatabellen) med mindre det er merket
+      // protected/sensitive — eller montert (create-dataset/import/join) fra
+      // en slik kilde. Nivået spores per datasett-navn i
+      // window.__datasetLevels, satt der _pyLoads/_asmSpec bygges (index.html,
+      // rundt "var _dl;" i den store kjøre-funksjonen) — se
+      // window.__setDatasetLevel/__markAssemblyLevels. Ukjent opprinnelse
+      // (syntetisk microdata, eller ad-hoc kode uten connect/load) regnes som
+      // offentlig: appens kjernebruk er syntetiske data, og en STRICT-kjøring
+      // legger aldri rå rammer i micro_interpreter.datasets i utgangspunktet
+      // (safepy.run returnerer kun undertrykte aggregater) — så et ukjent
+      // navn her kan ikke være beskyttet ekte data fra en registrert kilde.
+      // Erstatter den forrige manuelle "Datatilgang: PÅ/AV"-bryteren.
+      window.__datasetLevels = window.__datasetLevels || {};
+      function isDatasetViewable(dsName) {
+        var lvl = window.__datasetLevels[dsName];
+        return lvl !== 'protected' && lvl !== 'sensitive';
       }
-      function setShowIndividata(on) {
-        try { localStorage.setItem(SHOW_INDIVIDATA_KEY, on ? '1' : '0'); } catch (e) {}
-        applyShowIndividataToSidebar();
-      }
-      window.__getShowIndividata = getShowIndividata;
-      function updateShowIndividataLabel() {
-        const lbl = document.getElementById('menuShowIndividataLabel');
-        if (!lbl) return;
-        lbl.textContent = getShowIndividata() ? t('Datatilgang: PÅ') : t('Datatilgang: AV');
-      }
-      function applyShowIndividataToSidebar() {
-        var on = getShowIndividata();
+      window.__isDatasetViewable = isDatasetViewable;
+      function applyDatasetViewability() {
         document.querySelectorAll('.sidebar-dataset-name').forEach(function(el) {
+          var ds = el.getAttribute('data-ds');
+          var on = isDatasetViewable(ds);
           el.style.cursor = on ? 'pointer' : 'default';
           el.classList.toggle('sidebar-dataset-name-clickable', on);
+          el.classList.toggle('sidebar-dataset-name-locked', !on);
+          var lockIcon = el.querySelector('.sidebar-dataset-lock-icon');
+          if (!on && !lockIcon) {
+            el.insertAdjacentHTML('beforeend',
+              '<span class="sidebar-dataset-lock-icon" title="' + escapeHtml(t('Beskyttet kilde — kan ikke vises')) + '">' +
+              '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+              '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></span>');
+          } else if (on && lockIcon) {
+            lockIcon.remove();
+          }
+        });
+        document.querySelectorAll('.sidebar-var-row').forEach(function(el) {
+          var ds = el.getAttribute('data-ds');
+          var btn = el.querySelector('.sidebar-var-view-btn');
+          if (btn) btn.style.display = isDatasetViewable(ds) ? '' : 'none';
         });
       }
-      window.__applyShowIndividataToSidebar = applyShowIndividataToSidebar;
-      updateShowIndividataLabel();
-      const menuShowIndividataBtn = document.getElementById('menuShowIndividata');
-      if (menuShowIndividataBtn) {
-        menuShowIndividataBtn.addEventListener('click', function() {
-          setShowIndividata(!getShowIndividata());
-          updateShowIndividataLabel();
-          dropdown.classList.remove('open');
+      window.__applyDatasetViewability = applyDatasetViewability;
+      // Setter nivået for ett datasett-navn og oppdaterer sidemenyen straks
+      // (kalles fra der _pyLoads/_asmSpec bygges, og fra montering).
+      window.__setDatasetLevel = function(dsName, level) {
+        window.__datasetLevels[dsName] = level;
+      };
+      // Monterte datasett (create-dataset/import/join) arver det STRENGESTE
+      // nivået blant kildene de er bygget fra (samme "mest-restriktive-vinner"
+      // konvensjon som resten av appen bruker for local_mode-ruting).
+      window.__markAssemblyLevels = function(asmSpec, sourceLevels) {
+        if (!asmSpec || !asmSpec.datasets) return;
+        var order = { public: 0, protected: 1, sensitive: 2 };
+        asmSpec.datasets.forEach(function(ds) {
+          var srcs = ds.load ? [ds.load] : (ds.steps || []).map(function(s) { return s.source || s.from; }).filter(Boolean);
+          var worst = 'public';
+          srcs.forEach(function(s) {
+            var lvl = sourceLevels[s] || 'public';
+            if ((order[lvl] || 0) > (order[worst] || 0)) worst = lvl;
+          });
+          window.__setDatasetLevel(ds.name, worst);
         });
-      }
+      };
 
       // Datakilde-bryter: dynamisk (generer) vs statisk (DuckDB-WASM + Parquet)
       function updateDataSourceLabel() {
@@ -2622,6 +2680,39 @@
     document.getElementById('sidebarCloseBtn').addEventListener('click', function() { setSidebarOpen(false); });
     document.getElementById('sidebarOpenTab').addEventListener('click', function() { setSidebarOpen(true); });
 
+    // Søk i datasett/variabler: filtrerer sidemenyen mens brukeren skriver.
+    // Et datasett vises hvis navnet ELLER minst én variabel matcher; innenfor
+    // et synlig datasett skjules variabel-rader som ikke selv matcher (med
+    // mindre søket er tomt, eller datasett-navnet selv matcher).
+    (function initSidebarSearch() {
+      var input = document.getElementById('sidebarSearch');
+      if (!input) return;
+      function apply() {
+        var q = (input.value || '').trim().toLowerCase();
+        document.querySelectorAll('#sidebarDatasets .sidebar-dataset').forEach(function(dsEl) {
+          var nameEl = dsEl.querySelector('.sidebar-dataset-name-text');
+          var dsName = (nameEl ? nameEl.textContent : '').toLowerCase();
+          var varRows = dsEl.querySelectorAll('.sidebar-var-row');
+          if (!q) {
+            dsEl.classList.remove('sidebar-dataset-hidden-by-search');
+            varRows.forEach(function(r) { r.classList.remove('sidebar-dataset-hidden-by-search'); });
+            return;
+          }
+          var dsMatches = dsName.indexOf(q) >= 0;
+          var anyVarMatches = false;
+          varRows.forEach(function(r) {
+            var v = (r.getAttribute('data-var') || '').toLowerCase();
+            var match = dsMatches || v.indexOf(q) >= 0;
+            r.classList.toggle('sidebar-dataset-hidden-by-search', !match);
+            if (match) anyVarMatches = true;
+          });
+          dsEl.classList.toggle('sidebar-dataset-hidden-by-search', !dsMatches && !anyVarMatches);
+        });
+      }
+      input.addEventListener('input', apply);
+      window.__applySidebarSearchFilter = apply;
+    })();
+
     // Søk om data / Vis data (hamburgermeny). Kjøres etter at DOM (inkl. modalene
     // lenger ned i HTML) finnes — ellers fester ikke modal-knappene seg.
     function wireDataAccessMenu() {
@@ -2638,15 +2729,9 @@
         if (el) el.addEventListener('click', handler);
       }
       function grantDataAccess() {
-        // Godkjent → skru på «Vis data»-innstillingen (klikk på datasett-navn → tabell).
-        // setShowIndividata ligger i et indre scope, så vi setter nøkkelen direkte
-        // og oppdaterer label + sidebar via den globale apply-funksjonen.
-        try { localStorage.setItem('microdata_show_individata', '1'); } catch (e) {}
-        var lbl = document.getElementById('menuShowIndividataLabel');
-        if (lbl) lbl.textContent = t('Datatilgang: PÅ');
-        if (window.__applyShowIndividataToSidebar) {
-          try { window.__applyShowIndividataToSidebar(); } catch (e) {}
-        }
+        // Demo-flyten («Søk om data» → godkjent) trengte tidligere å skru på
+        // en manuell «Vis data»-bryter. Klikkbarhet er nå automatisk per
+        // datasett (window.__isDatasetViewable) — ingenting å slå på her.
       }
       // Søk om data → modal med «Send forespørsel»
       on('menuSokData', function() { closeDropdown(); showBackdrop('sokDataBackdrop', true); });
@@ -4533,13 +4618,13 @@
     }
     initIndividataModal();
 
-    async function showIndividataModal(datasetName) {
+    async function showIndividataModal(datasetName, columnName) {
       var overlay = document.getElementById('individataOverlay');
       var titleEl = document.getElementById('individataTitle');
       var metaEl = document.getElementById('individataMeta');
       var bodyEl = document.getElementById('individataBody');
       if (!overlay || !bodyEl) return;
-      titleEl.textContent = datasetName;
+      titleEl.textContent = columnName ? (datasetName + ' · ' + columnName) : datasetName;
       metaEl.textContent = '';
       bodyEl.innerHTML = '<div class="individata-status">' + t('Henter data …') + '</div>';
       overlay.classList.add('open');
@@ -4554,11 +4639,13 @@
       }
       try {
         pyodide.globals.set('_individata_name', datasetName);
+        pyodide.globals.set('_individata_col', columnName || null);
         var raw = await pyodide.runPythonAsync(
           'import json, math\n' +
           'import pandas as _pd_id\n' +
           'import __main__ as _m_id\n' +
           '_df_id = _m_id.micro_interpreter.datasets[_individata_name]\n' +
+          '_df_id = _df_id[[_individata_col]] if _individata_col else _df_id\n' +
           '_N_id = 5000\n' +
           '_df_show_id = _df_id.head(_N_id) if len(_df_id) > _N_id else _df_id\n' +
           '_rows_id = _df_show_id.to_json(orient="records", date_format="iso", default_handler=str)\n' +
@@ -4715,32 +4802,46 @@
         var nvars = columns.length;
         var nrows = meta.nrows != null ? meta.nrows : 0;
         var metaLine = '<div class="sidebar-dataset-meta">' + escapeHtml(String(nvars)) + ' variabler · ' + escapeHtml(String(nrows)) + ' observasjoner</div>';
+        var viewBtnSvg = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
         var varsHtml = colsOrdered.map(function(v) {
           var dtypeStr = dtypes[v] || '';
           var typeCell = getSidebarTypeCellHtml(v, dtypeStr);
-          return '<div class="sidebar-var-row" data-ds="' + escapeHtml(dsName) + '" data-var="' + escapeHtml(v) + '">' + typeCell + '<span class="sidebar-var-name">' + escapeHtml(v) + '</span></div>';
+          return '<div class="sidebar-var-row" data-ds="' + escapeHtml(dsName) + '" data-var="' + escapeHtml(v) + '">' + typeCell +
+            '<span class="sidebar-var-name">' + escapeHtml(v) + '</span>' +
+            '<button type="button" class="sidebar-var-view-btn" data-i18n-title data-i18n-aria title="Vis variabel som tabell" aria-label="Vis variabel som tabell">' + viewBtnSvg + '</button></div>';
         }).join('');
         var badgeHtml = badge ? ' <span style="opacity:.55;font-size:11px;font-weight:400">(' + escapeHtml(badge) + ')</span>' : '';
         return '<div class="sidebar-dataset">' +
-          '<div class="sidebar-dataset-name" data-ds="' + escapeHtml(dsName) + '">' + escapeHtml(dsName) + badgeHtml + '</div>' +
+          '<div class="sidebar-dataset-name" data-ds="' + escapeHtml(dsName) + '"><span class="sidebar-dataset-name-text">' + escapeHtml(dsName) + '</span>' + badgeHtml + '</div>' +
           metaLine +
           '<div class="sidebar-vars">' + varsHtml + '</div></div>';
       }).join('');
       datasetsEl.querySelectorAll('.sidebar-var-row').forEach(function(el) {
-        el.addEventListener('click', function() {
+        el.addEventListener('click', function(e) {
+          if (e.target.closest('.sidebar-var-view-btn')) return; // handled separately below
           var ds = this.getAttribute('data-ds');
           var v = this.getAttribute('data-var');
           showVariableDetail(ds, v);
         });
       });
-      datasetsEl.querySelectorAll('.sidebar-dataset-name').forEach(function(el) {
-        el.addEventListener('click', function() {
-          if (!window.__getShowIndividata || !window.__getShowIndividata()) return;
-          var ds = this.getAttribute('data-ds');
-          if (ds) showIndividataModal(ds);
+      datasetsEl.querySelectorAll('.sidebar-var-view-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var row = this.closest('.sidebar-var-row');
+          var ds = row && row.getAttribute('data-ds');
+          var v = row && row.getAttribute('data-var');
+          if (ds && v && window.__isDatasetViewable(ds)) showIndividataModal(ds, v);
         });
       });
-      if (window.__applyShowIndividataToSidebar) window.__applyShowIndividataToSidebar();
+      datasetsEl.querySelectorAll('.sidebar-dataset-name').forEach(function(el) {
+        el.addEventListener('click', function() {
+          var ds = this.getAttribute('data-ds');
+          if (ds && window.__isDatasetViewable(ds)) showIndividataModal(ds);
+        });
+      });
+      if (window.__applyDatasetViewability) window.__applyDatasetViewability();
+      if (window.__applySidebarSearchFilter) window.__applySidebarSearchFilter();
     }
 
     // Art fra dtype-strengen alene — brukes for remote-datasett der bare
@@ -8967,6 +9068,18 @@ options(width = 200)
             return;
           }
           var _rawLoads = _dl.loads;
+          // Sidebar click-to-view gating (see window.__setDatasetLevel /
+          // __markAssemblyLevels above): record each source's real
+          // protection level, then propagate the worst level among a
+          // dataset's inputs onto the assembled dataset name, or set it
+          // directly for a plain whole-table `load ... as x`.
+          var _sourceLevels = {};
+          _rawLoads.forEach(function (l) { _sourceLevels[l.alias] = l.level || 'public'; });
+          if (window.__markAssemblyLevels && _asmSpec && _asmSpec.datasets && _asmSpec.datasets.length) {
+            window.__markAssemblyLevels(_asmSpec, _sourceLevels);
+          } else if (window.__setDatasetLevel) {
+            Object.keys(_sourceLevels).forEach(function (a) { window.__setDatasetLevel(a, _sourceLevels[a]); });
+          }
           if (activeEditorMode === 'duckdb') {
             var _htmlLoad = _rawLoads.find(function (l) { return l.format === 'html'; });
             if (_htmlLoad) throw new Error(t('html-kilder støttes ikke i duckdb-modus ({alias}) — bruk python/r', { alias: _htmlLoad.alias }));

@@ -218,6 +218,25 @@ Deno.test("open grant leaves strict undefined", async () => {
   assertEquals(out.loads[0].strict, undefined);
 });
 
+Deno.test("protected source with local_mode=open exposes level without forcing strict", async () => {
+  // The sidebar's click-to-view gating needs the real level even when a
+  // registered source's local_mode allows it to run in the ordinary
+  // non-strict path — l.strict must stay false/undefined here, but l.level
+  // must still say "protected" so the UI doesn't treat it as public.
+  const fetchImpl = ((input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/source_access")) return Promise.resolve(jsonResp({
+      remote_only: false, location: "https://x.example/d.csv",
+      payload_format: "csv", fingerprint: null, encrypted: false,
+      local_profile: "open", level: "protected" }));
+    return Promise.resolve(new Response("a,b\n1,2", { status: 200, headers: { "content-type": "text/csv" } }));
+  }) as typeof fetch;
+  const out = await DL.resolveAndFetchLoads("# connect demo as d\n# load d as df",
+    { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T" });
+  assertEquals(out.loads[0].level, "protected");
+  assertEquals(out.loads[0].strict, undefined);
+});
+
 Deno.test("strict encrypted grant uses authorizeStrict for keys", async () => {
   const plain = new TextEncoder().encode("a\n1\n");
   const { envelope, key } = await EC.encryptBytes(plain, "csv");
