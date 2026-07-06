@@ -214,5 +214,38 @@
     return { sources: loaded.loads, remote: loaded.remote, spec: spec };
   }
 
-  global.DataLoader = { resolveAndFetchLoads: resolveAndFetchLoads, resolveAndAssemble: resolveAndAssemble, _sniffFormat: sniffFormat };
+  // Phase 2: resolve connect/load/import/join into per-source {url, format,
+  // table} WITHOUT fetching bytes — used to decide pushdown-eligibility and
+  // to feed AssemblyDuckdb.compile() before any network request happens.
+  async function resolveSourcesOnly(script, deps) {
+    deps = deps || {};
+    var DD = global.DataDirectives;
+    if (!DD) return { spec: { sources: [], datasets: [] }, descriptors: {} };
+    var parsed = DD.parseAssembly(script);
+    if (parsed.errors.length) throw new Error('Monteringsfeil: ' + parsed.errors.join('; '));
+    var spec = parsed.spec;
+    var tables = spec.sourceTables || {};
+    var connectLines = script.split(/\r?\n/).filter(function (ln) { return /^[ \t]*(?:#|--|\/\/)[ \t]*connect\b/i.test(ln); }).join('\n');
+    var descLines = connectLines + '\n' + spec.sources.map(function (a) {
+      var t = tables[a];
+      return '# load ' + (t ? (t.source + '/' + t.table) : a) + ' as ' + a;
+    }).join('\n');
+    var parsedLoads = DD.parse(descLines);
+    // Same registry-loading convention as resolveAndFetchLoads: use whatever
+    // was passed in, or load+memoize the web registry on demand (a tiny JSON
+    // manifest, not the large source itself — resolving named registry
+    // sources correctly here matters more than avoiding this one small fetch).
+    var fetchImpl = deps.fetchImpl || (typeof fetch !== 'undefined' ? fetch.bind(global) : null);
+    var registry = deps.registry || (fetchImpl ? await loadRegistry(fetchImpl) : []);
+    var resolved = DD.resolve(parsedLoads, registry);
+    var descriptors = {};
+    resolved.forEach(function (r) {
+      if (r.error || r.anvil) return; // protected/anvil/error sources are never pushdown-eligible
+      descriptors[r.alias] = { url: r.url, format: r.kind || (/\.parquet(\?|$)/.test(r.url) ? 'parquet' : 'other'), table: r.table };
+    });
+    return { spec: spec, descriptors: descriptors };
+  }
+
+  global.DataLoader = { resolveAndFetchLoads: resolveAndFetchLoads, resolveAndAssemble: resolveAndAssemble,
+    resolveSourcesOnly: resolveSourcesOnly, _sniffFormat: sniffFormat };
 })(typeof window !== 'undefined' ? window : globalThis);

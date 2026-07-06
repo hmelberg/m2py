@@ -263,6 +263,25 @@ Deno.test("resolveAndAssemble: fetches spec sources + returns spec", async () =>
   assertEquals(new TextDecoder().decode(p.bytes), "pid,income\n1,10\n2,20");
 });
 
+Deno.test("resolveSourcesOnly: no network calls, returns url/format/table per source", async () => {
+  const script = [
+    "# connect https://x.example/panel.duckdb as db, kind(duckdb)",
+    "# connect https://x.example/inc.parquet as inc, kind(parquet)",
+    "# create-dataset combined, key(pid)",
+    "# import db/patients.age into combined",
+    "# import inc/income into combined",
+  ].join("\n");
+  const out = await DL.resolveSourcesOnly(script, { registry: [] });
+  assertEquals(out.descriptors["db__patients"], { url: "https://x.example/panel.duckdb", format: "duckdb", table: "patients" });
+  assertEquals(out.descriptors["inc"], { url: "https://x.example/inc.parquet", format: "parquet", table: undefined });
+});
+
+Deno.test("resolveSourcesOnly: anvil/protected sources are excluded from descriptors", async () => {
+  const script = "# connect helse2025 as h\n# create-dataset d, key(pid)\n# import h/x into d";
+  const out = await DL.resolveSourcesOnly(script, { registry: [] });
+  assertEquals(out.descriptors, {});
+});
+
 Deno.test("resolveAndAssemble: a remote source routes the whole run remote", async () => {
   const fetchImpl = ((input: string | URL | Request) => {
     const url = String(input);

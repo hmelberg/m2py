@@ -8873,9 +8873,54 @@ options(width = 200)
             authorizeStrict: function (ids) { return mdAuthorizeStrictRun(ids, effectiveScript); } };
           var _dl;
           if (_hasAssembly) {
-            var _asm = await window.DataLoader.resolveAndAssemble(effectiveScript, _dlDeps);
-            _asmSpec = _asm.spec;
-            _dl = { loads: _asm.sources, remote: _asm.remote };
+            // Phase 2 (spec 2026-07-06-remote-columnar-sources-design §3):
+            // try pushdown first — only public parquet/duckdb sources
+            // qualify (resolveSourcesOnly already excludes anvil/protected
+            // sources from descriptors, so canPushdown is false whenever any
+            // referenced source needs server-side/grant-gated routing).
+            var _presolve = await window.DataLoader.resolveSourcesOnly(effectiveScript, _dlDeps);
+            if (window.AssemblyDuckdb && Object.keys(_presolve.descriptors).length &&
+                window.AssemblyDuckdb.canPushdown(_presolve.spec, _presolve.descriptors)) {
+              _asmSpec = _presolve.spec;
+              var _compiled = window.AssemblyDuckdb.compile(_presolve.spec, _presolve.descriptors);
+              var _pdb = await __ensureDuckDB();
+              var _pconn = await _pdb.connect();
+              var _pushdownLoads = [];
+              try {
+                for (var _ai = 0; _ai < _compiled.attachStatements.length; _ai++) {
+                  await _pconn.query(_compiled.attachStatements[_ai]);
+                }
+                for (var _si = 0; _si < _compiled.datasetStatements.length; _si++) {
+                  var _stmt = _compiled.datasetStatements[_si];
+                  var _outName = 'ds_' + _stmt.name + '_' + Math.random().toString(36).slice(2) + '.parquet';
+                  await _pconn.query("COPY (" + _stmt.sql + ") TO '" + _outName + "' (FORMAT PARQUET)");
+                  var _dsBytes = await _pdb.copyFileToBuffer(_outName);
+                  py.FS.mkdirTree('/home/pyodide/_webdata');
+                  var _dsPath = '/home/pyodide/_webdata/' + _stmt.name + '.parquet';
+                  py.FS.writeFile(_dsPath, _dsBytes);
+                  _pushdownLoads.push({ alias: _stmt.name, format: 'parquet', path: _dsPath });
+                  try { await _pdb.dropFile(_outName); } catch (e) { /* best-effort cleanup */ }
+                }
+                for (var _di = 0; _di < _compiled.attachStatements.length; _di++) {
+                  // DETACH mirrors the Task 3 fix — ATTACH is database-level
+                  // and would otherwise leak into the shared duckdb-wasm singleton.
+                  var _attAlias = _compiled.attachStatements[_di].match(/AS (\w+)/)[1];
+                  try { await _pconn.query('DETACH ' + _attAlias); } catch (e) { /* best-effort */ }
+                }
+              } finally {
+                await _pconn.close();
+              }
+              // Pushdown already produced the FINAL named datasets — mark
+              // spec as "no further steps" so buildAssemblyPreamble's
+              // safepy.assembly pass is a no-op passthrough (load-only spec).
+              _asmSpec = { sources: _pushdownLoads.map(function (l) { return l.alias; }),
+                datasets: _pushdownLoads.map(function (l) { return { name: l.alias, load: l.alias }; }) };
+              _dl = { loads: _pushdownLoads, remote: [] };
+            } else {
+              var _asm = await window.DataLoader.resolveAndAssemble(effectiveScript, _dlDeps);
+              _asmSpec = _asm.spec;
+              _dl = { loads: _asm.sources, remote: _asm.remote };
+            }
           } else {
             _dl = await window.DataLoader.resolveAndFetchLoads(effectiveScript, _dlDeps);
           }
@@ -8907,6 +8952,12 @@ options(width = 200)
           }
           if (_rawLoads.some(function (l) { return l.bytes; })) py.FS.mkdirTree('/home/pyodide/_webdata');
           _pyLoads = await Promise.all(_rawLoads.map(async function (l) {
+            if (l.path && !l.bytes) {
+              // Phase 2: pushdown already wrote this dataset's Parquet bytes
+              // to FS (see the AssemblyDuckdb branch above) — nothing left
+              // to fetch/materialize here.
+              return { alias: l.alias, format: l.format, path: l.path, strict: !!l.strict };
+            }
             if (l.envelope) {
               // V4: strict-kryptert — klartekst finnes ALDRI på FS; konvolutten
               // dekrypteres inne i strict-kjøringen og slippes etterpå.
@@ -8959,17 +9010,47 @@ options(width = 200)
         if (segments.length === 0 && effectiveScript.trim()) {
           segments = [{ kind: runDefault, text: effectiveScript }];
         }
-        // If any segment is DuckDB SQL, make sure the bridge module + pyarrow are
-        // ready before the Pyodide run loop reaches a #duckdb segment.
+        // If any segment is DuckDB SQL, make sure the bridge module is ready
+        // before the Pyodide run loop reaches a #duckdb segment.
         if (segments.some(function (s) { return s.kind === 'duckdb'; })) {
           setStatus(rightStatus, t('Laster DuckDB-bro…'));
           await __ensureDuckBridge(py);
+        }
+        // pyodide's bundled pandas has no pyarrow/fastparquet by default, so
+        // pd.read_parquet() fails unless something already installed it —
+        // needed for #duckdb segments AND whenever any materialized load is
+        // Parquet (plain .parquet connects, and the Phase 1/2 duckdb/sqlite
+        // extraction + pushdown paths, which always produce Parquet on FS).
+        var _needsParquetSupport = segments.some(function (s) { return s.kind === 'duckdb'; }) ||
+          (_pyLoads || []).some(function (l) { return l.format === 'parquet'; });
+        if (_needsParquetSupport) {
           try {
             var _needPa = await py.runPythonAsync('import importlib.util as _iu\n_iu.find_spec("pyarrow") is None');
             if (_needPa) {
               setStatus(rightStatus, t('Installerer pyarrow…'));
               await py.runPythonAsync('import micropip as _mp\nawait _mp.install("pyarrow")');
             }
+            // Same Pyodide-pyarrow patch _run_duck_sql already applies (index.html
+            // ~7031-7048): pandas' lazy patch_pyarrow() calls
+            // unregister_extension_type('arrow.py_extension_type'), which raises
+            // ArrowKeyError in the Pyodide pyarrow build — pd.read_parquet() hits
+            // this the first time it's called in ANY run, not just #duckdb ones,
+            // so it must be applied here too, not only inside _run_duck_sql.
+            await py.runPythonAsync(
+              'import pyarrow as _pa\n' +
+              'if not getattr(_pa, "_m2py_unreg_patched", False):\n' +
+              '    _oru = _pa.unregister_extension_type\n' +
+              '    def _safe_unreg(name, _o=_oru):\n' +
+              '        try:\n' +
+              '            return _o(name)\n' +
+              '        except Exception:\n' +
+              '            return None\n' +
+              '    _pa.unregister_extension_type = _safe_unreg\n' +
+              '    _pa._m2py_unreg_patched = True\n' +
+              '    try:\n' +
+              '        import pandas.core.arrays.arrow.extension_types\n' +
+              '    except Exception:\n' +
+              '        pass\n');
           } catch (e) { console.warn('pyarrow ensure:', e); }
         }
         const segmentsStr = JSON.stringify(segments);
@@ -9612,6 +9693,7 @@ def _run_microdata_chunk(_code):
   <script src="js/data-directives.js"></script>
   <script src="js/enc-crypto.js"></script>
   <script src="js/data-loader.js"></script>
+  <script src="js/assembly-duckdb.js"></script>
   <script src="js/ai-chat.js"></script>
   <script src="js/github-storage.js"></script>
 
