@@ -3134,6 +3134,32 @@
         finally { this.conn = null; }
       }
     };
+    // Phase 1 (spec 2026-07-06-remote-columnar-sources-design §1/§9): pull ONE
+    // table out of a whole duckdb/sqlite file already fetched into memory, as
+    // Parquet bytes the existing pd.read_parquet() materialization path can
+    // consume unchanged. No pushdown yet — the whole file is already in
+    // `fileBytes`; this only avoids teaching pandas a new file format.
+    async function __extractDuckdbTable(fileBytes, kind, table) {
+      const db = await __ensureDuckDB();
+      const tag = Math.random().toString(36).slice(2);
+      const vfsName = 'srcfile_' + tag + (kind === 'sqlite' ? '.sqlite' : '.duckdb');
+      const outName = 'out_' + tag + '.parquet';
+      await db.registerFileBuffer(vfsName, new Uint8Array(fileBytes));
+      const conn = await db.connect();
+      try {
+        const typeClause = kind === 'sqlite' ? " (TYPE sqlite)" : "";
+        await conn.query("ATTACH '" + vfsName + "' AS _src" + tag + typeClause);
+        const ident = '"' + String(table).replace(/"/g, '""') + '"';
+        await conn.query("COPY (SELECT * FROM _src" + tag + "." + ident +
+          ") TO '" + outName + "' (FORMAT PARQUET)");
+        return await db.copyFileToBuffer(outName);
+      } finally {
+        await conn.close();
+        try { await db.dropFile(vfsName); } catch (e) { /* best-effort cleanup */ }
+        try { await db.dropFile(outName); } catch (e) { /* best-effort cleanup */ }
+      }
+    }
+    window.__extractDuckdbTable = __extractDuckdbTable;
     function getTtsRate() {
       try { var v = parseFloat(localStorage.getItem(TTS_RATE_KEY)); if (!isNaN(v)) return v; } catch(e) {}
       return 1.0;
@@ -8873,17 +8899,25 @@ options(width = 200)
             if (_htmlLoad) throw new Error(t('html-kilder støttes ikke i duckdb-modus ({alias}) — bruk python/r', { alias: _htmlLoad.alias }));
           }
           if (_rawLoads.some(function (l) { return l.bytes; })) py.FS.mkdirTree('/home/pyodide/_webdata');
-          _pyLoads = _rawLoads.map(function (l) {
+          _pyLoads = await Promise.all(_rawLoads.map(async function (l) {
             if (l.envelope) {
               // V4: strict-kryptert — klartekst finnes ALDRI på FS; konvolutten
               // dekrypteres inne i strict-kjøringen og slippes etterpå.
               return { alias: l.alias, format: l.format, envelope: l.envelope, key: l.key };
             }
+            if (l.format === 'duckdb' || l.format === 'sqlite') {
+              // Phase 1: hel tabell hentes ut som Parquet-bytes, samme
+              // materialiseringsbane som ellers (ingen pushdown ennå).
+              var _pq = await __extractDuckdbTable(l.bytes, l.format, l.table);
+              var _dbPath = '/home/pyodide/_webdata/' + l.alias + '.parquet';
+              py.FS.writeFile(_dbPath, _pq);
+              return { alias: l.alias, format: 'parquet', path: _dbPath, strict: !!l.strict };
+            }
             var _path = '/home/pyodide/_webdata/' + l.alias + '.' + l.format;
             py.FS.writeFile(_path, l.bytes);
             // strict-flagget følger med: strict path-filer slettes av kjøringens finally
             return { alias: l.alias, format: l.format, path: _path, strict: !!l.strict };
-          });
+          }));
         }
         // Lokal strict-kjøring: manuelt opt-in via "# options.profile = strict",
         // ELLER grant-styrt — en kilde med local_profile=strict tvinger hele
