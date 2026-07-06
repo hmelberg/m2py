@@ -1118,6 +1118,75 @@ git add js/data-loader.js netlify/edge-functions/_lib/data-loader.test.ts index.
 git commit -m "feat: DuckDB pushdown path for public parquet/duckdb/sqlite assembly, falls back to Phase 1"
 ```
 
+### Outcome (2026-07-06, verified live through the real app UI)
+
+Drove the actual app (not just internal function calls this time) via
+chrome-devtools MCP: opened `index.html`, switched to python mode through
+the real mode dropdown, typed a script into `#scriptInput`, clicked the real
+`#btnRun` button, and read the rendered output.
+
+**Script run:**
+```
+# connect http://127.0.0.1:8899/income.parquet as inc, kind(parquet)
+# connect http://127.0.0.1:8899/panel_test.duckdb as db, kind(duckdb)
+# create-dataset combined, key(pid)
+# import inc/income into combined
+# import db/patients.age, db/patients.sex into combined
+combined
+```
+
+**Result — PASS:** the app printed the correct, joined table (`pid, income,
+age, sex` — 3 rows, values matching the source fixtures exactly), and the
+sidebar dataset panel correctly showed `combined: 4 variabler · 3
+observasjoner`.
+
+**Network panel confirmed the actual claim this whole plan is about:**
+`GET .../panel_test.duckdb` and `GET .../income.parquet` both came back
+**`206 Partial Content`** — real HTTP range requests issued by DuckDB-wasm's
+`httpfs` extension (which autoloaded, `httpfs.duckdb_extension.wasm`), not a
+JS `fetch()` of the whole file. This is the mechanism verified working, live,
+not just asserted.
+
+**Two real, previously-undiscovered blockers found and fixed while getting
+this to run** (both are `index.html` changes beyond what Step 3 above
+specified — the plan is retroactively corrected to include them since
+they're necessary, not optional):
+1. Pyodide's bundled pandas has **no pyarrow/fastparquet by default** —
+   `pd.read_parquet()` raised `ImportError` the first time anything tried it.
+   The existing pyarrow-install check (`index.html` ~9013-9024, added long
+   before this plan for `#duckdb`-mode SQL segments) never covered the
+   general "any materialized load is Parquet" case — which is exactly what
+   Phase 1 (duckdb/sqlite extraction) and Phase 2 (pushdown) both always
+   produce. Fixed by widening the trigger condition to
+   `segments.some(duckdb) || _pyLoads.some(format === 'parquet')`.
+2. Pyodide's pyarrow build raises `pyarrow.lib.ArrowKeyError: No type
+   extension with name arrow.py_extension_type found` from pandas' lazy
+   `patch_pyarrow()`, the first time `pd.read_parquet`/`to_parquet` actually
+   runs. A patch for this **already existed** in `_run_duck_sql` (`index.html`
+   ~7031-7048, guarded by a `_m2py_unreg_patched` flag on the `pyarrow`
+   module) — but only ran for `#duckdb` SQL segments, not general parquet
+   reads. Applied the identical patch in the same widened trigger block; the
+   shared module-level flag means whichever code path runs first "wins" and
+   the other becomes a no-op, so there's no double-patching risk.
+
+Both fixes are **pre-existing gaps in already-shipped connect/load
+behavior** (a plain `# connect .../file.parquet as x` in python mode was
+already broken before this plan, for the same two reasons) — Phase 1/2 just
+made them unavoidable to hit, since duckdb/sqlite extraction and pushdown
+both always produce Parquet output. Confirmed via the successful UI run
+above that the combination now works correctly.
+
+**Not yet done — the large-file byte-count verification (this step's
+original ask):** no genuinely large (hundreds-of-MB) public dataset was
+available to host in this sandboxed verification environment, so "bytes
+transferred are a small fraction of the file's real size" wasn't measured at
+scale — only the *mechanism* (206 responses, not 200) was confirmed, on
+small fixtures where the byte-count difference wouldn't be meaningful
+either way. Recommended follow-up: repeat this exact script shape against a
+real large public `.parquet`/`.duckdb` file and confirm the transferred-byte
+count in DevTools' Network panel is a small fraction of the file's total
+size — the mechanism is proven; only the "actually large" case is unverified.
+
 ---
 
 ## Self-Review notes (per writing-plans skill)
