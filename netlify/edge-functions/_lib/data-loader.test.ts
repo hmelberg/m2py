@@ -109,6 +109,20 @@ Deno.test("anvil 404 gives norsk tilgangsfeil", async () => {
     Error, "mangler tilgang");
 });
 
+Deno.test("anvil 404 tags the error for the request-access UI (roadmap §2a)", async () => {
+  const fetchImpl = (() =>
+    Promise.resolve(jsonResp({ error: "unknown source: x" }, 404))) as typeof fetch;
+  try {
+    await DL.resolveAndFetchLoads("# connect ukjent as u\n# load u as df",
+      { fetchImpl, registry: [], apiBase: "https://api.test", authToken: "T" });
+    throw new Error("expected rejection");
+  } catch (e) {
+    assertEquals((e as { accessDenied?: boolean }).accessDenied, true);
+    assertEquals((e as { sourceId?: string }).sourceId, "ukjent");
+    assertEquals((e as { apiBase?: string }).apiBase, "https://api.test");
+  }
+});
+
 Deno.test("mode 1: url envelope + key literal decrypts without anvil", async () => {
   const plain = new TextEncoder().encode("x,y\n9,8\n");
   const { envelope, key } = await EC.encryptBytes(plain, "csv");

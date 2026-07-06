@@ -51,8 +51,16 @@
   .actions { display: flex; gap: .7rem; flex-wrap: wrap; margin-top: .8rem; align-items: center; }
   .srcrow { display: flex; justify-content: space-between; align-items: center;
             padding: .45rem 0; border-bottom: 1px solid var(--line); gap: .8rem; }
-  .srcrow:last-child { border-bottom: 0; }
+  .srcitem:last-child .srcrow { border-bottom: 0; }
   code { font-family: ui-monospace, monospace; font-size: .88rem; }
+  .pending { background: var(--warn-bg); border: 1px solid var(--warn-line);
+             border-radius: 8px; padding: .5rem .7rem; margin: 0 0 .6rem; }
+  .pending-row { display: flex; justify-content: space-between; align-items: center;
+                 gap: .6rem; padding: .2rem 0; }
+  .pending-row + .pending-row { border-top: 1px dashed var(--warn-line); }
+  .pending-actions button { padding: .3rem .7rem; font-size: .85rem; }
+  .pending-actions button.deny { background: transparent; color: #b3441f;
+                                  border: 1px solid #b3441f; }
 </style>
 </head>
 <body>
@@ -177,6 +185,18 @@
   }
   syncAudience();
 
+  function pendingHtml(s) {
+    var reqs = s.pending_requests || [];
+    if (!reqs.length) return '';
+    return '<div class="pending">' + reqs.map(function (p) {
+      return '<div class="pending-row"><span>' + esc(p.email) + ' ber om tilgang</span>'
+        + '<span class="pending-actions">'
+        + '<button data-sid="' + esc(s.source_id) + '" data-email="' + esc(p.email) + '" data-decision="approve">Godkjenn</button> '
+        + '<button class="deny" data-sid="' + esc(s.source_id) + '" data-email="' + esc(p.email) + '" data-decision="deny">Avslå</button>'
+        + '</span></div>';
+    }).join('') + '</div>';
+  }
+
   function refreshMine() {
     fetch(API + '/_/api/sources/mine', { headers: hdrs(false) })
       .then(function (r) { return r.ok ? r.json() : null; })
@@ -184,14 +204,27 @@
         if (!data) return;
         var list = data.sources || [];
         $('mineList').innerHTML = list.map(function (s) {
-          return '<div class="srcrow"><span><code>' + esc(s.source_id) + '</code> · '
+          return '<div class="srcitem">' + pendingHtml(s)
+            + '<div class="srcrow"><span><code>' + esc(s.source_id) + '</code> · '
             + esc(s.level) + ' · ' + esc(s.kind)
             + (s.audience ? ' · ' + esc(s.audience) : '')
             + (s.local_mode ? ' · lokal: ' + esc(s.local_mode) : '')
             + (s.has_key ? ' · nøkkel lagret' : '') + '</span>'
-            + '<button class="secondary" data-sid="' + esc(s.source_id) + '">Deaktiver</button></div>';
+            + '<button class="secondary" data-sid="' + esc(s.source_id) + '">Deaktiver</button></div></div>';
         }).join('') || '<p class="muted">Ingen registrerte kilder ennå.</p>';
-        Array.prototype.forEach.call($('mineList').querySelectorAll('button[data-sid]'), function (b) {
+        Array.prototype.forEach.call($('mineList').querySelectorAll('button[data-decision]'), function (b) {
+          b.addEventListener('click', function () {
+            fetch(API + '/_/api/access_request/decide', {
+              method: 'POST', headers: hdrs(true),
+              body: JSON.stringify({
+                source_id: b.getAttribute('data-sid'),
+                email: b.getAttribute('data-email'),
+                decision: b.getAttribute('data-decision'),
+              }),
+            }).then(refreshMine);
+          });
+        });
+        Array.prototype.forEach.call($('mineList').querySelectorAll('button.secondary[data-sid]'), function (b) {
           b.addEventListener('click', function () {
             fetch(API + '/_/api/sources/deactivate', {
               method: 'POST', headers: hdrs(true),

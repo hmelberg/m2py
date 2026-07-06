@@ -151,7 +151,17 @@
     var headers = deps.authToken ? { 'Authorization': 'Bearer ' + deps.authToken } : {};
     return fetchImpl(base + '/_/api/source_access?id=' + encodeURIComponent(item.anvil), { headers: headers })
       .then(function (r) {
-        if (r.status === 404) throw new Error('Fant ikke kilden «' + item.anvil + '» eller du mangler tilgang — logg inn, eller kontakt eieren.');
+        if (r.status === 404) {
+          // roadmap §2a: tagged so the UI can offer "request access" instead
+          // of a dead end (POST /access_request, apiBase-relative — see
+          // index.html's renderAccessDeniedError). Same message either way —
+          // 404 here already means "unknown OR denied", never leak which.
+          var e = new Error('Fant ikke kilden «' + item.anvil + '» eller du mangler tilgang — logg inn, eller kontakt eieren.');
+          e.accessDenied = true;
+          e.sourceId = item.anvil;
+          e.apiBase = base;
+          throw e;
+        }
         if (!r.ok) throw new Error('source_access ' + r.status + ' for «' + item.anvil + '»');
         return r.json();
       });
