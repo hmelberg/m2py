@@ -76,11 +76,20 @@ alongside Project A's brainstorm.
 
 ## 2. Access-control completeness
 
-### 2a. Access-request / grant workflow — effort M
-When the audience check denies a caller, today they hit a dead-end message.
-Add: denied user can request access; owner sees pending requests in deldata.html
-and approves/denies (approval appends their email to `access_policy.emails`).
-Closes the loop on the audience model just built. Self-contained; no brainstorm.
+### 2a. Access-request / grant workflow — **DONE** (2026-07-07)
+`POST /access_request` (anonymous OK, generic response regardless of whether
+the source exists/is already open/is a dup — matches `/source_access`'s
+existing non-leaking design) stores `{email, requested_at}` on the source's
+new `pending_requests` column (auto-created via `add_row(**extra)`, same
+pattern as `auth.py`'s `anonymous_label` — no new Anvil table needed) and
+best-effort emails the owner. `POST /access_request/decide`
+(owner-authenticated) approves (appends email to the existing
+`access_policy.emails` allowlist) or denies. `deldata.html`'s "Mine kilder"
+shows pending requests per source with Godkjenn/Avslå; `index.html`'s error
+path now renders an inline "Be om tilgang" form instead of a dead end.
+Verified live end-to-end (chrome-devtools MCP, mock backend) both sides:
+request submission and owner approval/refresh. New:
+`microdata-api/server_code/access_requests.py` (+ pure-function tests).
 
 ### 2b. Owner-supplied storage tokens (private repos) — effort M
 The `credentials` seam from the 2026-06-29 safestat spec: register a source
@@ -226,8 +235,8 @@ the way, in `docs/superpowers/plans/2026-07-06-remote-columnar-sources.md`.
    blocked on an upstream bug, see above).
 4. ~~§3 lifelines/statsmodels in browser-STRICT~~ — **done** (2026-07-06);
    `pyfixest` blocked on numba's lack of a wasm wheel, degrades gracefully.
-5. **§2a access-request** + **§1b microdata parity** — cheap completeness wins,
-   can run in parallel with §0.
+5. ~~§2a access-request~~ — **done** (2026-07-07). **§1b microdata parity**
+   still open — cheap completeness win, can run in parallel with §0.
 6. **§3 polars/duckdb-STRICT in the browser** — re-scoped to effort L
    (duckdb, brainstorm-first) / parked (polars, blocked upstream); not the
    quick win it looked like. Only pick up duckdb-STRICT if a concrete need
