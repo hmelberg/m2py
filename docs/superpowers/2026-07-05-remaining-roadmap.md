@@ -92,9 +92,23 @@ Lets owners keep data in private repos. Orthogonal to the crypto work.
 
 ## 3. Browser-STRICT rounding-out (from the browser-strict spec's deferred list)
 
-- **polars-STRICT + duckdb-STRICT in the browser** — effort S/M. Both packages
-  are in Pyodide; the engine already supports the dialects. Mostly wiring +
-  the duckdb async seam (a known pattern from static-data mode).
+- **polars-STRICT + duckdb-STRICT in the browser** — **premise corrected,
+  2026-07-06: this is NOT effort S/M, and the packages are NOT in Pyodide.**
+  Verified directly against PyPI: neither `polars` nor `duckdb` publishes any
+  `emscripten`/`wasm`/`pyodide` wheel — every `duckdb` release is
+  platform-native (macOS/Linux/Windows only), and `polars`'s only wheel is a
+  thin `py3-none-any` meta-package with no wasm backend. `safepy.duckdb_api`
+  uses the real, synchronous Python `duckdb` package — the browser's only
+  working duckdb engine is the JS-side duckdb-wasm (async), already bridged
+  for non-strict `#duckdb` mode via `duckdb_bridge.py`'s async `_run_duck_sql`
+  (index.html ~7024-7090). Making duckdb-STRICT work in the browser would mean
+  porting `duckdb_api.py`'s AST-gate/whitelist logic to run against that async
+  JS engine instead of the real `duckdb` package — a real design+build effort,
+  not wiring. polars-STRICT is worse: with no wasm wheel at all (and polars
+  being a Rust/PyO3 native extension, unlikely to get one), there's no path
+  today short of an upstream Pyodide/polars port. **Re-scope as effort L,
+  brainstorm-first** (duckdb-STRICT) **and parked** (polars-STRICT, blocked on
+  upstream) rather than attempting either as a quick win.
 - **Strict-local runs → remote quotas** — effort S. Currently logged but not
   counted against BUDGETS; wire in once real usage is observed.
 - **"Release aggregate to session"** — effort M, small design question. Let a
@@ -102,8 +116,25 @@ Lets owners keep data in private repos. Orthogonal to the crypto work.
   analysis in the same session.
 - **Hybrid `#micro` + strict sources in one script** — effort M. Currently
   refused; would need the segment loop to route per-segment.
-- **lifelines/pyfixest in the browser** — effort S. micropip where possible;
-  degrade with a clear message otherwise.
+- **lifelines/pyfixest in the browser** — **DONE for lifelines, blocked for
+  pyfixest (2026-07-06).** The real gap was bigger than the two named
+  packages: `js/strict-worker.js` (the default browser-STRICT path) only ever
+  loaded `pandas`+`cryptography`, so EVERY `StatsMixin` verb needing
+  `statsmodels` (`ols`/`logit`/`poisson`/`anova`/`corr_test`) or `lifelines`
+  (`cox`/`kaplan_meier`/`logrank`/`rmst`/`weibull_aft`) silently failed with
+  `ModuleNotFoundError` in the browser — fixed by loading `scipy`+
+  `statsmodels` (official Pyodide packages) and `lifelines` (via micropip) in
+  both `strict-worker.js` and the non-worker `ensureSafepyLoaded` fallback.
+  Verified live: a real `CoxPHFitter` fit and a real `df.ols(...)` call both
+  ran correctly end-to-end in the actual browser worker. **`pyfixest` remains
+  unavailable** — its dependency chain requires `numba>=0.58.0`, which has no
+  pure-Python/wasm wheel (numba is an LLVM JIT, structurally incompatible with
+  Pyodide) — confirmed via a live `micropip.install` failure, not a guess.
+  This degrades gracefully per the item's own instruction: `feols`/`fepois`
+  now fail with a clear `SandboxError` at the point of use, not a broken
+  package-load for everything else. Not fixable from this side; would need an
+  upstream numba-wasm port or an alternative pure-Python fixed-effects
+  implementation.
 
 ---
 
@@ -170,9 +201,14 @@ the way, in `docs/superpowers/plans/2026-07-06-remote-columnar-sources.md`.
 2. ~~§1a Project A~~ — **done**.
 3. ~~§4a/§4b remote columnar sources~~ — **done** (duckdb+parquet; sqlite
    blocked on an upstream bug, see above).
-4. **§2a access-request** + **§1b microdata parity** — cheap completeness wins,
+4. ~~§3 lifelines/statsmodels in browser-STRICT~~ — **done** (2026-07-06);
+   `pyfixest` blocked on numba's lack of a wasm wheel, degrades gracefully.
+5. **§2a access-request** + **§1b microdata parity** — cheap completeness wins,
    can run in parallel with §0.
-5. **§3 browser-STRICT rounding-out** — as usage warrants (polars/duckdb strict
-   is the most-requested-shaped).
-6. **§2b private-repo tokens** — when an owner actually needs it.
-7. **§5 speculative items** — only on concrete demand.
+6. **§3 polars/duckdb-STRICT in the browser** — re-scoped to effort L
+   (duckdb, brainstorm-first) / parked (polars, blocked upstream); not the
+   quick win it looked like. Only pick up duckdb-STRICT if a concrete need
+   for restricted SQL analysis in the browser (as opposed to server-side,
+   which already works) actually appears.
+7. **§2b private-repo tokens** — when an owner actually needs it.
+8. **§5 speculative items** — only on concrete demand.
