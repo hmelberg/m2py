@@ -117,31 +117,38 @@ doc's own §1→§3 order makes the split explicit: connecting to a source is a
 prerequisite for pruning reads from it, not a side effect of the executor
 swap.
 
-### 4a. `.duckdb`/`.sqlite` as connectable source kinds — effort M, do this first
-New source `kind`s (`duckdb_url`, alongside existing csv/parquet/json), an
-explicit `kind()` directive option to bypass fragile sniffing, and a
-`load db/table as x` path (dot grammar for `table.column`, per the owner's
-2026-07-06 confirmation — resolves the design doc's §10/open-questions dot-
-vs-slash question). Whole table/column is still materialized via the
-existing duckdb-wasm engine and handed to the **current, unchanged pandas
-`safepy.assembly`** (D6's "load-whole-then-select" already covers this — no
-network-pruning yet, just a new source type). SQLite rides the same
-`ATTACH '<url>' (TYPE sqlite)` mechanism at near-zero incremental cost (design
-doc §9). Low risk: doesn't touch the tested assembly executor at all.
+### 4a. `.duckdb`/`.sqlite` as connectable source kinds — **DONE** (2026-07-06)
+New source `kind`s, `kind()` directive option, dot-grammar `alias/table.column`
+addressing, DuckDB-wasm table extraction feeding the (at the time) unchanged
+pandas `safepy.assembly`. Shipped and verified live in a real browser —
+`.duckdb` works correctly (including a real bug found and fixed: dangling
+`ATTACH` catalogs across repeated extractions). **`.sqlite` does not work** —
+not a bug in this codebase, a confirmed open upstream duckdb-wasm bug
+([duckdb/duckdb-wasm#1972](https://github.com/duckdb/duckdb-wasm/issues/1972)):
+`ATTACH ... (TYPE sqlite)` reports success but the table catalog comes back
+empty. Reproduced identically across duckdb-wasm 1.29.0 (pinned), 1.32.0
+(latest stable), and 1.33.1-dev (bleeding edge) — a version bump will not fix
+this. Fallback if sqlite becomes a real need: **sql.js-httpvfs** as a
+separate engine just for that case (design doc §9).
 
-### 4b. DuckDB-backed assembly executor (network-level column/table pruning) — effort L, do this after 4a, on demand
-Replaces `safepy.assembly`'s pandas implementation with a DuckDB engine so
-`import`/`join`/`create-dataset` compile to pushdown queries
-(`read_parquet(url)`, `ATTACH`, `SELECT <col> FROM ...`) instead of a full
-download — design doc §3. This is the part that's genuinely risky (replaces
-shipped, tested code) and genuinely speculative in value: the benefit is
-"skip downloading bytes you don't need," which only matters once a source is
-large enough that full-download-then-select is actually slow or memory-
-heavy. That trigger condition — files outgrowing browser memory / download
-time becoming a real complaint — hasn't been confirmed as live yet, so this
-stays gated on demand, same as the original assessment. Do not start this
-before 4a ships, since 4a's `.duckdb`/`.sqlite` source support is exactly
-what 4b would prune reads from.
+### 4b. DuckDB-backed assembly executor (network-level column/table pruning) — **DONE** (2026-07-06)
+Replaced the "materialize whole source, then pandas" step with a real SQL
+compiler (`js/assembly-duckdb.js`) that runs `import`/`join`/`create-dataset`
+as pushdown queries directly against DuckDB-wasm — `read_parquet(url)`,
+`ATTACH`, real `JOIN`s — only materializing the final named datasets.
+Verified live through the actual app UI: a python-mode script joining a
+parquet source with duckdb-table columns returned correct results, and the
+browser's Network panel confirmed **`206 Partial Content`** responses for
+both source files — genuine range requests, not full downloads. Falls back
+to the existing pandas path automatically for anything that doesn't qualify
+(protected/anvil sources, CSV, sqlite per 4a's finding). Full writeup,
+including two real pre-existing Pyodide/pyarrow bugs found and fixed along
+the way, in `docs/superpowers/plans/2026-07-06-remote-columnar-sources.md`.
+
+---
+
+## 5. Speculative / on-demand (only when a concrete need appears)
+
 - **Remote-only enforcement by non-Anvil authorities** (federated / third-party
   registries) — effort L, speculative. The `/source_access` resolution step is
   the seam where another authority could answer later.
@@ -155,16 +162,17 @@ what 4b would prune reads from.
 
 ## Recommended order
 
-1. **§0 verify on deployed Anvil** — unblocks trusting everything else.
-2. ~~§1a Project A brainstorm~~ — **done**, see snapshot above.
-3. **§4a `.duckdb`/`.sqlite` source kinds** — the concrete, low-risk half of
-   the new design doc; delivers "connect to duckdb/sqlite via URL and import
-   columns from them" without touching the tested assembly executor.
-4. **§2a access-request** + **§1b microdata parity** — cheap completeness wins.
+1. **§0 verify on deployed Anvil** — still not done, still the gate for
+   trusting everything else (all the encryption/protection/STRICT-execution
+   machinery is only tested against stubs/fixtures, never real infrastructure)
+   — and more has been built on top of it since this was last flagged
+   (Project A, remote columnar sources). Highest-value next step.
+2. ~~§1a Project A~~ — **done**.
+3. ~~§4a/§4b remote columnar sources~~ — **done** (duckdb+parquet; sqlite
+   blocked on an upstream bug, see above).
+4. **§2a access-request** + **§1b microdata parity** — cheap completeness wins,
+   can run in parallel with §0.
 5. **§3 browser-STRICT rounding-out** — as usage warrants (polars/duckdb strict
    is the most-requested-shaped).
 6. **§2b private-repo tokens** — when an owner actually needs it.
-7. **§4b DuckDB-backed assembly executor (network pruning)** — only once a
-   concrete need appears (large files, real download-time complaints); still
-   gated on demand, per the original assessment — just no longer bundled with
-   4a's independent, lower-risk source-kind work.
+7. **§5 speculative items** — only on concrete demand.
