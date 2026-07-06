@@ -47,6 +47,7 @@ Deno.test("resolve: alias expansion, registry id, proxy flags", () => {
     viaProxy: false,
     key: undefined,
     exec: undefined,
+    kind: undefined,
   });
   assertEquals(r[1].viaProxy, true);   // fred: auth + no CORS
   assertEquals(r[1].url, "https://api.stlouisfed.org/fred/series/observations?series_id=UNRATE&file_type=json");
@@ -85,7 +86,7 @@ Deno.test("resolve: bare name not in registry becomes anvil source", () => {
     "# load s/tables as t",
   ].join("\n");
   const r = DD.resolve(DD.parse(script), REG);
-  assertEquals(r[0], { alias: "df", anvil: "helse2025", key: "ask", exec: undefined });
+  assertEquals(r[0], { alias: "df", anvil: "helse2025", key: "ask", exec: undefined, kind: undefined });
   assertEquals(r[1].viaProxy, false);            // ssb stays a registry source
   if (r[1].anvil) throw new Error("registry-id skal ikke bli anvil-kilde");
 });
@@ -144,4 +145,98 @@ Deno.test("parseAssembly: inline-URL load is NOT assembly (stays on the old path
   assertEquals(errors, []);
   assertEquals(spec.datasets, []);
   assertEquals(spec.sources, []);
+});
+
+Deno.test("options: kind() parses on connect and load", () => {
+  const script = [
+    "# connect https://x.example/panel.duckdb as db, kind(duckdb)",
+    "# load https://x.example/small.sqlite as sl, kind(sqlite)",
+  ].join("\n");
+  const p = DD.parse(script);
+  assertEquals(p.connects[0].options, { kind: "duckdb" });
+  assertEquals(p.loads[0].options, { kind: "sqlite" });
+});
+
+Deno.test("resolve: duckdb-kind load requires a table, does not concatenate a URL path", () => {
+  const script = [
+    "# connect https://x.example/panel.duckdb as db, kind(duckdb)",
+    "# load db/patients as p",
+  ].join("\n");
+  const r = DD.resolve(DD.parse(script), []);
+  assertEquals(r[0], { alias: "p", url: "https://x.example/panel.duckdb", viaProxy: false,
+    key: undefined, exec: undefined, kind: "duckdb", table: "patients" });
+});
+
+Deno.test("resolve: duckdb-kind load without a table errors", () => {
+  const script = [
+    "# connect https://x.example/panel.duckdb as db, kind(duckdb)",
+    "# load db as p",
+  ].join("\n");
+  const r = DD.resolve(DD.parse(script), []);
+  if (!r[0].error || !r[0].error.includes("tabell")) {
+    throw new Error("ventet feil om manglende tabell, fikk: " + JSON.stringify(r[0]));
+  }
+});
+
+Deno.test("resolve: load-level kind() overrides connect-level kind()", () => {
+  const script = [
+    "# connect https://x.example/f as db, kind(duckdb)",
+    "# load db/t as x, kind(sqlite)",
+  ].join("\n");
+  const r = DD.resolve(DD.parse(script), []);
+  assertEquals(r[0].kind, "sqlite");
+});
+
+Deno.test("parseAssembly: load <alias>/<table> as <name> — dot-grammar table addressing", () => {
+  const script = [
+    "# connect https://x.example/panel.duckdb as db, kind(duckdb)",
+    "# create-dataset panel, key(pid)",
+    "# load db/visits as visits",
+    "# join visits into panel on pid",
+  ].join("\n");
+  const { spec, errors } = DD.parseAssembly(script);
+  assertEquals(errors, []);
+  assertEquals(spec.sources, ["db__visits"]);
+  assertEquals(spec.sourceTables, { db__visits: { source: "db", table: "visits" } });
+  const visits = spec.datasets.find((d: { name: string }) => d.name === "visits");
+  assertEquals(visits.load, "db__visits");
+});
+
+Deno.test("parseAssembly: import <alias>/<table>.<column> — dot-grammar column addressing", () => {
+  const script = [
+    "# connect https://x.example/panel.duckdb as db, kind(duckdb)",
+    "# create-dataset panel, key(pid)",
+    "# import db/patients.age, db/patients.sex into panel",
+  ].join("\n");
+  const { spec, errors } = DD.parseAssembly(script);
+  assertEquals(errors, []);
+  assertEquals(spec.sources, ["db__patients"]);
+  assertEquals(spec.sourceTables, { db__patients: { source: "db", table: "patients" } });
+  const panel = spec.datasets.find((d: { name: string }) => d.name === "panel");
+  assertEquals(panel.steps[0], { op: "import", source: "db__patients", columns: ["age", "sex"], how: "left" });
+});
+
+Deno.test("parseAssembly: mixing a plain source and a duckdb table source in one assembly", () => {
+  const script = [
+    "# connect https://x.example/income.parquet as inc, kind(parquet)",
+    "# connect https://x.example/panel.duckdb as db, kind(duckdb)",
+    "# create-dataset combined, key(pid)",
+    "# import inc/income into combined",
+    "# import db/demographics.age, db/demographics.sex into combined",
+  ].join("\n");
+  const { spec, errors } = DD.parseAssembly(script);
+  assertEquals(errors, []);
+  assertEquals(spec.sources.sort(), ["db__demographics", "inc"]);
+  const combined = spec.datasets.find((d: { name: string }) => d.name === "combined");
+  assertEquals(combined.steps[0], { op: "import", source: "inc", columns: ["income"], how: "left" });
+  assertEquals(combined.steps[1], { op: "import", source: "db__demographics", columns: ["age", "sex"], how: "left" });
+});
+
+Deno.test("parseAssembly: existing plain load-as (no slash) is unaffected", () => {
+  const { spec, errors } = DD.parseAssembly(
+    "# connect p as p\n# create-dataset d, key(id)\n# load p as ploaded\n# join ploaded into d on id");
+  assertEquals(errors, []);
+  assertEquals(spec.sourceTables, {});
+  const ploaded = spec.datasets.find((d: { name: string }) => d.name === "ploaded");
+  assertEquals(ploaded.load, "p");
 });
