@@ -8268,9 +8268,18 @@ has and "int" in (m.get_microdata_functions() or {})
         py.unpackArchive(buf, 'zip', { extractDir: '/home/pyodide/' });
         window.__safepyZipUnpacked = true;
       }
-      // encfile (safepy-enc-v1) trenger cryptography — i Pyodide-distroen,
-      // men ikke forhåndslastet
-      try { await py.loadPackage('cryptography'); } catch (e) {
+      // encfile (safepy-enc-v1) trenger cryptography; regresjons-/overlevelses-
+      // verbene (ols/logit/poisson/anova/corr_test via statsmodels;
+      // cox/kaplan_meier/logrank/rmst/weibull_aft via lifelines) trenger sine
+      // egne pakker — se js/strict-worker.js for samme mønster (worker-banen
+      // er standardveien; denne funksjonen dekker kun fs-loads-tilfellet).
+      try {
+        await py.loadPackage(['cryptography', 'scipy', 'statsmodels', 'micropip']);
+        await py.runPythonAsync('import micropip as _mp\nawait _mp.install("lifelines")');
+        try {
+          await py.runPythonAsync('import micropip as _mp\nawait _mp.install("pyfixest")');
+        } catch (e) { /* se strict-worker.js — degrader stille */ }
+      } catch (e) {
         throw new Error(t('kunne ikke laste strict-motoren — prøv igjen'));
       }
       window.__safepyLoaded = true;

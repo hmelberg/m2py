@@ -12,7 +12,21 @@ function ensurePy(pyodideURL, zipURL) {
   pyReady = (async function () {
     importScripts(pyodideURL + 'pyodide.js');
     var py = await loadPyodide({ indexURL: pyodideURL });
-    await py.loadPackage(['pandas', 'cryptography']);
+    // pandas/cryptography/scipy/statsmodels er offisielle Pyodide-pakker;
+    // lifelines/pyfixest er rene python-pakker som må via micropip. Uten
+    // disse feiler ols/logit/poisson/anova/corr_test (statsmodels) og
+    // cox/kaplan_meier/logrank/rmst/weibull_aft (lifelines) med
+    // ModuleNotFoundError i en STRICT-kjøring — se
+    // docs/superpowers/2026-07-05-remaining-roadmap.md §3.
+    await py.loadPackage(['pandas', 'cryptography', 'scipy', 'statsmodels', 'micropip']);
+    await py.runPythonAsync('import micropip as _mp\nawait _mp.install("lifelines")');
+    try {
+      await py.runPythonAsync('import micropip as _mp\nawait _mp.install("pyfixest")');
+    } catch (e) {
+      // pyfixest sine avhengigheter (f.eks. maketables/narwhals) er ikke
+      // nødvendigvis tilgjengelige i Pyodide ennå — degrader stille her;
+      // feols/fepois gir en tydelig feilmelding når de faktisk kalles.
+    }
     var resp = await fetch(zipURL);
     if (!resp.ok) throw new Error('kunne ikke laste strict-motoren — prøv igjen');
     py.unpackArchive(await resp.arrayBuffer(), 'zip', { extractDir: '/home/pyodide/' });
