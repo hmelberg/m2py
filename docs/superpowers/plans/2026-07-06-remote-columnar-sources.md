@@ -734,6 +734,45 @@ duckdb-wasm version (older or newer than 1.29.0), (b) investigate whether
 back to **sql.js-httpvfs** for the sqlite case specifically, exactly as
 flagged as a fallback option in the design doc §9.
 
+### Follow-up (2026-07-06): tried a newer duckdb-wasm version — does not fix it
+
+Tested option (a) above directly, in an isolated standalone test page (not
+the live app), against three duckdb-wasm releases: the pinned `1.29.0`, the
+latest stable `1.32.0`, and the bleeding-edge dev build `1.33.1-dev57.0`
+(fetched from npm's registry at test time — `1.29.0` → `1.32.0` is the full
+range of stable releases published since this was pinned). All three
+reproduce the **identical** failure: `ATTACH '<file>' (TYPE sqlite)`
+succeeds and `duckdb_databases()` shows it attached (`type: sqlite,
+readonly: false`), but `duckdb_tables()` returns zero rows and
+`SELECT * FROM sq.patients` fails with `Catalog Error: Table with name
+patients does not exist!`.
+
+Also tried, per option (b)'s spirit: `registerFileURL(name, url,
+DuckDBDataProtocol.HTTP, false)` instead of `registerFileBuffer` (routes
+through duckdb-wasm's own HTTP file-reading path rather than a plain WASM
+buffer) — same failure, same symptom.
+
+**This is not a version issue on our end — it's a known, open, unresolved
+upstream bug in duckdb-wasm itself**: [duckdb/duckdb-wasm#1972](https://github.com/duckdb/duckdb-wasm/issues/1972)
+("Issue with reading SQLite database files in DuckDB WASM"), opened
+2025-03-03, reports the exact same symptom (tables show as attached but
+"does not exist" when queried) on the exact same version (1.29.0) this repo
+had pinned. No maintainer response, no workaround, no linked fix, and it's
+still reproducible on the latest dev build as of today. A related,
+longer-standing issue (`duckdb/duckdb-wasm#1213`, "[SQLITE experimental]
+Unable to open database", opened 2023-03-25) suggests sqlite support has
+never fully worked in duckdb-wasm's browser/WASM target.
+
+**Conclusion:** don't keep retrying duckdb-wasm version bumps for this —
+it's not going to move until upstream fixes #1972. The two real remaining
+options are (b) OPFS-backed registration (untested here — lower priority,
+since the failure mode looks structural to the sqlite extension itself, not
+to which virtual-file backend feeds it bytes; both `registerFileBuffer` and
+`registerFileURL` hit the identical wall) or (c) `sql.js-httpvfs` as a
+separate engine specifically for the sqlite case. If sqlite support becomes
+a concrete near-term need, (c) is the more promising path to actually spend
+time on.
+
 ---
 
 # Phase 2 (after Phase 1 ships and Task 4 passes) — DuckDB-backed pushdown executor
