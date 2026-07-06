@@ -1,6 +1,7 @@
 # Remaining roadmap — access control + verb consistency
 
 Date: 2026-07-05
+Updated: 2026-07-06 — reconciled against `docs/superpowers/specs/2026-07-06-remote-columnar-sources-design.md` (see §4 and "Recommended order" below).
 Status: planning map (not a build plan). Effort: S ≈ hours, M ≈ 1–2 days, L ≈ needs its own brainstorm+spec.
 
 Snapshot of what's DONE this cycle (all on `main`/`master`):
@@ -11,6 +12,13 @@ Snapshot of what's DONE this cycle (all on `main`/`master`):
   decrypt-at-run; worker isolation).
 - Audience model (owner/listed/authenticated/anyone) enforced local + remote.
 - Self-service registration incl. AES + HE artifacts (deldata.html).
+- **Project A — variable-level `import`/`create-dataset`/`join`** (was listed
+  below as "the headline unbuilt piece" as of 2026-07-05; shipped since — see
+  §1a). Parser (`js/data-directives.js`: `CREATE_RE`/`IMPORT_RE`/`JOIN_RE`/
+  `parseAssembly`), pandas executor (`safepy/safepy/assembly.py`, mirrored in
+  `microdata-api`), and `index.html` wiring (`_asmSpec`/`_pyLoads`,
+  `buildAssemblyPreamble`) all confirmed present and end-to-end connected for
+  python/r/duckdb modes.
 
 What follows is everything still deferred, grouped and sequenced.
 
@@ -34,24 +42,28 @@ Nothing has run end-to-end on deployed infrastructure. Highest value per hour.
 
 ## 1. Verb consistency (the original questions)
 
-### 1a. Project A — variable-level `import` + `create-dataset … join()` — effort L, BRAINSTORM FIRST
-The headline unbuilt piece; directly answers the original design questions.
-Today: microdata mode assembles datasets variable-by-variable with an implicit
-person-id; dialect modes (py/r/duckdb) only `load` whole tables. Unify them:
-`# create-dataset panel, join(pid)` then `# import h/income as inc` merges the
-column into `panel` on `pid`, in every mode, over real connected sources.
+### 1a. Project A — variable-level `import` + `create-dataset … join()` — **DONE** (was: effort L, brainstorm first)
+Shipped 2026-07-05/06 — see the snapshot above. `# create-dataset panel,
+key(pid)` then `# import h/income into panel` merges the column into `panel`
+on `pid`, in every dialect mode, over real connected sources. Design record:
+`docs/superpowers/specs/2026-07-05-variable-level-assembly-design.md`
+("approved in dialogue", D1–D7).
 
-Open design questions (why it needs a brainstorm, not just a plan):
-- How `import` extracts one column from a connected source: load-whole-then-
-  select (simple) vs parquet/duckdb column pushdown (lazy) vs server-side
-  extraction for protected/remote sources.
-- Join semantics: inner/outer/left; the emulator's `import` already has
-  `outer_join`/`inner_join` — reconcile with an explicit `join(col)`.
-- Multiple `create-dataset` blocks + `use <name>` switching — extend the
-  emulator's model to dialect modes, or a fresh uniform model.
-- Browser pandas-merge vs compute-to-data for protected sources.
-- Grammar was already reserved in the encrypted-sources spec so it won't
-  collide with connect/load.
+Resolved (v1, per that design doc):
+- `import` extracts by **load-whole-source-then-select** (D6) — no pushdown
+  yet. Pushdown is the explicit subject of the follow-on design in §4 below.
+- Join semantics: single key, left-onto-accumulator default, overridable
+  inner/outer/left (D5).
+- One `create-dataset` builds one named dataset; no `use <name>` switching in
+  v1 (not needed — multiple `create-dataset` blocks coexist by name).
+- Assembly runs where the data routes (browser for open/strict, server shim
+  for protected/remote) — reuses existing grant-driven routing (D3).
+
+Still open, carried into the follow-on design (§4): the `from X import Y`
+alternative syntax (undecided), and the `<table>.<column>` path grammar for
+duckdb sources — **owner has since indicated the dot form
+(`alias/table.column`) is acceptable**, so that question is effectively
+resolved in favor of dot; not yet reflected in the design doc's prose.
 
 ### 1b. Microdata-mode source parity — effort M
 Microdata mode still rejects URLs and registered/encrypted sources (knows only
@@ -80,9 +92,23 @@ Lets owners keep data in private repos. Orthogonal to the crypto work.
 
 ## 3. Browser-STRICT rounding-out (from the browser-strict spec's deferred list)
 
-- **polars-STRICT + duckdb-STRICT in the browser** — effort S/M. Both packages
-  are in Pyodide; the engine already supports the dialects. Mostly wiring +
-  the duckdb async seam (a known pattern from static-data mode).
+- **polars-STRICT + duckdb-STRICT in the browser** — **premise corrected,
+  2026-07-06: this is NOT effort S/M, and the packages are NOT in Pyodide.**
+  Verified directly against PyPI: neither `polars` nor `duckdb` publishes any
+  `emscripten`/`wasm`/`pyodide` wheel — every `duckdb` release is
+  platform-native (macOS/Linux/Windows only), and `polars`'s only wheel is a
+  thin `py3-none-any` meta-package with no wasm backend. `safepy.duckdb_api`
+  uses the real, synchronous Python `duckdb` package — the browser's only
+  working duckdb engine is the JS-side duckdb-wasm (async), already bridged
+  for non-strict `#duckdb` mode via `duckdb_bridge.py`'s async `_run_duck_sql`
+  (index.html ~7024-7090). Making duckdb-STRICT work in the browser would mean
+  porting `duckdb_api.py`'s AST-gate/whitelist logic to run against that async
+  JS engine instead of the real `duckdb` package — a real design+build effort,
+  not wiring. polars-STRICT is worse: with no wasm wheel at all (and polars
+  being a Rust/PyO3 native extension, unlikely to get one), there's no path
+  today short of an upstream Pyodide/polars port. **Re-scope as effort L,
+  brainstorm-first** (duckdb-STRICT) **and parked** (polars-STRICT, blocked on
+  upstream) rather than attempting either as a quick win.
 - **Strict-local runs → remote quotas** — effort S. Currently logged but not
   counted against BUDGETS; wire in once real usage is observed.
 - **"Release aggregate to session"** — effort M, small design question. Let a
@@ -90,17 +116,70 @@ Lets owners keep data in private repos. Orthogonal to the crypto work.
   analysis in the same session.
 - **Hybrid `#micro` + strict sources in one script** — effort M. Currently
   refused; would need the segment loop to route per-segment.
-- **lifelines/pyfixest in the browser** — effort S. micropip where possible;
-  degrade with a clear message otherwise.
+- **lifelines/pyfixest in the browser** — **DONE for lifelines, blocked for
+  pyfixest (2026-07-06).** The real gap was bigger than the two named
+  packages: `js/strict-worker.js` (the default browser-STRICT path) only ever
+  loaded `pandas`+`cryptography`, so EVERY `StatsMixin` verb needing
+  `statsmodels` (`ols`/`logit`/`poisson`/`anova`/`corr_test`) or `lifelines`
+  (`cox`/`kaplan_meier`/`logrank`/`rmst`/`weibull_aft`) silently failed with
+  `ModuleNotFoundError` in the browser — fixed by loading `scipy`+
+  `statsmodels` (official Pyodide packages) and `lifelines` (via micropip) in
+  both `strict-worker.js` and the non-worker `ensureSafepyLoaded` fallback.
+  Verified live: a real `CoxPHFitter` fit and a real `df.ols(...)` call both
+  ran correctly end-to-end in the actual browser worker. **`pyfixest` remains
+  unavailable** — its dependency chain requires `numba>=0.58.0`, which has no
+  pure-Python/wasm wheel (numba is an LLVM JIT, structurally incompatible with
+  Pyodide) — confirmed via a live `micropip.install` failure, not a guess.
+  This degrades gracefully per the item's own instruction: `feols`/`fepois`
+  now fail with a clear `SandboxError` at the point of use, not a broken
+  package-load for everything else. Not fixable from this side; would need an
+  upstream numba-wasm port or an alternative pure-Python fixed-effects
+  implementation.
 
 ---
 
-## 4. Speculative / on-demand (only when a concrete need appears)
+## 4. Remote columnar sources — DuckDB/SQLite files + column pushdown
 
-- **DuckDB-as-browser-store / lazy column pushdown / `ATTACH`** — effort L.
-  The "radical" idea. Revisit only if files outgrow browser memory; the v1
-  benefit is near-zero because encrypted data must be fully decrypted locally
-  anyway.
+Full design: `docs/superpowers/specs/2026-07-06-remote-columnar-sources-design.md`
+(draft, 2026-07-06). Reconciles with — and supersedes — this section's earlier
+framing of "DuckDB-as-browser-store" as one speculative L-effort blob. It's
+actually two separable pieces with very different cost/risk, and the design
+doc's own §1→§3 order makes the split explicit: connecting to a source is a
+prerequisite for pruning reads from it, not a side effect of the executor
+swap.
+
+### 4a. `.duckdb`/`.sqlite` as connectable source kinds — **DONE** (2026-07-06)
+New source `kind`s, `kind()` directive option, dot-grammar `alias/table.column`
+addressing, DuckDB-wasm table extraction feeding the (at the time) unchanged
+pandas `safepy.assembly`. Shipped and verified live in a real browser —
+`.duckdb` works correctly (including a real bug found and fixed: dangling
+`ATTACH` catalogs across repeated extractions). **`.sqlite` does not work** —
+not a bug in this codebase, a confirmed open upstream duckdb-wasm bug
+([duckdb/duckdb-wasm#1972](https://github.com/duckdb/duckdb-wasm/issues/1972)):
+`ATTACH ... (TYPE sqlite)` reports success but the table catalog comes back
+empty. Reproduced identically across duckdb-wasm 1.29.0 (pinned), 1.32.0
+(latest stable), and 1.33.1-dev (bleeding edge) — a version bump will not fix
+this. Fallback if sqlite becomes a real need: **sql.js-httpvfs** as a
+separate engine just for that case (design doc §9).
+
+### 4b. DuckDB-backed assembly executor (network-level column/table pruning) — **DONE** (2026-07-06)
+Replaced the "materialize whole source, then pandas" step with a real SQL
+compiler (`js/assembly-duckdb.js`) that runs `import`/`join`/`create-dataset`
+as pushdown queries directly against DuckDB-wasm — `read_parquet(url)`,
+`ATTACH`, real `JOIN`s — only materializing the final named datasets.
+Verified live through the actual app UI: a python-mode script joining a
+parquet source with duckdb-table columns returned correct results, and the
+browser's Network panel confirmed **`206 Partial Content`** responses for
+both source files — genuine range requests, not full downloads. Falls back
+to the existing pandas path automatically for anything that doesn't qualify
+(protected/anvil sources, CSV, sqlite per 4a's finding). Full writeup,
+including two real pre-existing Pyodide/pyarrow bugs found and fixed along
+the way, in `docs/superpowers/plans/2026-07-06-remote-columnar-sources.md`.
+
+---
+
+## 5. Speculative / on-demand (only when a concrete need appears)
+
 - **Remote-only enforcement by non-Anvil authorities** (federated / third-party
   registries) — effort L, speculative. The `/source_access` resolution step is
   the seam where another authority could answer later.
@@ -114,11 +193,22 @@ Lets owners keep data in private repos. Orthogonal to the crypto work.
 
 ## Recommended order
 
-1. **§0 verify on deployed Anvil** — unblocks trusting everything else.
-2. **§1a Project A brainstorm** — the real verb-consistency payoff; kick off the
-   design while §0 runs.
-3. **§2a access-request** + **§1b microdata parity** — cheap completeness wins.
-4. **§3 browser-STRICT rounding-out** — as usage warrants (polars/duckdb strict
-   is the most-requested-shaped).
-5. **§2b private-repo tokens** — when an owner actually needs it.
-6. **§4** — only on concrete demand.
+1. **§0 verify on deployed Anvil** — still not done, still the gate for
+   trusting everything else (all the encryption/protection/STRICT-execution
+   machinery is only tested against stubs/fixtures, never real infrastructure)
+   — and more has been built on top of it since this was last flagged
+   (Project A, remote columnar sources). Highest-value next step.
+2. ~~§1a Project A~~ — **done**.
+3. ~~§4a/§4b remote columnar sources~~ — **done** (duckdb+parquet; sqlite
+   blocked on an upstream bug, see above).
+4. ~~§3 lifelines/statsmodels in browser-STRICT~~ — **done** (2026-07-06);
+   `pyfixest` blocked on numba's lack of a wasm wheel, degrades gracefully.
+5. **§2a access-request** + **§1b microdata parity** — cheap completeness wins,
+   can run in parallel with §0.
+6. **§3 polars/duckdb-STRICT in the browser** — re-scoped to effort L
+   (duckdb, brainstorm-first) / parked (polars, blocked upstream); not the
+   quick win it looked like. Only pick up duckdb-STRICT if a concrete need
+   for restricted SQL analysis in the browser (as opposed to server-side,
+   which already works) actually appears.
+7. **§2b private-repo tokens** — when an owner actually needs it.
+8. **§5 speculative items** — only on concrete demand.

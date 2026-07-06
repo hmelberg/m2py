@@ -44,9 +44,14 @@
     }
   }
 
-  function sniffFormat(resp, url) {
+  function sniffFormat(resp, url, kind) {
+    // Eksplisitt kind() vinner alltid — sniffing er en heuristikk for de
+    // uregistrerte tilfellene (spec 2026-07-06-remote-columnar-sources §4).
+    if (kind) return kind;
     var ct = (resp.headers.get('content-type') || '').toLowerCase();
     if (ct.indexOf('parquet') >= 0 || /\.parquet(\?|$)/.test(url)) return 'parquet';
+    if (/\.duckdb(\?|$)/.test(url)) return 'duckdb';
+    if (/\.sqlite3?(\?|$)/.test(url)) return 'sqlite';
     if (ct.indexOf('json') >= 0) return 'json';
     if (ct.indexOf('html') >= 0) return 'html';   // f.eks. Wikipedia: bind som råtekst
     return 'csv';
@@ -103,12 +108,24 @@
       });
     }
 
+    var _bufCache = {};
+    function fetchBytes(item) {
+      var k = item.url;
+      if (!_bufCache[k]) {
+        _bufCache[k] = fetchLoadTarget(item, fetchImpl, deps.authToken || null, deps.anthropicKey || null)
+          .then(function (resp) {
+            return resp.arrayBuffer().then(function (ab) { return { resp: resp, buf: new Uint8Array(ab) }; });
+          });
+      }
+      return _bufCache[k];
+    }
     var loads = await Promise.all(localItems.map(async function (item) {
-      var resp = await fetchLoadTarget(item, fetchImpl, deps.authToken || null, deps.anthropicKey || null);
-      var buf = new Uint8Array(await resp.arrayBuffer());
-      var format = sniffFormat(resp, item.url);
-      var dec = await maybeDecrypt(item, buf, format, deps);
+      var fetched = await fetchBytes(item);
+      var format = sniffFormat(fetched.resp, item.url, item.kind);
+      var dec = await maybeDecrypt(item, fetched.buf, format, deps);
       var out = { alias: item.alias, bytes: dec.bytes, format: dec.format };
+      if (item.table) out.table = item.table;
+      if (item.kind) out.kind = item.kind;
       if (dec.envelope) { out.envelope = dec.envelope; out.key = dec.key; }
       if (item.grant && item.grant.local_profile === 'strict') {
         // strict-grant (spec 2026-07-05-browser-strict-execution §2): rammen
@@ -187,10 +204,48 @@
     // pipeline against just the connect lines, so each source is fetched
     // exactly once (skip any original bare `load` lines from the script).
     var connectLines = script.split(/\r?\n/).filter(function (ln) { return /^[ \t]*(?:#|--|\/\/)[ \t]*connect\b/i.test(ln); }).join('\n');
-    var srcScript = connectLines + '\n' + spec.sources.map(function (a) { return '# load ' + a + ' as ' + a; }).join('\n');
+    var tables = spec.sourceTables || {};
+    var srcScript = connectLines + '\n' + spec.sources.map(function (a) {
+      var t = tables[a];
+      var target = t ? (t.source + '/' + t.table) : a;
+      return '# load ' + target + ' as ' + a;
+    }).join('\n');
     var loaded = await resolveAndFetchLoads(srcScript, deps);
     return { sources: loaded.loads, remote: loaded.remote, spec: spec };
   }
 
-  global.DataLoader = { resolveAndFetchLoads: resolveAndFetchLoads, resolveAndAssemble: resolveAndAssemble, _sniffFormat: sniffFormat };
+  // Phase 2: resolve connect/load/import/join into per-source {url, format,
+  // table} WITHOUT fetching bytes — used to decide pushdown-eligibility and
+  // to feed AssemblyDuckdb.compile() before any network request happens.
+  async function resolveSourcesOnly(script, deps) {
+    deps = deps || {};
+    var DD = global.DataDirectives;
+    if (!DD) return { spec: { sources: [], datasets: [] }, descriptors: {} };
+    var parsed = DD.parseAssembly(script);
+    if (parsed.errors.length) throw new Error('Monteringsfeil: ' + parsed.errors.join('; '));
+    var spec = parsed.spec;
+    var tables = spec.sourceTables || {};
+    var connectLines = script.split(/\r?\n/).filter(function (ln) { return /^[ \t]*(?:#|--|\/\/)[ \t]*connect\b/i.test(ln); }).join('\n');
+    var descLines = connectLines + '\n' + spec.sources.map(function (a) {
+      var t = tables[a];
+      return '# load ' + (t ? (t.source + '/' + t.table) : a) + ' as ' + a;
+    }).join('\n');
+    var parsedLoads = DD.parse(descLines);
+    // Same registry-loading convention as resolveAndFetchLoads: use whatever
+    // was passed in, or load+memoize the web registry on demand (a tiny JSON
+    // manifest, not the large source itself — resolving named registry
+    // sources correctly here matters more than avoiding this one small fetch).
+    var fetchImpl = deps.fetchImpl || (typeof fetch !== 'undefined' ? fetch.bind(global) : null);
+    var registry = deps.registry || (fetchImpl ? await loadRegistry(fetchImpl) : []);
+    var resolved = DD.resolve(parsedLoads, registry);
+    var descriptors = {};
+    resolved.forEach(function (r) {
+      if (r.error || r.anvil) return; // protected/anvil/error sources are never pushdown-eligible
+      descriptors[r.alias] = { url: r.url, format: r.kind || (/\.parquet(\?|$)/.test(r.url) ? 'parquet' : 'other'), table: r.table };
+    });
+    return { spec: spec, descriptors: descriptors };
+  }
+
+  global.DataLoader = { resolveAndFetchLoads: resolveAndFetchLoads, resolveAndAssemble: resolveAndAssemble,
+    resolveSourcesOnly: resolveSourcesOnly, _sniffFormat: sniffFormat };
 })(typeof window !== 'undefined' ? window : globalThis);

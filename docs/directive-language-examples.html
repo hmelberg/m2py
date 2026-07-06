@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The m2py directive language — examples</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1c1c1e;
+    --muted: #5a5a60;
+    --code-bg: #f4f4f6;
+    --border: #e2e2e6;
+    --accent: #2f5fd6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171a;
+      --fg: #e8e8ea;
+      --muted: #a6a6ad;
+      --code-bg: #232428;
+      --border: #313236;
+      --accent: #7ea2ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    background: var(--bg);
+    color: var(--fg);
+  }
+  body {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 4rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    font-size: 16px;
+  }
+  h1 {
+    font-size: 1.7rem;
+    margin-bottom: 0.3rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.6rem;
+  }
+  h2 {
+    font-size: 1.2rem;
+    margin-top: 2.2rem;
+    margin-bottom: 0.6rem;
+    color: var(--accent);
+  }
+  p {
+    margin: 0.6rem 0 1rem;
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    overflow-x: auto;
+    margin: 0.6rem 0 1.2rem;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.88rem;
+  }
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2.2rem 0;
+  }
+  a { color: var(--accent); }
+  strong { color: var(--fg); }
+</style>
+</head>
+<body>
+<h1>The m2py directive language — examples</h1>
+<p>Directives are plain comments at the start of a line, understood by <code>js/data-directives.js</code> before any script actually runs. The comment marker can be <code>#</code>, <code>--</code>, or <code>//</code> (whichever the active mode uses) — the parser treats them identically.</p>
+<h2>Grammar</h2>
+<pre><code>directive   := connect | load | require | create-dataset | import | join
+
+connect     := "connect" target ["as" alias] ["," option]*
+load        := "load" (alias["/" path] | url) "as" NAME ["," option]*
+require     := "require" target "as" NAME              # legacy alias for load
+option      := "key(" (literal | "ask") ")"
+             | "exec(" ("local" | "remote") ")"
+
+target      := registry-id | url | anvil-name</code></pre>
+<p><code>target</code> resolves in this order:</p>
+<p>1. <strong>Registry id</strong> — an entry in <code>data/data-sources.json</code> (<code>ssb</code>, <code>eurostat</code>, <code>worldbank</code>, <code>oecd</code>, <code>who</code>, ...) → public web API, fetched with that entry's <code>base_url</code>/proxy rules.</p>
+<p>2. <strong>URL</strong> (<code>http(s)://...</code>) → fetched directly. If the bytes turn out to be a <code>safepy-enc-v1</code> encrypted envelope, a key is required.</p>
+<p>3. <strong>Bare name that isn't a known registry id</strong> → treated as a <strong>registered Anvil source</strong> (<code>GET /_/api/source_access?id=&lt;name&gt;</code>); the source's registered <code>level</code>/<code>local_mode</code> then decides whether it downloads locally, requires a key, or is remote-only.</p>
+<hr>
+<h2>1. Public registry source — no options needed</h2>
+<pre><code># connect https://data.ssb.no/api/pxwebapi/v2-beta/tables as ssb
+# load ssb/05839/data?outputFormat=csv as ledighet</code></pre>
+<p><code>ssb</code> is connected as an alias for a base URL; <code>load</code> appends a path to it and binds the result into the script under the name <code>ledighet</code>.</p>
+<p>Using the short registry id instead of the full URL works the same way:</p>
+<pre><code># connect ssb
+# load ssb/tables/05839/data?outputFormat=csv as ledighet</code></pre>
+<h2>2. Plain public URL, no <code>connect</code> needed at all</h2>
+<pre><code>// load https://ourworldindata.org/grapher/co2-emissions.csv as co2</code></pre>
+<p>A bare URL can be <code>load</code>ed directly — no <code>connect</code> line required, no alias indirection.</p>
+<h2>3. Legacy <code>require</code> (URL-only alias for <code>load</code>)</h2>
+<pre><code># require https://x.example/gammel-data.csv as gammel</code></pre>
+<p><code>require</code> behaves exactly like <code>load</code> for URLs. Named (non-URL) sources still use <code>require</code> for backward compatibility but are treated specially and NOT rewritten by the client — they route straight to the server.</p>
+<h2>4. FRED — a registry source that needs the CORS proxy + an API key</h2>
+<pre><code># connect fred
+# load fred/series/observations?series_id=UNRATE&amp;file_type=json as us</code></pre>
+<p>Because the FRED registry entry declares <code>cors:false</code> and an <code>auth</code> block, the fetch is silently routed through <code>/api/hent</code> (the same-origin proxy) instead of a direct browser fetch — the script itself doesn't change.</p>
+<h2>5. Registered protected source — key supplied interactively</h2>
+<pre><code># connect helse2025 as h, key(ask)
+# load h as df</code></pre>
+<p><code>helse2025</code> isn't a public registry id, so it resolves as an Anvil-registered source. <code>key(ask)</code> means: don't hard-code a secret in the script — pop a password modal at run time, held in memory only for that session (never written to localStorage, never logged).</p>
+<h2>6. Registered source with a literal key and forced remote execution</h2>
+<pre><code># connect kilde2 as k, key(qL7xK2mN9pR4sT6v), exec(remote)
+# load k as df</code></pre>
+<p><code>exec(remote)</code> forces the whole script for this source onto the server, even if the source's policy would otherwise allow local analysis. (The reverse, <code>exec(local)</code>, is refused by the client if the source's registered level is non-public — protected/sensitive sources can never be forced local.)</p>
+<h2>7. Directly loading an encrypted file by URL</h2>
+<pre><code># load https://raw.githubusercontent.com/owner/repo/data.enc.json as df, key(abcDEF123)</code></pre>
+<p>No <code>connect</code>/registration needed if the owner just hands you a URL and a key: the loader sniffs the <code>safepy-enc-v1</code> envelope, verifies its fingerprint, and decrypts client-side with WebCrypto using the supplied key.</p>
+<h2>8. Key precedence — <code>load</code>-level key overrides <code>connect</code>-level key</h2>
+<pre><code># connect helse2025 as h, key(K1)
+# load h as df, key(K2)</code></pre>
+<p><code>df</code> is decrypted with <code>K2</code>. A key on <code>connect</code> is just the default for everything loaded through that alias; a key on the individual <code>load</code> line wins.</p>
+<h2>9. Mixing several sources of different kinds in one script</h2>
+<pre><code># connect ssb as s
+# connect helse2025 as h, key(ask)
+# load s/tables as offentlig
+# load h as beskyttet
+# load https://ourworldindata.org/grapher/life-expectancy.csv as owid</code></pre>
+<p><code>offentlig</code> comes from the public SSB registry, <code>beskyttet</code> from a key-gated Anvil source, and <code>owid</code> from a plain public URL — each resolved independently by the same script.</p>
+<h2>10. Variable-level assembly — <code>create-dataset</code> / <code>import</code> / <code>join</code></h2>
+<p>A separate, richer directive set lets you assemble one analysis dataset out of *columns* pulled from multiple registered sources, rather than loading each source as a whole frame:</p>
+<pre><code># connect people as p
+# connect sales_src as s
+# create-dataset panel, key(pid)
+# import p/income, p/edu into panel
+# import p/region into panel
+# load s as sales
+# join sales into panel on pid</code></pre>
+<p>This declares a dataset called <code>panel</code>, keyed on <code>pid</code>; pulls the <code>income</code> and <code>edu</code> columns from source <code>p</code> (plus <code>region</code> in a second <code>import</code> line); separately loads all of <code>sales_src</code> as <code>sales</code>; then joins <code>sales</code> into <code>panel</code> on the <code>pid</code> key. <code>import</code>/<code>join</code> default to a <code>left</code> join — an explicit join type can be appended:</p>
+<pre><code># import p/x into panel inner
+# join sales into panel on pid outer</code></pre>
+<h2>11. Comment-marker flexibility (same directive, three syntaxes)</h2>
+<p>These three lines are parsed identically — only the comment marker differs, matching whichever language mode the script segment is in:</p>
+<pre><code># connect https://data.ssb.no/api/pxwebapi/v2-beta/tables as ssb
+-- connect https://data.ssb.no/api/pxwebapi/v2-beta/tables as ssb
+// connect https://data.ssb.no/api/pxwebapi/v2-beta/tables as ssb</code></pre>
+<h2>12. Homomorphically-encrypted (HE) tier</h2>
+<p>HE sources (<code>format="he"</code>, Paillier-encrypted) use the <strong>same</strong> <code>connect</code>/<code>load</code>/<code>require</code> directives as any other registered source — there is no separate directive syntax. What's different is the *editor mode/dialect* the script runs under, and what happens on resolution: the ciphertext is useless without the authority key, so an HE source is <strong>always executed remotely</strong> through the HE facade, never fetched or decrypted into the browser.</p>
+<p>Referencing a registered HE source is written exactly like a protected source (§5 above):</p>
+<pre><code># connect helse_he as h, key(ask)
+# load h as df</code></pre>
+<p>The difference is invisible in the directive text — it's the registered source's <code>format</code> field, checked at <code>/source_access</code> resolution time, that routes it into the HE facade instead of a normal remote run.</p>
+<p>The legacy <code>require</code> form works the same way and is the one actually wired to the "Kryptert" (HE) editor tab, whose <code>dialect</code> is fixed to <code>'he'</code> for every script run in that tab:</p>
+<pre><code># require helse_he as h</code></pre>
+<p>Running that line while the active editor mode/tab is <strong>Kryptert</strong> sends the whole script to the server with <code>dialect: 'he'</code>; the server never decrypts the data, and only the HE facade verbs (<code>group_agg</code>, <code>value_counts</code>, <code>crosstab</code>, <code>ols</code>) are available against it.</p>
+<p><strong><code>exec(local)</code> is always refused on an HE source</strong> — there's no plaintext to run against locally:</p>
+<pre><code># connect helse_he as h, exec(local)
+# load h as df</code></pre>
+<p>→ rejected with the same "cannot run locally" error protected/sensitive sources get, except here it's unconditional (HE has no local mode at all, unlike <code>protected</code>/<code>sensitive</code> which can allow <code>local_mode="open"</code>/<code>"strict"</code>).</p>
+<p><strong>You cannot mix an HE (or any named) source with a plain URL source in one remote run yet:</strong></p>
+<pre><code># require helse_he as h
+# load https://ourworldindata.org/grapher/co2.csv as co2</code></pre>
+<p>→ refused: "Server-kjøring kan ikke kombinere navngitte kilder og URL-kilder (ennå)" (server execution can't yet combine named sources and URL sources — use only named sources).</p>
+<hr>
+<p><strong>Source:</strong> grammar and resolution order from <code>docs/superpowers/specs/2026-07-05-encrypted-external-sources-design.md</code> §1; parsing implemented in <code>js/data-directives.js</code>; fetch/decrypt implemented in <code>js/data-loader.js</code>; every example above (except #9, a composite) mirrors a case asserted in <code>netlify/edge-functions/_lib/data-directives.test.ts</code>.</p>
+</body>
+</html>

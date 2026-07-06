@@ -138,6 +138,7 @@
         </div>
         <button type="button" id="menuSettings" data-i18n>Innstillinger</button>
         <button type="button" id="btnLoginWithCode" data-i18n>Logg inn</button>
+        <button type="button" id="btnRegisterSource" data-i18n>Del data</button>
         <div id="adminMenuSection" style="display:none;">
           <hr style="margin:4px 0;border-color:#334155;">
           <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Admin</div>
@@ -2550,6 +2551,17 @@
       });
     }
 
+    // Del data (registrer/administrer egne datakilder): egen side, ikke
+    // admin-gated — enhver innlogget bruker kan registrere en kilde
+    // (deldata.html håndterer selv "ikke innlogget"-tilfellet).
+    const btnRegisterSource = document.getElementById('btnRegisterSource');
+    if (btnRegisterSource) {
+      btnRegisterSource.addEventListener('click', () => {
+        document.getElementById('hamburgerDropdown').classList.remove('open');
+        window.open('deldata.html', '_blank');
+      });
+    }
+
     document.getElementById('helpBtn').addEventListener('click', function() {
       const overlay = document.getElementById('helpModalOverlay');
       const headerEl = document.getElementById('helpModalHeader');
@@ -3134,6 +3146,39 @@
         finally { this.conn = null; }
       }
     };
+    // Phase 1 (spec 2026-07-06-remote-columnar-sources-design §1/§9): pull ONE
+    // table out of a whole duckdb/sqlite file already fetched into memory, as
+    // Parquet bytes the existing pd.read_parquet() materialization path can
+    // consume unchanged. No pushdown yet — the whole file is already in
+    // `fileBytes`; this only avoids teaching pandas a new file format.
+    async function __extractDuckdbTable(fileBytes, kind, table) {
+      const db = await __ensureDuckDB();
+      const tag = Math.random().toString(36).slice(2);
+      const vfsName = 'srcfile_' + tag + (kind === 'sqlite' ? '.sqlite' : '.duckdb');
+      const outName = 'out_' + tag + '.parquet';
+      await db.registerFileBuffer(vfsName, new Uint8Array(fileBytes));
+      const conn = await db.connect();
+      try {
+        const typeClause = kind === 'sqlite' ? " (TYPE sqlite)" : "";
+        await conn.query("ATTACH '" + vfsName + "' AS _src" + tag + typeClause);
+        const ident = '"' + String(table).replace(/"/g, '""') + '"';
+        await conn.query("COPY (SELECT * FROM _src" + tag + "." + ident +
+          ") TO '" + outName + "' (FORMAT PARQUET)");
+        const out = await db.copyFileToBuffer(outName);
+        // ATTACH is a database-level catalog entry, not connection-scoped —
+        // it survives conn.close(). Without an explicit DETACH here, every
+        // extraction call leaks a permanently-attached (but file-dropped)
+        // catalog into the shared DuckDB-wasm singleton, which corrupts
+        // later unrelated queries in the same browser session.
+        await conn.query("DETACH _src" + tag);
+        return out;
+      } finally {
+        await conn.close();
+        try { await db.dropFile(vfsName); } catch (e) { /* best-effort cleanup */ }
+        try { await db.dropFile(outName); } catch (e) { /* best-effort cleanup */ }
+      }
+    }
+    window.__extractDuckdbTable = __extractDuckdbTable;
     function getTtsRate() {
       try { var v = parseFloat(localStorage.getItem(TTS_RATE_KEY)); if (!isNaN(v)) return v; } catch(e) {}
       return 1.0;
@@ -8223,9 +8268,18 @@ has and "int" in (m.get_microdata_functions() or {})
         py.unpackArchive(buf, 'zip', { extractDir: '/home/pyodide/' });
         window.__safepyZipUnpacked = true;
       }
-      // encfile (safepy-enc-v1) trenger cryptography — i Pyodide-distroen,
-      // men ikke forhåndslastet
-      try { await py.loadPackage('cryptography'); } catch (e) {
+      // encfile (safepy-enc-v1) trenger cryptography; regresjons-/overlevelses-
+      // verbene (ols/logit/poisson/anova/corr_test via statsmodels;
+      // cox/kaplan_meier/logrank/rmst/weibull_aft via lifelines) trenger sine
+      // egne pakker — se js/strict-worker.js for samme mønster (worker-banen
+      // er standardveien; denne funksjonen dekker kun fs-loads-tilfellet).
+      try {
+        await py.loadPackage(['cryptography', 'scipy', 'statsmodels', 'micropip']);
+        await py.runPythonAsync('import micropip as _mp\nawait _mp.install("lifelines")');
+        try {
+          await py.runPythonAsync('import micropip as _mp\nawait _mp.install("pyfixest")');
+        } catch (e) { /* se strict-worker.js — degrader stille */ }
+      } catch (e) {
         throw new Error(t('kunne ikke laste strict-motoren — prøv igjen'));
       }
       window.__safepyLoaded = true;
@@ -8840,9 +8894,54 @@ options(width = 200)
             authorizeStrict: function (ids) { return mdAuthorizeStrictRun(ids, effectiveScript); } };
           var _dl;
           if (_hasAssembly) {
-            var _asm = await window.DataLoader.resolveAndAssemble(effectiveScript, _dlDeps);
-            _asmSpec = _asm.spec;
-            _dl = { loads: _asm.sources, remote: _asm.remote };
+            // Phase 2 (spec 2026-07-06-remote-columnar-sources-design §3):
+            // try pushdown first — only public parquet/duckdb sources
+            // qualify (resolveSourcesOnly already excludes anvil/protected
+            // sources from descriptors, so canPushdown is false whenever any
+            // referenced source needs server-side/grant-gated routing).
+            var _presolve = await window.DataLoader.resolveSourcesOnly(effectiveScript, _dlDeps);
+            if (window.AssemblyDuckdb && Object.keys(_presolve.descriptors).length &&
+                window.AssemblyDuckdb.canPushdown(_presolve.spec, _presolve.descriptors)) {
+              _asmSpec = _presolve.spec;
+              var _compiled = window.AssemblyDuckdb.compile(_presolve.spec, _presolve.descriptors);
+              var _pdb = await __ensureDuckDB();
+              var _pconn = await _pdb.connect();
+              var _pushdownLoads = [];
+              try {
+                for (var _ai = 0; _ai < _compiled.attachStatements.length; _ai++) {
+                  await _pconn.query(_compiled.attachStatements[_ai]);
+                }
+                for (var _si = 0; _si < _compiled.datasetStatements.length; _si++) {
+                  var _stmt = _compiled.datasetStatements[_si];
+                  var _outName = 'ds_' + _stmt.name + '_' + Math.random().toString(36).slice(2) + '.parquet';
+                  await _pconn.query("COPY (" + _stmt.sql + ") TO '" + _outName + "' (FORMAT PARQUET)");
+                  var _dsBytes = await _pdb.copyFileToBuffer(_outName);
+                  py.FS.mkdirTree('/home/pyodide/_webdata');
+                  var _dsPath = '/home/pyodide/_webdata/' + _stmt.name + '.parquet';
+                  py.FS.writeFile(_dsPath, _dsBytes);
+                  _pushdownLoads.push({ alias: _stmt.name, format: 'parquet', path: _dsPath });
+                  try { await _pdb.dropFile(_outName); } catch (e) { /* best-effort cleanup */ }
+                }
+                for (var _di = 0; _di < _compiled.attachStatements.length; _di++) {
+                  // DETACH mirrors the Task 3 fix — ATTACH is database-level
+                  // and would otherwise leak into the shared duckdb-wasm singleton.
+                  var _attAlias = _compiled.attachStatements[_di].match(/AS (\w+)/)[1];
+                  try { await _pconn.query('DETACH ' + _attAlias); } catch (e) { /* best-effort */ }
+                }
+              } finally {
+                await _pconn.close();
+              }
+              // Pushdown already produced the FINAL named datasets — mark
+              // spec as "no further steps" so buildAssemblyPreamble's
+              // safepy.assembly pass is a no-op passthrough (load-only spec).
+              _asmSpec = { sources: _pushdownLoads.map(function (l) { return l.alias; }),
+                datasets: _pushdownLoads.map(function (l) { return { name: l.alias, load: l.alias }; }) };
+              _dl = { loads: _pushdownLoads, remote: [] };
+            } else {
+              var _asm = await window.DataLoader.resolveAndAssemble(effectiveScript, _dlDeps);
+              _asmSpec = _asm.spec;
+              _dl = { loads: _asm.sources, remote: _asm.remote };
+            }
           } else {
             _dl = await window.DataLoader.resolveAndFetchLoads(effectiveScript, _dlDeps);
           }
@@ -8873,17 +8972,31 @@ options(width = 200)
             if (_htmlLoad) throw new Error(t('html-kilder støttes ikke i duckdb-modus ({alias}) — bruk python/r', { alias: _htmlLoad.alias }));
           }
           if (_rawLoads.some(function (l) { return l.bytes; })) py.FS.mkdirTree('/home/pyodide/_webdata');
-          _pyLoads = _rawLoads.map(function (l) {
+          _pyLoads = await Promise.all(_rawLoads.map(async function (l) {
+            if (l.path && !l.bytes) {
+              // Phase 2: pushdown already wrote this dataset's Parquet bytes
+              // to FS (see the AssemblyDuckdb branch above) — nothing left
+              // to fetch/materialize here.
+              return { alias: l.alias, format: l.format, path: l.path, strict: !!l.strict };
+            }
             if (l.envelope) {
               // V4: strict-kryptert — klartekst finnes ALDRI på FS; konvolutten
               // dekrypteres inne i strict-kjøringen og slippes etterpå.
               return { alias: l.alias, format: l.format, envelope: l.envelope, key: l.key };
             }
+            if (l.format === 'duckdb' || l.format === 'sqlite') {
+              // Phase 1: hel tabell hentes ut som Parquet-bytes, samme
+              // materialiseringsbane som ellers (ingen pushdown ennå).
+              var _pq = await __extractDuckdbTable(l.bytes, l.format, l.table);
+              var _dbPath = '/home/pyodide/_webdata/' + l.alias + '.parquet';
+              py.FS.writeFile(_dbPath, _pq);
+              return { alias: l.alias, format: 'parquet', path: _dbPath, strict: !!l.strict };
+            }
             var _path = '/home/pyodide/_webdata/' + l.alias + '.' + l.format;
             py.FS.writeFile(_path, l.bytes);
             // strict-flagget følger med: strict path-filer slettes av kjøringens finally
             return { alias: l.alias, format: l.format, path: _path, strict: !!l.strict };
-          });
+          }));
         }
         // Lokal strict-kjøring: manuelt opt-in via "# options.profile = strict",
         // ELLER grant-styrt — en kilde med local_profile=strict tvinger hele
@@ -8918,17 +9031,47 @@ options(width = 200)
         if (segments.length === 0 && effectiveScript.trim()) {
           segments = [{ kind: runDefault, text: effectiveScript }];
         }
-        // If any segment is DuckDB SQL, make sure the bridge module + pyarrow are
-        // ready before the Pyodide run loop reaches a #duckdb segment.
+        // If any segment is DuckDB SQL, make sure the bridge module is ready
+        // before the Pyodide run loop reaches a #duckdb segment.
         if (segments.some(function (s) { return s.kind === 'duckdb'; })) {
           setStatus(rightStatus, t('Laster DuckDB-bro…'));
           await __ensureDuckBridge(py);
+        }
+        // pyodide's bundled pandas has no pyarrow/fastparquet by default, so
+        // pd.read_parquet() fails unless something already installed it —
+        // needed for #duckdb segments AND whenever any materialized load is
+        // Parquet (plain .parquet connects, and the Phase 1/2 duckdb/sqlite
+        // extraction + pushdown paths, which always produce Parquet on FS).
+        var _needsParquetSupport = segments.some(function (s) { return s.kind === 'duckdb'; }) ||
+          (_pyLoads || []).some(function (l) { return l.format === 'parquet'; });
+        if (_needsParquetSupport) {
           try {
             var _needPa = await py.runPythonAsync('import importlib.util as _iu\n_iu.find_spec("pyarrow") is None');
             if (_needPa) {
               setStatus(rightStatus, t('Installerer pyarrow…'));
               await py.runPythonAsync('import micropip as _mp\nawait _mp.install("pyarrow")');
             }
+            // Same Pyodide-pyarrow patch _run_duck_sql already applies (index.html
+            // ~7031-7048): pandas' lazy patch_pyarrow() calls
+            // unregister_extension_type('arrow.py_extension_type'), which raises
+            // ArrowKeyError in the Pyodide pyarrow build — pd.read_parquet() hits
+            // this the first time it's called in ANY run, not just #duckdb ones,
+            // so it must be applied here too, not only inside _run_duck_sql.
+            await py.runPythonAsync(
+              'import pyarrow as _pa\n' +
+              'if not getattr(_pa, "_m2py_unreg_patched", False):\n' +
+              '    _oru = _pa.unregister_extension_type\n' +
+              '    def _safe_unreg(name, _o=_oru):\n' +
+              '        try:\n' +
+              '            return _o(name)\n' +
+              '        except Exception:\n' +
+              '            return None\n' +
+              '    _pa.unregister_extension_type = _safe_unreg\n' +
+              '    _pa._m2py_unreg_patched = True\n' +
+              '    try:\n' +
+              '        import pandas.core.arrays.arrow.extension_types\n' +
+              '    except Exception:\n' +
+              '        pass\n');
           } catch (e) { console.warn('pyarrow ensure:', e); }
         }
         const segmentsStr = JSON.stringify(segments);
@@ -9571,6 +9714,7 @@ def _run_microdata_chunk(_code):
   <script src="js/data-directives.js"></script>
   <script src="js/enc-crypto.js"></script>
   <script src="js/data-loader.js"></script>
+  <script src="js/assembly-duckdb.js"></script>
   <script src="js/ai-chat.js"></script>
   <script src="js/github-storage.js"></script>
 
