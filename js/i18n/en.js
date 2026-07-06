@@ -60,6 +60,7 @@ window.M2PY_I18N.en = {
   "Når PÅ: klikk på datasett-navnet i sidemenyen for å åpne en tabellvisning av rådataene (sorter, filtrer, bla). Når AV: dataset-navnet er inaktivt.": "When ON: click a dataset name in the sidebar to open a table view of the raw data (sort, filter, browse). When OFF: the dataset name is inactive.",
   "Datatilgang: AV": "Data access: OFF",
   "Logg inn": "Log in",
+  "Del data": "Share data",
   "Generer tilgangskode": "Generate access code",
   "Script navn": "Script name",
   "Hjelp": "Help",

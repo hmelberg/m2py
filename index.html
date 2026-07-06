@@ -138,6 +138,7 @@
         </div>
         <button type="button" id="menuSettings" data-i18n>Innstillinger</button>
         <button type="button" id="btnLoginWithCode" data-i18n>Logg inn</button>
+        <button type="button" id="btnRegisterSource" data-i18n>Del data</button>
         <div id="adminMenuSection" style="display:none;">
           <hr style="margin:4px 0;border-color:#334155;">
           <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Admin</div>
@@ -2547,6 +2548,17 @@
       btnAdminSharedCode.addEventListener('click', () => {
         document.getElementById('hamburgerDropdown').classList.remove('open');
         showAdminSharedCode();
+      });
+    }
+
+    // Del data (registrer/administrer egne datakilder): egen side, ikke
+    // admin-gated — enhver innlogget bruker kan registrere en kilde
+    // (deldata.html håndterer selv "ikke innlogget"-tilfellet).
+    const btnRegisterSource = document.getElementById('btnRegisterSource');
+    if (btnRegisterSource) {
+      btnRegisterSource.addEventListener('click', () => {
+        document.getElementById('hamburgerDropdown').classList.remove('open');
+        window.open('deldata.html', '_blank');
       });
     }
 
