@@ -951,6 +951,42 @@ git add js/assembly-duckdb.js netlify/edge-functions/_lib/assembly-duckdb.test.t
 git commit -m "feat: AssemblySpec-to-SQL compiler for DuckDB pushdown assembly (Phase 2)"
 ```
 
+### Outcome (2026-07-06, real-engine spike ahead of Task 6)
+
+All 6 Deno tests pass (shape-only, per Step 4's own caveat). Additionally
+spiked the generated SQL against a live DuckDB-wasm instance (same
+chrome-devtools-mcp browser session as Task 4, `income.parquet`/
+`sales.parquet` fixtures added alongside the existing `panel_test.duckdb`)
+before committing to Task 6's larger wiring effort:
+
+- The single-import projection (`compiledB`, duckdb-table ATTACH source) ran
+  and returned byte-correct rows.
+- The cross-source join (`compiledA`: `import` from one parquet + `join`
+  against a `load`-as-whole-table second parquet, using the compiler's
+  `EXCLUDE (...)`/`USING (...)` SQL) **ran successfully** — DuckDB accepts
+  this syntax as generated.
+- Verifying the join's NULL handling (unmatched left-join row) via
+  `window.runStaticQuery` initially looked wrong (an unmatched `amount`
+  showed `0`, not `null`) — traced this to a **pre-existing, unrelated bug**
+  in the app's own `__arrowToColumns` (`index.html:3050-3074`): `.toArray()`
+  on a typed-array-backed Arrow vector doesn't consult the null validity
+  bitmap for primitive numeric types, so any NULL in a numeric column
+  already silently became `0`/garbage in `window.runStaticQuery`/
+  `window.__duck.query` results, for any query, before this plan touched
+  anything. Confirmed the actual join/Parquet data is correct by re-querying
+  with `amount IS NULL AS amount_is_null` (correctly `true` for the
+  unmatched row) — the miscount was purely a JS-side display artifact of
+  reading results back through that helper for debugging, not a defect in
+  `js/assembly-duckdb.js`'s SQL. **Not fixed here** — out of scope (a
+  pre-existing, wider-reaching bug touching duckdb-mode and static-data
+  display generally, not something Task 5/6 introduced) — but worth a
+  separate bug report/fix, since it means any numeric NULL surfaced through
+  `window.runStaticQuery` or `window.__duck.query` anywhere in the app today
+  silently displays as `0` instead of blank/NaN. Task 6's actual production
+  path (`COPY ... TO parquet` → Pyodide `pd.read_parquet`) is **unaffected**
+  by this, since pandas reads the Parquet file's real null encoding directly
+  and never goes through `__arrowToColumns`.
+
 ---
 
 ## Task 6: Wire the pushdown compiler into `index.html`, with fallback to Phase 1's path
