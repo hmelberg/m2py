@@ -3152,7 +3152,14 @@
         const ident = '"' + String(table).replace(/"/g, '""') + '"';
         await conn.query("COPY (SELECT * FROM _src" + tag + "." + ident +
           ") TO '" + outName + "' (FORMAT PARQUET)");
-        return await db.copyFileToBuffer(outName);
+        const out = await db.copyFileToBuffer(outName);
+        // ATTACH is a database-level catalog entry, not connection-scoped —
+        // it survives conn.close(). Without an explicit DETACH here, every
+        // extraction call leaks a permanently-attached (but file-dropped)
+        // catalog into the shared DuckDB-wasm singleton, which corrupts
+        // later unrelated queries in the same browser session.
+        await conn.query("DETACH _src" + tag);
+        return out;
       } finally {
         await conn.close();
         try { await db.dropFile(vfsName); } catch (e) { /* best-effort cleanup */ }
