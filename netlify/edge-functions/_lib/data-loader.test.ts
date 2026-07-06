@@ -280,3 +280,65 @@ Deno.test("resolveAndAssemble: a remote source routes the whole run remote", asy
   assertEquals(out.remote, [{ alias: "h", sourceId: "helse2025", key: undefined }]);
   assertEquals(out.sources, []);
 });
+
+Deno.test("sniffFormat: explicit kind always wins over content-type/extension", () => {
+  const mk = (ct: string) => new Response("", { headers: { "content-type": ct } });
+  assertEquals(DL._sniffFormat(mk("text/csv"), "https://x/panel.duckdb", "duckdb"), "duckdb");
+  assertEquals(DL._sniffFormat(mk(""), "https://x/export?id=42", "sqlite"), "sqlite");
+});
+
+Deno.test("sniffFormat: .duckdb/.sqlite extensions sniffed without kind()", () => {
+  const mk = () => new Response("", { headers: {} });
+  assertEquals(DL._sniffFormat(mk(), "https://x.example/panel.duckdb"), "duckdb");
+  assertEquals(DL._sniffFormat(mk(), "https://x.example/small.sqlite"), "sqlite");
+  assertEquals(DL._sniffFormat(mk(), "https://x.example/small.sqlite3"), "sqlite");
+});
+
+Deno.test("resolveAndFetchLoads: duckdb load carries table + kind through to the output item", async () => {
+  const fetchImpl = (() => Promise.resolve(
+    new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "application/octet-stream" } })
+  )) as typeof fetch;
+  const script = [
+    "# connect https://x.example/panel.duckdb as db, kind(duckdb)",
+    "# load db/patients as p",
+  ].join("\n");
+  const out = await DL.resolveAndFetchLoads(script, { fetchImpl, registry: [] });
+  assertEquals(out.loads[0].format, "duckdb");
+  assertEquals(out.loads[0].table, "patients");
+  assertEquals(out.loads[0].kind, "duckdb");
+});
+
+Deno.test("resolveAndFetchLoads: two loads against the same duckdb URL fetch the file only once", async () => {
+  let fetchCount = 0;
+  const fetchImpl = (() => {
+    fetchCount++;
+    return Promise.resolve(new Response(new Uint8Array([9, 9]),
+      { status: 200, headers: { "content-type": "application/octet-stream" } }));
+  }) as typeof fetch;
+  const script = [
+    "# connect https://x.example/panel.duckdb as db, kind(duckdb)",
+    "# load db/patients as p",
+    "# load db/visits as v",
+  ].join("\n");
+  const out = await DL.resolveAndFetchLoads(script, { fetchImpl, registry: [] });
+  assertEquals(out.loads.map((l: { alias: string }) => l.alias), ["p", "v"]);
+  assertEquals(fetchCount, 1);
+});
+
+Deno.test("resolveAndAssemble: table-qualified sources re-fetch via alias/table, not the synthetic key", async () => {
+  const seen: string[] = [];
+  const fetchImpl = ((input: string | URL | Request) => {
+    seen.push(String(input));
+    return Promise.resolve(new Response(new Uint8Array([1]),
+      { status: 200, headers: { "content-type": "application/octet-stream" } }));
+  }) as typeof fetch;
+  const script = [
+    "# connect https://x.example/panel.duckdb as db, kind(duckdb)",
+    "# create-dataset panel, key(pid)",
+    "# import db/patients.age, db/patients.sex into panel",
+  ].join("\n");
+  const out = await DL.resolveAndAssemble(script, { fetchImpl, registry: [] });
+  assertEquals(out.sources.map((s: { alias: string }) => s.alias), ["db__patients"]);
+  assertEquals(out.sources[0].table, "patients");
+  assertEquals(seen, ["https://x.example/panel.duckdb"]);
+});
