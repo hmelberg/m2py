@@ -65,12 +65,15 @@ duckdb sources — **owner has since indicated the dot form
 (`alias/table.column`) is acceptable**, so that question is effectively
 resolved in favor of dot; not yet reflected in the design doc's prose.
 
-### 1b. Microdata-mode source parity — effort M
+### 1b. Microdata-mode source parity — effort M — **on hold, 2026-07-09 (explicit request, not abandoned)**
 Microdata mode still rejects URLs and registered/encrypted sources (knows only
 the SSB catalog + synthetic engine). Make `require`/`connect` there accept the
 same sources as dialect modes. Removes the "microdata is the odd one out" wart.
 Interacts with 1a (both touch microdata `require` routing) — sequence after or
-alongside Project A's brainstorm.
+alongside Project A's brainstorm. See `docs/superpowers/2026-07-07-code-
+review.md` §6 item 8 for the fuller status note (also covers the parked
+mockdata_realism generalization and the confirmation that the HE-plane
+group_agg gating gap was already fixed, not still open).
 
 ---
 

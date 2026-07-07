@@ -305,6 +305,50 @@ implementation that already works.
    general per-country config; the HE-plane's missing-value gating fix
    (mirrors §1a but needs an extra homomorphic decrypt step per group).
 
+**Status update, 2026-07-09 — items 1–6 all DONE:**
+- 1 (cross-run byte cache), 2 (DuckDB-mode strict), 3 (R-mode assembly +
+  strict/pushdown parity) — shipped in a run of follow-through work this
+  session. Item 2 needed more than the one-line dialect swap the estimate
+  assumed: `dialect="duckdb"` has no Pyodide wheel on this app's
+  then-pinned v0.29.3, which led to first building a whole new
+  `dialect="sqlite"` (safepy) as the interim path, then a full Pyodide
+  v0.29.3 → v314.0.2 upgrade (real duckdb 1.5.1 + bundled sqlite3), which
+  is what item 2 actually runs on now — `dialect="sqlite"` remains
+  available in safepy, just no longer index.html's automatic default.
+- 4 (notify requester) + 5 (surface pending requests in the main app) —
+  shipped together: `access_requests.py` gained `_notify_requester`
+  (email, symmetric to the existing `_notify_owner`), and `index.html`'s
+  "Del data" menu item now shows a pending-request count badge (reuses
+  `/sources/mine`, no second approve/deny UI built — clicking through to
+  `deldata.html` still does the actual decision).
+- 6 (SafeStat's ad-hoc fetch) — shipped: extracted
+  `DataLoader.fetchResolvedItems(items, deps)` out of
+  `resolveAndFetchLoads` so SafeStat mode's `require` statement (a real DSL
+  statement, not a "#"-prefixed directive `DataDirectives.parse` can see)
+  can reuse the same fetch/decrypt/cache machinery instead of a second,
+  narrower hand-rolled `fetch()`. Verified live: a real CSV over an
+  extensionless URL using `kind(csv)` now works — impossible before.
+- **Item 8's HE-plane sub-claim was already stale when written**: the
+  HE-plane missing-value gating fix landed in the *same* commit as the §1a
+  plaintext fix (`safepy` commit `a3999da`, 2026-07-07) —
+  `HEAuthority.group_agg` already decrypts the homomorphic mask-sum and
+  gates on non-null contributing count before ever decrypting sum/sum²,
+  for every aggregate except `size`. Tested
+  (`tests/test_group_agg_nan_suppression.py`'s
+  `test_he_group_agg_suppresses_on_non_null_count` /
+  `..._sum_suppresses_on_non_null_count` /
+  `..._size_still_reports_raw_row_count`, all passing). Nothing to do here;
+  re-verified 2026-07-09 by direct investigation, not by trusting this doc.
+- **On hold, by explicit request (2026-07-09)** — not abandoned, just not
+  being picked up right now: item 8's other two sub-items (full
+  `connect`/`load` in microdata-DSL mode; generalizing
+  `mockdata_realism.py` beyond Norway-specific), and item 7 (`revoke_email`
+  endpoint symmetric to `grant_email` — noted here but never actually
+  started). Also still open, unrelated to this list: the upstream
+  duckdb-wasm bug blocking client-side `.sqlite` table extraction
+  (duckdb/duckdb-wasm#1972, see `docs/superpowers/2026-07-05-remaining-
+  roadmap.md` §4a) — third-party, not fixable from this repo.
+
 ---
 
 ## 7. Recommended order of operations
