@@ -243,7 +243,7 @@ import * as paillier from "https://esm.sh/paillier-bigint@3";
 import { encryptDataframe } from "./js/he-encrypt.js";
 
 const $ = (id) => document.getElementById(id);
-let rows = [], columns = [];
+let rows = [], columns = [], uploadedFileName = "";
 
 // --- minimal RFC-4180-ish CSV parser (handles quotes and embedded commas) ---
 function parseCsv(text) {
@@ -289,6 +289,7 @@ $("file").addEventListener("change", async (e) => {
   const text = await f.text();
   const parsed = toRows(parseCsv(text));
   rows = parsed.rows; columns = parsed.columns;
+  uploadedFileName = f.name.replace(/\.csv$/i, "");
   $("fileInfo").textContent =
     `${f.name} — ${rows.length} rader, ${columns.length} kolonner`;
   const picker = $("colPicker"); picker.innerHTML = "";
@@ -340,7 +341,7 @@ $("encryptBtn").addEventListener("click", async () => {
     await new Promise((r) => setTimeout(r, 30));
     const { dataset, key, fingerprint } = await encryptDataframe(paillier, rows, opts);
     $("fpOut").textContent = fingerprint;
-    const base = (rows.length ? "datasett" : "datasett");
+    const base = (uploadedFileName || "datasett");
     download("dlDataset", `${base}.he.json`, dataset);
     download("dlKey", `${base}.key.json`, key);
     $("heRegisterLink").href = `deldata.html?he=1&format=he&name=${encodeURIComponent(base)}`;

@@ -3367,14 +3367,49 @@ class MockDataEngine:
                 return pd.DataFrame(data)
             # Datovariabler: generer basert på data_type-format
             if data_type.startswith('date:yyyymmdd'):
-                # YYYYMMDD-format (f.eks. dødsdato, oppdateringsdato)
-                start_year = 1990
-                end_year = _DEMO_REF_YEAR
-                years = rng.integers(start_year, end_year + 1, size=n_rows)
-                months = rng.integers(1, 13, size=n_rows)
-                days = rng.integers(1, 29, size=n_rows)
-                yyyymmdd = years * 10000 + months * 100 + days
-                data[var_name] = yyyymmdd.astype(int)
+                if 'DOEDS_DATO' in (short_name or var_name or '').upper():
+                    # Dødsdato (BEFOLKNING_DOEDS_DATO o.l.): flertallet lever
+                    # (missing), et realistisk mindretall (~10 %) er dødt, og
+                    # dødsdato er ALDRI før fødsel (dødsår ≥ fødselsår + 1,
+                    # samme semantikk som mockdata_export.build_deceased_stock)
+                    # eller etter referanseåret. Den generiske uniforme
+                    # 1990-2025-trekningen ga 100 % døde og ~15 % død før fødsel.
+                    _d1 = parsed_args.get('date1') if parsed_args else None
+                    try:
+                        _ref_death_year = int(str(_d1)[:4]) if _d1 else int(_DEMO_REF_YEAR)
+                    except (ValueError, TypeError):
+                        _ref_death_year = int(_DEMO_REF_YEAR)
+                    if uids is not None and len(uids) == n_rows and n_rows > 0:
+                        # Samme deterministiske fødselsår per uid som
+                        # BEFOLKNING_FOEDSELS_AAR_MND-generatoren bruker.
+                        _birth_years = np.array(
+                            [_norway_demo_birth_year_from_uid(int(u)) for u in uids],
+                            dtype=np.int64)
+                    else:
+                        # Ingen fødselskobling: håndhev likevel missing-flertall
+                        # og ingen framtidsdatoer (nedre gulv 1900).
+                        _birth_years = np.full(n_rows, 1899, dtype=np.int64)
+                    _vals = np.full(n_rows, np.nan)
+                    _eligible = (_birth_years + 1) <= _ref_death_year
+                    _dead = (rng.random(n_rows) < 0.10) & _eligible
+                    _n_dead = int(_dead.sum())
+                    if _n_dead:
+                        _by = _birth_years[_dead]
+                        _span = _ref_death_year - (_by + 1) + 1
+                        _dyears = _by + 1 + np.floor(rng.random(_n_dead) * _span).astype(np.int64)
+                        _dmonths = rng.integers(1, 13, size=_n_dead)
+                        _ddays = rng.integers(1, 29, size=_n_dead)
+                        _vals[_dead] = (_dyears * 10000 + _dmonths * 100 + _ddays).astype(float)
+                    data[var_name] = _vals
+                else:
+                    # YYYYMMDD-format (f.eks. oppdateringsdato)
+                    start_year = 1990
+                    end_year = _DEMO_REF_YEAR
+                    years = rng.integers(start_year, end_year + 1, size=n_rows)
+                    months = rng.integers(1, 13, size=n_rows)
+                    days = rng.integers(1, 29, size=n_rows)
+                    yyyymmdd = years * 10000 + months * 100 + days
+                    data[var_name] = yyyymmdd.astype(int)
             elif data_type.startswith('date:yyyymm'):
                 # F.eks. fødselsår og -måned (BEFOLKNING_FOEDSELS_AAR_MND).
                 # Bruk referansedato fra import-kallet som øvre grense —
@@ -4155,11 +4190,18 @@ class DataTransformHandler:
                 # Viktig: intervaller bruker >= / <= — object-strenger ("47") matcher ikke 45–47.
                 raw_orig = df[var].copy()  # bevares urørt ved prefix()
                 was_string = df[var].dtype == object or pd.api.types.is_string_dtype(df[var])
-                out_col = pd.to_numeric(df[var], errors='coerce')
                 # Manualen: "Verdier som allerede er omkodet påvirkes ikke av
                 # påfølgende regler" — masker bygges fra ORIGINALverdiene, og
                 # rader som alt er omkodet beskyttes mot senere regler.
-                orig = out_col.copy()
+                # Regelmaskene evalueres numerisk (orig); selve utkolonnen må
+                # derimot bevare umatchede verdier BYTE-IDENTISK — en
+                # to_numeric+str(int)-rundtur av hele kolonnen korrupterte
+                # '0301' -> '301', 'XXXX' -> NaN og '01.110' -> '1'.
+                orig = pd.to_numeric(df[var], errors='coerce')
+                if was_string:
+                    out_col = raw_orig.astype(object).copy()
+                else:
+                    out_col = orig.copy()
                 recoded = pd.Series(False, index=df.index)
                 for rule in args['rules']:
                     rule = rule.strip()
@@ -4218,7 +4260,12 @@ class DataTransformHandler:
                         mask = mask & ~recoded
                         if row_mask is not None:
                             mask = mask & row_mask
-                        out_col.loc[mask] = new_val
+                        write_val = new_val
+                        if was_string and isinstance(new_val, (int, float)) and not isinstance(new_val, bool):
+                            # Strengkolonner: omkodede verdier lagres som streng
+                            # (parstatus == '1' skal virke etter recode)
+                            write_val = str(int(new_val)) if float(new_val) == int(new_val) else str(new_val)
+                        out_col.loc[mask] = write_val
                         recoded = recoded | mask
                         if label_text is not None and isinstance(new_val, (int, float)):
                             if self.label_manager is not None:
@@ -4226,11 +4273,13 @@ class DataTransformHandler:
                                 d[int(new_val)] = label_text
 
                     # Spesialkoder i lhs: missing / nonmissing / * (enhver verdi)
+                    # Missing vurderes på RÅverdiene: 'XXXX' er ikke missing selv
+                    # om den ikke kan tolkes som tall.
                     if re.fullmatch(r'miss(?:ing)?', lhs, re.IGNORECASE):
-                        _apply_rule(col.isna())
+                        _apply_rule(raw_orig.isna())
                         continue
                     if re.fullmatch(r'nonmiss(?:ing)?', lhs, re.IGNORECASE):
-                        _apply_rule(col.notna())
+                        _apply_rule(raw_orig.notna())
                         continue
                     if lhs == '*':
                         _apply_rule(pd.Series(True, index=df.index))
@@ -4279,19 +4328,15 @@ class DataTransformHandler:
                     for lo_val, hi_val in ranges:
                         mask = mask | ((col >= lo_val) & (col <= hi_val))
                     _apply_rule(mask)
-                # Hele tall etter recode → nullable int (bedre tabulate/etiketter; unngår 8.0 vs 8)
-                if pd.api.types.is_numeric_dtype(out_col):
+                # Hele tall etter recode → nullable int (bedre tabulate/etiketter; unngår 8.0 vs 8).
+                # Strengkolonner er alt håndtert i _apply_rule (omkodede verdier
+                # skrives som streng, umatchede passerer byte-identisk gjennom).
+                if not was_string and pd.api.types.is_numeric_dtype(out_col):
                     sub = out_col.dropna()
                     if len(sub):
                         arr = sub.to_numpy(dtype=float, copy=False)
                         if np.all(np.isfinite(arr)) and np.all(arr == np.round(arr)):
                             out_col = out_col.round().astype('Int64')
-                # Bevar string-dtype: var variabelen strenger FØR recode, konverter tilbake.
-                # Dette sikrer at f.eks. parstatus == '1' virker etter recode.
-                if was_string:
-                    out_col = out_col.apply(
-                        lambda x: str(int(x)) if pd.notna(x) else None
-                    ).astype(object)
                 # prefix()/generate(): nye variabler med omkodete verdier,
                 # originalen beholdes urørt (manualen). Uten prefix: overskriv.
                 if prefix:
@@ -4338,6 +4383,20 @@ class LabelManager:
         except (ValueError, TypeError):
             return k
 
+    @classmethod
+    def _codelist_from_labels(cls, labels):
+        """Bygg codelist fra metadata-labels. Nøkler int-konverteres der mulig
+        (numeriske kolonner slår opp 301), men null-paddede originaler
+        ('0301') bevares OGSÅ som strengnøkkel — ellers kan betingelser på
+        label-tekst ('Oslo') aldri matche '0301'-strenger i data."""
+        mapping = {}
+        for k, v in labels.items():
+            ik = cls._label_key_to_int(k)
+            mapping[ik] = v
+            if isinstance(k, str) and not isinstance(ik, str) and str(ik) != k:
+                mapping[k] = v
+        return mapping
+
     def _load_from_catalog(self):
         """Pre-define codelists fra variable_metadata.json (labels eller codelist-felt)."""
         for var_name, meta in self.catalog.items():
@@ -4346,7 +4405,7 @@ class LabelManager:
             if isinstance(labels, dict):
                 cname = meta.get('codelist', f"{short}_labels")
                 if cname not in self.codelists:
-                    mapping = {self._label_key_to_int(k): v for k, v in labels.items()}
+                    mapping = self._codelist_from_labels(labels)
                     self.codelists[cname] = mapping
 
     def refresh_after_catalog_mutation(self):
@@ -4360,7 +4419,7 @@ class LabelManager:
                 continue
             short = var_name.split('/')[-1]
             cname = meta.get('codelist', f"{short}_labels")
-            self.codelists[cname] = {self._label_key_to_int(k): v for k, v in labels.items()}
+            self.codelists[cname] = self._codelist_from_labels(labels)
 
     def define_labels(self, name, pairs):
         """pairs: [(value, label), ...]"""
@@ -4400,12 +4459,12 @@ class LabelManager:
                 labels = meta.get('labels', meta.get('labels_dict'))
                 # Tom {} fra metadata: ikke returner tom codelist — fall tilbake til felles kommune-liste
                 if isinstance(labels, dict) and len(labels) > 0:
-                    return {self._label_key_to_int(k): v for k, v in labels.items()}
+                    return self._codelist_from_labels(labels)
         meta = self.catalog.get(var_name) or self._catalog_by_short.get(var_name.split('/')[-1] if '/' in str(var_name) else var_name)
         if meta:
             labels = meta.get('labels', meta.get('labels_dict'))
             if isinstance(labels, dict) and len(labels) > 0:
-                return {self._label_key_to_int(k): v for k, v in labels.items()}
+                return self._codelist_from_labels(labels)
         # Fallback: kommunevariabler uten egne labels får kodelisten fra felles kommunevariabel.
         # Vi sjekker både alias-path (f.eks. bosted <- BEFOLKNING_KOMMNR_FORMELL) og selve var_name.
         commune_sources = {
@@ -4424,11 +4483,11 @@ class LabelManager:
                 if base_meta:
                     labels = base_meta.get('labels', base_meta.get('labels_dict'))
                     if isinstance(labels, dict) and len(labels) > 0:
-                        return {self._label_key_to_int(k): v for k, v in labels.items()}
+                        return self._codelist_from_labels(labels)
             # Siste utvei (samme som MockDataEngine-minimal)
             ml = _MINIMAL_KOMMUNE_BASE.get('labels')
             if isinstance(ml, dict) and ml:
-                return {self._label_key_to_int(k): v for k, v in ml.items()}
+                return self._codelist_from_labels(ml)
         return None
 
     @staticmethod
@@ -4632,6 +4691,36 @@ def _parse_count_option(opt_val, default=10):
 
 
 class StatsEngine:
+    def _t5_small_cell_check(self, row_vals, col_vals=None, dropna=True):
+        """T5: avsløringskontroll — stopp tabeller med for mange små celler.
+        Sjekkes på RÅ tellinger av cellene (uavhengig av om bruker vil ha
+        prosenter eller en volumtabell via summarize()). Deles av tabulate,
+        tabulate-panel og transitions-panel."""
+        if not _is_disclosure_control():
+            return
+        if col_vals is not None:
+            _raw_counts = pd.crosstab(row_vals, col_vals, dropna=dropna)
+        else:
+            _raw_counts = row_vals.value_counts(dropna=dropna)
+        _flat = _raw_counts.values.flatten() if hasattr(_raw_counts, 'values') else _raw_counts.to_numpy().flatten()
+        _total_cells = len(_flat)
+        if _total_cells > 0:
+            _low_cell = _dc_threshold('dc_tabulate_low_cell')
+            _low_cells = int((_flat < _low_cell).sum())
+            _low_ratio = _low_cells / _total_cells
+            if _low_ratio > _DC_TABULATE_LOW_RATIO:
+                _low_pct = f"{_low_ratio*100:.0f}"
+                raise ValueError(
+                    _t("Tabellen kan ikke vises pga. for mange små celler "
+                    "({low_cells} av {total_cells} celler har frekvens "
+                    "<{low_cell}, dvs. {low_pct}% — "
+                    "grensen er {limit_pct}%). "
+                    "Reduser antall kategorier eller utvid populasjonen.",
+                    low_cells=_low_cells, total_cells=_total_cells,
+                    low_cell=_low_cell, low_pct=_low_pct,
+                    limit_pct=int(_DC_TABULATE_LOW_RATIO*100))
+                )
+
     def execute(self, cmd, df, args, options):
         if cmd == 'generate':
             expr = args['expression']
@@ -4653,7 +4742,10 @@ class StatsEngine:
             evaluated = _py_eval_expr(df, expr)
 
             if line_cond:
-                mask = _py_eval_cond(df, line_cond)
+                # Bruk tolkerens dtype-bevisste mask når den finnes (samme vei
+                # som replace) — rå _py_eval_cond matcher ikke strengkodede
+                # kolonner (kjonn == 1 mot '1' ga stille bare missing).
+                mask = _line_condition_mask(df, line_cond, options)
                 df[args['target']] = np.where(mask, evaluated, np.nan)
             else:
                 df[args['target']] = evaluated
@@ -4918,35 +5010,6 @@ class StatsEngine:
             else:
                 label_fmt = _get_default('label_format') or 'both'
 
-            def _t5_small_cell_check():
-                """T5: avsløringskontroll — stopp tabeller med for mange små
-                celler. Sjekkes på RÅ tellinger av cellene (uavhengig av om
-                bruker vil ha prosenter eller en volumtabell via summarize())."""
-                if not _is_disclosure_control():
-                    return
-                if var2:
-                    _raw_counts = pd.crosstab(df[var1], df[var2], dropna=dropna)
-                else:
-                    _raw_counts = df[var1].value_counts(dropna=dropna)
-                _flat = _raw_counts.values.flatten() if hasattr(_raw_counts, 'values') else _raw_counts.to_numpy().flatten()
-                _total_cells = len(_flat)
-                if _total_cells > 0:
-                    _low_cell = _dc_threshold('dc_tabulate_low_cell')
-                    _low_cells = int((_flat < _low_cell).sum())
-                    _low_ratio = _low_cells / _total_cells
-                    if _low_ratio > _DC_TABULATE_LOW_RATIO:
-                        _low_pct = f"{_low_ratio*100:.0f}"
-                        raise ValueError(
-                            _t("Tabellen kan ikke vises pga. for mange små celler "
-                            "({low_cells} av {total_cells} celler har frekvens "
-                            "<{low_cell}, dvs. {low_pct}% — "
-                            "grensen er {limit_pct}%). "
-                            "Reduser antall kategorier eller utvid populasjonen.",
-                            low_cells=_low_cells, total_cells=_total_cells,
-                            low_cell=_low_cell, low_pct=_low_pct,
-                            limit_pct=int(_DC_TABULATE_LOW_RATIO*100))
-                        )
-
             def _parse_sort_arg(opt_val):
                 """Parse argument til rowsort()/colsort(). Returnerer kodeverdi eller None."""
                 if opt_val is True or opt_val is None:
@@ -5057,7 +5120,7 @@ class StatsEngine:
                 # Volumtabell: summarize(var [, var2 ...]) [mean|std|sum|p50|p25|p75|gini|iqr]
                 # En gjennomsnitts-/sum-tabell over små celler avslører nær-individuelle
                 # verdier akkurat som en frekvenstabell, så T5 gjelder også her.
-                _t5_small_cell_check()
+                self._t5_small_cell_check(df[var1], df[var2] if var2 else None, dropna)
                 # summarize kan inneholde én eller flere komma-separerte variabler
                 val_var_spec = options['summarize']
                 val_vars = [v.strip() for v in str(val_var_spec).split(',') if v.strip()]
@@ -5141,7 +5204,7 @@ class StatsEngine:
             elif 'cellpct' in options: normalize = 'all'
 
             # T5: avsløringskontroll — stopp frekvenstabeller med for mange små celler.
-            _t5_small_cell_check()
+            self._t5_small_cell_check(df[var1], df[var2] if var2 else None, dropna)
 
             if var2:
                 ct = pd.crosstab(df[var1], df[var2], normalize=normalize, dropna=dropna,
@@ -5215,6 +5278,9 @@ class StatsEngine:
                 row_vals.name = ' x '.join(row_idx)
             else:
                 row_vals = df[var1]
+            # T5: samme småcelle-kontroll som tabulate — panelvarianten viser
+            # de samme råcellene (variabel x tid) og kan ikke gå utenom.
+            self._t5_small_cell_check(row_vals, df['tid'], dropna)
             ct = pd.crosstab(row_vals, df['tid'], normalize='columns' if 'colpct' in options else False, dropna=dropna)
             if 'rowpct' in options:
                 ct = ct.div(ct.sum(axis=1), axis=0)
@@ -5247,6 +5313,9 @@ class StatsEngine:
                 if pairs.empty:
                     results.append(pd.DataFrame())
                     continue
+                # T5: overgangssannsynlighetene er rad-normaliserte råceller —
+                # kontroller de underliggende tellingene før tabellen bygges.
+                self._t5_small_cell_check(pairs[var], pairs['_next'], dropna=True)
                 ct = pd.crosstab(pairs[var], pairs['_next'], normalize='index')
                 lm = options.get('_label_manager')
                 if lm:
@@ -7303,12 +7372,17 @@ class MicroInterpreter:
 
         # Hvis verdi er streng og matcher en label, bruk kode (labeltekst -> kode)
         if isinstance(value, str) and cl:
-            for code, label in cl.items():
-                if label == value:
-                    aux['int_code'] = code
-                    aux['str_code'] = str(code)
-                    value = code
-                    break
+            # Samle ALLE kodeformer for labelen: kodelisten kan holde både
+            # int-nøkkelen (301) og den null-paddede originalen ('0301') —
+            # begge må bli kandidater, ellers matcher 'Oslo' aldri '0301'.
+            matches = [code for code, label in cl.items() if label == value]
+            if matches:
+                int_match = next((c for c in matches if not isinstance(c, str)), None)
+                str_match = next((c for c in matches if isinstance(c, str)), None)
+                if int_match is not None:
+                    aux['int_code'] = int_match
+                aux['str_code'] = str_match if str_match is not None else str(matches[0])
+                value = int_match if int_match is not None else matches[0]
             # Ellers: hvis verdi er streng som ser ut som tall og finnes som kode
             if value in cl:
                 aux.setdefault('int_code', value if not isinstance(value, str) else None)
@@ -7340,9 +7414,59 @@ class MicroInterpreter:
             aux['str_code'] = str(aux['int_code'])
         return prim, aux
 
+    @staticmethod
+    def _strip_parens_fully(cond):
+        """Fjern balanserte ytterparenteser til det ikke er flere:
+        '((a == 1))' -> 'a == 1'. Bruker den streng-/dybdebevisste
+        modul-hjelperen; rører ikke funksjonskall ('inrange(...)'
+        starter ikke med '(')."""
+        prev = None
+        s = cond.strip()
+        while s != prev:
+            prev = s
+            s = _strip_outer_parens(s)
+        return s
+
+    def _eval_compound_condition_mask(self, df, cond):
+        """Dekomponer sammensatt betingelse (& / |) til dtype-bevisste
+        del-masker og kombiner dem. Presedens som Stata/Python: & binder
+        sterkere enn |, så det splittes på | først. Returnerer None hvis en
+        del ikke kan parses trygt (caller faller da tilbake til rå eval)."""
+        cond = self._strip_parens_fully(cond)
+        for sep in ('|', '&'):
+            parts = _split_top_level_bool(cond, sep)
+            if len(parts) > 1:
+                masks = []
+                for part in parts:
+                    part = part.strip()
+                    if not part:
+                        return None
+                    m = self._eval_condition_mask(df, part)
+                    if m is None:
+                        return None
+                    masks.append(m.fillna(False) if hasattr(m, 'fillna') else m)
+                out = masks[0]
+                for m in masks[1:]:
+                    out = (out | m) if sep == '|' else (out & m)
+                return out
+        # Ingen topp-nivå & eller | (de lå f.eks. inne i parenteser/anførsel):
+        # prøv som enkel betingelse etter parentes-stripping.
+        return self._eval_simple_condition_mask(df, cond)
+
     def _eval_condition_mask(self, df, cond):
-        """Bygger boolsk mask fra betingelse. Støtter ==, !=, <, >, <=, >= og label-oppslag.
-        Returnerer pandas Series (mask) eller None ved parsing-feil (da kan caller falle tilbake til query)."""
+        """Bygger boolsk mask fra betingelse. Støtter ==, !=, <, >, <=, >=,
+        label-oppslag og sammensatte uttrykk med & / | (dekomponert til
+        dtype-bevisste del-masker). Returnerer pandas Series (mask) eller
+        None ved parsing-feil (da kan caller falle tilbake til query/eval)."""
+        if cond:
+            stripped = self._strip_parens_fully(cond)
+            if '&' in stripped or '|' in stripped:
+                return self._eval_compound_condition_mask(df, stripped)
+            cond = stripped
+        return self._eval_simple_condition_mask(df, cond)
+
+    def _eval_simple_condition_mask(self, df, cond):
+        """Mask for én enkel betingelse (var op verdi) — ingen & / |."""
         parsed = self._parse_condition(cond)
         if not parsed:
             return None
@@ -9026,6 +9150,8 @@ class MicroInterpreter:
             run_opts = dict(opts)
             if cond and cmd == 'generate':
                 run_opts['_condition'] = cond
+                # Samme dtype-bevisste maskebygging som replace får (B2)
+                run_opts['_condition_mask'] = self._eval_condition_mask(df_target, cond)
             if cmd in ['tabulate', 'tabulate-panel', 'transitions-panel']:
                 run_opts['_label_manager'] = self.label_manager
             if cmd in ['generate', 'aggregate', 'collapse', 'summarize', 'summarize-panel', 'correlate', 'ci', 'anova', 'tabulate', 'tabulate-panel', 'normaltest', 'transitions-panel']:

@@ -856,19 +856,56 @@ def build_trafikkulykke(
     acc_df = pd.DataFrame(acc)
 
     # --- bridge: one row per (accident, involved person) ---
-    total = int(antall_pers.sum())
-    acc_for_row = np.repeat(acc_ids, antall_pers)
-    aarmnd_for_row = np.repeat(aarmnd, antall_pers)
-
-    person_fk = np.empty(total, dtype=np.int64)
-    idx = 0
-    for a in range(n_acc):
-        k = int(antall_pers[a])
-        person_fk[idx:idx + k] = rng.choice(persons, size=k, replace=False)
-        idx += k
-
-    # Look up gender/age from the person table for consistency.
+    # A person can only be involved while alive and already born. Look up
+    # birth/death year once from person_df (BEFOLKNING_DOEDS_DATO is NaN for
+    # the living) and re-check per accident year — previously involvements
+    # were sampled from the full person universe with no death check, and
+    # ages for the not-yet-born were clamped to 0 instead of being excluded.
     pdf = person_df.set_index("unit_id")
+    birth_year_by_uid = pd.to_numeric(pdf.get("BEFOLKNING_FOEDSELS_AAR_MND"), errors="coerce") // 100
+    if "BEFOLKNING_DOEDS_DATO" in pdf.columns:
+        death_year_by_uid = pd.to_numeric(pdf["BEFOLKNING_DOEDS_DATO"], errors="coerce") // 10000
+    else:
+        death_year_by_uid = pd.Series(np.nan, index=pdf.index)
+    birth_year_all = birth_year_by_uid.reindex(persons).to_numpy()
+    death_year_all = death_year_by_uid.reindex(persons).to_numpy()
+
+    acc_year = aarmnd // 100
+    person_fk_parts, acc_for_row_parts, aarmnd_for_row_parts = [], [], []
+    actual_antall_pers = np.zeros(n_acc, dtype=np.int64)
+    for a in range(n_acc):
+        year = int(acc_year[a])
+        # Unknown birth/death year (NaN) does not disqualify — mirrors the
+        # previous fillna(1980) fallback (always "born") and the absence of
+        # any death signal (always "alive") for those rows.
+        eligible_mask = (np.isnan(birth_year_all) | (birth_year_all <= year)) & \
+                         (np.isnan(death_year_all) | (death_year_all >= year))
+        eligible = persons[eligible_mask]
+        k = min(int(antall_pers[a]), len(eligible))
+        if k <= 0:
+            continue
+        chosen = rng.choice(eligible, size=k, replace=False)
+        person_fk_parts.append(chosen)
+        acc_for_row_parts.append(np.full(k, acc_ids[a], dtype=np.int64))
+        aarmnd_for_row_parts.append(np.full(k, aarmnd[a], dtype=np.int64))
+        actual_antall_pers[a] = k
+
+    person_fk = (np.concatenate(person_fk_parts) if person_fk_parts
+                 else np.empty(0, dtype=np.int64))
+    acc_for_row = (np.concatenate(acc_for_row_parts) if acc_for_row_parts
+                   else np.empty(0, dtype=np.int64))
+    aarmnd_for_row = (np.concatenate(aarmnd_for_row_parts) if aarmnd_for_row_parts
+                      else np.empty(0, dtype=np.int64))
+    total = int(len(person_fk))
+
+    # Keep the declared per-accident person count in sync with who was
+    # actually sampled (mortality/birth scoping can shrink it below the
+    # originally drawn Poisson count).
+    acc_df["TRAFULYK_ANTALL_PERS"] = actual_antall_pers
+
+    # Look up gender/age from the person table for consistency. Age can no
+    # longer go negative (not-yet-born persons are excluded above), so the
+    # clip only guards against implausible upper outliers.
     gv = pd.to_numeric(pdf.get("BEFOLKNING_KJOENN"), errors="coerce").reindex(person_fk).fillna(1).astype(int).values
     birth_year = (pd.to_numeric(pdf.get("BEFOLKNING_FOEDSELS_AAR_MND"), errors="coerce")
                   .reindex(person_fk).fillna(198001) // 100).astype(int).values
@@ -1247,11 +1284,20 @@ def apply_latent_structure(
         rem = math.sqrt(max(0.0, 1.0 - sum(w * w for w in L.values())))
         score = score + rem * rng.standard_normal(n)
 
-        # Rank-match: assign sorted values to persons in score order (NaNs last).
-        order = np.argsort(np.where(np.isnan(score), np.inf, score), kind="stable")
-        sorted_vals = np.sort(vals)  # NaNs sort to the end in numpy
-        new = np.empty_like(vals)
-        new[order] = sorted_vals
+        # Rank-match non-null values onto the latent ordering of non-null
+        # positions; the NaN mask stays exactly where it was. (Previously
+        # `np.sort(vals)` sorted NaNs to the end and `new[order] = ...`
+        # handed them to the highest-score persons — e.g. missing pension
+        # income migrated onto old-age earners, real values onto children.)
+        nan_mask = pd.isna(vals)
+        new = np.array(vals, copy=True)
+        non_null_idx = np.flatnonzero(~nan_mask)
+        if non_null_idx.size:
+            sub_order = np.argsort(score[non_null_idx], kind="stable")
+            sorted_vals = np.sort(vals[non_null_idx])
+            reordered = np.empty(non_null_idx.size, dtype=vals.dtype)
+            reordered[sub_order] = sorted_vals
+            new[non_null_idx] = reordered
         df[col] = new
         loaded[col] = L
 

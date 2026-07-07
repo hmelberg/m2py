@@ -2,7 +2,8 @@
 // otherwise clients keep serving the stale cache. The Pyodide version string is
 // duplicated across this file (PRECACHE_URLS below), index.html, and
 // py2m/py2m_runner.html — update all of them together when upgrading Pyodide.
-const CACHE = 'm2py-v5';
+const PYODIDE_VERSION = 'v314.0.2';
+const CACHE = 'm2py-v6';
 const CDN_HOSTS = new Set([
   'cdn.jsdelivr.net',
   'cdn.plot.ly',
@@ -18,10 +19,11 @@ const LOCAL_SWR_SUFFIXES = [
 ];
 
 const PRECACHE_URLS = [
-  'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js',
-  'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.asm.wasm',
-  'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.asm.js',
-  'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide-lock.json',
+  'https://cdn.jsdelivr.net/pyodide/' + PYODIDE_VERSION + '/full/pyodide.js',
+  'https://cdn.jsdelivr.net/pyodide/' + PYODIDE_VERSION + '/full/pyodide.mjs',
+  'https://cdn.jsdelivr.net/pyodide/' + PYODIDE_VERSION + '/full/pyodide.asm.wasm',
+  'https://cdn.jsdelivr.net/pyodide/' + PYODIDE_VERSION + '/full/pyodide-lock.json',
+  'https://cdn.jsdelivr.net/pyodide/' + PYODIDE_VERSION + '/full/python_stdlib.zip',
   'https://cdn.plot.ly/plotly-2.32.0.min.js',
   'https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js'
 ];

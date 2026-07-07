@@ -267,6 +267,46 @@ class TestTabulateSummarizeDisclosure:
 
 
 # ---------------------------------------------------------------------------
+# 6b. D1 (kodegjennomgang 2026-07-07): tabulate-panel og transitions-panel
+# gikk helt utenom T5 — en tabell tabulate blokkerer ble vist med råceller
+# på 1-2 via panelvariantene (transitions-panel til og med som rad-
+# normaliserte overgangssannsynligheter fra celler på størrelse 1).
+# ---------------------------------------------------------------------------
+
+class TestPanelTablesDisclosure:
+    def _tiny_panel_df(self):
+        # 6 grupper à 2 enheter, 2 tidspunkter => alle råceller har frekvens < 5
+        rows = []
+        for tid in (2019, 2020):
+            for g in range(6):
+                for i in range(2):
+                    rows.append({"unit_id": g * 2 + i + 1, "tid": tid, "grp": g})
+        return pd.DataFrame(rows)
+
+    def test_tabulate_blocks_small_cells_sanity(self, dc_on):
+        # Sanity: samme data blokkeres av vanlig tabulate (T5).
+        it = _interp(self._tiny_panel_df())
+        out = _run(it, "tabulate grp")
+        assert "FEIL" in out and "celler" in out
+
+    def test_tabulate_panel_blocked_like_tabulate(self, dc_on):
+        it = _interp(self._tiny_panel_df())
+        out = _run(it, "tabulate-panel grp")
+        assert "FEIL" in out and "celler" in out
+
+    def test_transitions_panel_blocked(self, dc_on):
+        it = _interp(self._tiny_panel_df())
+        out = _run(it, "transitions-panel grp")
+        assert "FEIL" in out and "celler" in out
+
+    def test_panel_tables_allowed_when_dc_off(self, dc_off):
+        it = _interp(self._tiny_panel_df())
+        out = _run(it, "tabulate-panel grp")
+        out += _run(it, "transitions-panel grp")
+        assert "FEIL" not in out
+
+
+# ---------------------------------------------------------------------------
 # 7. destring force: uten force skal ikke-numeriske verdier gi FEIL (hele
 # operasjonen avbrytes, jf. manualen). Med force → missing. Tidligere var
 # begge grener errors='coerce', så force var død og verdier ble stille NaN.

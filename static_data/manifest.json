@@ -65,7 +65,7 @@
       "cols": 5
     },
     "valid_dates": {
-      "rows": 9114,
+      "rows": 9113,
       "cols": 2
     },
     "fylke": {
@@ -82,5 +82,19 @@
     }
   },
   "metadata_file": "variable_metadata.json",
-  "skips": []
+  "skips": [],
+  "build_args": {
+    "persons": 10000,
+    "year_from": 2015,
+    "year_to": 2023,
+    "out": "static_data",
+    "metadata": "variable_metadata.json",
+    "no_duckdb": false,
+    "no_entities": false,
+    "person_scope": "all",
+    "no_latent_structure": false,
+    "dynamic_panel": true,
+    "no_normalize": false,
+    "dead_fraction": 0.4
+  }
 }

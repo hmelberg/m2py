@@ -122,6 +122,128 @@ class TestSurvivalCommandsHonorIf:
         assert captured.get("n") == N_GROUP1
 
 
+def _make_strcode_interp():
+    """Datasett der kjonn er STRENG-kodet ('1'/'2') slik metadata-importer gir,
+    mens brukeren sammenligner med tall — den kjente dtype-fellen."""
+    it = MicroInterpreter(metadata_path=None)
+    n = 100
+    kjonn = ["1"] * 60 + ["2"] * 40
+    alder = list(range(20, 70)) * 2  # 20..69 to ganger
+    lonn = [float(1000 + i) for i in range(n)]
+    it.datasets["testdata"] = pd.DataFrame(
+        {"kjonn": kjonn, "alder": alder, "lonn": lonn}
+    )
+    it.active_name = "testdata"
+    return it
+
+
+class TestCompoundConditionsDtypeAware:
+    """B1 (kodegjennomgang 2026-07-07): sammensatte betingelser (&/|) falt
+    tilbake til rå Python-eval uten dtype-tilpasning — `kjonn == 1` mot
+    strengkolonnen '1' ga stille 0 rader, mens den enkle betingelsen virket."""
+
+    def _expected_and(self, it):
+        df = it.datasets["testdata"]
+        return int(((df.kjonn == "1") & (df.alder > 30)).sum())
+
+    def test_mask_compound_and_matches_string_codes(self):
+        it = _make_strcode_interp()
+        df = it.datasets["testdata"]
+        mask = it._eval_condition_mask(df, "kjonn == 1 & alder > 30")
+        assert mask is not None
+        expected = self._expected_and(it)
+        assert expected > 0
+        assert int(mask.sum()) == expected
+
+    def test_mask_compound_with_parentheses(self):
+        it = _make_strcode_interp()
+        df = it.datasets["testdata"]
+        mask = it._eval_condition_mask(df, "(kjonn == 1) & (alder > 30)")
+        assert mask is not None
+        assert int(mask.sum()) == self._expected_and(it)
+
+    def test_mask_compound_or(self):
+        it = _make_strcode_interp()
+        df = it.datasets["testdata"]
+        mask = it._eval_condition_mask(df, "kjonn == 2 | alder > 65")
+        assert mask is not None
+        expected = int(((df.kjonn == "2") | (df.alder > 65)).sum())
+        assert int(mask.sum()) == expected
+
+    def test_mask_or_and_precedence(self):
+        # Stata/Python: & binder sterkere enn |
+        it = _make_strcode_interp()
+        df = it.datasets["testdata"]
+        mask = it._eval_condition_mask(df, "kjonn == 2 | kjonn == 1 & alder > 30")
+        assert mask is not None
+        expected = int(((df.kjonn == "2") | ((df.kjonn == "1") & (df.alder > 30))).sum())
+        assert int(mask.sum()) == expected
+
+    def test_summarize_compound_if_filters_rows(self):
+        # Sluttbrukerscenarioet fra kodegjennomgangen:
+        # `summarize lonn if kjonn == 1 & alder > 30` returnerte 0 rader.
+        it = _make_strcode_interp()
+        expected = self._expected_and(it)
+        captured = {}
+        orig = it.stats_engine.execute
+
+        def spy(cmd, df, args, opts):
+            captured["n"] = len(df)
+            return orig(cmd, df, args, opts)
+
+        it.stats_engine.execute = spy
+        _run(it, "summarize lonn if kjonn == 1 & alder > 30")
+        assert captured.get("n") == expected
+
+    def test_unparseable_compound_still_falls_back(self):
+        # Betingelser vi ikke kan dekomponere trygt skal fortsatt gi et
+        # resultat via fallback (numeriske kolonner virker der).
+        it = _make_strcode_interp()
+        captured = {}
+        orig = it.stats_engine.execute
+
+        def spy(cmd, df, args, opts):
+            captured["n"] = len(df)
+            return orig(cmd, df, args, opts)
+
+        it.stats_engine.execute = spy
+        _run(it, "summarize lonn if alder*1 > 30 & alder != 35")
+        df = it.datasets["testdata"]
+        expected = int(((df.alder > 30) & (df.alder != 35)).sum())
+        assert captured.get("n") == expected
+
+
+class TestGenerateIfDtypeAware:
+    """B2 (kodegjennomgang 2026-07-07): `generate ... if <cond>` brukte rå
+    _py_eval_cond uten dtype-tilpasning — `generate mann = 1 if kjonn == 1`
+    ga en kolonne med bare missing, mens replace med samme betingelse virket."""
+
+    def test_generate_if_matches_string_codes(self):
+        it = _make_strcode_interp()
+        _run(it, "generate mann = 1 if kjonn == 1")
+        df = it.datasets["testdata"]
+        assert "mann" in df.columns
+        assert (df.loc[df.kjonn == "1", "mann"] == 1).all()
+        assert df.loc[df.kjonn == "2", "mann"].isna().all()
+
+    def test_generate_if_compound_condition(self):
+        it = _make_strcode_interp()
+        _run(it, "generate ung_mann = 1 if kjonn == 1 & alder < 30")
+        df = it.datasets["testdata"]
+        sel = (df.kjonn == "1") & (df.alder < 30)
+        assert sel.any()
+        assert (df.loc[sel, "ung_mann"] == 1).all()
+        assert df.loc[~sel, "ung_mann"].isna().all()
+
+    def test_generate_if_numeric_column_unchanged(self):
+        # Allerede fungerende tilfelle (numerisk kolonne) må være uendret.
+        it = _make_interp()
+        _run(it, "generate g1 = 1 if g == 1")
+        df = it.datasets["testdata"]
+        assert (df.loc[df.g == 1, "g1"] == 1).all()
+        assert df.loc[df.g == 2, "g1"].isna().all()
+
+
 class TestUnsupportedIfWarns:
     def test_aggregate_with_if_logs_warning(self):
         # aggregate er IKKE dokumentert med [if] i manualen — betingelsen

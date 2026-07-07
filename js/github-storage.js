@@ -64,6 +64,21 @@
         return await new Response(ds.readable).text();
       }
 
+      // key(<literal>) i scriptet er en hemmelighet (samme regel som AI-veien,
+      // se js/ai-chat.js scrubScript / js/data-directives.js scrubKeys) — masker
+      // den før teksten forlater nettleseren via delelenke eller GitHub-lagring.
+      // DataDirectives lastes før dette scriptet (index.html), men vi sjekker
+      // robust for lastrekkefølge-avvik og feiler aldri selve delingen/lagringen.
+      function scrubSecrets(text) {
+        try {
+          if (window.DataDirectives && typeof window.DataDirectives.scrubKeys === 'function') {
+            const scrubbed = window.DataDirectives.scrubKeys(text);
+            return { text: scrubbed, changed: scrubbed !== text };
+          }
+        } catch (_) { /* skrubber utilgjengelig/feilet — del uskrubbet under */ }
+        return { text: text, changed: false };
+      }
+
       function toast(msg) {
         let t = $('mdShareToast');
         if (!t) {
@@ -85,11 +100,12 @@
         const script = si ? si.value : '';
         if (!script.trim()) { alert(T('Editoren er tom — ingenting å dele.')); return; }
         try {
+          const scrub = scrubSecrets(script);
           const payload = JSON.stringify({
             v: 1,
             name: ($('scriptName') && $('scriptName').value) || '',
             lang: currentLang(),
-            script: script
+            script: scrub.text
           });
           const packed = await gzip(payload);
           const link = location.origin + location.pathname + '#s=' + packed;
@@ -98,7 +114,9 @@
             return;
           }
           await navigator.clipboard.writeText(link);
-          toast(T('Delelenke kopiert til utklippstavlen'));
+          toast(scrub.changed
+            ? T('Delelenke kopiert til utklippstavlen — nøkler fjernet fra delt script (bruk key(ask))')
+            : T('Delelenke kopiert til utklippstavlen'));
         } catch (e) {
           alert(T('Kunne ikke lage delelenke: {msg}', { msg: e.message || e }));
         }
@@ -589,7 +607,12 @@
       }
 
       // Skriving
+      // Skrubber alltid key(<literal>)-hemmeligheter av editorteksten før den
+      // forlater nettleseren (samme regel som shareLink) og returnerer om noe
+      // ble fjernet, slik at kallerne kan varsle brukeren om det.
       async function putFile(s, path, content) {
+        const scrub = scrubSecrets(content);
+        content = scrub.text;
         // Hent eksisterende sha (kreves for å overskrive en fil som finnes)
         let sha = null;
         const head = await fetch(ghContentsUrlFor(s.repo, path) + '?ref=' + encodeURIComponent(s.branch), { headers: ghHeaders(s.pat) });
@@ -603,6 +626,7 @@
           if (resp.status === 409) msg += T(' (filen er endret på GitHub — bruk «Oppdater» og prøv igjen)');
           throw new Error(msg);
         }
+        return scrub.changed;
       }
       async function doSave() {
         closeMenu();
@@ -618,10 +642,12 @@
         if (langFromPath(cur.path) !== currentLang()) { openSaveAs(); return; }
         const si = $('scriptInput');
         try {
-          await putFile(s, cur.path, si ? si.value : '');
+          const changed = await putFile(s, cur.path, si ? si.value : '');
           setCurrent({ repo: s.repo, branch: s.branch, path: cur.path });
           markSaved();
-          toast(T('Lagret til GitHub: {path}', { path: cur.path }));
+          toast(changed
+            ? T('Lagret til GitHub: {path} — nøkler fjernet fra delt script (bruk key(ask))', { path: cur.path })
+            : T('Lagret til GitHub: {path}', { path: cur.path }));
         } catch (e) { alert(T('Kunne ikke lagre: {msg}', { msg: e.message || e })); }
       }
       function openSaveAs() {
@@ -662,14 +688,16 @@
         const s = ghSettings();
         const si = $('scriptInput');
         try {
-          await putFile(s, path, si ? si.value : '');
+          const changed = await putFile(s, path, si ? si.value : '');
           setCurrent({ repo: s.repo, branch: s.branch, path: path });
           markSaved();
           pushRecentFile({ kind: 'github', repo: s.repo, branch: s.branch, path: path });
           const nameEl = $('scriptName');
           if (nameEl) nameEl.value = (path.split('/').pop() || '').replace(/\.(txt|py|r)$/i, '');
           $('ghSaveAsBackdrop').style.display = 'none';
-          toast(T('Lagret til GitHub: {path}', { path: path }));
+          toast(changed
+            ? T('Lagret til GitHub: {path} — nøkler fjernet fra delt script (bruk key(ask))', { path: path })
+            : T('Lagret til GitHub: {path}', { path: path }));
         } catch (e) { if (err) err.textContent = T('Kunne ikke lagre: {msg}', { msg: e.message || e }); }
       }
       async function doRefresh() {
