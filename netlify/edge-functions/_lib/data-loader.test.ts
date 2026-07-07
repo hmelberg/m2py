@@ -7,6 +7,7 @@ for (const f of ["data-directives.js", "data-loader.js", "enc-crypto.js"]) {
 const DL = (globalThis as any).DataLoader;
 
 Deno.test("resolveAndFetchLoads: fetches, sniffs format, proxy fallback on CORS", async () => {
+  DL._resetCacheForTests();
   const calls: string[] = [];
   const fetchImpl = ((input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
@@ -29,6 +30,7 @@ Deno.test("resolveAndFetchLoads: fetches, sniffs format, proxy fallback on CORS"
 });
 
 Deno.test("resolveAndFetchLoads: BYOK-nøkkel sendes som X-Anthropic-Key på proxy-kall når token mangler", async () => {
+  DL._resetCacheForTests();
   const calls: { url: string; headers: Record<string, string> }[] = [];
   const fetchImpl = ((input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
@@ -45,6 +47,7 @@ Deno.test("resolveAndFetchLoads: BYOK-nøkkel sendes som X-Anthropic-Key på pro
 });
 
 Deno.test("resolveAndFetchLoads: innloggingstoken har forrang over BYOK-nøkkel", async () => {
+  DL._resetCacheForTests();
   const calls: { url: string; headers: Record<string, string> }[] = [];
   const fetchImpl = ((input: string | URL | Request, init?: RequestInit) => {
     calls.push({ url: String(input), headers: (init?.headers as Record<string, string>) ?? {} });
@@ -73,6 +76,7 @@ function jsonResp(obj: unknown, status = 200) {
 }
 
 Deno.test("anvil grant: fetch + decrypt with released key (mode 3)", async () => {
+  DL._resetCacheForTests();
   const plain = new TextEncoder().encode("a,b\n1,2\n");
   const { envelope, key } = await EC.encryptBytes(plain, "csv");
   const fetchImpl = ((input: string | URL | Request) => {
@@ -92,6 +96,7 @@ Deno.test("anvil grant: fetch + decrypt with released key (mode 3)", async () =>
 });
 
 Deno.test("anvil remote_only routes to remote list", async () => {
+  DL._resetCacheForTests();
   const fetchImpl = (() =>
     Promise.resolve(jsonResp({ remote_only: true, default_exec: "remote" }))) as typeof fetch;
   const out = await DL.resolveAndFetchLoads("# connect kreft as k, key(ask)\n# load k as df",
@@ -101,6 +106,7 @@ Deno.test("anvil remote_only routes to remote list", async () => {
 });
 
 Deno.test("anvil 404 gives norsk tilgangsfeil", async () => {
+  DL._resetCacheForTests();
   const fetchImpl = (() =>
     Promise.resolve(jsonResp({ error: "unknown source: x" }, 404))) as typeof fetch;
   await assertRejects(
@@ -110,6 +116,7 @@ Deno.test("anvil 404 gives norsk tilgangsfeil", async () => {
 });
 
 Deno.test("anvil 404 tags the error for the request-access UI (roadmap §2a)", async () => {
+  DL._resetCacheForTests();
   const fetchImpl = (() =>
     Promise.resolve(jsonResp({ error: "unknown source: x" }, 404))) as typeof fetch;
   try {
@@ -124,6 +131,7 @@ Deno.test("anvil 404 tags the error for the request-access UI (roadmap §2a)", a
 });
 
 Deno.test("mode 1: url envelope + key literal decrypts without anvil", async () => {
+  DL._resetCacheForTests();
   const plain = new TextEncoder().encode("x,y\n9,8\n");
   const { envelope, key } = await EC.encryptBytes(plain, "csv");
   const fetchImpl = (() => Promise.resolve(jsonResp(envelope))) as typeof fetch;
@@ -134,6 +142,7 @@ Deno.test("mode 1: url envelope + key literal decrypts without anvil", async () 
 });
 
 Deno.test("envelope without key prompts via promptKey(ask)", async () => {
+  DL._resetCacheForTests();
   const plain = new TextEncoder().encode("q\n1\n");
   const { envelope, key } = await EC.encryptBytes(plain, "csv");
   const fetchImpl = (() => Promise.resolve(jsonResp(envelope))) as typeof fetch;
@@ -146,6 +155,7 @@ Deno.test("envelope without key prompts via promptKey(ask)", async () => {
 });
 
 Deno.test("grant fingerprint mismatch is refused (byttet fil)", async () => {
+  DL._resetCacheForTests();
   const { envelope, key } = await EC.encryptBytes(new TextEncoder().encode("a\n1\n"), "csv");
   const fetchImpl = ((input: string | URL | Request) => {
     const url = String(input);
@@ -161,6 +171,7 @@ Deno.test("grant fingerprint mismatch is refused (byttet fil)", async () => {
 });
 
 Deno.test("strict grant marks the load and carries level", async () => {
+  DL._resetCacheForTests();
   const plain = new TextEncoder().encode("a,b\n1,2\n");
   const { envelope, key } = await EC.encryptBytes(plain, "csv");
   const fetchImpl = ((input: string | URL | Request) => {
@@ -183,6 +194,7 @@ Deno.test("strict grant marks the load and carries level", async () => {
 });
 
 Deno.test("strict without authorize callback is refused", async () => {
+  DL._resetCacheForTests();
   const fetchImpl = ((input: string | URL | Request) => {
     const url = String(input);
     if (url.includes("/source_access")) return Promise.resolve(jsonResp({
@@ -198,6 +210,7 @@ Deno.test("strict without authorize callback is refused", async () => {
 });
 
 Deno.test("strict without any key never prompts — hard refusal", async () => {
+  DL._resetCacheForTests();
   const plain = new TextEncoder().encode("a\n1\n");
   const { envelope } = await EC.encryptBytes(plain, "csv");
   let prompted = false;
@@ -219,6 +232,7 @@ Deno.test("strict without any key never prompts — hard refusal", async () => {
 });
 
 Deno.test("open grant leaves strict undefined", async () => {
+  DL._resetCacheForTests();
   const fetchImpl = ((input: string | URL | Request) => {
     const url = String(input);
     if (url.includes("/source_access")) return Promise.resolve(jsonResp({
@@ -233,6 +247,7 @@ Deno.test("open grant leaves strict undefined", async () => {
 });
 
 Deno.test("protected source with local_mode=open exposes level without forcing strict", async () => {
+  DL._resetCacheForTests();
   // The sidebar's click-to-view gating needs the real level even when a
   // registered source's local_mode allows it to run in the ordinary
   // non-strict path — l.strict must stay false/undefined here, but l.level
@@ -252,6 +267,7 @@ Deno.test("protected source with local_mode=open exposes level without forcing s
 });
 
 Deno.test("strict encrypted grant uses authorizeStrict for keys", async () => {
+  DL._resetCacheForTests();
   const plain = new TextEncoder().encode("a\n1\n");
   const { envelope, key } = await EC.encryptBytes(plain, "csv");
   let authorizedWith: string[] = [];
@@ -275,6 +291,7 @@ Deno.test("strict encrypted grant uses authorizeStrict for keys", async () => {
 });
 
 Deno.test("resolveAndAssemble: fetches spec sources + returns spec", async () => {
+  DL._resetCacheForTests();
   const fetchImpl = ((input: string | URL | Request) => {
     const url = String(input);
     const body = url.includes("people") ? "pid,income\n1,10\n2,20" : "pid,amount\n1,5";
@@ -297,6 +314,7 @@ Deno.test("resolveAndAssemble: fetches spec sources + returns spec", async () =>
 });
 
 Deno.test("resolveSourcesOnly: no network calls, returns url/format/table per source", async () => {
+  DL._resetCacheForTests();
   const script = [
     "# connect https://x.example/panel.duckdb as db, kind(duckdb)",
     "# connect https://x.example/inc.parquet as inc, kind(parquet)",
@@ -310,12 +328,14 @@ Deno.test("resolveSourcesOnly: no network calls, returns url/format/table per so
 });
 
 Deno.test("resolveSourcesOnly: anvil/protected sources are excluded from descriptors", async () => {
+  DL._resetCacheForTests();
   const script = "# connect helse2025 as h\n# create-dataset d, key(pid)\n# import h/x into d";
   const out = await DL.resolveSourcesOnly(script, { registry: [] });
   assertEquals(out.descriptors, {});
 });
 
 Deno.test("resolveAndAssemble: a remote source routes the whole run remote", async () => {
+  DL._resetCacheForTests();
   const fetchImpl = ((input: string | URL | Request) => {
     const url = String(input);
     if (url.includes("/source_access")) return Promise.resolve(
@@ -347,6 +367,7 @@ Deno.test("sniffFormat: .duckdb/.sqlite extensions sniffed without kind()", () =
 });
 
 Deno.test("resolveAndFetchLoads: duckdb load carries table + kind through to the output item", async () => {
+  DL._resetCacheForTests();
   const fetchImpl = (() => Promise.resolve(
     new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "application/octet-stream" } })
   )) as typeof fetch;
@@ -361,6 +382,7 @@ Deno.test("resolveAndFetchLoads: duckdb load carries table + kind through to the
 });
 
 Deno.test("resolveAndFetchLoads: two loads against the same duckdb URL fetch the file only once", async () => {
+  DL._resetCacheForTests();
   let fetchCount = 0;
   const fetchImpl = (() => {
     fetchCount++;
@@ -377,7 +399,48 @@ Deno.test("resolveAndFetchLoads: two loads against the same duckdb URL fetch the
   assertEquals(fetchCount, 1);
 });
 
+Deno.test("resolveAndFetchLoads: the fetch cache persists across separate calls (2026-07-07, roadmap §6 item 1)", async () => {
+  DL._resetCacheForTests();
+  let fetchCount = 0;
+  const fetchImpl = (() => {
+    fetchCount++;
+    return Promise.resolve(new Response("a,b\n1,2\n",
+      { status: 200, headers: { "content-type": "text/csv" } }));
+  }) as typeof fetch;
+  const script = "# load https://x.example/same.csv as df\n";
+  const out1 = await DL.resolveAndFetchLoads(script, { fetchImpl, registry: [] });
+  const out2 = await DL.resolveAndFetchLoads(script, { fetchImpl, registry: [] });
+  assertEquals(out1.loads[0].alias, "df");
+  assertEquals(out2.loads[0].alias, "df");
+  // Two separate calls (simulating two separate clicks of "Run" against the
+  // same script) must fetch the underlying bytes only once, not twice.
+  assertEquals(fetchCount, 1);
+});
+
+Deno.test("resolveAndFetchLoads: a failed fetch does not poison the cache for the next call", async () => {
+  DL._resetCacheForTests();
+  let attempt = 0;
+  // A plain Error (not TypeError) so fetchLoadTarget's CORS->proxy fallback
+  // doesn't kick in and retry internally — this test is about the _bufCache
+  // layer itself, not fetchLoadTarget's own retry behavior.
+  const fetchImpl = (() => {
+    attempt++;
+    if (attempt === 1) return Promise.reject(new Error("500 for testing"));
+    return Promise.resolve(new Response("a,b\n1,2\n",
+      { status: 200, headers: { "content-type": "text/csv" } }));
+  }) as typeof fetch;
+  const script = "# load https://x.example/flaky.csv as df\n";
+  await assertRejects(() => DL.resolveAndFetchLoads(script, { fetchImpl, registry: [] }));
+  // A transient failure must not be cached forever — the retry (a fresh
+  // call, as a real second "Run" click would be) must actually re-fetch,
+  // not immediately reject again from a poisoned cache entry.
+  const out = await DL.resolveAndFetchLoads(script, { fetchImpl, registry: [] });
+  assertEquals(out.loads[0].alias, "df");
+  assertEquals(attempt, 2);
+});
+
 Deno.test("resolveAndAssemble: table-qualified sources re-fetch via alias/table, not the synthetic key", async () => {
+  DL._resetCacheForTests();
   const seen: string[] = [];
   const fetchImpl = ((input: string | URL | Request) => {
     seen.push(String(input));

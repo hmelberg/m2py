@@ -14,6 +14,18 @@
     return _registryCache;
   }
 
+  // Module-scoped (not per-call, like _registryCache above): every click of
+  // Run previously re-fetched (and for duckdb/sqlite, re-extracted) every
+  // source from scratch, even when nothing about the script changed since
+  // the last run — the highest-frequency friction point in the app given
+  // how often a script gets tweaked and re-run during iteration. Keyed by
+  // resolved URL; only raw bytes are cached (decryption still runs fresh
+  // per item/run, and strict-source key authorization is deliberately never
+  // cached — see authorizeStrict below). No TTL/invalidation, same as
+  // _registryCache above — a page reload is the reset, by design (2026-07-07,
+  // docs/superpowers/2026-07-07-code-review.md §6 item 1).
+  var _bufCache = {};
+
   // Proxy-auth: innloggingstoken har forrang; ellers BYOK-nøkkel (hent-
   // endepunktet godtar X-Anthropic-Key via allowByok, jf. B5 i roadmapen).
   function proxyHeaders(authToken, anthropicKey) {
@@ -108,7 +120,6 @@
       });
     }
 
-    var _bufCache = {};
     function fetchBytes(item) {
       var k = item.url;
       if (!_bufCache[k]) {
@@ -116,6 +127,11 @@
           .then(function (resp) {
             return resp.arrayBuffer().then(function (ab) { return { resp: resp, buf: new Uint8Array(ab) }; });
           });
+        // A failed fetch must NOT poison future runs — _bufCache is now
+        // module-scoped (persists across runs, not just within one), so a
+        // transient network error would otherwise be "cached" forever until
+        // a page reload. Drop the entry on rejection so the next run retries.
+        _bufCache[k].catch(function () { delete _bufCache[k]; });
       }
       return _bufCache[k];
     }
@@ -264,5 +280,11 @@
   }
 
   global.DataLoader = { resolveAndFetchLoads: resolveAndFetchLoads, resolveAndAssemble: resolveAndAssemble,
-    resolveSourcesOnly: resolveSourcesOnly, _sniffFormat: sniffFormat };
+    resolveSourcesOnly: resolveSourcesOnly, _sniffFormat: sniffFormat,
+    // Test-only: the cross-run fetch cache is module-scoped by design (see
+    // _bufCache above), which is exactly wrong for a test file that evals
+    // this module once and shares it across every Deno.test case — without
+    // this, tests using the same placeholder URL leak cached bytes into
+    // each other. Not used by index.html.
+    _resetCacheForTests: function () { _bufCache = {}; } };
 })(typeof window !== 'undefined' ? window : globalThis);
