@@ -226,6 +226,7 @@ _M2PY_MESSAGES_EN = {
     'Person i trafikkulykke': 'Person in traffic accident',
     'Populasjonen er {n} enheter ({context}). microdata.no tillater ikke populasjoner med færre enn {min_pop} enheter.': 'The population is {n} units ({context}). microdata.no does not allow populations with fewer than {min_pop} units.',
     'Populasjonen er {n} enheter. microdata.no krever minst {min_pop} enheter for deskriptiv statistikk ({cmd}). Unntak: ren count/sum er tillatt.': 'The population is {n} units. microdata.no requires at least {min_pop} units for descriptive statistics ({cmd}). Exception: plain count/sum is allowed.',
+    'Gruppen {gval} i {gvar} har {n} enheter. microdata.no krever minst {min_pop} enheter for deskriptiv statistikk ({cmd}) — også per gruppe. Unntak: ren count/sum er tillatt.': 'Group {gval} in {gvar} has {n} units. microdata.no requires at least {min_pop} units for descriptive statistics ({cmd}) — per group as well. Exception: plain count/sum is allowed.',
     'Prosent': 'Percent',
     'PÅ': 'ON',
     'Slettet datasett: {name}': 'Deleted dataset: {name}',
@@ -610,18 +611,34 @@ class MicroParser:
         })
         options_dict = {}
         first_word = line.split(maxsplit=1)[0].lower() if line else ''
+        _deferred_condition = None
         if ',' in line and first_word not in _no_comma_option_split:
-            line, opt_part = line.split(',', 1)
-            # Finner opsjoner som 'robust' eller 'by(kommune)'
-            opt_matches = re.finditer(r"(?P<opt>\w+)(?:\((?P<arg>[^)]+)\))?", opt_part)
-            for m in opt_matches:
-                arg = m.group('arg')
-                options_dict[m.group('opt')] = arg.strip() if arg else True
+            # B6: bare et komma på TOPP-NIVÅ (utenfor parenteser/klammer/
+            # anførselstegn) skiller opsjoner fra kommandoen. Naiv split(',')
+            # rev `summarize x if inrange(alder, 30, 40)` i stykker ved
+            # kommaet INNE i inrange(...) → TokenError.
+            _cpos = self._scan_top_level(line, ',')
+            if _cpos is not None:
+                line, opt_part = line[:_cpos], line[_cpos + 1:]
+                # B6 (variant): `summarize x, gini if b == 1` — betingelsen
+                # står ETTER opsjons-kommaet. Før forsvant den stille inn i
+                # opsjons-regexen og kommandoen kjørte på hele populasjonen.
+                _if_pos = self._scan_top_level(opt_part, ' if ')
+                if _if_pos is not None:
+                    _deferred_condition = opt_part[_if_pos + 4:]
+                    opt_part = opt_part[:_if_pos]
+                # Finner opsjoner som 'robust' eller 'by(kommune)'
+                opt_matches = re.finditer(r"(?P<opt>\w+)(?:\((?P<arg>[^)]+)\))?", opt_part)
+                for m in opt_matches:
+                    arg = m.group('arg')
+                    options_dict[m.group('opt')] = arg.strip() if arg else True
 
         # 2. Skill ut 'if'-betingelse
         condition = None
         if ' if ' in line:
             line, condition = line.split(' if ', 1)
+        if condition is None and _deferred_condition:
+            condition = _deferred_condition
 
         # 3. Kommando og argumenter
         parts = line.split(maxsplit=1)
@@ -645,6 +662,32 @@ class MicroParser:
             "condition": condition.strip() if condition else None,
             "options": options_dict
         }
+
+    @staticmethod
+    def _scan_top_level(s, what):
+        """Posisjon av første forekomst av `what` på topp-nivå — utenfor
+        parenteser/klammer og anførselstegn. None hvis ingen. Brukes for å
+        skille opsjoner/if-betingelser uten å rive uttrykk som
+        inrange(alder, 30, 40) i stykker (B6)."""
+        paren = 0
+        quote = None
+        i = 0
+        n = len(s)
+        while i < n:
+            ch = s[i]
+            if quote:
+                if ch == quote and (i == 0 or s[i - 1] != '\\'):
+                    quote = None
+            elif ch in ("'", '"'):
+                quote = ch
+            elif ch in '([':
+                paren += 1
+            elif ch in ')]':
+                paren = max(0, paren - 1)
+            elif paren == 0 and s.startswith(what, i):
+                return i
+            i += 1
+        return None
 
     def _parse_scrub_args(self, inside):
         """Parse innholdet i scrub-VERB(...): posisjonelle variabler + key=value-kwargs."""
@@ -3636,12 +3679,26 @@ def calculate_iqr(x):
     if len(x) == 0: return None
     return float(x.quantile(0.75) - x.quantile(0.25))
 
+def _percent_of_total_fn(full_col):
+    """B7: agg-funksjon for (percent) — gruppens andel av TOTALEN av
+    ikke-missing observasjoner, slik at prosentene summerer til 100 over
+    gruppene. Totalen må bindes her: en agg-lambda ser bare gruppens rader,
+    så den kan ikke selv regne andel av totalen."""
+    total = int(full_col.notna().sum())
+    def _pct(x, _total=total):
+        return 100 * x.notna().sum() / _total if _total else np.nan
+    return _pct
+
 # Statistikk-alias for aggregate/collapse (microdata.no manual)
 AGG_STAT_ALIAS = {
     'median': lambda x: x.quantile(0.5),
     'semean': 'sem',
     'sebinomial': lambda x: np.sqrt(x.mean() * (1 - x.mean()) / x.count()) if x.count() > 0 else np.nan,
     'sd': 'std',
+    # NB (B7): denne lambdaen regner andel ikke-missing INNEN gruppen (~100
+    # per gruppe). aggregate/collapse i StatsEngine overstyrer den med
+    # _percent_of_total_fn (andel av totalen); aliaset står igjen som
+    # fallback for eksterne brukere (m2py_runtime.pandas_ops).
     'percent': lambda x: 100 * x.notna().sum() / len(x) if len(x) > 0 else np.nan,
     'iqr': calculate_iqr,
     'gini': calculate_gini,
@@ -4691,11 +4748,13 @@ def _parse_count_option(opt_val, default=10):
 
 
 class StatsEngine:
-    def _t5_small_cell_check(self, row_vals, col_vals=None, dropna=True):
+    @staticmethod
+    def _t5_small_cell_check(row_vals, col_vals=None, dropna=True):
         """T5: avsløringskontroll — stopp tabeller med for mange små celler.
         Sjekkes på RÅ tellinger av cellene (uavhengig av om bruker vil ha
         prosenter eller en volumtabell via summarize()). Deles av tabulate,
-        tabulate-panel og transitions-panel."""
+        tabulate-panel, transitions-panel og telle-baserte figurer
+        (piechart, diskret histogram, sankey) via PlotHandler."""
         if not _is_disclosure_control():
             return
         if col_vals is not None:
@@ -4759,6 +4818,10 @@ class StatsEngine:
                 stat, src = target['stat'], target['src']
                 new_var = target['target'] or src
                 stat_fn = AGG_STAT_ALIAS.get(stat, stat)
+                if stat == 'percent':
+                    # B7: samme semantikk som collapse (percent) — gruppens
+                    # andel av totalen, ikke andel ikke-missing innen gruppen.
+                    stat_fn = _percent_of_total_fn(df[src])
                 df[new_var] = df.groupby(by_var)[src].transform(stat_fn)
             return None
 
@@ -4798,6 +4861,12 @@ class StatsEngine:
             agg_dict = {}
             for t in args['targets']:
                 stat_fn = AGG_STAT_ALIAS.get(t['stat'], t['stat'])
+                if t['stat'] == 'percent':
+                    # B7: (percent) er gruppens andel av TOTALEN (summerer
+                    # til 100 over gruppene). Alias-lambdaen regner andel
+                    # ikke-missing INNEN gruppen — det ble alltid ~100.
+                    # Totalen må fanges her; en agg-lambda ser bare gruppen.
+                    stat_fn = _percent_of_total_fn(df[t['src']])
                 target_col = t['target'] or t['src']
                 agg_dict[target_col] = (t['src'], stat_fn)
             if not by_var:
@@ -4830,16 +4899,20 @@ class StatsEngine:
                     _df_w = df.copy()
                     for v in vars_to_sum:
                         _df_w[v] = _w_cols[v]
-                    grp = _df_w.groupby(by_var, dropna=False)[vars_to_sum]
                 else:
-                    grp = df.groupby(by_var, dropna=False)[vars_to_sum]
+                    _df_w = df
+                grp = _df_w.groupby(by_var, dropna=False)[vars_to_sum]
                 result = grp.agg(['mean', 'std', 'min', 'max', 'count'])
+                # T2 (D4): gini/iqr beregnes på SAMME winsoriserte kolonner
+                # som mean/std/min/max — å regne dem på råkolonnen ville
+                # lekke informasjon om ekstremverdiene resten av tabellen
+                # skjuler. Med DC av er _df_w == df (rå).
                 if 'gini' in options:
                     for v in vars_to_sum:
-                        result[(v, 'gini')] = df.groupby(by_var, dropna=False)[v].apply(calculate_gini)
+                        result[(v, 'gini')] = _df_w.groupby(by_var, dropna=False)[v].apply(calculate_gini)
                 if 'iqr' in options:
                     for v in vars_to_sum:
-                        result[(v, 'iqr')] = df.groupby(by_var, dropna=False)[v].apply(calculate_iqr)
+                        result[(v, 'iqr')] = _df_w.groupby(by_var, dropna=False)[v].apply(calculate_iqr)
                 return result
             # Bygg statistikk-rader: Gj.snitt, Std.avvik, Antall, persentiler
             col_map = {}
@@ -4853,10 +4926,12 @@ class StatsEngine:
                     col_map[label] = {v: _round_to_sig_digits(df[v].quantile(pct)) for v in vars_to_sum}
                 else:
                     col_map[label] = {v: df[v].quantile(pct) for v in vars_to_sum}
+            # T2 (D4): gini/iqr på samme winsoriserte kolonner som
+            # mean/std — konsistent T2-behandling (rå kolonner med DC av).
             if 'gini' in options:
-                col_map['Gini'] = {v: calculate_gini(df[v]) for v in vars_to_sum}
+                col_map['Gini'] = {v: calculate_gini(_w_cols[v]) for v in vars_to_sum}
             if 'iqr' in options:
-                col_map['IQR'] = {v: calculate_iqr(df[v]) for v in vars_to_sum}
+                col_map['IQR'] = {v: calculate_iqr(_w_cols[v]) for v in vars_to_sum}
             result = pd.DataFrame(col_map, index=vars_to_sum)
             return result
 
@@ -4985,14 +5060,23 @@ class StatsEngine:
             vars_list = [v for v in vars_list if v in df.columns and pd.api.types.is_numeric_dtype(df[v])]
             if not vars_list:
                 return pd.DataFrame()
-            grp = df.groupby('tid')[vars_list]
+            # T2 (D4): summarize-panel skal winsorisere som vanlig summarize —
+            # panelvarianten viste ellers eksakte min/max per tidspunkt.
+            # gini/iqr bruker samme winsoriserte kolonner (konsistent T2).
+            if _is_disclosure_control():
+                _df_w = df.copy()
+                for v in vars_list:
+                    _df_w[v] = _winsorize_series(df[v])
+            else:
+                _df_w = df
+            grp = _df_w.groupby('tid')[vars_list]
             result = grp.agg(['mean', 'std', 'min', 'max', 'count'])
             if 'gini' in options:
-                gini_by_tid = df.groupby('tid')[vars_list].apply(lambda g: g.apply(calculate_gini))
+                gini_by_tid = _df_w.groupby('tid')[vars_list].apply(lambda g: g.apply(calculate_gini))
                 gini_df = pd.DataFrame({('gini', v): gini_by_tid[v] for v in vars_list})
                 result = pd.concat([result, gini_df], axis=1)
             if 'iqr' in options:
-                iqr_by_tid = df.groupby('tid')[vars_list].apply(lambda g: g.apply(calculate_iqr))
+                iqr_by_tid = _df_w.groupby('tid')[vars_list].apply(lambda g: g.apply(calculate_iqr))
                 iqr_df = pd.DataFrame({('iqr', v): iqr_by_tid[v] for v in vars_list})
                 result = pd.concat([result, iqr_df], axis=1)
             return result
@@ -5124,8 +5208,21 @@ class StatsEngine:
                 # summarize kan inneholde én eller flere komma-separerte variabler
                 val_var_spec = options['summarize']
                 val_vars = [v.strip() for v in str(val_var_spec).split(',') if v.strip()]
-                agg_map = {'mean': 'mean', 'std': 'std', 'sum': 'sum', 'p50': lambda x: x.quantile(0.5),
-                          'p25': lambda x: x.quantile(0.25), 'p75': lambda x: x.quantile(0.75),
+                # T2 + T8 (D3): volumtabellen skal bruke samme beskyttelse som
+                # vanlig summarize — winsoriser verdikolonnen globalt før
+                # gruppestatistikk, og vis persentiler med 3 signifikante
+                # sifre. Uten dette lakk rå gruppegjennomsnitt/-medianer i
+                # full presisjon forbi kontrollen tabulate ellers håndhever.
+                _dc_on = _is_disclosure_control()
+                if _dc_on:
+                    df = df.assign(**{v: _winsorize_series(df[v]) for v in val_vars
+                                      if v in df.columns})
+                def _q_agg(p):
+                    if _dc_on:
+                        return lambda x: _round_to_sig_digits(x.quantile(p))
+                    return lambda x: x.quantile(p)
+                agg_map = {'mean': 'mean', 'std': 'std', 'sum': 'sum', 'p50': _q_agg(0.5),
+                          'p25': _q_agg(0.25), 'p75': _q_agg(0.75),
                           'gini': calculate_gini, 'iqr': calculate_iqr}
                 agg_func = 'mean'
                 for k in ['p50', 'p25', 'p75', 'std', 'sum', 'gini', 'iqr']:
@@ -6517,6 +6614,15 @@ class PlotHandler:
         else:
             # mean, median, sum, sd, min, max: numerisk med optional over()
             agg_fn = agg_map.get(stat, 'mean')
+            # T2: winsoriser numeriske kolonner før aggregatet beregnes —
+            # samme behandling som histogram/boxplot/scatter. Uten dette
+            # viste barchart (min)/(max) den eksakte laveste/høyeste
+            # enkeltverdien i hver gruppe (D2).
+            if _is_disclosure_control():
+                _w_cols = {v: _winsorize_series(df[v]) for v in vars_list
+                           if pd.api.types.is_numeric_dtype(df[v])}
+                if _w_cols:
+                    df = df.assign(**_w_cols)
             if len(vars_list) > 1:
                 # Flere numeriske variabler: én søyle per variabel (evt. per gruppe)
                 if over_var and over_var in df.columns:
@@ -6594,6 +6700,10 @@ class PlotHandler:
         if _is_disclosure_control() and not discrete and pd.api.types.is_numeric_dtype(s):
             s = _winsorize_series(s)
         if discrete or not pd.api.types.is_numeric_dtype(s):
+            # T5: et diskret histogram viser de samme råtellingene som
+            # tabulate — samme småcelle-kontroll (D2). Kontinuerlige
+            # histogrammer dekkes av T2-winsoriseringen over.
+            StatsEngine._t5_small_cell_check(s, None, dropna=True)
             vc = s.value_counts().sort_index()
             if percent:
                 vc = (vc / vc.sum() * 100).round(2)
@@ -6768,6 +6878,9 @@ class PlotHandler:
         if var not in df.columns:
             return None
         stat = args.get('stat', 'count').lower()
+        # T5: kakediagrammet viser de samme råtellingene (evt. som andeler)
+        # som tabulate ville blokkert — samme småcelle-kontroll (D2).
+        StatsEngine._t5_small_cell_check(df[var], None, dropna=False)
         s = df[var].value_counts(dropna=False).sort_index()
         if s.empty:
             return None
@@ -6848,6 +6961,9 @@ class PlotHandler:
 
         for i in range(len(vars_list) - 1):
             va, vb = vars_list[i], vars_list[i + 1]
+            # T5: lenkene er råceller fra krysstabellen va x vb — en sankey
+            # med lenker på 1-2 viser det tabulate ville blokkert (D2).
+            StatsEngine._t5_small_cell_check(sub[va], sub[vb], dropna=True)
             grp = sub.groupby([va, vb], dropna=False).size().reset_index(name='count')
             if grp.empty:
                 continue
@@ -7608,21 +7724,23 @@ class MicroInterpreter:
         return parts
 
     def _eval_pp_operand(self, operand, env):
-        """Evaluer ett ledd i en `++`-kjede. Ukjente symboler beholdes som streng."""
+        """Evaluer ett ledd i en `++`-kjede. Returnerer (verdi, ok):
+        ok=False betyr at leddet ikke kunne evalueres på parse-tid
+        (ukjent symbol eller kolonneuttrykk) og er beholdt som tekst."""
         s = operand.strip()
         if not s:
-            return ''
+            return '', True
         # Anførselstegn-streng
         if (s.startswith("'") and s.endswith("'")) or (s.startswith('"') and s.endswith('"')):
-            return s[1:-1]
+            return s[1:-1], True
         # Python-eval (aritmetikk, funksjonskall, navneoppslag fra bindinger)
         try:
             val = eval(s, {'__builtins__': {}}, env)
             if isinstance(val, float) and val == int(val):
-                return str(int(val))
-            return str(val)
+                return str(int(val)), True
+            return str(val), True
         except Exception:
-            return s  # behold som symbol-literal (inkl. `@`, `_`, osv.)
+            return s, False  # behold som symbol-literal (inkl. `@`, `_`, osv.)
 
     # Topp-nivå strukturelle skiller i en kommandolinje. `++`-kjeder
     # krysser ikke disse. Whitespace rundt ord-skiller (if/as/to) er nødvendig.
@@ -7652,7 +7770,32 @@ class MicroInterpreter:
                 env = self._binding_eval_env()
             leading = seg[:len(seg) - len(seg.lstrip())]
             trailing = seg[len(seg.rstrip()):]
-            joined = ''.join(self._eval_pp_operand(p, env) for p in parts)
+            evaluated = [self._eval_pp_operand(p, env) for p in parts]
+            # B4: et ledd som ikke lot seg evaluere på parse-tid og er et
+            # rent funksjonskall (f.eks. `string(a)`) er et kjøretids-uttrykk
+            # over kolonner. Tekstlig liming ga ugyldig Python
+            # (`string(a)_string(b)` → SyntaxError) — nettopp for linjen
+            # feilmeldingene for collapse by()/merge on anbefaler. Oversett i
+            # stedet hele kjeden til Python-strengkonkatenasjon som
+            # _py_eval_expr evaluerer på kjøretid, med string()-koersjon av
+            # ikke-siterte ledd. Alle andre kjeder limes fortsatt tekstlig —
+            # det er navnekonstruksjon (siv_ ++ $år → siv_2020,
+            # `barchart (mean) lønn++$år` → lønn2018), ikke
+            # verdikonkatenasjon.
+            _runtime = any(
+                (not ok) and re.fullmatch(r'\w+\(.*\)', val, re.DOTALL)
+                for val, ok in evaluated
+            )
+            if _runtime:
+                def _coerce(p):
+                    s = p.strip()
+                    if ((s.startswith("'") and s.endswith("'"))
+                            or (s.startswith('"') and s.endswith('"'))):
+                        return s
+                    return f"string({s})"
+                joined = ' + '.join(_coerce(p) for p in parts)
+            else:
+                joined = ''.join(val for val, _ok in evaluated)
             return leading + joined + trailing
         while i < n:
             ch = text[i]
@@ -9162,6 +9305,28 @@ class MicroInterpreter:
                 if cmd in _t7_cmds and _is_disclosure_control():
                     try:
                         self._check_t7_summarize_pop(len(df_target), cmd)
+                        # T7 (D4): gruppert summarize — hver by()/tid-gruppe er
+                        # sin egen populasjon. Uten denne sjekken fikk en
+                        # gruppe på 2 mean/std/min/max selv om total-N passerte.
+                        _t7_grp_col = None
+                        if cmd == 'summarize':
+                            _t7_grp_col = opts.get('by')
+                        elif cmd == 'summarize-panel':
+                            _t7_grp_col = 'tid'
+                        if (_t7_grp_col and hasattr(df_target, 'columns')
+                                and _t7_grp_col in df_target.columns):
+                            _gc = df_target.groupby(_t7_grp_col, dropna=False).size()
+                            _min_pop = _dc_threshold('dc_min_summarize')
+                            _small = _gc[_gc < _min_pop]
+                            if len(_small) > 0:
+                                raise ValueError(
+                                    _t("Gruppen {gval} i {gvar} har {n} enheter. "
+                                       "microdata.no krever minst {min_pop} enheter "
+                                       "for deskriptiv statistikk ({cmd}) — også per "
+                                       "gruppe. Unntak: ren count/sum er tillatt.",
+                                       gval=_small.index[0], gvar=_t7_grp_col,
+                                       n=int(_small.iloc[0]), min_pop=_min_pop, cmd=cmd)
+                                )
                     except ValueError as _t7_err:
                         self._log(_t("FEIL: {err}", err=_t7_err))
                         return

@@ -256,3 +256,53 @@ class TestUnsupportedIfWarns:
         it = _make_interp()
         out = _run(it, "summarize x if g == 1")
         assert "ADVARSEL" not in out
+
+
+# ---------------------------------------------------------------------------
+# B6 (kodegjennomgang 2026-07-07): 'if'-betingelser med komma ble revet i
+# stykker av opsjonssplitteren — linja ble delt på FØRSTE komma (inne i
+# inrange/inlist-parentesen) før if-splitten. Varianten
+# `summarize x, gini if cond` mistet betingelsen stille og rapporterte
+# statistikk for hele populasjonen.
+# ---------------------------------------------------------------------------
+
+class TestIfConditionsWithCommas:
+    def test_parse_inrange_condition_kept_intact(self):
+        it = _make_interp()
+        instr = it.parser.parse_line("summarize x if inrange(tid, 30, 40)")
+        assert instr["condition"] == "inrange(tid, 30, 40)"
+        assert instr["options"] == {}
+
+    def test_parse_condition_before_options(self):
+        it = _make_interp()
+        instr = it.parser.parse_line("summarize x if inrange(tid, 30, 40), gini")
+        assert instr["condition"] == "inrange(tid, 30, 40)"
+        assert "gini" in instr["options"]
+
+    def test_summarize_inrange_runs_and_filters(self):
+        it = _make_interp()
+        out = _run(it, "summarize tid if inrange(tid, 30, 40)")
+        assert "FEIL" not in out, out
+        n_expected = int(
+            ((it.datasets["testdata"]["tid"] >= 30)
+             & (it.datasets["testdata"]["tid"] <= 40)).sum()
+        )
+        assert re.search(rf"(?<![\d.]){n_expected}(?![\d.])", out), out
+
+    def test_tabulate_inlist_condition_runs(self):
+        it = _make_interp()
+        out = _run(it, "tabulate g if inlist(g, 1, 2)")
+        assert "FEIL" not in out, out
+
+    def test_option_then_if_applies_condition(self):
+        # `summarize x, gini if g == 1` — betingelsen står ETTER opsjons-
+        # kommaet. Før: stille full-populasjonsstatistikk. Nå: betingelsen
+        # brukes (Antall = 1200, ikke 2000).
+        it = _make_interp()
+        instr = it.parser.parse_line("summarize x, gini if g == 1")
+        assert instr["condition"] == "g == 1"
+        assert "gini" in instr["options"]
+        out = _run(it, "summarize x, gini if g == 1")
+        assert "FEIL" not in out, out
+        assert re.search(r"(?<![\d.])1200(?![\d.])", out), out
+        assert not re.search(r"(?<![\d.])2000(?![\d.])", out), out

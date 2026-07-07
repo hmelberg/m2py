@@ -235,12 +235,27 @@ class ExprTranslator:
         # For boolean & | wrap each side in parens for unambiguous precedence
         if op in ("&", "|"):
             return f"({left}) {op} ({right})"
+        # _t_Compare/_t_BoolOp return their result WITHOUT surrounding parens
+        # (so top-level `keep if`/`replace ... if` conditions stay readable).
+        # When such a result is used as an operand of an arithmetic operator
+        # here, it must be parenthesised or the comparison's operator merges
+        # into the arithmetic expression, silently changing what's compared
+        # (e.g. `(a==1)*2` would otherwise emit `a == 1 * 2`).
+        if isinstance(node.left, (ast.Compare, ast.BoolOp)):
+            left = f"({left})"
+        if isinstance(node.right, (ast.Compare, ast.BoolOp)):
+            right = f"({right})"
         return f"({left} {op} {right})"
 
     def _t_UnaryOp(self, node) -> Optional[str]:
         operand = self.translate(node.operand)
         if operand is None:
             return None
+        # See _t_BinOp: comparisons/bool-ops translate without outer parens,
+        # so wrap them here too or unary minus would bind to just the first
+        # operand of the comparison instead of the whole condition.
+        if isinstance(node.operand, (ast.Compare, ast.BoolOp)):
+            operand = f"({operand})"
         if isinstance(node.op, ast.USub):
             return f"(-{operand})"
         if isinstance(node.op, ast.UAdd):

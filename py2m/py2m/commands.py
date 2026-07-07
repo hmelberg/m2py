@@ -225,6 +225,29 @@ def _clone_variables(col: str, value, ctx: Ctx) -> Optional[list]:
     return [f"clone-variables {src} -> {col}"]
 
 
+def _is_plain_col_ref(node, df_name: str) -> bool:
+    """True if node is exactly df['col'] or df.col — a direct column reference
+    with no transformation applied."""
+    if isinstance(node, ast.Subscript):
+        return isinstance(node.value, ast.Name) and node.value.id == df_name
+    if isinstance(node, ast.Attribute):
+        return isinstance(node.value, ast.Name) and node.value.id == df_name
+    return False
+
+
+def _is_boolean_mask_expr(node) -> bool:
+    """True for expressions pandas evaluates element-wise to True/False (and
+    therefore 1/0 on a numeric cast): comparisons, `and`/`or`, and the
+    pandas mask operators `&` / `|` / `~`."""
+    if isinstance(node, (ast.Compare, ast.BoolOp)):
+        return True
+    if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.BitAnd, ast.BitOr)):
+        return True
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.Invert, ast.Not)):
+        return True
+    return False
+
+
 @REGISTRY.col
 def _destring(col: str, value, ctx: Ctx) -> Optional[list]:
     """pd.to_numeric(df['col']) / df['col'].astype(float/int) → destring col"""
@@ -233,24 +256,50 @@ def _destring(col: str, value, ctx: Ctx) -> Optional[list]:
             and len(steps) == 1 and isinstance(steps[0], MethodStep)
             and steps[0].name == "to_numeric"):
         return [f"destring {col}"]
-    if steps and isinstance(steps[-1], MethodStep) and steps[-1].name == "astype":
+    if (steps and isinstance(steps[-1], MethodStep) and steps[-1].name == "astype"
+            and isinstance(value, ast.Call) and isinstance(value.func, ast.Attribute)):
         astype = steps[-1]
+        # The node .astype() was actually called on — NOT `root` from
+        # decompose(), which for a chain like df['x'].astype(...) unwinds
+        # all the way down to Name('df') and loses the Subscript in between.
+        pre_node = value.func.value
         if astype.args:
             arg = astype.args[0]
             # Source column: the value .astype() was called on (df['src'].astype(...)).
             # Falls back to the target when the source can't be resolved (e.g. an
             # in-place df['x'].astype(...)), preserving previous behaviour.
             src_col = _astype_source_col(value, ctx) or col
+            is_numeric_target = is_str_target = False
             if isinstance(arg, ast.Name):
-                if arg.id in ("float", "int"):
+                is_numeric_target = arg.id in ("float", "int")
+                is_str_target = arg.id == "str"
+            elif isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                is_numeric_target = any(t in arg.value.lower() for t in ("float", "int"))
+                is_str_target = arg.value.lower() in ("str", "string", "object")
+            if is_numeric_target:
+                # If the pre-astype value is a plain column reference, this is
+                # an in-place dtype conversion of an existing column — safe to
+                # destring. Otherwise the source is a derived expression (e.g.
+                # a boolean comparison); `destring` would silently discard it
+                # (see review 2026-07-07 §5).
+                if _is_plain_col_ref(pre_node, ctx.df_name):
                     return [f"destring {col}"]
-                if arg.id == "str":
-                    return [f"generate {col} = string({src_col})"]
-            if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                if any(t in arg.value.lower() for t in ("float", "int")):
-                    return [f"destring {col}"]
-                if arg.value.lower() in ("str", "string", "object"):
-                    return [f"generate {col} = string({src_col})"]
+                if _is_boolean_mask_expr(pre_node):
+                    # pandas True/False -> 1/0 on int/float cast, matching
+                    # microdata comparisons, which already evaluate to 1/0 —
+                    # translate the condition directly instead of destring.
+                    expr = ctx.tr.translate(pre_node)
+                    if expr is not None:
+                        return [f"generate {col} = {expr}"]
+                # Anything else (arithmetic, function calls, ...) may need
+                # truncation/rounding semantics `destring` can't reproduce.
+                # Never silently drop the source expression — degrade loudly.
+                return [
+                    f"// UNTRANSLATED: {col} = <expr>.astype(...) — source "
+                    "expression discarded by destring; translate manually"
+                ]
+            if is_str_target:
+                return [f"generate {col} = string({src_col})"]
     return None
 
 

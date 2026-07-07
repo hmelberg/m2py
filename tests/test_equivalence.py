@@ -43,7 +43,9 @@ def _run_microdata(script: str, df_in: pd.DataFrame, result: str) -> pd.DataFram
     it.active_name = "df"
     for line in script.splitlines():
         if line.strip():
-            it._execute_instruction(it.parser.parse_line(line))
+            instr = it.parser.parse_line(line)
+            if instr:  # kommentarer (// NOTE: ...) parser til None — hopp over som run_script
+                it._execute_instruction(instr)
     feil = [l for l in it.output_log if "FEIL" in str(l)]
     assert not feil, f"emulator errors for script:\n{script}\n{feil}"
     assert result in it.datasets, (

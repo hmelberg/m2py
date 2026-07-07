@@ -622,3 +622,116 @@ def test_sync_datasets_keeps_dataset_named_df():
     g2 = {}
     e2.sync_datasets_to_globals(g2)
     assert g2["df"] is None and g2["helse"] is frame
+
+
+# ---------------------------------------------------------------------------
+# B4 (kodegjennomgang 2026-07-07): `++`-strengkonkatenasjon i generate var
+# ødelagt — `_process_pp_in_line` evaluerte kjeden på parse-tid med bare
+# bindinger i scope, så kolonneuttrykk ble limt til ugyldig Python
+# (`string(a)_string(b)` → SyntaxError). Linjen under er NØYAKTIG den
+# workarounden feilmeldingene for collapse by()/merge on anbefaler.
+# ---------------------------------------------------------------------------
+
+class TestPlusPlusStringConcatInGenerate:
+    def _interp(self, df):
+        it = MicroInterpreter(metadata_path=None)
+        it.datasets["d"] = df
+        it.active_name = "d"
+        return it
+
+    def _run(self, it, *lines):
+        # ++-prosessering skjer i MicroInterpreter._substitute_bindings, som
+        # bare kjøres via run_script — ikke via parse_line direkte.
+        it.run_script("\n".join(lines))
+        return "\n".join(str(m) for m in it.output_log)
+
+    def test_recommended_composite_key_line_works(self):
+        it = self._interp(pd.DataFrame({"a": [1, 2], "b": [10, 20], "x": [1.0, 2.0]}))
+        out = self._run(it, 'generate composite = string(a) ++ "_" ++ string(b)')
+        assert "FEIL" not in out, out
+        assert list(it.datasets["d"]["composite"]) == ["1_10", "2_20"]
+
+    def test_composite_key_then_collapse_by_works(self):
+        it = self._interp(pd.DataFrame({"a": [1, 1, 2], "b": [10, 10, 20], "x": [1.0, 3.0, 5.0]}))
+        out = self._run(
+            it,
+            'generate composite = string(a) ++ "_" ++ string(b)',
+            "collapse (mean) x, by(composite)",
+        )
+        assert "FEIL" not in out, out
+        res = it.datasets["d"]
+        assert sorted(res["composite"]) == ["1_10", "2_20"]
+        assert sorted(res["x"]) == [2.0, 5.0]
+
+    def test_single_quotes_variant_works(self):
+        it = self._interp(pd.DataFrame({"a": [7], "b": [8]}))
+        out = self._run(it, "generate composite = string(a) ++ '_' ++ string(b)")
+        assert "FEIL" not in out, out
+        assert list(it.datasets["d"]["composite"]) == ["7_8"]
+
+    def test_binding_name_gluing_still_works(self):
+        # Rene symbol-ledd skal fortsatt limes til navn (bindings-bruk):
+        # `let år = 2020` + `generate kopi = siv_ ++ $år` refererer kolonnen
+        # siv_2020 — ikke verdikonkat av en kolonne `siv_`.
+        it = self._interp(pd.DataFrame({"siv_2020": [1.0, 2.0]}))
+        out = self._run(
+            it,
+            "let år = 2020",
+            "generate kopi = siv_ ++ $år",
+        )
+        assert "FEIL" not in out, out
+        assert list(it.datasets["d"]["kopi"]) == [1.0, 2.0]
+
+    def test_multi_token_chain_still_glues_names(self):
+        # `barchart (mean) lønn++$år dagpenger++$år` (web_examples) — ++ limer
+        # navn selv når leddet har prefiks-tokens. Skal IKKE tolkes som
+        # verdikonkatenasjon selv om prefikset inneholder parenteser.
+        it = MicroInterpreter(metadata_path=None)
+        it.bindings["år"] = 2018
+        line = it._substitute_bindings("barchart (mean) lønn++$år dagpenger++$år")
+        assert line == "barchart (mean) lønn2018 dagpenger2018"
+
+    def test_create_dataset_chain_still_glues(self):
+        it = MicroInterpreter(metadata_path=None)
+        it.bindings["år"] = 2018
+        assert it._substitute_bindings("create-dataset nav++$år") == "create-dataset nav2018"
+
+
+# ---------------------------------------------------------------------------
+# B7 (kodegjennomgang 2026-07-07): collapse (percent) returnerte ~100 for
+# hver gruppe (andel ikke-missing INNEN gruppen). Riktig semantikk er
+# gruppens andel av totalen — prosentene skal summere til 100 over gruppene.
+# ---------------------------------------------------------------------------
+
+class TestCollapsePercentIsShareOfTotal:
+    def test_percent_sums_to_100_across_groups(self):
+        df = pd.DataFrame({"g": [1] * 3 + [2] * 7, "x": [1.0] * 10})
+        res = StatsEngine().execute(
+            "collapse", df,
+            {"targets": [{"stat": "percent", "src": "x", "target": "pct"}]},
+            {"by": "g"},
+        )
+        assert sorted(res["pct"]) == [pytest.approx(30.0), pytest.approx(70.0)]
+        assert res["pct"].sum() == pytest.approx(100.0)
+
+    def test_percent_counts_nonmissing_share(self):
+        # Missing teller ikke: 3 av 10 ikke-missing i gruppe 1 => 30 %
+        df = pd.DataFrame({
+            "g": [1] * 3 + [2] * 8,
+            "x": [1.0] * 3 + [2.0] * 7 + [np.nan],
+        })
+        res = StatsEngine().execute(
+            "collapse", df,
+            {"targets": [{"stat": "percent", "src": "x", "target": "pct"}]},
+            {"by": "g"},
+        )
+        assert sorted(res["pct"]) == [pytest.approx(30.0), pytest.approx(70.0)]
+
+    def test_percent_global_collapse_is_100(self):
+        df = pd.DataFrame({"x": [1.0, 2.0, 3.0]})
+        res = StatsEngine().execute(
+            "collapse", df,
+            {"targets": [{"stat": "percent", "src": "x", "target": "pct"}]},
+            {},
+        )
+        assert float(res["pct"].iloc[0]) == pytest.approx(100.0)

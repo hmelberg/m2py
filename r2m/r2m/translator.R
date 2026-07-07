@@ -32,6 +32,10 @@ translate <- function(r_code, df_name = "df") {
     current_df = NULL,
     known_dfs  = character(0),
     seed       = NULL,      # most recent set.seed() value, for `sample`
+    # dplyr group_by() sticks to a data frame until ungroup()/summarise() —
+    # even across separate R statements, not just within one pipe. Keyed by
+    # data frame name -> group_by column string (absent/NULL == ungrouped).
+    groups     = list(),
     lines      = character(0),
     warnings   = character(0)
   )
@@ -494,8 +498,22 @@ DPLYR_VERBS <- c(
 # Used for both magrittr pipes and unrolled native pipes.
 # `steps`: list of verb calls, each WITHOUT the data argument.
 
+# Row-filtering verbs: if the translator can't faithfully translate one of
+# these, every later step in the pipe silently runs on the WRONG row set
+# (unfiltered) while looking like the filter applied. See ROW_FILTER_VERBS use
+# below for the loud degrade-propagation this guards against.
+ROW_FILTER_VERBS <- c("filter", "drop_na")
+
 .run_pipe_steps <- function(target_df, src_df, steps, state) {
   eff_df <- src_df %||% state$df_name
+
+  # Grouping persists across statements on the same data frame until an
+  # explicit ungroup() or a summarise() (which collapses/replaces the data) —
+  # carry it over from state so a group_by() in one statement is honoured by
+  # a summarise() in a LATER statement, not just later steps of one pipe.
+  # Looked up against the pre-clone source, since that's the data frame whose
+  # grouping is being continued.
+  group_by_str <- state$groups[[eff_df]] %||% NULL
 
   # Clone if assigning to a new name
   if (!is.null(target_df) && !is.null(src_df) && target_df != src_df) {
@@ -507,8 +525,6 @@ DPLYR_VERBS <- c(
   } else if (!is.null(src_df)) {
     state <- .ensure_active(src_df, state)
   }
-
-  group_by_str <- NULL
 
   for (step in steps) {
     if (!is.call(step)) next
@@ -527,6 +543,17 @@ DPLYR_VERBS <- c(
     result <- .inject_sample_seed(result, state)
 
     if (!is.null(result)) {
+      if (fn_clean %in% ROW_FILTER_VERBS &&
+          length(result$lines) > 0 && all(grepl("^\\s*//", result$lines))) {
+        # The filter/drop_na itself degraded to a comment (see handle_filter's
+        # "could not translate condition" mechanism) — loudly flag that every
+        # later step in this pipe now runs UNFILTERED, instead of silently
+        # letting them look like the filter had applied.
+        result$lines <- c(result$lines,
+          paste0("// TODO(r2m): the filter above could not be translated — ",
+                 "ALL following steps in this pipe run on UNFILTERED rows; ",
+                 "translate the condition manually before using this script"))
+      }
       state <- .append(state, lines = result$lines, warnings = result$warnings)
     } else {
       result2 <- dispatch_standalone(fn_clean, sargs, eff_df)
@@ -535,7 +562,16 @@ DPLYR_VERBS <- c(
       else
         state <- .append(state, warnings = paste0("// Untranslated step: ", deparse(step)))
     }
+
+    # summarise()/summarize() collapses the data in place; dplyr peels off
+    # grouping after summarise (a single-key group_by fully ungroups), and
+    # downstream steps now operate on a freshly-shaped, ungrouped result.
+    if (fn_clean %in% c("summarise", "summarize")) group_by_str <- NULL
   }
+
+  final_df <- target_df %||% eff_df
+  if (length(group_by_str) > 0) state$groups[[final_df]] <- group_by_str
+  else state$groups[[final_df]] <- NULL
 
   if (!is.null(target_df)) state$current_df <- target_df
   state

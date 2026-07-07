@@ -133,9 +133,51 @@ expect("df$col <- case_when (first-match priority)",
   "df$grp <- case_when(df$age < 30 ~ 1, df$age < 60 ~ 2, TRUE ~ 3)",
   # dplyr case_when is first-match-wins. Sequential `replace` overwrites, so
   # non-default branches must be emitted in REVERSE order for the first listed
-  # condition to win (a row with age 25 must get 1, not 2).
+  # condition to win (a row with age 25 must get 1, not 2). The TRUE default
+  # only applies to rows matched by NEITHER earlier condition (see the
+  # "case_when TRUE default preserves earlier NAs" regression below for why
+  # this can't be `if sysmiss(grp)`).
   c("generate grp = .", "replace grp = 2 if age < 60",
-    "replace grp = 1 if age < 30", "replace grp = 3 if sysmiss(grp)"))
+    "replace grp = 1 if age < 30",
+    "replace grp = 3 if !((age < 30) | (age < 60))"))
+
+# BUG (fixed): df$age <- ifelse(df$age >= 18, 1, 0) naively emitted
+# `generate age = 0` (zeroing the column) BEFORE the condition was evaluated,
+# so `age >= 18` read the already-zeroed column and every row became 0.
+expect("df$col <- ifelse (self-referencing in-place)",
+  "df$age <- ifelse(df$age >= 18, 1, 0)",
+  c("generate __tmp_age = age",
+    "generate age = 0",
+    "replace age = 1 if __tmp_age >= 18",
+    "drop __tmp_age"))
+
+# Same bug, dplyr mutate() form (bare column reference, not df$col).
+expect("mutate ifelse (self-referencing in-place)",
+  "df <- df |> mutate(age = ifelse(age >= 18, 1, 0))",
+  c("generate __tmp_age = age",
+    "generate age = 0",
+    "replace age = 1 if __tmp_age >= 18",
+    "drop __tmp_age"))
+
+# BUG (fixed): case_when(x < 0 ~ NA_real_, TRUE ~ x) is a self-referencing
+# in-place recode. `generate age = .` used to run before the branches were
+# evaluated, so `TRUE ~ age` (default value) read the wiped column.
+expect("case_when self-referencing in-place",
+  "df$age <- case_when(df$age < 0 ~ NA_real_, TRUE ~ df$age)",
+  c("generate __tmp_age = age",
+    "generate age = .",
+    "replace age = . if __tmp_age < 0",
+    "replace age = __tmp_age if !((__tmp_age < 0))",
+    "drop __tmp_age"))
+
+# BUG (fixed): the TRUE default used to be `replace col = val if
+# sysmiss(col)`, which can't distinguish "no branch matched" from "an
+# earlier branch deliberately assigned NA" — it clobbered the deliberate NA.
+expect("case_when TRUE default preserves earlier NAs",
+  "df$flag <- case_when(x < 0 ~ NA_real_, TRUE ~ 1)",
+  c("generate flag = .",
+    "replace flag = . if x < 0",
+    "replace flag = 1 if !((x < 0))"))
 
 cat("\n── translator.R — native pipe (desugared |>) ────────────────\n")
 
@@ -156,9 +198,32 @@ expect("filter + mutate chain",
   "df <- df |> filter(age >= 18, income > 0) |> mutate(log_inc = log(income))",
   c("keep if (age >= 18) & (income > 0)", "generate log_inc = ln(income)"))
 
+# BUG (fixed): filter(!(x %in% c(1,2))) can't be translated (the parenthesised
+# `!(...)` node isn't a translatable expr form here), so it used to degrade to
+# a `//` comment while mutate() right after it kept emitting normally — the
+# script LOOKS like it filters and then computes y, but every row runs
+# through mutate() unfiltered. The degraded filter must loudly warn that
+# everything downstream in the pipe is now unfiltered.
+expect("degraded filter loudly warns the rest of the pipe is unfiltered",
+  "df <- df |> filter(!(x %in% c(1,2))) |> mutate(y = x * 2)",
+  c("// filter: could not translate condition: !(x %in% c(1, 2))",
+    paste0("// TODO(r2m): the filter above could not be translated — ALL following ",
+           "steps in this pipe run on UNFILTERED rows; translate the condition ",
+           "manually before using this script"),
+    "generate y = (x * 2)"))
+
 expect("select",
   "df <- df |> select(income, age, sex)",
   "keep income age sex")
+
+# BUG (fixed): select(id, starts_with('inc')) used to silently ignore the
+# unresolvable tidyselect helper and emit a bare `keep id`, dropping every
+# income* column with no trace. The translator has no dataframe schema to
+# resolve starts_with()/ends_with()/contains()/etc. against, so it must
+# degrade the whole select() loudly instead of emitting a partial keep.
+expect("select with unhandled tidyselect helper degrades loudly",
+  "df <- df |> select(id, starts_with('inc'))",
+  "// TODO(r2m): select() uses unsupported tidyselect helper(s) [starts_with] — column set could not be determined; translate this select() manually")
 
 cat("\n── base-R idioms ────────────────────────────────────────────\n")
 
@@ -230,7 +295,12 @@ cat("\n── translator.R — group_by chains ───────────
 
 expect("group_by + summarise",
   "df |> group_by(sex) |> summarise(mean_inc = mean(income), n = n())",
-  "collapse (mean) income -> mean_inc (count) n -> n, by(sex)")
+  # BUG (fixed): n() naively translated to `(count) n -> n`, counting a
+  # column named "n" that doesn't exist (m2py's collapse rejects unknown
+  # source columns). Anchor n()'s count on the by() key instead — it's
+  # guaranteed to exist and be non-missing within its own group, so counting
+  # its non-missing values equals the row count per group.
+  "collapse (mean) income -> mean_inc (count) sex -> n, by(sex)")
 
 expect("group_by + summarise assigned",
   "stats <- df |> group_by(sex) |> summarise(mean_inc = mean(income))",
@@ -240,6 +310,46 @@ expect("group_by + summarise assigned",
 expect("group_by + mutate (aggregate)",
   "df <- df |> group_by(sex) |> mutate(mean_inc = mean(income))",
   "aggregate (mean) income -> mean_inc, by(sex)")
+
+# BUG (fixed): group_by(sex) in one statement used to be forgotten by the
+# time a LATER, separate statement called summarise() — the grouping only
+# lived in a local variable inside .run_pipe_steps(), reset to NULL on every
+# new pipe. The following summarise() emitted an ungrouped `collapse` (no
+# by()), silently posing as a per-sex mean.
+expect("group_by persists across separate statements",
+  paste("df <- df |> group_by(sex)",
+        "df <- df |> summarise(mean_inc = mean(income))", sep = "\n"),
+  "collapse (mean) income -> mean_inc, by(sex)")
+
+# group_by set in one statement, consumed by mutate()'s aggregate in a LATER
+# statement (mutate keeps grouping, unlike summarise).
+expect("group_by persists into a later mutate (aggregate)",
+  paste("df <- df |> group_by(sex)",
+        "df <- df |> mutate(mean_inc = mean(income))", sep = "\n"),
+  "aggregate (mean) income -> mean_inc, by(sex)")
+
+# summarise() collapses the data and drops grouping — a THIRD statement after
+# that must not still see the old by(sex).
+expect("group_by cleared after summarise, later statement ungrouped",
+  paste("df <- df |> group_by(sex)",
+        "df <- df |> summarise(mean_inc = mean(income))",
+        "df <- df |> mutate(z = mean_inc * 2)", sep = "\n"),
+  c("collapse (mean) income -> mean_inc, by(sex)",
+    "generate z = (mean_inc * 2)"))
+
+# BUG (fixed): an UNGROUPED summarise(cnt = n()) with no other stat gives
+# the translator no real column to anchor `(count) src -> tgt` on (m2py's
+# collapse rejects a source column that doesn't exist) — it must degrade
+# loudly rather than emit an invalid collapse.
+expect("summarise n() alone, ungrouped, degrades loudly",
+  "df |> summarise(cnt = n())",
+  "// TODO(r2m): n() has no existing column to count rows against for 'cnt' — add group_by()/by() or another stat() in this summarise(), or translate manually")
+
+# n() alongside another stat in the SAME ungrouped summarise() can anchor on
+# that stat's real source column.
+expect("summarise n() alongside another stat, ungrouped",
+  "df |> summarise(mean_inc = mean(income), cnt = n())",
+  "collapse (mean) income -> mean_inc (count) income -> cnt")
 
 cat("\n── translator.R — regression ────────────────────────────────\n")
 
@@ -395,8 +505,17 @@ stats <- df |>
   summarise(mean_inc = mean(income), n = n())
 '
 res_grp <- translate(r_grp)
+# BUG (fixed): `by(sector sex)` used to be asserted as the expected output,
+# but m2py.py's collapse REJECTS multi-key by() outright ("microdata.no
+# støtter bare én nøkkel-variabel i by()") — the old expectation enshrined M
+# code that the real engine refuses to run. m2py only accepts a single by()
+# key, so multi-key grouping must go through a real row-wise composite key
+# (rowconcat — see handle_summarise's comment for why NOT `++`).
 if (grepl("clone-dataset df stats", res_grp$script) &&
-    grepl("collapse \\(mean\\) income -> mean_inc \\(count\\) n -> n, by\\(sector sex\\)", res_grp$script)) {
+    grepl("generate __by_sector_sex = rowconcat\\(string\\(sector\\), '_', string\\(sex\\)\\)",
+          res_grp$script) &&
+    grepl("collapse \\(mean\\) income -> mean_inc \\(count\\) sector -> n, by\\(__by_sector_sex\\)",
+          res_grp$script)) {
   cat("  PASS: group_by + summarise example\n"); PASS <- PASS + 1L
 } else {
   cat("  FAIL: group_by + summarise example\n")

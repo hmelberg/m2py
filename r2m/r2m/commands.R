@@ -301,14 +301,27 @@ handle_transmute <- function(args, df_name, group_by = NULL) {
 
 # ── select / keep or drop ────────────────────────────────────────────────────
 
+# tidyselect helpers select() accepts that this translator has no dataframe
+# schema to resolve against (starts_with()/ends_with()/contains()/matches()
+# need to know the actual column names, which the R source alone doesn't
+# give us). Silently ignoring them used to drop the columns they'd have
+# matched with no trace in the output — e.g. select(id, starts_with('inc'))
+# emitted a bare `keep id`, quietly discarding every income* column.
+TIDYSELECT_HELPERS <- c("starts_with", "ends_with", "contains", "matches",
+                        "everything", "where", "num_range", "all_of", "any_of",
+                        "last_col", "one_of")
+
 handle_select <- function(args, df_name, group_by = NULL) {
-  pos_cols <- character(0)
-  neg_cols <- character(0)
+  pos_cols  <- character(0)
+  neg_cols  <- character(0)
+  unhandled <- character(0)
   for (a in args) {
     if (is.call(a) && as.character(a[[1]]) == "-") {
       inner <- as.list(a)[[2]]
       if (is.call(inner) && as.character(inner[[1]]) == "c") {
         neg_cols <- c(neg_cols, sapply(as.list(inner)[-1], as.character))
+      } else if (is.call(inner)) {
+        unhandled <- c(unhandled, .callee_name(inner))
       } else {
         neg_cols <- c(neg_cols, as.character(inner))
       }
@@ -316,8 +329,19 @@ handle_select <- function(args, df_name, group_by = NULL) {
       pos_cols <- c(pos_cols, as.character(a))
     } else if (is.character(a)) {
       pos_cols <- c(pos_cols, a)
+    } else if (is.call(a)) {
+      unhandled <- c(unhandled, .callee_name(a))
     }
   }
+  # A select() this translator can't fully resolve must not emit a partial
+  # keep/drop — that would silently drop whatever columns the unhandled
+  # helper(s) were meant to match. Degrade the whole select() loudly instead.
+  if (length(unhandled) > 0)
+    return(list(
+      lines = paste0("// TODO(r2m): select() uses unsupported tidyselect helper(s) [",
+                     paste(unique(unhandled), collapse = ", "),
+                     "] — column set could not be determined; translate this select() manually"),
+      warnings = character(0)))
   if (length(neg_cols) > 0)
     return(list(lines = paste0("drop ", paste(neg_cols, collapse = " ")), warnings = character(0)))
   if (length(pos_cols) > 0)
@@ -343,10 +367,55 @@ handle_rename <- function(args, df_name, group_by = NULL) {
 # ── summarise / collapse ──────────────────────────────────────────────────────
 
 handle_summarise <- function(args, df_name, group_by = NULL) {
-  warnings <- character(0)
-  nms      <- names(args)
-  by_str   <- if (!is.null(group_by)) paste0(", by(", group_by, ")") else ""
-  specs    <- character(0)   # accumulate "(stat) src -> tgt" fragments
+  warnings  <- character(0)
+  pre_lines <- character(0)   # lines emitted BEFORE the collapse (e.g. composite key)
+  nms       <- names(args)
+  specs     <- character(0)   # accumulate "(stat) src -> tgt" fragments
+
+  by_keys <- if (!is.null(group_by) && nzchar(group_by)) strsplit(group_by, "\\s+")[[1]] else character(0)
+  by_col  <- NULL
+  if (length(by_keys) == 1) {
+    by_col <- by_keys[1]
+  } else if (length(by_keys) > 1) {
+    # microdata.no's collapse only accepts a single by() key — m2py.py raises
+    # ValueError on by(k1 k2). Build a real composite key with a row-wise
+    # `rowconcat()` (generate + collapse by(composite)). NB: this is NOT the
+    # `++` bindings-macro m2py's own error message suggests — `++` only
+    # resolves scalar `let` bindings and silently no-ops on real dataframe
+    # columns, so it would produce wrong/missing output here.
+    by_col <- paste0("__by_", paste(by_keys, collapse = "_"))
+    parts  <- character(0)
+    for (k in seq_along(by_keys)) {
+      if (k > 1) parts <- c(parts, "'_'")
+      parts <- c(parts, paste0("string(", by_keys[k], ")"))
+    }
+    pre_lines <- c(pre_lines,
+      paste0("generate ", by_col, " = rowconcat(", paste(parts, collapse = ", "), ")"))
+  }
+  by_str <- if (!is.null(by_col)) paste0(", by(", by_col, ")") else ""
+
+  # collapse's `(count) src -> tgt` counts non-missing values of src — src
+  # must be a REAL existing column (m2py rejects unknown columns outright).
+  # n() has no source column of its own, so anchor it on the first grouping
+  # key (guaranteed to exist and be non-missing within its own group), or —
+  # when ungrouped — on whatever other real column this summarise() already
+  # references via another stat.
+  existing_col_hint <- if (length(by_keys) > 0) by_keys[1] else NULL
+  if (is.null(existing_col_hint)) {
+    for (a in args) {
+      if (is.call(a)) {
+        afn    <- .callee_name(a)
+        acargs <- as.list(a)[-1]
+        if (afn != "n" && !is.null(AGG_STAT_MAP[[afn]]) && length(acargs) >= 1) {
+          cand <- translate_expr(acargs[[1]], df_name)
+          if (!is.null(cand) && grepl("^[A-Za-z_][A-Za-z0-9_.]*$", cand)) {
+            existing_col_hint <- cand
+            break
+          }
+        }
+      }
+    }
+  }
 
   for (i in seq_along(args)) {
     node  <- args[[i]]
@@ -364,9 +433,19 @@ handle_summarise <- function(args, df_name, group_by = NULL) {
     new_col <- if (!is.null(nms) && nzchar(nms[i])) nms[i] else NULL
     if (is.null(new_col)) next
 
-    # n() → count
+    # n() → count. `(count) new_col -> new_col` (the naive translation) counts
+    # a column named after the NEW column, which doesn't exist yet — m2py
+    # rejects it. Anchor on an existing column instead (see existing_col_hint
+    # above); if none can be found, degrade loudly rather than emit invalid M.
     if (fn == "n" && length(cargs) == 0) {
-      specs <- c(specs, paste0("(count) ", new_col, " -> ", new_col))
+      if (!is.null(existing_col_hint)) {
+        specs <- c(specs, paste0("(count) ", existing_col_hint, " -> ", new_col))
+      } else {
+        pre_lines <- c(pre_lines, paste0(
+          "// TODO(r2m): n() has no existing column to count rows against for '",
+          new_col, "' — add group_by()/by() or another stat() in this summarise(), ",
+          "or translate manually"))
+      }
       next
     }
     # n_distinct(x) → no direct equivalent
@@ -390,12 +469,12 @@ handle_summarise <- function(args, df_name, group_by = NULL) {
     warnings <- c(warnings, paste0("// summarise: cannot translate ", new_col, " = ", msg))
   }
 
-  lines <- if (length(specs) > 0)
+  collapse_line <- if (length(specs) > 0)
     paste0("collapse ", paste(specs, collapse = " "), by_str)
   else
     character(0)
 
-  list(lines = lines, warnings = warnings)
+  list(lines = c(pre_lines, collapse_line), warnings = warnings)
 }
 
 # ── arrange ───────────────────────────────────────────────────────────────────

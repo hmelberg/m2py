@@ -198,7 +198,20 @@ def try_map(target: str, value_node, df_name: str, translator: ExprTranslator) -
         for k, v in pairs:
             val_to_keys.setdefault(v, []).append(k)
         parts = " ".join(f"({' '.join(ks)}={v})" for v, ks in val_to_keys.items())
-        return [f"recode {col} {parts}"]
+        # NOTE: recode leaves values that aren't listed UNCHANGED; pandas
+        # .map() sets every unmapped value to missing (NaN). Flag the
+        # difference loudly rather than silently keeping the pandas-missing
+        # rows at their original value. Kept as a trailing inline comment (on
+        # the same script line) rather than a leading comment-only line, so
+        # scripts that execute line-by-line don't need to special-case a
+        # bare `//` line.
+        note = (
+            "// NOTE: recode keeps values not listed here unchanged — "
+            "pandas .map() sets unmapped values to missing. Add "
+            f"'replace {col} = . if !inlist({col}, "
+            f"{', '.join(k for k, _ in pairs)})' if that's required"
+        )
+        return [f"recode {col} {parts}  {note}"]
 
     # Different-column mapping → generate + replace if
     init = _default_init([v for _, v in pairs])
@@ -309,6 +322,9 @@ def try_pd_cut(target: str, value_node, df_name: str, translator: ExprTranslator
             if t is None:
                 return None
             labels.append(t)
+    elif isinstance(labels_node, ast.Constant) and labels_node.value is False:
+        # pandas labels=False -> 0-based integer bin codes
+        labels = [str(i) for i in range(len(bins) - 1)]
     else:
         labels = [str(i + 1) for i in range(len(bins) - 1)]
 
@@ -653,18 +669,38 @@ def try_groupby_transform(
     df['target'] = df.groupby('g')['y'].transform('mean')
     df['target'] = df.groupby(['g1','g2'])['y'].transform('mean')
     Also handles prefix steps: df[cond].groupby(g)['y'].transform('mean')
-    → aggregate (mean) y -> target, by(g)
+    → keep if cond
+      aggregate (mean) y -> target, by(g)
     """
-    info = _match_groupby_transform(value_node, df_name)
+    info = _match_groupby_transform(value_node, df_name, translator)
     if info is None:
         return None
-    return [f"aggregate ({info['stat']}) {info['src_col']} -> {target}, by({info['by_str']})"]
+    return _groupby_transform_lines(target, info)
 
 
-def _match_groupby_transform(node, df_name: str) -> Optional[dict]:
+def _groupby_transform_lines(target: str, info: dict) -> list:
+    lines = []
+    if info.get("filter"):
+        # NOTE: pandas .transform() keeps filtered-out rows as missing in the
+        # same frame; microdata's `keep if` instead drops them from the
+        # working dataset for all following commands — approximated, flagged.
+        # Kept as a trailing inline comment (same line as `keep if`) rather
+        # than a leading comment-only line, so scripts executed line-by-line
+        # don't need to special-case a bare `//` line.
+        lines.append(
+            f"keep if {info['filter']}  "
+            "// NOTE: this drops rows from the working dataset (pandas "
+            ".transform() would keep them, with missing values)"
+        )
+    lines.append(f"aggregate ({info['stat']}) {info['src_col']} -> {target}, by({info['by_str']})")
+    return lines
+
+
+def _match_groupby_transform(node, df_name: str, translator: Optional[ExprTranslator] = None) -> Optional[dict]:
     """
     Recognise df[...].groupby(g)[col].transform(stat) via the chain decomposer.
-    Returns {'src_col', 'stat', 'by_str'} or None.
+    Returns {'src_col', 'stat', 'by_str', 'filter'} or None. 'filter' is only
+    present when a row-filter precedes .groupby(), e.g. df[cond].groupby(...).
     """
     root, steps = decompose(node)
     if not is_df_root(root, df_name):
@@ -673,6 +709,23 @@ def _match_groupby_transform(node, df_name: str) -> Optional[dict]:
     gb_idx = find_method(steps, "groupby")
     if gb_idx < 0:
         return None
+
+    filter_cond = None
+    if gb_idx > 0:
+        prefix = steps[:gb_idx]
+        # Only a single boolean-mask subscript prefix (df[cond].groupby(...))
+        # is handled. Anything else (column selection, chained filters, ...)
+        # can't be translated faithfully here — bail out so the caller falls
+        # back to a loud UNTRANSLATED comment instead of silently computing
+        # the stat over ALL rows.
+        if translator is None or len(prefix) != 1 or not isinstance(prefix[0], SubscriptStep):
+            return None
+        key = prefix[0].key
+        if isinstance(key, (ast.List, ast.Tuple)):
+            return None  # column selection, not a row filter
+        filter_cond = translator.translate(key)
+        if filter_cond is None:
+            return None
 
     # Steps from groupby onward must be: groupby(g), subscript(col), transform(stat)
     tail = steps[gb_idx:]
@@ -723,7 +776,10 @@ def _match_groupby_transform(node, df_name: str) -> Optional[dict]:
     if stat is None:
         return None
 
-    return {"src_col": src_col, "stat": stat, "by_str": " ".join(by_vars)}
+    result = {"src_col": src_col, "stat": stat, "by_str": " ".join(by_vars)}
+    if filter_cond:
+        result["filter"] = filter_cond
+    return result
 
 
 # ── groupby collapse → collapse ───────────────────────────────────────────────
@@ -742,8 +798,9 @@ def try_groupby_collapse(
       df.groupby(g).agg({'y': 'mean'}).reset_index()
       df.groupby(g).agg(out=('y', 'mean')).reset_index()
       df.groupby(g)['y'].mean().reset_index()
-      df[cond].groupby(g)['y'].mean()          ← prefix filter now works
-    → collapse (mean) y -> y, by(g)
+      df[cond].groupby(g)['y'].mean()          ← prefix filter
+    → [keep if cond]
+      collapse (mean) y -> y, by(g)
     """
     root, steps = decompose(value_node)
     if not is_df_root(root, df_name):
@@ -757,6 +814,33 @@ def try_groupby_collapse(
     gb_idx = find_method(steps, "groupby")
     if gb_idx < 0:
         return None
+
+    filter_lines = []
+    if gb_idx > 0:
+        prefix = steps[:gb_idx]
+        # Only a single boolean-mask subscript prefix (df[cond].groupby(...))
+        # is handled; anything else can't be translated faithfully here — bail
+        # out so the caller falls back to a loud UNTRANSLATED comment instead
+        # of silently computing the stat over ALL rows.
+        if len(prefix) != 1 or not isinstance(prefix[0], SubscriptStep):
+            return None
+        key = prefix[0].key
+        if isinstance(key, (ast.List, ast.Tuple)):
+            return None  # column selection, not a row filter
+        filter_cond = translator.translate(key)
+        if filter_cond is None:
+            return None
+        # NOTE: unlike the pandas expression (which only touches the rows
+        # matched by the filter), microdata's `keep if` drops the other rows
+        # from the working dataset for all following commands — approximated,
+        # flagged as a trailing inline comment (same line as `keep if`) rather
+        # than a leading comment-only line, so scripts executed line-by-line
+        # don't need to special-case a bare `//` line.
+        filter_lines = [
+            f"keep if {filter_cond}  "
+            "// NOTE: this drops rows from the working dataset (not just "
+            "from this computation)"
+        ]
 
     gb_step = steps[gb_idx]
     if not isinstance(gb_step, MethodStep) or not gb_step.args:
@@ -781,7 +865,7 @@ def try_groupby_collapse(
         if specs is None:
             return None
         parts = " ".join(f"({stat}) {src} -> {tgt}" for src, stat, tgt in specs)
-        return [f"collapse {parts}, by({by_str})"]
+        return filter_lines + [f"collapse {parts}, by({by_str})"]
 
     # Pattern B: groupby(g)[col].stat_method()
     if (
@@ -796,7 +880,7 @@ def try_groupby_collapse(
         stat = _stat_alias(tail[1].name)
         if stat is None:
             return None
-        return [f"collapse ({stat}) {src_col} -> {src_col}, by({by_str})"]
+        return filter_lines + [f"collapse ({stat}) {src_col} -> {src_col}, by({by_str})"]
 
     return None
 
@@ -883,8 +967,8 @@ def extract_groupby_transform_info(
 ) -> Optional[dict]:
     """
     Extract info from df.groupby(g)[col].transform(stat) without needing a target.
-    Returns {'src_col', 'stat', 'by_str'} or None.
+    Returns {'src_col', 'stat', 'by_str', 'filter'} or None.
 
     Delegates to _match_groupby_transform (chain-based).
     """
-    return _match_groupby_transform(value_node, df_name)
+    return _match_groupby_transform(value_node, df_name, translator)

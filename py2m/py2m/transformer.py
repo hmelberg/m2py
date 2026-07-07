@@ -19,7 +19,7 @@ from .expander import (
     try_np_where, try_map, try_pd_cut, try_fillna, try_clip, try_where_mask,
     try_apply_simple_func, try_str_method_assign,
     try_groupby_transform, try_groupby_collapse,
-    extract_groupby_transform_info,
+    extract_groupby_transform_info, _groupby_transform_lines,
     _is_df_col,
 )
 from .chain import decompose, MethodStep, AttrStep, SubscriptStep, str_const, str_list, is_df_root
@@ -311,6 +311,15 @@ class Py2MTransformer:
             for ln in lines:
                 self._emit(ln)
             return True
+
+        # The patterns below recognise a SINGLE filter/query/dropna step.
+        # Matching on steps[0] alone while ignoring any trailing steps (e.g.
+        # `src_df[cond].head(10)`) would silently discard them — `.head(10)`
+        # limits the result to 10 rows, but `keep if cond` keeps every
+        # matching row, an entirely different (and wrong) result. Bail out
+        # here so the caller falls through to a loud UNTRANSLATED comment.
+        if len(steps) != 1:
+            return False
 
         step = steps[0]
 
@@ -652,9 +661,8 @@ class Py2MTransformer:
         # df['col'] = pending_transform_var (two-step groupby transform)
         if isinstance(value, ast.Name) and value.id in self._pending_transforms:
             info = self._pending_transforms.pop(value.id)
-            self._emit(
-                f"aggregate ({info['stat']}) {info['src_col']} -> {col}, by({info['by_str']})"
-            )
+            for l in _groupby_transform_lines(col, info):
+                self._emit(l)
             return True
 
         # df['pred'] = model.predict()
@@ -784,6 +792,12 @@ class Py2MTransformer:
     def _try_df_filter(self, value, lineno: int) -> bool:
         root, steps = decompose(value)
         if not is_df_root(root, self.df_name) or not steps:
+            return False
+        # Single filter/query step only — a trailing step (e.g. `df =
+        # df[cond].head(10)`) changes the result (row-limited, not just
+        # filtered) and must not be silently dropped. Let it fall through to
+        # the caller's loud UNTRANSLATED fallback instead.
+        if len(steps) != 1:
             return False
         step = steps[0]
         tr = self._translator
@@ -995,26 +1009,33 @@ class Py2MTransformer:
             return False
         merge_step = steps[-1]
 
-        # pd.merge(left, right, ...)
+        # pd.merge(left, right, how=, on=, ...) — 'how' is positional arg #3,
+        # 'on' is #4 (pandas.merge(left, right, how='inner', on=None, ...)).
+        # Mis-reading arg #3 as 'on' (the old code) breaks positional calls
+        # like pd.merge(a, b, 'left', 'key') AND silently ignores a positional
+        # 'how', which then falls back to the (wrong) inner-join default below.
         if isinstance(root, ast.Name) and root.id == "pd":
             if len(merge_step.args) < 2:
                 return False
             left_node  = merge_step.args[0]
             right_node = merge_step.args[1]
-            on_node    = (merge_step.args[2] if len(merge_step.args) > 2
+            how_node   = (merge_step.args[2] if len(merge_step.args) > 2
+                          else merge_step.kwargs.get("how"))
+            on_node    = (merge_step.args[3] if len(merge_step.args) > 3
                           else merge_step.kwargs.get("on"))
-            how_node   = merge_step.kwargs.get("how")
             lo_node    = merge_step.kwargs.get("left_on")
             ro_node    = merge_step.kwargs.get("right_on")
-        # df.merge(other, ...)
+        # df.merge(other, how=, on=, ...) — DataFrame.merge(right, how='inner',
+        # on=None, ...); 'how' is positional arg #2, 'on' is #3.
         elif is_df_root(root, self.df_name) and len(steps) == 1:
             if not merge_step.args:
                 return False
             left_node  = root
             right_node = merge_step.args[0]
-            on_node    = (merge_step.args[1] if len(merge_step.args) > 1
+            how_node   = (merge_step.args[1] if len(merge_step.args) > 1
+                          else merge_step.kwargs.get("how"))
+            on_node    = (merge_step.args[2] if len(merge_step.args) > 2
                           else merge_step.kwargs.get("on"))
-            how_node   = merge_step.kwargs.get("how")
             lo_node    = merge_step.kwargs.get("left_on")
             ro_node    = merge_step.kwargs.get("right_on")
         else:
@@ -1038,8 +1059,12 @@ class Py2MTransformer:
             elif isinstance(on_node, (ast.List, ast.Tuple)):
                 on_cols = _extract_str_list(on_node) or []
 
-        # how=
-        how = "left"
+        # how= — pandas' own default for merge()/pd.merge() is 'inner' (unlike
+        # .join(), which defaults to 'left'). Defaulting this to "left" made
+        # the (unwarned) common case — df.merge(other, on='key') with no how=
+        # — silently emit M's left-join `merge ... into ...` for what pandas
+        # actually computes as an inner join.
+        how = "inner"
         if how_node and isinstance(how_node, ast.Constant):
             how = how_node.value
 
@@ -1466,17 +1491,23 @@ class Py2MTransformer:
             stat    = info["stat"]
             col     = info["src_col"]
             by_str  = info["by_str"]
+            filt    = info.get("filter")
+            if_str  = f" if {filt}" if filt else ""
             micro_stat = _AGG_FUNC_STAT.get(stat)
             if micro_stat == "__freq__":
-                self._emit(f"tabulate {by_str}")
+                self._emit(f"tabulate {by_str}{if_str}")
             elif stat in _AGG_FUNC_STAT:
                 stat_str = f" {micro_stat}" if micro_stat else ""
-                self._emit(f"tabulate {by_str}, summarize({col}){stat_str}")
+                self._emit(f"tabulate {by_str}{if_str}, summarize({col}){stat_str}")
             else:
-                # No tabulate equivalent — clone, collapse, restore, delete
-                self._groupby_display_clone(
-                    [f"collapse ({stat}) {col} -> {col}, by({by_str})"]
-                )
+                # No tabulate equivalent — clone, collapse, restore, delete.
+                # The clone is throwaway, so filtering it with `keep if` is
+                # safe here (unlike the assignment path, nothing persists
+                # into the real working dataset).
+                collapse_lines = ([f"keep if {filt}"] if filt else []) + [
+                    f"collapse ({stat}) {col} -> {col}, by({by_str})"
+                ]
+                self._groupby_display_clone(collapse_lines)
             return
 
         # Pure patterns: col stats, histograms, describe, correlate, crosstab,
@@ -1747,15 +1778,29 @@ class Py2MTransformer:
 
 # ── module-level helpers ──────────────────────────────────────────────────────
 
+_QUOTED_LITERAL_RE = re.compile(r"'(?:[^'\\]|\\.)*'" + r'|"(?:[^"\\]|\\.)*"')
+
+
 def _query_str_to_python(s):
     """pandas query() treats & / | as low-precedence logical ops, but Python
     parses `a > 2 & b < 9` as `a > (2 & b) < 9`. Rewrite to `and`/`or` so the
-    AST groups the way query means it."""
+    AST groups the way query means it.
+
+    Only rewrite & / | OUTSIDE quoted string literals — a naive whole-string
+    substitution would also mangle them inside a string comparison, e.g.
+    `df.query("name == 'A & B'")` must not become `name == 'A and B'`."""
     if not isinstance(s, str):
         return s
-    s = re.sub(r"\s*&\s*", " and ", s)
-    s = re.sub(r"\s*\|\s*", " or ", s)
-    return s
+    parts = _QUOTED_LITERAL_RE.split(s)
+    holes = _QUOTED_LITERAL_RE.findall(s)
+    out = []
+    for i, part in enumerate(parts):
+        part = re.sub(r"\s*&\s*", " and ", part)
+        part = re.sub(r"\s*\|\s*", " or ", part)
+        out.append(part)
+        if i < len(holes):
+            out.append(holes[i])
+    return "".join(out)
 
 
 def _is_method_call(node, method: str) -> bool:
