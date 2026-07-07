@@ -8854,29 +8854,38 @@ has and "int" in (m.get_microdata_functions() or {})
       outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('SafeStat: oversetter til pandas og kjører lokalt…') + '</div>';
       try {
         await loadTranslator(py);                 // ensures m2py_runtime + m2py_translate on the FS
-        // Pyodide can't pd.read_csv(url); fetch require'd URLs in JS, write to the
+        // Pyodide can't pd.read_csv(url); fetch require'd URLs, write to the
         // FS, and rewrite the script's require lines to the local path so the
-        // emitted read_source() reads a local file.
-        var _reqRe = /^\s*require\s+(https?:\/\/\S+\.(?:csv|parquet))\s+as\s+(\w+)/gim;
-        var _m, _fetches = [];
+        // emitted read_source() reads a local file. Routed through the shared
+        // DataLoader.fetchResolvedItems (2026-07-09) instead of a bare
+        // fetch(url) — gets key()/kind() support and the cross-run byte cache
+        // for free, the same as python/r/duckdb mode's connect/load
+        // directives, rather than a second, narrower hand-rolled fetch (see
+        // docs/superpowers/2026-07-07-code-review.md §6 item 5). require is a
+        // real (uncommented) DSL statement here, unlike those modes' "#"-
+        // prefixed directives, so this uses its own regex — not
+        // DataDirectives.parse — but reuses the same fetch/decrypt/cache
+        // machinery via fetchResolvedItems.
+        var _reqRe = /^[ \t]*require[ \t]+(\S+)[ \t]+as[ \t]+(\w+)((?:[ \t]*,[ \t]*\w+\([^)]*\))*)/gim;
+        var _m, _reqItems = [];
         var _localScript = script;
         while ((_m = _reqRe.exec(script)) !== null) {
-          (function(url, alias){
-            _fetches.push(fetch(url).then(function(r){
-              if (!r.ok) throw new Error('require ' + url + ' -> HTTP ' + r.status);
-              return r.arrayBuffer();
-            }).then(function(buf){
-              var path = '/home/pyodide/_safestat/' + alias + url.slice(url.lastIndexOf('.'));
-              py.FS.mkdirTree('/home/pyodide/_safestat');
-              py.FS.writeFile(path, new Uint8Array(buf));
-              // rewrite this require's URL to the local path
-              _localScript = _localScript.replace(url, path);
-            }));
-          })(_m[1], _m[2]);
+          var _url = _m[1];
+          if (!/^https?:\/\//i.test(_url)) continue; // named/registered refs: already rewritten to a URL above, or handled remotely
+          var _opts = window.DataDirectives ? window.DataDirectives.parseOptions(_m[3]) : {};
+          _reqItems.push({ url: _url, alias: _m[2], kind: _opts.kind, key: _opts.key, viaProxy: _url.indexOf('/api/hent?') === 0 });
         }
-        if (_fetches.length) {
-          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('SafeStat: henter {n} datakilde(r)…', { n: _fetches.length }) + '</div>';
-          await Promise.all(_fetches);
+        if (_reqItems.length) {
+          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('SafeStat: henter {n} datakilde(r)…', { n: _reqItems.length }) + '</div>';
+          var _reqLoads = await window.DataLoader.fetchResolvedItems(_reqItems, {
+            authToken: getAuthToken(), anthropicKey: getAnthropicKey(), promptKey: mdPromptKey });
+          py.FS.mkdirTree('/home/pyodide/_safestat');
+          _reqLoads.forEach(function (l, idx) {
+            var path = '/home/pyodide/_safestat/' + l.alias + '.' + l.format;
+            py.FS.writeFile(path, l.bytes);
+            // rewrite this require's URL to the local path
+            _localScript = _localScript.replace(_reqItems[idx].url, path);
+          });
         }
         var _pkgFor = [
           { re: /^\s*(cox|kaplan-meier|kaplan_meier|weibull)\b/im, pkg: 'lifelines' },

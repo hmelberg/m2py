@@ -105,6 +105,22 @@
       localItems.push(item);
     }
 
+    var loads = await fetchResolvedItems(localItems, deps);
+    return { loads: loads, remote: remote };
+  }
+
+  // Fetch+decrypt+cache for an already-resolved item list (each
+  // {alias, url, kind, key, table, viaProxy, grant?}) — the part of
+  // resolveAndFetchLoads that doesn't depend on connect/load-directive
+  // syntax at all. Extracted (2026-07-09) so a mode with its OWN directive
+  // syntax (SafeStat mode's bare `require <url> as <alias>` DSL statement,
+  // not a "#"/"--"/"//"-prefixed comment directive DataDirectives.parse can
+  // recognize) can still get key()/kind()/caching for free instead of a
+  // second, narrower hand-rolled fetch — see index.html's runSafeStatScript.
+  // -> [{alias, bytes, format, table?, kind?, envelope?, key?, level?, strict?}]
+  async function fetchResolvedItems(localItems, deps) {
+    deps = deps || {};
+    var fetchImpl = deps.fetchImpl || (typeof fetch !== 'undefined' ? fetch.bind(global) : null);
     // V3 (spec browser-strict): strict-kilder får ALDRI nøkkel via
     // /source_access — HVER strict-kjøring (kryptert eller ei) autoriseres og
     // logges via /local_run_authorize (deps.authorizeStrict), som utleverer
@@ -135,7 +151,7 @@
       }
       return _bufCache[k];
     }
-    var loads = await Promise.all(localItems.map(async function (item) {
+    return Promise.all(localItems.map(async function (item) {
       var fetched = await fetchBytes(item);
       var format = sniffFormat(fetched.resp, item.url, item.kind);
       var dec = await maybeDecrypt(item, fetched.buf, format, deps);
@@ -158,7 +174,6 @@
       }
       return out;
     }));
-    return { loads: loads, remote: remote };
   }
 
   function fetchSourceAccess(item, deps, fetchImpl) {
@@ -280,7 +295,7 @@
   }
 
   global.DataLoader = { resolveAndFetchLoads: resolveAndFetchLoads, resolveAndAssemble: resolveAndAssemble,
-    resolveSourcesOnly: resolveSourcesOnly, _sniffFormat: sniffFormat,
+    resolveSourcesOnly: resolveSourcesOnly, fetchResolvedItems: fetchResolvedItems, _sniffFormat: sniffFormat,
     // Test-only: the cross-run fetch cache is module-scoped by design (see
     // _bufCache above), which is exactly wrong for a test file that evals
     // this module once and shares it across every Deno.test case — without

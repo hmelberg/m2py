@@ -61,6 +61,25 @@ Deno.test("resolveAndFetchLoads: innloggingstoken har forrang over BYOK-nøkkel"
   assertEquals(proxy.headers["X-Anthropic-Key"], undefined);
 });
 
+Deno.test("fetchResolvedItems: fetches an already-resolved item list directly, no directive parsing", async () => {
+  // Exercises what index.html's SafeStat mode calls (2026-07-09) instead of a
+  // bare fetch(url) — its `require <url> as <alias>[, kind()][, key()]` is a
+  // real DSL statement, not a "#"-prefixed directive DataDirectives.parse
+  // recognizes, so it builds items itself and calls this function directly,
+  // skipping resolveAndFetchLoads' parse/resolve layer entirely.
+  DL._resetCacheForTests();
+  const fetchImpl = ((input: string | URL | Request) => {
+    return Promise.resolve(new Response("sex,salary\nM,30000\nF,31000",
+      { status: 200, headers: { "content-type": "text/plain" } }));
+  }) as typeof fetch;
+  const items = [{ alias: "inc", url: "https://x.example/no-extension-here", kind: "csv", viaProxy: false }];
+  const loads = await DL.fetchResolvedItems(items, { fetchImpl });
+  assertEquals(loads.length, 1);
+  assertEquals(loads[0].alias, "inc");
+  assertEquals(loads[0].format, "csv");   // from kind(), not sniffed — the URL has no recognizable extension
+  assertEquals(new TextDecoder().decode(loads[0].bytes), "sex,salary\nM,30000\nF,31000");
+});
+
 Deno.test("sniffFormat: content-type wins over URL", () => {
   const mk = (ct: string) => new Response("", { headers: { "content-type": ct } });
   assertEquals(DL._sniffFormat(mk("text/html; charset=utf-8"), "https://x/api"), "html");
