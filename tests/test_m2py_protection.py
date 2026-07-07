@@ -1,5 +1,8 @@
+import pathlib
+import sys
+
 import pandas as pd
-from m2py_protection import resolve_policy, PUBLIC, PROTECTED, SENSITIVE, PandasProtect
+from m2py_protection import resolve_policy, PUBLIC, PROTECTED, SENSITIVE, PandasProtect, _FALLBACK
 
 
 def test_resolve_policy_public_is_all_pass():
@@ -84,3 +87,29 @@ def test_suppress_countless_frame_passes_through():
     table = pd.DataFrame({"a": [1.0, 2.0]})
     out = PandasProtect().suppress(table, {"min_n": 5})
     assert list(out["a"]) == [1.0, 2.0]
+
+
+def test_fallback_presets_mirror_safepy_policy_presets():
+    """_FALLBACK's own comment says it MUST mirror safepy/policy.py's PRESETS
+    (2026-07-07 review finding: nothing enforced that — a future preset
+    change in safepy would silently go stale here, in whatever non-server
+    context (Pyodide, this test run) can't import safepy and falls back).
+    Skips (does not fail) if the safepy sibling repo isn't checked out next
+    to this one — same sibling-repo convention sync_to_api.py already uses
+    (SAFEPY_ROOT = HERE.parent / "safepy" / "safepy")."""
+    safepy_repo_root = pathlib.Path(__file__).resolve().parent.parent.parent / "safepy"
+    if not safepy_repo_root.is_dir():
+        return  # sibling repo not checked out in this environment — nothing to compare
+    sys.path.insert(0, str(safepy_repo_root))
+    try:
+        from safepy.policy import PRESETS, _LEVEL_PRESET
+    except ImportError:
+        return
+    finally:
+        sys.path.remove(str(safepy_repo_root))
+    for level, fallback in _FALLBACK.items():
+        preset = PRESETS[_LEVEL_PRESET[level]]
+        assert fallback["min_n"] == preset.min_n, level
+        assert fallback["round"] == preset.round_to, level
+        assert fallback["percentile_sig_figs"] == preset.percentile_sig_figs, level
+        assert fallback["max_low_cell_share"] == preset.max_low_cell_share, level
