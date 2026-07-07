@@ -7194,24 +7194,14 @@ async def _run_duck_sql(_sql):
     import js as _duck_js
     import duckdb_bridge as _duck_db
     from pyodide.ffi import to_js as _duck_to_js
-    # Pyodide shim: pandas' to_parquet lazily runs patch_pyarrow(), which calls
-    # pyarrow.unregister_extension_type('arrow.py_extension_type') and raises
-    # ArrowKeyError in the Pyodide pyarrow build. Make unregister lenient, then
-    # pre-import the module so df.to_parquet(engine='pyarrow') works.
+    # pyarrow install + the ArrowKeyError unregister-patch (pandas' to_parquet
+    # lazily runs patch_pyarrow(), which raises in the Pyodide pyarrow build)
+    # already happened on the JS side before this function is ever called —
+    # see ensurePyarrowFor()'s _needsParquetSupport call site, which gates on
+    # segments.some(kind === 'duckdb'), the exact condition that reaches here.
+    # Was duplicated inline here too until 2026-07-07 (see docs/superpowers/
+    # 2026-07-07-code-review.md §5) — a plain import is enough now.
     import pyarrow as _duck_pa
-    if not getattr(_duck_pa, "_m2py_unreg_patched", False):
-        _duck_oru = _duck_pa.unregister_extension_type
-        def _duck_safe_unreg(name, _o=_duck_oru):
-            try:
-                return _o(name)
-            except Exception:
-                return None
-        _duck_pa.unregister_extension_type = _duck_safe_unreg
-        _duck_pa._m2py_unreg_patched = True
-        try:
-            import pandas.core.arrays.arrow.extension_types as _duck_pet
-        except Exception:
-            pass
     # A segment with only SQL comments (e.g. a leading --/ /* */ note before the
     # first block marker) has no real SQL — skip it so it doesn't reach DuckDB.
     if not _duck_db._scrub(_sql).strip():
@@ -7638,6 +7628,22 @@ json.dumps(out)
       });
     }
 
+    // R code that decodes a base64-encoded Parquet payload (produced Python-
+    // side by df.to_parquet() + base64) into an R data.frame bound to varName.
+    // base64 is needed here (unlike the plain connect/load path, which writes
+    // raw bytes straight to webR's FS) because the payload crosses a JSON-
+    // string/R-string-literal boundary — see the R-bridge-to-Parquet commit.
+    // Returns a string (not executed) so a caller can append more R code
+    // (e.g. catalog-label factor application) before running it in one
+    // evalRVoid call. Was duplicated between the assembly and #micro paths
+    // until 2026-07-07 (see docs/superpowers/2026-07-07-code-review.md §5).
+    function parquetInjectionRCode(varName, base64Bytes) {
+      return '.m2py_tmp_pq <- tempfile(fileext = ".parquet"); ' +
+        'writeBin(base64enc::base64decode(' + JSON.stringify(base64Bytes) + '), .m2py_tmp_pq); ' +
+        varName + ' <- nanoparquet::read_parquet(.m2py_tmp_pq); ' +
+        'unlink(.m2py_tmp_pq); rm(.m2py_tmp_pq)\n';
+    }
+
     async function runHybridR(src, py, runOpts) {
       runOpts = runOpts || {};
       var showCommands = runOpts.showCommands !== false; // default true
@@ -7705,11 +7711,7 @@ json.dumps(out)
         // fortsatt payloaden trygt gjennom evalR()-strengen; nanoparquet leser
         // de rå bytene direkte (installert i loadWebR — se der).
         for (var _dn in _asmRes.data) {
-          await webR.evalRVoid(
-            '.m2py_tmp_pq <- tempfile(fileext = ".parquet"); ' +
-            'writeBin(base64enc::base64decode(' + JSON.stringify(_asmRes.data[_dn]) + '), .m2py_tmp_pq); ' +
-            _dn + ' <- nanoparquet::read_parquet(.m2py_tmp_pq); ' +
-            'unlink(.m2py_tmp_pq); rm(.m2py_tmp_pq)');
+          await webR.evalRVoid(parquetInjectionRCode(_dn, _asmRes.data[_dn]));
         }
         (_asmRes.notes || []).forEach(function (n) { console.log('[montering]', n); });
         _loadsR = [];   // datasettene er allerede montert og bundet i webR
@@ -7822,10 +7824,7 @@ json.dumps(out)
             var b64 = b64Map[dfName];
             var dfCols = mdRes.columns[dfName] || [];
 
-            var rCode = '.m2py_tmp_pq <- tempfile(fileext = ".parquet"); ' +
-              'writeBin(base64enc::base64decode(' + JSON.stringify(b64) + '), .m2py_tmp_pq); ' +
-              dfName + ' <- nanoparquet::read_parquet(.m2py_tmp_pq); ' +
-              'unlink(.m2py_tmp_pq); rm(.m2py_tmp_pq)\n';
+            var rCode = parquetInjectionRCode(dfName, b64);
 
             // Apply catalog labels as factors using base R only
             dfCols.forEach(function(col) {
@@ -8433,14 +8432,16 @@ has and "int" in (m.get_microdata_functions() or {})
     // safepy-pakken hentes som zip (bygget av sync_to_api.py --web) og pakkes
     // ut i Pyodide. Kritisk invariant: feiler noe her, nektes kjøringen —
     // en strict-kilde kjøres ALDRI på den åpne motoren.
-    // Delt med den bredere "_needsParquetSupport"-blokken i hovedkjøringen
-    // (samme pyarrow-install + samme ArrowKeyError-patch som js/strict-worker.js)
-    // — brukes her for R-modus' egne df.to_parquet()-kall (montering og
-    // #micro-oppsett), som kjører i det delte pyodide-singleton-instansen fra
-    // loadPyodideAndM2py(), der pyarrow ikke er garantert lastet ennå.
-    async function ensurePyarrowFor(py) {
+    // Delt pyarrow-install + ArrowKeyError-patch (samme som js/strict-worker.js)
+    // — ETT sted for alt som trenger pyarrow i denne pyodide-instansen: R-modus'
+    // df.to_parquet()-kall (montering og #micro-oppsett) og hovedkjøringens
+    // _needsParquetSupport-blokk (duckdb-segmenter og parquet-loads). Var
+    // duplisert tre steder til 2026-07-07; onInstalling er valgfri fordi bare
+    // hovedkjøringen viser en statusmelding mens installasjonen pågår.
+    async function ensurePyarrowFor(py, onInstalling) {
       var needPa = await py.runPythonAsync('import importlib.util as _iu\n_iu.find_spec("pyarrow") is None');
       if (needPa) {
+        if (onInstalling) onInstalling();
         await py.runPythonAsync('import micropip as _mp\nawait _mp.install("pyarrow")');
       }
       await py.runPythonAsync(
@@ -9262,32 +9263,7 @@ options(width = 200)
           (_pyLoads || []).some(function (l) { return l.format === 'parquet'; });
         if (_needsParquetSupport) {
           try {
-            var _needPa = await py.runPythonAsync('import importlib.util as _iu\n_iu.find_spec("pyarrow") is None');
-            if (_needPa) {
-              setStatus(rightStatus, t('Installerer pyarrow…'));
-              await py.runPythonAsync('import micropip as _mp\nawait _mp.install("pyarrow")');
-            }
-            // Same Pyodide-pyarrow patch _run_duck_sql already applies (index.html
-            // ~7190-7209): pandas' lazy patch_pyarrow() calls
-            // unregister_extension_type('arrow.py_extension_type'), which raises
-            // ArrowKeyError in the Pyodide pyarrow build — pd.read_parquet() hits
-            // this the first time it's called in ANY run, not just #duckdb ones,
-            // so it must be applied here too, not only inside _run_duck_sql.
-            await py.runPythonAsync(
-              'import pyarrow as _pa\n' +
-              'if not getattr(_pa, "_m2py_unreg_patched", False):\n' +
-              '    _oru = _pa.unregister_extension_type\n' +
-              '    def _safe_unreg(name, _o=_oru):\n' +
-              '        try:\n' +
-              '            return _o(name)\n' +
-              '        except Exception:\n' +
-              '            return None\n' +
-              '    _pa.unregister_extension_type = _safe_unreg\n' +
-              '    _pa._m2py_unreg_patched = True\n' +
-              '    try:\n' +
-              '        import pandas.core.arrays.arrow.extension_types\n' +
-              '    except Exception:\n' +
-              '        pass\n');
+            await ensurePyarrowFor(py, function () { setStatus(rightStatus, t('Installerer pyarrow…')); });
           } catch (e) { console.warn('pyarrow ensure:', e); }
         }
         const segmentsStr = JSON.stringify(segments);
