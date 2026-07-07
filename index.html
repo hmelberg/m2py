@@ -146,6 +146,7 @@
             <line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/>
           </svg>
           <span data-i18n>Del data</span>
+          <span id="pendingRequestsBadge" style="display:none;margin-left:auto;background:#dc2626;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:600;line-height:1.5;" title="Ventende tilgangsforesp&#248;rsler p&#229; dine kilder"></span>
         </button>
         <div id="adminMenuSection" style="display:none;">
           <hr style="margin:4px 0;border-color:#334155;">
@@ -2000,6 +2001,33 @@
         }
       }
 
+      // Surfaces pending access requests on the "Del data" menu item so an
+      // owner sees "someone is waiting" without navigating to deldata.html
+      // first (2026-07-09 — closes the other half of the access-request
+      // loop: deldata.html already lists/approves pending requests, this
+      // just makes their existence visible from the main app). Deliberately
+      // reuses the existing /sources/mine endpoint (already returns
+      // pending_requests per source for deldata.html) rather than adding a
+      // second approve/deny UI here — clicking through to deldata.html still
+      // does the actual approve/deny, avoiding a duplicated mini-UI.
+      function updatePendingRequestsBadge() {
+        const badge = document.getElementById('pendingRequestsBadge');
+        if (!badge) return;
+        if (!window.mdAuth || !window.mdAuth.isLoggedIn) { badge.style.display = 'none'; return; }
+        const base = (typeof getMdApiBase === 'function' ? getMdApiBase() : '').replace(/\/+$/, '');
+        const token = typeof getAuthToken === 'function' ? getAuthToken() : null;
+        if (!base || !token) { badge.style.display = 'none'; return; }
+        fetch(base + '/_/api/sources/mine', { headers: { Authorization: 'Bearer ' + token } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (data) {
+            var sources = (data && data.sources) || (Array.isArray(data) ? data : []);
+            var n = sources.reduce(function (acc, s) { return acc + ((s.pending_requests || []).length); }, 0);
+            if (n > 0) { badge.textContent = String(n); badge.style.display = ''; }
+            else { badge.style.display = 'none'; }
+          })
+          .catch(function () { badge.style.display = 'none'; });
+      }
+
       hamburgerBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         dropdown.classList.toggle('open');
@@ -2008,6 +2036,7 @@
         if (examplesDropdown) examplesDropdown.classList.remove('open');
         updateAdminMenuVisibility();
         updateLoginMenuVisibility();
+        updatePendingRequestsBadge();
       });
       document.addEventListener('click', function() {
         dropdown.classList.remove('open');
