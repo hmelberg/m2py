@@ -7651,6 +7651,68 @@ json.dumps(out)
         'unlink(.m2py_tmp_pq); rm(.m2py_tmp_pq)\n';
     }
 
+    // Shared assembly/connect-load resolution for BOTH python/duckdb mode and
+    // R mode (2026-07-08 — R mode used to always fully materialize assembly
+    // datasets via resolveAndAssemble and could never combine assembly with
+    // strict/encrypted sources; python/duckdb mode already had a working
+    // pushdown-first path. Extracted so R mode gains pushdown by sharing this
+    // instead of a second, narrower copy — see docs/superpowers/2026-07-07-
+    // code-review.md §5/§6 item 3).
+    // -> { asmSpec: object|null, dl: { loads: [...], remote: [...] } }
+    async function resolveAssemblyOrLoads(script, deps) {
+      var hasAssembly = !!(window.DataDirectives
+        && window.DataDirectives.parseAssembly(script).spec.datasets.length);
+      if (!hasAssembly) {
+        return { asmSpec: null, dl: await window.DataLoader.resolveAndFetchLoads(script, deps) };
+      }
+      // Phase 2 (spec 2026-07-06-remote-columnar-sources-design §3): try
+      // pushdown first — only public parquet/duckdb sources qualify
+      // (resolveSourcesOnly already excludes anvil/protected sources from
+      // descriptors, so canPushdown is false whenever any referenced source
+      // needs server-side/grant-gated routing).
+      var presolve = await window.DataLoader.resolveSourcesOnly(script, deps);
+      if (window.AssemblyDuckdb && Object.keys(presolve.descriptors).length &&
+          window.AssemblyDuckdb.canPushdown(presolve.spec, presolve.descriptors)) {
+        var py = await loadPyodideAndM2py();
+        var compiled = window.AssemblyDuckdb.compile(presolve.spec, presolve.descriptors);
+        var pdb = await __ensureDuckDB();
+        var pconn = await pdb.connect();
+        var pushdownLoads = [];
+        try {
+          for (var ai = 0; ai < compiled.attachStatements.length; ai++) {
+            await pconn.query(compiled.attachStatements[ai]);
+          }
+          for (var si = 0; si < compiled.datasetStatements.length; si++) {
+            var stmt = compiled.datasetStatements[si];
+            var outName = 'ds_' + stmt.name + '_' + Math.random().toString(36).slice(2) + '.parquet';
+            await pconn.query("COPY (" + stmt.sql + ") TO '" + outName + "' (FORMAT PARQUET)");
+            var dsBytes = await pdb.copyFileToBuffer(outName);
+            py.FS.mkdirTree('/home/pyodide/_webdata');
+            var dsPath = '/home/pyodide/_webdata/' + stmt.name + '.parquet';
+            py.FS.writeFile(dsPath, dsBytes);
+            pushdownLoads.push({ alias: stmt.name, format: 'parquet', path: dsPath });
+            try { await pdb.dropFile(outName); } catch (e) { /* best-effort cleanup */ }
+          }
+          for (var di = 0; di < compiled.attachStatements.length; di++) {
+            // DETACH mirrors the Task 3 fix — ATTACH is database-level and
+            // would otherwise leak into the shared duckdb-wasm singleton.
+            var attAlias = compiled.attachStatements[di].match(/AS (\w+)/)[1];
+            try { await pconn.query('DETACH ' + attAlias); } catch (e) { /* best-effort */ }
+          }
+        } finally {
+          await pconn.close();
+        }
+        // Pushdown already produced the FINAL named datasets — mark spec as
+        // "no further steps" so a downstream safepy.assembly pass (or R
+        // mode's direct per-dataset loading) is a no-op passthrough.
+        var asmSpec = { sources: pushdownLoads.map(function (l) { return l.alias; }),
+          datasets: pushdownLoads.map(function (l) { return { name: l.alias, load: l.alias }; }) };
+        return { asmSpec: asmSpec, dl: { loads: pushdownLoads, remote: [] } };
+      }
+      var asm = await window.DataLoader.resolveAndAssemble(script, deps);
+      return { asmSpec: asm.spec, dl: { loads: asm.sources, remote: asm.remote } };
+    }
+
     async function runHybridR(src, py, runOpts) {
       runOpts = runOpts || {};
       var showCommands = runOpts.showCommands !== false; // default true
@@ -7679,21 +7741,56 @@ json.dumps(out)
         authToken: getAuthToken(), anthropicKey: getAnthropicKey(),
         apiBase: getMdApiBase(), promptKey: mdPromptKey,
         authorizeStrict: function (ids) { return mdAuthorizeStrictRun(ids, src); } };
-      // Project A: monteringsverb i R-modus — bygg datasettene i Pyodide (delt
-      // executor safepy.assembly), serialiser til CSV og last inn i webR som
+      // Project A: monteringsverb i R-modus — deler resolveAssemblyOrLoads
+      // (pushdown-forsøk først, så full montering) med python/duckdb-modus
+      // (2026-07-08 — se resolveAssemblyOrLoads sin kommentar). Ved ikke-
+      // strict kjøring bygges datasettene i Pyodide (delt executor
+      // safepy.assembly), serialiseres til Parquet og lastes inn i webR som
       // data.frames (samme bro som #micro→#r). Kilde-binding-løkka hoppes over.
-      var _hasAssemblyR = !!(window.DataDirectives
-        && window.DataDirectives.parseAssembly(src).spec.datasets.length);
-      var _loadsR;
-      if (_hasAssemblyR) {
-        var _asmR = await window.DataLoader.resolveAndAssemble(src, _rDeps);
-        if (_asmR.remote.length) throw new Error(t('ikke-offentlige kilder i R-modus kjøres via require-direktivet (server) — connect/load støtter det ikke her ennå'));
-        if (_asmR.sources.some(function (l) { return l.envelope || l.strict; })) throw new Error(t('strict-/kryptert-kilder med montering i R-modus støttes ikke ennå — bruk python-modus'));
+      var _resolvedR = await resolveAssemblyOrLoads(src, _rDeps);
+      var _asmSpecR = _resolvedR.asmSpec;
+      var _dlR = _resolvedR.dl;
+      if (_dlR.remote.length) throw new Error(t('ikke-offentlige kilder i R-modus kjøres via require-direktivet (server) — connect/load støtter det ikke her ennå'));
+      var _loadsR = _dlR.loads;
+      // Lokal strict-kjøring i R-modus: safepy oversetter R til kjernen —
+      // webR er aldri involvert; rammene legges i Pyodide i stedet. Utløses av
+      // "# options.profile = strict" (via runOpts — options-linjene er alt
+      // strippet fra src) ELLER av en strict-grant på en av kildene (spec V2).
+      // Montering (_asmSpecR) og strict/kryptert kan nå kombineres (2026-07-08
+      // — tidligere ble dette avvist utrykkelig; safepy.run's egen
+      // buildStrictGlue kjører allerede _asm.build_datasets INNE i sandkassen
+      // når opts.spec er satt, uansett dialekt — se buildStrictGlue).
+      if (runOpts.profile === 'strict' || _loadsR.some(function (l) { return l.strict; })) {
+        var _pyLoadsR = [];
+        if (_loadsR.length) {
+          var _pyR = await loadPyodideAndM2py();
+          if (_loadsR.some(function (l) { return l.bytes; })) _pyR.FS.mkdirTree('/home/pyodide/_webdata');
+          _pyLoadsR = _loadsR.map(function (l) {
+            if (l.envelope) return { alias: l.alias, format: l.format, envelope: l.envelope, key: l.key };
+            if (l.path) return { alias: l.alias, format: l.format, path: l.path, strict: !!l.strict };
+            var _p = '/home/pyodide/_webdata/' + l.alias + '.' + l.format;
+            _pyR.FS.writeFile(_p, l.bytes);
+            return { alias: l.alias, format: l.format, path: _p, strict: !!l.strict };
+          });
+        }
+        var _lvOrderR = { public: 0, protected: 1, sensitive: 2 };
+        var _lvlR = 'public';
+        _loadsR.forEach(function (l) {
+          if (l.strict && (_lvOrderR[l.level] || 0) > _lvOrderR[_lvlR]) _lvlR = l.level;
+        });
+        var _srcClean = src.replace(/^\s*(?:#|\/\/)\s*options\.[A-Za-z_]\w*\s*=.*$\n?/gm, '');
+        await runStrictLocal(_srcClean, _pyLoadsR, { level: _lvlR, dialect: 'r', spec: _asmSpecR }, { rightStatus: leftStatus });
+        setRunButtonsUi('idle');
+        scriptRunInProgress = false;
+        return;
+      }
+      if (_asmSpecR) {
         var _pyR2 = await loadPyodideAndM2py();
         await ensureSafepyLoaded(_pyR2);
         await ensurePyarrowFor(_pyR2);
-        if (_asmR.sources.some(function (l) { return l.bytes; })) _pyR2.FS.mkdirTree('/home/pyodide/_webdata');
-        var _srcMetaR = _asmR.sources.map(function (l) {
+        if (_loadsR.some(function (l) { return l.bytes; })) _pyR2.FS.mkdirTree('/home/pyodide/_webdata');
+        var _srcMetaR = _loadsR.map(function (l) {
+          if (l.path) return { alias: l.alias, format: l.format, path: l.path };
           var _p = '/home/pyodide/_webdata/' + l.alias + '.' + l.format;
           _pyR2.FS.writeFile(_p, l.bytes);
           return { alias: l.alias, format: l.format, path: _p };
@@ -7704,7 +7801,7 @@ json.dumps(out)
           '_src = {}',
           'for _a in json.loads(' + JSON.stringify(JSON.stringify(_srcMetaR)) + '):',
           "    _src[_a['alias']] = (_pd.read_parquet(_a['path']) if _a['format']=='parquet' else _pd.read_csv(_a['path']))",
-          '_ds, _notes = _A.build_datasets(json.loads(' + JSON.stringify(JSON.stringify(_asmR.spec)) + '), lambda a: _src[a])',
+          '_ds, _notes = _A.build_datasets(json.loads(' + JSON.stringify(JSON.stringify(_asmSpecR)) + '), lambda a: _src[a])',
           '_out = {}',
           'for _n, _df in _ds.items():',
           '    _buf = io.BytesIO()',
@@ -7722,37 +7819,6 @@ json.dumps(out)
         }
         (_asmRes.notes || []).forEach(function (n) { console.log('[montering]', n); });
         _loadsR = [];   // datasettene er allerede montert og bundet i webR
-      } else {
-        var _dlR = await window.DataLoader.resolveAndFetchLoads(src, _rDeps);
-        if (_dlR.remote.length) throw new Error(t('ikke-offentlige kilder i R-modus kjøres via require-direktivet (server) — connect/load støtter det ikke her ennå'));
-        _loadsR = _dlR.loads;
-      }
-      // Lokal strict-kjøring i R-modus: safepy oversetter R til kjernen —
-      // webR er aldri involvert; rammene legges i Pyodide i stedet. Utløses av
-      // "# options.profile = strict" (via runOpts — options-linjene er alt
-      // strippet fra src) ELLER av en strict-grant på en av kildene (spec V2).
-      if (!_hasAssemblyR && (runOpts.profile === 'strict' || _loadsR.some(function (l) { return l.strict; }))) {
-        var _pyLoadsR = [];
-        if (_loadsR.length) {
-          var _pyR = await loadPyodideAndM2py();
-          if (_loadsR.some(function (l) { return l.bytes; })) _pyR.FS.mkdirTree('/home/pyodide/_webdata');
-          _pyLoadsR = _loadsR.map(function (l) {
-            if (l.envelope) return { alias: l.alias, format: l.format, envelope: l.envelope, key: l.key };
-            var _p = '/home/pyodide/_webdata/' + l.alias + '.' + l.format;
-            _pyR.FS.writeFile(_p, l.bytes);
-            return { alias: l.alias, format: l.format, path: _p, strict: !!l.strict };
-          });
-        }
-        var _lvOrderR = { public: 0, protected: 1, sensitive: 2 };
-        var _lvlR = 'public';
-        _loadsR.forEach(function (l) {
-          if (l.strict && (_lvOrderR[l.level] || 0) > _lvOrderR[_lvlR]) _lvlR = l.level;
-        });
-        var _srcClean = src.replace(/^\s*(?:#|\/\/)\s*options\.[A-Za-z_]\w*\s*=.*$\n?/gm, '');
-        await runStrictLocal(_srcClean, _pyLoadsR, { level: _lvlR, dialect: 'r' }, { rightStatus: leftStatus });
-        setRunButtonsUi('idle');
-        scriptRunInProgress = false;
-        return;
       }
       if (_loadsR.length && _loadsR.some(function (l) { return l.format === 'json'; })) {
         try { await webR.installPackages(['jsonlite'], { quiet: true }); } catch (e) {
@@ -9127,65 +9193,13 @@ options(width = 200)
           // datasett (parseAssembly). En vanlig kommentar som «# Import the data»
           // eller «# load <url> as df» produserer ingen datasett → gammel
           // connect/load-bane (bakoverkompatibelt).
-          var _hasAssembly = !!(window.DataDirectives
-            && window.DataDirectives.parseAssembly(effectiveScript).spec.datasets.length);
           var _dlDeps = {
             authToken: getAuthToken(), anthropicKey: getAnthropicKey(),
             apiBase: getMdApiBase(), promptKey: mdPromptKey,
             authorizeStrict: function (ids) { return mdAuthorizeStrictRun(ids, effectiveScript); } };
-          var _dl;
-          if (_hasAssembly) {
-            // Phase 2 (spec 2026-07-06-remote-columnar-sources-design §3):
-            // try pushdown first — only public parquet/duckdb sources
-            // qualify (resolveSourcesOnly already excludes anvil/protected
-            // sources from descriptors, so canPushdown is false whenever any
-            // referenced source needs server-side/grant-gated routing).
-            var _presolve = await window.DataLoader.resolveSourcesOnly(effectiveScript, _dlDeps);
-            if (window.AssemblyDuckdb && Object.keys(_presolve.descriptors).length &&
-                window.AssemblyDuckdb.canPushdown(_presolve.spec, _presolve.descriptors)) {
-              _asmSpec = _presolve.spec;
-              var _compiled = window.AssemblyDuckdb.compile(_presolve.spec, _presolve.descriptors);
-              var _pdb = await __ensureDuckDB();
-              var _pconn = await _pdb.connect();
-              var _pushdownLoads = [];
-              try {
-                for (var _ai = 0; _ai < _compiled.attachStatements.length; _ai++) {
-                  await _pconn.query(_compiled.attachStatements[_ai]);
-                }
-                for (var _si = 0; _si < _compiled.datasetStatements.length; _si++) {
-                  var _stmt = _compiled.datasetStatements[_si];
-                  var _outName = 'ds_' + _stmt.name + '_' + Math.random().toString(36).slice(2) + '.parquet';
-                  await _pconn.query("COPY (" + _stmt.sql + ") TO '" + _outName + "' (FORMAT PARQUET)");
-                  var _dsBytes = await _pdb.copyFileToBuffer(_outName);
-                  py.FS.mkdirTree('/home/pyodide/_webdata');
-                  var _dsPath = '/home/pyodide/_webdata/' + _stmt.name + '.parquet';
-                  py.FS.writeFile(_dsPath, _dsBytes);
-                  _pushdownLoads.push({ alias: _stmt.name, format: 'parquet', path: _dsPath });
-                  try { await _pdb.dropFile(_outName); } catch (e) { /* best-effort cleanup */ }
-                }
-                for (var _di = 0; _di < _compiled.attachStatements.length; _di++) {
-                  // DETACH mirrors the Task 3 fix — ATTACH is database-level
-                  // and would otherwise leak into the shared duckdb-wasm singleton.
-                  var _attAlias = _compiled.attachStatements[_di].match(/AS (\w+)/)[1];
-                  try { await _pconn.query('DETACH ' + _attAlias); } catch (e) { /* best-effort */ }
-                }
-              } finally {
-                await _pconn.close();
-              }
-              // Pushdown already produced the FINAL named datasets — mark
-              // spec as "no further steps" so buildAssemblyPreamble's
-              // safepy.assembly pass is a no-op passthrough (load-only spec).
-              _asmSpec = { sources: _pushdownLoads.map(function (l) { return l.alias; }),
-                datasets: _pushdownLoads.map(function (l) { return { name: l.alias, load: l.alias }; }) };
-              _dl = { loads: _pushdownLoads, remote: [] };
-            } else {
-              var _asm = await window.DataLoader.resolveAndAssemble(effectiveScript, _dlDeps);
-              _asmSpec = _asm.spec;
-              _dl = { loads: _asm.sources, remote: _asm.remote };
-            }
-          } else {
-            _dl = await window.DataLoader.resolveAndFetchLoads(effectiveScript, _dlDeps);
-          }
+          var _resolved = await resolveAssemblyOrLoads(effectiveScript, _dlDeps);
+          _asmSpec = _resolved.asmSpec;
+          var _dl = _resolved.dl;
           if (_dl.remote.length) {
             // Blandet montering av offentlige (lokale) og beskyttede (server)
             // kilder støttes ikke: serveren kan ikke hente en inline-URL-kilde.
