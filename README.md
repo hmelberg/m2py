@@ -1,4 +1,9 @@
-# m2py — microdata.no emulator
+# SafeStat — microdata.no emulator
+
+> Sister project: [OpenStat](https://github.com/hmelberg/openstat) — the open,
+> simplified edition (no login, no protected/encrypted sources, no remote
+> execution, BYOK-only AI). The engine (`m2py.py`) is the source of truth here;
+> fixes land in SafeStat first and are ported to OpenStat.
 
 A browser app that emulates [microdata.no](https://microdata.no): it translates
 microdata scripts to Python and runs them in the browser via Pyodide, generates
