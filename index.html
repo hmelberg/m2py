@@ -6,7 +6,7 @@
   <title>Microdata script runner</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preconnect" href="https://cdn.plot.ly" crossorigin>
-  <link rel="preload" as="script" href="https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js">
+  <link rel="preload" as="script" href="https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.js">
   <link rel="stylesheet" href="app.css">
 </head>
 <body data-theme="light">
@@ -807,7 +807,7 @@
   <link href="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/css/tabulator_simple.min.css" rel="stylesheet">
   <script src="js/i18n/en.js"></script>
   <script src="js/i18n.js"></script>
-  <script src="https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js"></script>
+  <script src="https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/js/tabulator.min.js" defer></script>
@@ -8484,7 +8484,18 @@ has and "int" in (m.get_microdata_functions() or {})
       // er standardveien; denne funksjonen dekker kun fs-loads-tilfellet).
       try {
         await py.loadPackage(['cryptography', 'scipy', 'statsmodels', 'micropip']);
-        await py.runPythonAsync('import micropip as _mp\nawait _mp.install("lifelines")');
+        // lifelines' declared metadata still says "pandas<3.0,>=2.1" (stale,
+        // found live during the 2026-07-08 Pyodide v314.0.2 upgrade, which
+        // bundles pandas 3.0.2) — a plain install fails at version
+        // resolution before lifelines' code even runs. Verified directly
+        // that lifelines 0.30.3 works fine against pandas 3.0.2 — metadata
+        // staleness, not a real incompatibility — so install its actual
+        // transitive deps explicitly, then deps=False to skip the outdated
+        // gate. Same fix as js/strict-worker.js's ensurePy.
+        await py.runPythonAsync(
+          'import micropip as _mp\n' +
+          'await _mp.install(["autograd", "formulaic", "interface_meta", "autograd-gamma"])\n' +
+          'await _mp.install("lifelines", deps=False)');
         try {
           await py.runPythonAsync('import micropip as _mp\nawait _mp.install("pyfixest")');
         } catch (e) { /* se strict-worker.js — degrader stille */ }
@@ -8573,10 +8584,15 @@ has and "int" in (m.get_microdata_functions() or {})
     // (konvolutt) — klartekst finnes da aldri i hovedtråden. FS-stier finnes
     // bare i hovedtrådens Pyodide, så de kjører strict der (fortsatt aldri åpent).
     var __strictWorker = null;
-    var __PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/';
+    var __PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v314.0.2/full/';
     function runStrictInWorker(glue) {
       return new Promise(function (resolve, reject) {
-        if (!__strictWorker) __strictWorker = new Worker('js/strict-worker.js');
+        // {type:'module'} required since the Pyodide v0.29.3 -> v314.0.2
+        // upgrade (2026-07-08): Pyodide dropped classic-worker support
+        // (importScripts) in 314.0.0, so js/strict-worker.js now imports
+        // pyodide.mjs via dynamic import(), which only works in a module
+        // worker.
+        if (!__strictWorker) __strictWorker = new Worker('js/strict-worker.js', { type: 'module' });
         __strictWorker.onmessage = function (ev) {
           var d = ev.data || {};
           if (d.ok) resolve(JSON.parse(d.result));
@@ -8969,7 +8985,7 @@ options(width = 200)
     // installerer pakkene i Pyodide før brukeren trenger dem. Feiler stille —
     // eksisterende auto-install i run-handleren håndterer ev. utelatte pakker.
     function schedulePrefetchLazyPackages(py) {
-      var pkgs = ['statsmodels', 'matplotlib', 'lifelines', 'linearmodels'];
+      var pkgs = ['statsmodels', 'matplotlib', 'linearmodels'];
       var go = function () {
         py.runPythonAsync(
           'import micropip, asyncio\n' +
@@ -8979,6 +8995,19 @@ options(width = 200)
           '            await micropip.install(p)\n' +
           '        except Exception as e:\n' +
           '            print("prefetch", p, "failed:", e)\n' +
+          // lifelines needs the same deps-first/deps=False workaround as
+          // ensureSafepyLoaded/strict-worker.js's ensurePy (its declared
+          // "pandas<3.0" metadata is stale, not a real pandas-3.0
+          // incompatibility — verified directly) — this prefetch is what
+          // makes lifelines usable in plain (non-strict) python-mode too, so
+          // a plain micropip.install(p) here would silently fail the same
+          // way and leave regular "import lifelines" scripts broken even
+          // though strict mode now works.
+          '    try:\n' +
+          '        await micropip.install(["autograd", "formulaic", "interface_meta", "autograd-gamma"])\n' +
+          '        await micropip.install("lifelines", deps=False)\n' +
+          '    except Exception as e:\n' +
+          '        print("prefetch lifelines failed:", e)\n' +
           'asyncio.ensure_future(_prefetch())\n'
         ).catch(function (e) { console.warn('prefetch failed:', e); });
       };
@@ -9252,28 +9281,23 @@ options(width = 200)
             // duckdb_api.py's own _connect (con.register(name, df)) — so the
             // dialect choice is about which SQL surface the query is written
             // in, not where the bytes originally came from.
-            // "duckdb" is used unconditionally here rather than "sqlite"
-            // because dialect="duckdb" needs Python's real duckdb package
-            // inside Pyodide, which this app's currently-pinned Pyodide
-            // version (v0.29.3) does not have (verified directly:
-            // pyodide.loadPackage('duckdb') -> "No known package with name
-            // 'duckdb'" — duckdb WAS removed from Pyodide's own distribution
-            // in that version range and only reinstated in a much newer
-            // release this app hasn't upgraded to). "sqlite" (see
-            // safepy/sqlite_api.py; docs/superpowers/specs/2026-07-08-sqlite-
-            // dialect-design.md) needs only Python's stdlib sqlite3, already
-            // confirmed working on this Pyodide version — so it's the one
-            // that actually runs today, for ANY source format, until a
-            // Pyodide upgrade (a separate, larger migration) makes "duckdb"
-            // viable again.
-            _dialect = 'sqlite';
-            // sqlite3 is unvendored from Pyodide's stdlib on this app's
-            // pinned version — "ModuleNotFoundError: No module named
-            // 'sqlite3'" until explicitly loaded once per Pyodide instance.
-            // A no-op on any Pyodide build where it's bundled by default.
+            // "duckdb" (richer SQL: WHERE, subqueries, CTEs, joins — see
+            // duckdb_api.py) is used again as of the 2026-07-08 Pyodide
+            // v0.29.3 -> v314.0.2 upgrade, which bundles duckdb 1.5.1 —
+            // verified directly (safepy.run(..., dialect='duckdb', ...)
+            // produces correct suppressed results). Between the sqlite
+            // dialect's design (2026-07-08) and this upgrade (same day),
+            // "sqlite" (safepy/sqlite_api.py; docs/superpowers/specs/
+            // 2026-07-08-sqlite-dialect-design.md) was the one that actually
+            // ran, since duckdb had no Pyodide wheel on the older pinned
+            // version — it remains fully available in safepy for anything
+            // that wants its narrower, hand-audited grammar specifically,
+            // just no longer the automatic choice here.
+            _dialect = 'duckdb';
             try {
-              await py.loadPackage('sqlite3');
-            } catch (e) { console.warn('sqlite3 ensure (strict):', e); }
+              var _needDuck = await py.runPythonAsync('import importlib.util as _iu\n_iu.find_spec("duckdb") is None');
+              if (_needDuck) await py.runPythonAsync('import micropip as _mp\nawait _mp.install("duckdb")');
+            } catch (e) { console.warn('duckdb ensure (strict):', e); }
           }
           // buildStrictGlue's Python glue does pd.read_parquet(l['path']) for
           // every parquet-format load — pyodide's bundled pandas has no
