@@ -6373,7 +6373,14 @@ json.dumps(out)
     function extractScriptOptions(src) {
       var opts = {};
       if (!src) return opts;
-      var re = /^\s*(?:#|\/\/)\s*options\.([a-zA-Z_][\w]*)\s*=\s*("[^"]*"|'[^']*'|\S+)\s*$/gm;
+      // #/// for python/microdata modes; -- for R/SQL modes (a valid comment
+      // there, unlike # or //, so "-- options.profile = strict" still parses
+      // as SQL in duckdb mode) — matches the 3-marker convention
+      // js/data-directives.js already uses for connect/load. Found missing
+      // for "--" specifically while testing the sqlite strict dialect
+      // (2026-07-08): duckdb mode previously had no working way to spell
+      // "# options.profile = strict" at all, since "#" isn't a SQL comment.
+      var re = /^\s*(?:#|\/\/|--)\s*options\.([a-zA-Z_][\w]*)\s*=\s*("[^"]*"|'[^']*'|\S+)\s*$/gm;
       var m;
       while ((m = re.exec(src)) !== null) {
         var key = m[1];
@@ -9220,11 +9227,14 @@ options(width = 200)
         // kjøringen inn i safepy-fasaden (mest-restriktive-vinner, spec V2).
         var _strictLoads = (typeof _rawLoads !== 'undefined' && _rawLoads ? _rawLoads : []).filter(function (l) { return l.strict; });
         var _strictRun = _scriptOpts.profile === 'strict' || _strictLoads.length > 0;
-        if (_strictRun && activeEditorMode === 'duckdb') {
-          outputArea.innerHTML = '<pre class="error">' + t('strict-kilder støttes foreløpig i python/r — ikke duckdb-modus') + '</pre>';
-          return;
-        }
-        if (_strictRun && activeEditorMode === 'python') {
+        if (_strictRun && (activeEditorMode === 'python' || activeEditorMode === 'duckdb')) {
+          // safepy.run() already has a full dialect="duckdb" path (AST-gated
+          // SQL, locked engine, released through the shared suppressor — see
+          // safepy/api.py) — this was a client-side-only gap, not a missing
+          // server capability (2026-07-07, docs/superpowers/2026-07-07-code-
+          // review.md §6 item 2). DuckDB mode already shares python mode's
+          // _pyLoads/materialization pipeline above, so it only needed this
+          // dispatch, mirroring the python branch exactly.
           if (parseHybridScript(effectiveScript, 'pyodide').some(function (s) { return s.kind === 'microdata'; })) {
             outputArea.innerHTML = '<pre class="error">' + t('strict-kilder kan ikke blandes med #micro-segmenter (ennå)') + '</pre>';
             return;
@@ -9234,7 +9244,51 @@ options(width = 200)
           (_rawLoads || []).forEach(function (l) {
             if (l.strict && (_lvOrder[l.level] || 0) > _lvOrder[_lvl]) _lvl = l.level;
           });
-          await runStrictLocal(effectiveScript, _pyLoads, { level: _lvl, dialect: 'python', spec: _asmSpec }, _ctx);
+          var _dialect = 'python';
+          if (activeEditorMode === 'duckdb') {
+            // NOT format-dependent: buildStrictGlue loads every source into a
+            // plain pandas DataFrame before EITHER SQL dialect ever sees it
+            // (_frames[alias] = pd.read_parquet(...)/read_csv(...)), same as
+            // duckdb_api.py's own _connect (con.register(name, df)) — so the
+            // dialect choice is about which SQL surface the query is written
+            // in, not where the bytes originally came from.
+            // "duckdb" is used unconditionally here rather than "sqlite"
+            // because dialect="duckdb" needs Python's real duckdb package
+            // inside Pyodide, which this app's currently-pinned Pyodide
+            // version (v0.29.3) does not have (verified directly:
+            // pyodide.loadPackage('duckdb') -> "No known package with name
+            // 'duckdb'" — duckdb WAS removed from Pyodide's own distribution
+            // in that version range and only reinstated in a much newer
+            // release this app hasn't upgraded to). "sqlite" (see
+            // safepy/sqlite_api.py; docs/superpowers/specs/2026-07-08-sqlite-
+            // dialect-design.md) needs only Python's stdlib sqlite3, already
+            // confirmed working on this Pyodide version — so it's the one
+            // that actually runs today, for ANY source format, until a
+            // Pyodide upgrade (a separate, larger migration) makes "duckdb"
+            // viable again.
+            _dialect = 'sqlite';
+            // sqlite3 is unvendored from Pyodide's stdlib on this app's
+            // pinned version — "ModuleNotFoundError: No module named
+            // 'sqlite3'" until explicitly loaded once per Pyodide instance.
+            // A no-op on any Pyodide build where it's bundled by default.
+            try {
+              await py.loadPackage('sqlite3');
+            } catch (e) { console.warn('sqlite3 ensure (strict):', e); }
+          }
+          // buildStrictGlue's Python glue does pd.read_parquet(l['path']) for
+          // every parquet-format load — pyodide's bundled pandas has no
+          // pyarrow by default (same gap _needsParquetSupport patches for the
+          // non-strict path below, which this branch returns before ever
+          // reaching). Only relevant when runStrictLocal ends up using the
+          // shared main-thread Pyodide (fsLoads true, i.e. any load has a
+          // path) rather than the isolated strict-worker; ensurePyarrowFor is
+          // a no-op if already installed either way.
+          if (_pyLoads.some(function (l) { return l.format === 'parquet'; })) {
+            try {
+              await ensurePyarrowFor(py, function () { setStatus(_ctx.rightStatus, t('Installerer pyarrow…')); });
+            } catch (e) { console.warn('pyarrow ensure (strict):', e); }
+          }
+          await runStrictLocal(effectiveScript, _pyLoads, { level: _lvl, dialect: _dialect, spec: _asmSpec }, _ctx);
           return;
         }
         const catalogJson = microdataCatalog && microdataCatalog.variables

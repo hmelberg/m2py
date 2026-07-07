@@ -9,6 +9,7 @@ def _make_src(root: Path):
     (root / "m2py_translate.py").write_text("translator\n")
     (root / "m2py_remote.py").write_text("remote\n")
     (root / "m2py_protection.py").write_text("protection\n")
+    (root / "mockdata_core.py").write_text("mockdata core\n")
     rt = root / "m2py_runtime"
     rt.mkdir()
     (rt / "__init__.py").write_text("rt init\n")
@@ -23,7 +24,7 @@ def test_build_manifest_lists_fixed_files_and_runtime(tmp_path):
     manifest = s.build_manifest(src, prot)
     rels = {rel for _, rel, _ in manifest}
     assert {"m2py.py", "functions.py", "m2py_translate.py", "m2py_remote.py",
-            "m2py_protection.py", "protect.py",
+            "m2py_protection.py", "mockdata_core.py", "protect.py",
             "m2py_runtime/__init__.py", "m2py_runtime/pandas_ops.py"} == rels
 
 

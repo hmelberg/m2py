@@ -58,6 +58,14 @@ def build_manifest(source_root: Path, protect_root: Path,
         (source_root / "m2py_translate.py", "m2py_translate.py", h_m2py),
         (source_root / "m2py_remote.py", "m2py_remote.py", h_m2py),
         (source_root / "m2py_protection.py", "m2py_protection.py", h_m2py),
+        # mockdata_core.py: m2py.py imports _DEMO_REF_YEAR/_NORWAY_LATENT_* from
+        # here (2026-07-07 dedup — see docs/superpowers/2026-07-07-code-review.md
+        # §5), as a plain top-level `from mockdata_core import (...)` with no
+        # try/except — unlike mockdata_realism.py (also imported by m2py.py, but
+        # lazily/try-except'd and NOT added here for that reason), this one is a
+        # hard, unguarded dependency and MUST be deployed alongside m2py.py or the
+        # server copy fails to import at all.
+        (source_root / "mockdata_core.py", "mockdata_core.py", h_m2py),
         # protect.py keeps the m2py header it has always carried: changing it
         # would show as drift on every deployment that predates per-repo headers.
         (protect_root / "protect.py", "protect.py", h_m2py),
