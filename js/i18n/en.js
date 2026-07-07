@@ -309,6 +309,16 @@ window.M2PY_I18N.en = {
   "Skriv inn e-postadressen din først.": "Enter your email address first.",
   "Sender forespørsel…": "Sending request…",
   "Forespørsel sendt.": "Request sent.",
+  "kunne ikke laste strict-motoren — prøv igjen": "could not load the strict engine — try again",
+  "Kjører lokalt i strict-modus…": "Running locally in strict mode…",
+  "ikke-offentlige kilder i R-modus kjøres via require-direktivet (server) — connect/load støtter det ikke her ennå":
+    "non-public sources in R mode run via the require directive (server) — connect/load doesn't support this here yet",
+  "strict-/kryptert-kilder med montering i R-modus støttes ikke ennå — bruk python-modus":
+    "strict/encrypted sources with assembly in R mode aren't supported yet — use python mode",
+  "montering kan ikke blande offentlige og beskyttede kilder i én kjøring (ennå) — bruk enten bare offentlige kilder lokalt, eller bare registrerte kilder på serveren":
+    "assembly can't mix public and protected sources in one run (yet) — use either only public sources locally, or only registered sources on the server",
+  "strict-kilder støttes foreløpig i python/r — ikke duckdb-modus": "strict sources are currently supported in python/r — not duckdb mode",
+  "strict-kilder kan ikke blandes med #micro-segmenter (ennå)": "strict sources can't be mixed with #micro segments (yet)",
   "Endre formål / kontekst ({len} tegn)": "Edit purpose / context ({len} characters)",
   "Konteksten er spesifisert. Klikk for å redigere.": "The context is specified. Click to edit.",
   "Henter vurdering…": "Fetching assessment…",

@@ -53,13 +53,39 @@
     return attAlias + '.' + quoteIdent(d.table);
   }
 
+  // A dataset's only dependency on ANOTHER dataset is a "join" step's
+  // "from" (an "import" step pulls raw source columns, not another
+  // dataset). parseAssembly allows forward references — a script can
+  // "create-dataset B" before "create-dataset A" and have B join A later —
+  // so declaration order alone isn't a safe processing order; this ensures
+  // every join target is compiled before the dataset that joins it,
+  // regardless of how the script happened to declare them (2026-07-07 fix —
+  // a script following the forward-reference order previously failed at
+  // compile time with "ukjent datasett" even though it parsed successfully).
+  function topoSort(all) {
+    var byName = {};
+    all.forEach(function (d) { byName[d.name] = d; });
+    var visited = {}, visiting = {}, ordered = [];
+    function visit(name) {
+      if (visited[name] || !byName[name]) return;
+      if (visiting[name]) throw new Error('sirkulær join-avhengighet involverer «' + name + '»');
+      visiting[name] = true;
+      (byName[name].steps || [])
+        .filter(function (s) { return s.op === 'join'; })
+        .forEach(function (s) { visit(s.from); });
+      visiting[name] = false;
+      visited[name] = true;
+      ordered.push(byName[name]);
+    }
+    all.forEach(function (d) { visit(d.name); });
+    return ordered;
+  }
+
   function compile(spec, descriptors) {
     var att = buildAttaches(spec, descriptors);
     var datasetStatements = [];
 
-    var all = spec.datasets || [];
-    var ordered = all.filter(function (d) { return 'load' in d; })
-      .concat(all.filter(function (d) { return !('load' in d); }));
+    var ordered = topoSort(spec.datasets || []);
 
     ordered.forEach(function (ds) {
       if ('load' in ds) {

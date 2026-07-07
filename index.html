@@ -5112,8 +5112,12 @@ json.dumps(out)
       } catch (err) {}
       wrap.querySelector('#accessReqBtn').addEventListener('click', function () {
         var statusEl = wrap.querySelector('#accessReqStatus');
+        var btnEl = wrap.querySelector('#accessReqBtn');
         var email = wrap.querySelector('#accessReqEmail').value.trim();
         if (!email) { statusEl.textContent = t('Skriv inn e-postadressen din først.'); return; }
+        // disabled BEFORE the fetch starts, not just on success — a double-click
+        // before the round-trip resolves must not fire two POSTs.
+        btnEl.disabled = true;
         statusEl.textContent = t('Sender forespørsel…');
         fetch((e.apiBase || '').replace(/\/+$/, '') + '/_/api/access_request', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -5121,9 +5125,9 @@ json.dumps(out)
         }).then(function (r) { return r.json().catch(function () { return {}; }); })
           .then(function (data) {
             statusEl.textContent = data.message || t('Forespørsel sendt.');
-            wrap.querySelector('#accessReqBtn').disabled = true;
           }, function (err) {
             statusEl.textContent = t('Nettverksfeil: {msg}', { msg: (err && err.message) || err });
+            btnEl.disabled = false;   // network error: let the user retry
           });
       });
     }
@@ -9264,7 +9268,7 @@ options(width = 200)
               await py.runPythonAsync('import micropip as _mp\nawait _mp.install("pyarrow")');
             }
             // Same Pyodide-pyarrow patch _run_duck_sql already applies (index.html
-            // ~7031-7048): pandas' lazy patch_pyarrow() calls
+            // ~7190-7209): pandas' lazy patch_pyarrow() calls
             // unregister_extension_type('arrow.py_extension_type'), which raises
             // ArrowKeyError in the Pyodide pyarrow build — pd.read_parquet() hits
             // this the first time it's called in ANY run, not just #duckdb ones,

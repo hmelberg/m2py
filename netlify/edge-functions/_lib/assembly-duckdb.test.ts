@@ -70,3 +70,25 @@ Deno.test("compile: join between two constructed datasets", () => {
   const panelSql = datasetStatements.find((d: { name: string }) => d.name === "panel").sql;
   if (!/JOIN/i.test(panelSql)) throw new Error("forventet SQL JOIN, fikk: " + panelSql);
 });
+
+Deno.test("compile: a join target declared AFTER the dataset that joins it still compiles", () => {
+  // parseAssembly allows forward references (a create-dataset "B" that joins
+  // "A" declared later in the script is valid) — compile() must not depend
+  // on textual declaration order. 2026-07-07 regression: this used to throw
+  // "ukjent datasett «sales»" because the old ordering put all "create-
+  // dataset" entries in declaration order with no dependency awareness.
+  const spec = { sources: ["p", "s"], datasets: [
+    { name: "panel", key: "pid", steps: [
+      { op: "import", source: "p", columns: ["income"], how: "left" },
+      { op: "join", from: "sales", on: "pid", how: "left" }] },
+    { name: "sales", load: "s" }] };
+  const descriptors = { p: { url: "https://x/p.parquet", format: "parquet" }, s: { url: "https://x/s.parquet", format: "parquet" } };
+  const { datasetStatements } = AD.compile(spec, descriptors);
+  const panelSql = datasetStatements.find((d: { name: string }) => d.name === "panel").sql;
+  if (!/JOIN/i.test(panelSql)) throw new Error("forventet SQL JOIN, fikk: " + panelSql);
+  // "sales" must be compiled (and appear in datasetStatements) before "panel"
+  const names = datasetStatements.map((d: { name: string }) => d.name);
+  if (names.indexOf("sales") > names.indexOf("panel")) {
+    throw new Error("forventet «sales» kompilert før «panel», fikk rekkefølge: " + names.join(", "));
+  }
+});
