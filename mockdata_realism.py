@@ -252,6 +252,13 @@ def resolve_active_regime(realism: dict, as_of: Any) -> Optional[dict]:
 # Layer 4b — trend application
 # ---------------------------------------------------------------------------
 
+# L2: piecewise trend windows without "from" integrate from this many years
+# before the window's end instead of -infinity (which gave exp(inf)/exp(-inf)
+# multipliers). 50 years comfortably covers the register era the mock data
+# spans while keeping the cumulative multiplier finite.
+_TREND_OPEN_SPAN_YEARS = 50
+
+
 def _trend_annual_rate(trend_entry: dict) -> float:
     """Parse '+3%' or 0.03 from a trend entry's `annual_change` into a float."""
     v = trend_entry.get("annual_change")
@@ -292,8 +299,15 @@ def apply_trend_to_log_mean(log_mean: float, realism: dict, as_of: Any) -> float
         # Integrate log-growth across each window until we reach `year`.
         drift = 0.0
         for w in trend:
-            lo = int(w.get("from", -10**9))
             hi = int(w.get("to", 10**9))
+            if w.get("from") is not None:
+                lo = int(w["from"])
+            else:
+                # L2: an open lower bound used to integrate from year -1e9 ->
+                # exp(inf) for any list-form trend without "from". Anchor the
+                # open window at a documented max span below its end (or the
+                # target year when "to" is also open) instead of -inf.
+                lo = (min(year, hi) if hi < 10**9 else year) - _TREND_OPEN_SPAN_YEARS
             rate = _trend_annual_rate(w)
             if year <= lo:
                 break
@@ -811,7 +825,12 @@ def apply_stratified_lookup(
 # Standardisation stats for continuous drivers. Used by monotone verbs so that
 # "+25% per step" means "per one standard deviation of the driver".
 _DRIVER_STATS = {
-    "age": (44.0, 14.0),      # matches m2py synth-age: N(44, 14)
+    # M1: must match the ACTUAL person age draw — resolve_driver_vector's
+    # synthetic ages and m2py._norway_demo_birth_year_from_uid both draw
+    # N(42, 23) (full 0-100 population). The old (44, 14) was the 18-67
+    # entity-only clamp (_norway_synth_age_from_uid) and made monotone age
+    # verbs deliver ~+44% per true SD when the vocabulary promised +25%.
+    "age": (42.0, 23.0),
     "latent_z": (0.0, 1.0),
 }
 

@@ -96,11 +96,14 @@ function ensurePy(pyodideURL, zipURL) {
 
 self.onmessage = async function (ev) {
   var msg = ev.data || {};
+  // Echo the caller's request id (B6, docs/REVIEW_2026-07-07.md §3) so the
+  // main thread can dispatch this response to the right pending call even
+  // when two runStrictInWorker() calls overlap.
   try {
     var py = await ensurePy(msg.pyodideURL, msg.zipURL);
     var out = await py.runPythonAsync(msg.glue);
-    self.postMessage({ ok: true, result: out });
+    self.postMessage({ ok: true, result: out, id: msg.id });
   } catch (e) {
-    self.postMessage({ ok: false, error: String(e && e.message ? e.message : e) });
+    self.postMessage({ ok: false, error: String(e && e.message ? e.message : e), id: msg.id });
   }
 };

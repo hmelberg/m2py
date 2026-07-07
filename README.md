@@ -45,7 +45,7 @@ cd netlify/edge-functions && deno check *.ts _lib/*.ts && deno test --allow-all 
 .venv/bin/python build_static_data.py --persons 100000 --from 2015 --to 2023
 
 # Propagate the engine to the microdata-api (Anvil) copy
-./sync_to_api.sh            # copy; ./sync_to_api.sh --check verifies sync
+.venv/bin/python sync_to_api.py --apply   # copy; without --apply it only reports drift
 ```
 
 CI lives in `.github/workflows/` (pytest + manual scripts, py2m, r2m, edge).
@@ -60,5 +60,5 @@ list changes.**
 
 `m2py.py` and `functions.py` are the source of truth here. The copies in
 `microdata-api/server_code/` are **generated** — edit the engine here, then run
-`./sync_to_api.sh`. The copies carry a "GENERATED COPY — edit in m2py" header;
-`./sync_to_api.sh --check` (exit 1 on drift) can gate CI.
+`sync_to_api.py --apply`. The copies carry a "GENERATED COPY — edit in m2py"
+header; running `sync_to_api.py` without `--apply` reports drift (can gate CI).

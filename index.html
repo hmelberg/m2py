@@ -4037,6 +4037,27 @@
     ].join('\n');
     const editorContent   = { microdata: '', python: '', r: '', statx: '', jamovi: '', duckdb: '', he: HE_PLACEHOLDER, safestat: '' };
     const editorBP        = { microdata: new Set(), python: new Set(), r: new Set(), statx: new Set(), jamovi: new Set(), duckdb: new Set(), he: new Set(), safestat: new Set() };
+    // B4/B5 (docs/REVIEW_2026-07-07.md §3): switchEditorMode() persists
+    // md_editor_mode but nothing ever read it back, so a reload always
+    // landed on 'microdata'. Restore it here, synchronously, as part of this
+    // inline script's top-level execution — which is what makes B5 work too:
+    // js/i18n.js (loaded near the top of <head>, long before this script)
+    // only restores its language-switch script stash on the page's 'load'
+    // event (or via a same-tick setTimeout if the document is already
+    // complete), which always fires after this synchronous block finishes.
+    // So by the time restoreStash() runs, activeEditorMode already reflects
+    // the persisted mode, and the stashed script — dispatched via the
+    // scriptInput 'input' event — lands in the correct mode's buffer instead
+    // of always in 'microdata'. Falls back to 'microdata' for an unknown/
+    // unregistered mode (e.g. 'jamovi', which is only registered lazily on
+    // first activation and isn't in modeRegistry yet at boot).
+    (function restoreEditorMode() {
+      var saved = null;
+      try { saved = localStorage.getItem('md_editor_mode'); } catch (e) {}
+      if (saved && Object.prototype.hasOwnProperty.call(modeRegistry, saved) && saved !== activeEditorMode) {
+        switchEditorMode(saved);
+      }
+    })();
     let webR = null, webRReady = false, webRLoading = false, webRShelter = null;
     let py2mReady = false;
     let pdexplorerReady = false, pdexplorerLoading = false;
@@ -4172,7 +4193,7 @@
             if (flabel) flabel.textContent = t('Fortsett');
           } else {
             if (fslot) fslot.innerHTML = BTN_FORKLAR_PAUSE_HTML;
-            if (flabel) flabel.textContent = 'Pause';
+            if (flabel) flabel.textContent = t('Pause');
           }
           fbtn.disabled = false;
         } else if (mode === 'loading') {
@@ -4203,12 +4224,12 @@
       if (forklaDockAbort) forklaDockAbort.disabled = false;
       if (forklarPaused) {
         forklaDockPlayPause.classList.add('forklar-dock-btn--continue');
-        forklaDockPlayPause.title = 'Fortsett';
-        forklaDockPlayPause.setAttribute('aria-label', 'Fortsett forklaring');
+        forklaDockPlayPause.title = t('Fortsett');
+        forklaDockPlayPause.setAttribute('aria-label', t('Fortsett forklaring'));
       } else {
         forklaDockPlayPause.classList.remove('forklar-dock-btn--continue');
-        forklaDockPlayPause.title = 'Pause';
-        forklaDockPlayPause.setAttribute('aria-label', 'Pause forklaring');
+        forklaDockPlayPause.title = t('Pause');
+        forklaDockPlayPause.setAttribute('aria-label', t('Pause forklaring'));
       }
     }
     function updateForklarNavButtons() {
@@ -4711,7 +4732,8 @@
         var total = info.total_rows;
         var shown = info.shown_rows;
         if (total > shown) {
-          metaEl.textContent = 'Viser ' + shown.toLocaleString('nb-NO') + ' av ' + total.toLocaleString('nb-NO') + ' rader';
+          metaEl.textContent = t('Viser {shown} av {total} rader',
+            { shown: shown.toLocaleString('nb-NO'), total: total.toLocaleString('nb-NO') });
         } else {
           metaEl.textContent = total.toLocaleString('nb-NO') + ' rader · ' + info.columns.length + ' variabler';
         }
@@ -8693,21 +8715,47 @@ has and "int" in (m.get_microdata_functions() or {})
     // bare i hovedtrådens Pyodide, så de kjører strict der (fortsatt aldri åpent).
     var __strictWorker = null;
     var __PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v314.0.2/full/';
+    // B6 (docs/REVIEW_2026-07-07.md §3): onmessage/onerror used to be
+    // reassigned per call, so two overlapping runStrictInWorker() calls left
+    // the first caller's promise unsettled forever (the second call's
+    // reassignment stole all future messages). Fix: install the listeners
+    // ONCE on the shared worker, tag each request with an incrementing id,
+    // and dispatch responses to the matching pending resolver from a Map.
+    var __strictReqId = 0;
+    var __strictPending = new Map();
+    function getStrictWorker() {
+      if (__strictWorker) return __strictWorker;
+      // {type:'module'} required since the Pyodide v0.29.3 -> v314.0.2
+      // upgrade (2026-07-08): Pyodide dropped classic-worker support
+      // (importScripts) in 314.0.0, so js/strict-worker.js now imports
+      // pyodide.mjs via dynamic import(), which only works in a module
+      // worker.
+      __strictWorker = new Worker('js/strict-worker.js', { type: 'module' });
+      __strictWorker.onmessage = function (ev) {
+        var d = ev.data || {};
+        var pending = __strictPending.get(d.id);
+        if (!pending) return;   // stale/unknown id (e.g. worker restarted) — ignore
+        __strictPending.delete(d.id);
+        if (d.ok) pending.resolve(JSON.parse(d.result));
+        else pending.reject(new Error(d.error || 'strict-worker feilet'));
+      };
+      __strictWorker.onerror = function (e) {
+        // A worker-level error (e.g. a script parse error) can't be tied to
+        // one request id — fail every call currently in flight so none of
+        // them hangs forever.
+        var err = new Error('strict-worker: ' + (e.message || 'feilet'));
+        __strictPending.forEach(function (p) { p.reject(err); });
+        __strictPending.clear();
+      };
+      return __strictWorker;
+    }
     function runStrictInWorker(glue) {
       return new Promise(function (resolve, reject) {
-        // {type:'module'} required since the Pyodide v0.29.3 -> v314.0.2
-        // upgrade (2026-07-08): Pyodide dropped classic-worker support
-        // (importScripts) in 314.0.0, so js/strict-worker.js now imports
-        // pyodide.mjs via dynamic import(), which only works in a module
-        // worker.
-        if (!__strictWorker) __strictWorker = new Worker('js/strict-worker.js', { type: 'module' });
-        __strictWorker.onmessage = function (ev) {
-          var d = ev.data || {};
-          if (d.ok) resolve(JSON.parse(d.result));
-          else reject(new Error(d.error || 'strict-worker feilet'));
-        };
-        __strictWorker.onerror = function (e) { reject(new Error('strict-worker: ' + (e.message || 'feilet'))); };
-        __strictWorker.postMessage({
+        var worker = getStrictWorker();
+        var id = ++__strictReqId;
+        __strictPending.set(id, { resolve: resolve, reject: reject });
+        worker.postMessage({
+          id: id,
           glue: glue,
           pyodideURL: __PYODIDE_URL,
           zipURL: new URL('vendor/safepy.zip', window.location.href).href,
@@ -9431,6 +9479,14 @@ if getattr(_m2py_mod, 'M2PY_DATA_SOURCE', 'dynamic') == 'static' and getattr(e, 
     try:
         _schemas = (await _js.runStaticSchemas(${JSON.stringify(pageBase)})).to_py()
         e.static_source.table_columns = {k: set(v) for k, v in _schemas.items()}
+        # Manifest gir limit-planen levende/døde-fordelingen (unit_id-splitten);
+        # uten den faller planen tilbake til kun-levende-grensen.
+        try:
+            _mresp = await _js.fetch(${JSON.stringify(pageBase)} + 'static_data/manifest.json')
+            if _mresp.ok:
+                e.static_source.manifest = json.loads(await _mresp.text())
+        except Exception:
+            pass
         _plan = e.static_source.plan_sql(${JSON.stringify(effectiveScript)}, ${JSON.stringify(pageBase)}, ${getImportLimit()})
         _cache = {}
         for _q in _plan:

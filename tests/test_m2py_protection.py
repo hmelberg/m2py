@@ -113,3 +113,25 @@ def test_fallback_presets_mirror_safepy_policy_presets():
         assert fallback["round"] == preset.round_to, level
         assert fallback["percentile_sig_figs"] == preset.percentile_sig_figs, level
         assert fallback["max_low_cell_share"] == preset.max_low_cell_share, level
+
+
+def test_secondary_two_way_failure_is_logged_not_silent(capsys):
+    # 2026-07-07 review: _secondary_two_way swallowed all exceptions and
+    # returned the primary-only table with no trace. The fallback must stay
+    # (release the primary table), but the failure must be observable.
+    pp = PandasProtect()
+    # Duplicate (a, b) keys make DataFrame.pivot raise inside the try-block.
+    out = pd.DataFrame({"a": [1, 1], "b": [2, 2], "n": [7, 8]})
+    res = pp._secondary_two_way(out, out)
+    assert res is out  # fallback: primary-only table
+    err = capsys.readouterr().out
+    assert "_secondary_two_way" in err and "fell back" in err
+
+
+def test_secondary_two_way_non_two_way_shape_stays_quiet(capsys):
+    # The documented no-op path (not a two-way frame) must NOT log noise.
+    pp = PandasProtect()
+    out = pd.DataFrame({"a": [1, 2], "n": [7, 8]})
+    res = pp._secondary_two_way(out, out)
+    assert res is out
+    assert capsys.readouterr().out == ""

@@ -24,6 +24,8 @@ SQL — so the routing is fully testable without a browser.
 
 from __future__ import annotations
 
+import json
+import os
 import re
 from typing import Optional
 
@@ -81,15 +83,49 @@ _GRID_TEMPORALITET = {"akkumulert", "tverrsnitt"}
 class StaticDataSource:
     """Routes imports to the static Parquet tables and serves cached results."""
 
-    def __init__(self, catalog: dict, table_columns: dict):
+    def __init__(self, catalog: dict, table_columns: dict, manifest: Optional[dict] = None):
         """
         catalog:        variable metadata (short_name -> meta dict).
         table_columns:  {table_name: set(column_names)} actually present in the
                         static files — used to decide static vs. fallback.
+        manifest:       static_data/manifest.json contents (optional). Used by
+                        the `limit` plan to split a population limit between
+                        living (unit_id 1..n_persons) and the deceased stock
+                        (unit_id > n_persons). When omitted, we try to read it
+                        from disk next to this module (local CLI/tests); in the
+                        browser the file isn't on the Pyodide FS, so the plan
+                        falls back to the living-only bound.
         """
         self.catalog = catalog or {}
         self.table_columns = {t: set(cols) for t, cols in (table_columns or {}).items()}
         self.cache: dict = {}
+        self.manifest = manifest if manifest is not None else self._load_local_manifest()
+
+    @staticmethod
+    def _load_local_manifest() -> Optional[dict]:
+        """Best-effort read of static_data/manifest.json next to this module."""
+        try:
+            base = os.path.dirname(os.path.abspath(__file__))
+        except Exception:
+            return None
+        path = os.path.join(base, "static_data", "manifest.json")
+        try:
+            with open(path, encoding="utf-8") as fh:
+                return json.load(fh)
+        except Exception:
+            return None
+
+    def _population_counts(self) -> tuple:
+        """(n_living, n_total_person_rows) from the manifest, or (None, None)."""
+        m = self.manifest or {}
+        try:
+            n_living = int(m["n_persons"])
+            n_total = int(m["tables"]["person"]["rows"])
+            if n_living > 0 and n_total >= n_living:
+                return n_living, n_total
+        except (KeyError, TypeError, ValueError):
+            pass
+        return None, None
 
     # -- metadata helpers ---------------------------------------------------
     def _meta(self, short: str) -> dict:
@@ -113,7 +149,15 @@ class StaticDataSource:
         temporalitet = str(meta.get("temporalitet", "")).lower()
 
         if table == "person":
-            if temporalitet in _GRID_TEMPORALITET and date1:
+            # The builder (mockdata_export.CORE_TIMEVARYING) materialises the
+            # time-varying core vars in person_year even when the catalog has
+            # no temporalitet (BOSATT_KOMMUNE: temporalitet None). Route by
+            # what was actually built: with a date, any person var present in
+            # the known person_year schema is served per-year; the temporalitet
+            # heuristic remains the fallback when the schema is unknown.
+            _py_cols = self.table_columns.get("person_year")
+            _in_panel = (short in _py_cols) if _py_cols is not None else False
+            if date1 and (_in_panel or temporalitet in _GRID_TEMPORALITET):
                 year = int(str(date1)[:4])
                 if self._has("person_year", short):
                     return {"key": f"person_year|{short}|{year}", "table": "person_year",
@@ -149,17 +193,37 @@ class StaticDataSource:
                 continue
             seen.add(d["key"])
             if limit:
+                n = int(limit)
+                # Deceased-stock split: the dead are minted with unit_id >
+                # n_living (mockdata_export.build_deceased_stock), so a plain
+                # `unit_id <= n` bound silently excluded ALL historical dead —
+                # "import everyone, filter to alive" became a no-op exactly
+                # when a limit was set. With the manifest we instead take a
+                # proportional share of each stratum: living ids 1..n_liv and
+                # the first n - n_liv ids of the dead range (n_living+1..).
+                # Without a manifest (browser), fall back to the old bound.
+                n_living, n_total = self._population_counts()
+                if n_living is not None and n_total > n_living and n < n_total:
+                    n_liv = max(1, min(n, round(n * n_living / n_total)))
+                    n_dead = min(n_total - n_living, n - n_liv)
+                else:
+                    n_liv, n_dead = n, 0
                 if d.get("kind") == "person":
                     # Bound by id, not LIMIT: parquet row order is unguaranteed,
                     # so LIMIT n could pick a person set inconsistent with the
-                    # entity tables (which filter ref_col <= n). WHERE id <= n
-                    # makes the person universe exactly {1..n} by construction.
+                    # entity tables (which filter ref_col <= n_liv). WHERE on id
+                    # makes the person universe exact by construction.
                     id_col = TABLE_KEYS.get(d["table"], ("unit_id", None))[0]
-                    extra = f"{id_col} <= {int(limit)}"
+                    if n_dead > 0:
+                        extra = (f"({id_col} <= {n_liv} OR ({id_col} > {n_living} "
+                                 f"AND {id_col} <= {n_living + n_dead}))")
+                    else:
+                        extra = f"{id_col} <= {n_liv}"
                     d = dict(d, where=(f"{d['where']} AND {extra}" if d.get("where") else extra))
                 elif d.get("kind") == "entity" and d.get("ref_col"):
-                    # keep entity rows consistent with the limited person universe
-                    extra = f"{d['ref_col']} <= {int(limit)}"
+                    # keep entity rows consistent with the limited person
+                    # universe (entities reference living persons 1..n_liv)
+                    extra = f"{d['ref_col']} <= {n_liv}"
                     d = dict(d, where=(f"{d['where']} AND {extra}" if d.get("where") else extra))
             out.append(d)
         return out

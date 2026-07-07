@@ -134,9 +134,14 @@ class TestStaticSourceLimit:
     LIMIT could select a person set inconsistent with the entity tables (which
     already filter `ref_col <= n`), leaving dangling unit_ids."""
 
+    # Uten manifest-info (n_persons/person-rader) finnes ingen død-bestand å
+    # ta hensyn til — grensen skal da være den enkle unit_id <= n.
+    _NO_DEAD_MANIFEST = {"n_persons": 100, "tables": {"person": {"rows": 100}}}
+
     def _src(self):
         import static_source
-        return static_source.StaticDataSource({"INNTEKT_X": {}}, {})
+        return static_source.StaticDataSource(
+            {"INNTEKT_X": {}}, {}, manifest=self._NO_DEAD_MANIFEST)
 
     def test_person_population_bounded_by_where_not_limit(self):
         descs = self._src().plan([{"var": "db/INNTEKT_X", "date1": None}], limit=5)
@@ -151,6 +156,57 @@ class TestStaticSourceLimit:
             "import db/INNTEKT_X", base_url="https://x/", limit=5)
         sql = sqls[0]["sql"]
         assert "unit_id <= 5" in sql and "LIMIT" not in sql.upper()
+
+
+class TestStaticSourceLimitIncludesDeceased:
+    """The deceased stock is minted with unit_id > n_living
+    (mockdata_export.build_deceased_stock), so the old `unit_id <= n` limit
+    silently excluded ALL historical dead — 'import everyone, filter to alive'
+    became a no-op exactly when a population limit was set. A limit of n must
+    take a proportional share of living AND dead ids."""
+
+    _MANIFEST = {"n_persons": 100, "tables": {"person": {"rows": 160}}}
+
+    def _src(self, manifest=None):
+        import static_source
+        return static_source.StaticDataSource(
+            {"INNTEKT_X": {}, "JOBB_X": {"enhetstype": "Jobb"}}, {},
+            manifest=manifest or self._MANIFEST)
+
+    def test_small_limit_takes_share_of_both_strata(self):
+        # 100 levende + 60 døde; limit 40 -> 25 levende (1..25) + 15 døde (101..115)
+        descs = self._src().plan([{"var": "db/INNTEKT_X", "date1": None}], limit=40)
+        w = descs[0]["where"]
+        assert "unit_id <= 25" in w
+        assert "unit_id > 100" in w and "unit_id <= 115" in w
+
+    def test_entity_filter_uses_living_share(self):
+        # Entitetsrader refererer levende personer — filteret må bruke den
+        # levende andelen (25), ikke hele limit (40), ellers refererer
+        # entitetsrader personer utenfor universet.
+        descs = self._src().plan([{"var": "db/JOBB_X", "date1": None}], limit=40)
+        w = descs[0]["where"]
+        assert "ARBEIDSFORHOLD_PERSON <= 25" in w
+
+    def test_repo_manifest_is_autoloaded(self):
+        import static_source
+        src = static_source.StaticDataSource({"INNTEKT_X": {}}, {})
+        # static_data/manifest.json ligger ved siden av modulen og skal
+        # plukkes opp automatisk for lokal kjøring (CLI/tester).
+        assert src.manifest and int(src.manifest["n_persons"]) > 0
+
+    def test_limit_covers_dead_ids_against_real_manifest(self):
+        import static_source
+        src = static_source.StaticDataSource({"INNTEKT_X": {}}, {})
+        n_living, n_total = src._population_counts()
+        assert n_living and n_total > n_living  # bygget har død-bestand
+        descs = src.plan([{"var": "db/INNTEKT_X", "date1": None}], limit=50)
+        w = descs[0]["where"]
+        assert f"unit_id > {n_living}" in w, w
+
+    def test_limit_at_or_above_total_keeps_simple_bound(self):
+        descs = self._src().plan([{"var": "db/INNTEKT_X", "date1": None}], limit=160)
+        assert descs[0]["where"] == "unit_id <= 160"
 
 
 class TestValidImportDateGrid:
@@ -423,3 +479,176 @@ class TestMultiRecordDeterministicDates:
         years = [int(v) // 100 for v in vals]
         expected = [m2py._norway_demo_birth_year_from_uid(int(u)) for u in uids]
         assert years == expected
+
+
+class TestLiveKommuneMatchesStatic:
+    """H1 (kodegjennomgang 2026-07-07): live person-generering av kodede
+    kategoriske med null-paddede strengkoder (BOSATT_KOMMUNE, data_type int)
+    ga float64 (301.0) mens den statiske parquet-en har '0301'-strenger
+    (normalize_for_microdata) og entitetsgenereringen strengifiserer. Live
+    skal gi nøyaktig de samme strengkodene — og betingelser på '0301', 301
+    og labelteksten skal alle treffe."""
+
+    @pytest.fixture(scope="class")
+    def kommune_it(self):
+        it = MicroInterpreter(metadata_path="variable_metadata.json")
+        it.run_script("create-dataset d\n"
+                      "import db/BOSATT_KOMMUNE 2015-01-01 as kommune")
+        return it
+
+    def test_live_dtype_and_value_space_match_static(self, kommune_it):
+        col = kommune_it.datasets[kommune_it.active_name]["kommune"]
+        static_col = pd.read_parquet(
+            "static_data/person_year.parquet",
+            columns=["year", "BOSATT_KOMMUNE"],
+        ).query("year == 2015")["BOSATT_KOMMUNE"]
+        # Samme dtype-familie som statisk (strengkoder, ikke float)
+        assert col.dtype == static_col.dtype == object
+        assert all(isinstance(v, str) for v in col.dropna())
+        # Verdiene er gyldige kommunekoder fra samme kodebok som statisk bygg
+        codes = set(pd.read_parquet("static_data/kommune.parquet")["kommune_nr"].astype(str))
+        assert set(col.dropna()) <= codes
+        # Era-riktig: '0301' (Oslo før/etter reformen) finnes i 2015-rommet
+        assert "0301" in set(col)
+
+    def test_condition_mask_matches_string_int_and_label(self, kommune_it):
+        df = kommune_it.datasets[kommune_it.active_name]
+        masks = {
+            cond: kommune_it._eval_condition_mask(df, cond)
+            for cond in ("kommune == '0301'", "kommune == 301", "kommune == 'Oslo'")
+        }
+        counts = {c: int(m.sum()) for c, m in masks.items()}
+        assert all(n > 0 for n in counts.values()), counts
+        # Alle tre formene skal treffe nøyaktig samme rader
+        assert len(set(counts.values())) == 1, counts
+
+    def test_keep_if_int_code_works_end_to_end(self, kommune_it):
+        it = MicroInterpreter(metadata_path="variable_metadata.json")
+        it.run_script("create-dataset d\n"
+                      "import db/BOSATT_KOMMUNE 2015-01-01 as kommune\n"
+                      "keep if kommune == 301")
+        df = it.datasets[it.active_name]
+        assert len(df) > 0
+        assert set(df["kommune"]) == {"0301"}
+
+
+class TestStaticRouteTimeVaryingCore:
+    """static_source.route() konsulterte bare person_year når temporalitet var
+    akkumulert/tverrsnitt OG dato var gitt — BOSATT_KOMMUNE har temporalitet
+    None, så person_year-radene (bygget via CORE_TIMEVARYING) ble aldri
+    servert og statiske kommune-importer falt stille tilbake til generering.
+    Variabler som faktisk er materialisert i person_year skal rutes dit når
+    dato er gitt."""
+
+    def _src(self):
+        import json
+        import duckdb
+        import static_source
+        catalog = json.load(open("variable_metadata.json"))["variables"]
+        con = duckdb.connect()
+        table_columns = {}
+        for t in ("person", "person_year"):
+            cols = [r[0] for r in con.execute(
+                f"DESCRIBE SELECT * FROM read_parquet('static_data/{t}.parquet')"
+            ).fetchall()]
+            table_columns[t] = set(cols)
+        con.close()
+        return static_source.StaticDataSource(catalog, table_columns)
+
+    def test_kommune_routes_to_person_year_with_date(self):
+        d = self._src().route("BOSATT_KOMMUNE", "2015-01-01")
+        assert d is not None
+        assert d["table"] == "person_year"
+        assert d["where"] == "year=2015"
+        assert d["key"] == "person_year|BOSATT_KOMMUNE|2015"
+
+    def test_kommune_without_date_falls_back(self):
+        # Uten dato finnes ingen person_year-rute, og BOSATT_KOMMUNE er ikke
+        # materialisert i person-tabellen — korrekt svar er fallback (None).
+        d = self._src().route("BOSATT_KOMMUNE", None)
+        assert d is None
+
+    def test_era_correct_codes_served_per_year(self):
+        import duckdb
+        src = self._src()
+        con = duckdb.connect()
+        codes = {}
+        for year in (2015, 2021):
+            plan = src.plan_sql(f"import db/BOSATT_KOMMUNE {year}-01-01", base_url="./")
+            assert plan and "person_year" in plan[0]["sql"]
+            rows = con.execute(plan[0]["sql"]).fetchall()
+            codes[year] = {r[1] for r in rows if r[1] is not None}
+        con.close()
+        # Gamle Østfold/Akershus-koder (010x) finnes i 2015, ikke i 2021;
+        # Agder-koder (42xx) finnes i 2021, ikke i 2015.
+        assert "0104" in codes[2015]
+        assert "0104" not in codes[2021]
+        assert any(str(c).startswith("42") for c in codes[2021])
+        assert not any(str(c).startswith("42") for c in codes[2015])
+
+    def test_generate_serves_cached_person_year_rows(self):
+        import duckdb
+        src = self._src()
+        d = src.route("BOSATT_KOMMUNE", "2015-01-01")
+        con = duckdb.connect()
+        df = con.execute(
+            "SELECT unit_id, BOSATT_KOMMUNE FROM "
+            "read_parquet('static_data/person_year.parquet') WHERE year=2015"
+        ).df()
+        con.close()
+        src.set_cache({d["key"]: {c: df[c].tolist() for c in df.columns}})
+        out = src.generate("import", {"var": "db/BOSATT_KOMMUNE",
+                                      "date1": "2015-01-01",
+                                      "alias": "kommune"}, pd.DataFrame())
+        assert out is not None
+        assert list(out.columns) == ["unit_id", "kommune"]
+        assert "0104" in set(out["kommune"].dropna())
+
+
+class TestDriverStatsMatchAgeDraw:
+    """M1 (kodegjennomgang 2026-07-07): _DRIVER_STATS['age'] var (44, 14) mens
+    den faktiske syntetiske persondistribusjonen trekker N(42, 23) — monotone
+    aldersverb ga ~+44 % per ekte SD når vokabularet lovte +25 %."""
+
+    def test_driver_stats_match_synthetic_draw(self):
+        import mockdata_realism as mr
+        assert mr._DRIVER_STATS["age"] == (42.0, 23.0)
+
+    def test_one_true_sd_is_one_step(self):
+        import mockdata_realism as mr
+        steps = mr._driver_steps_monotone("age", np.array([42.0 + 23.0, 42.0, 42.0 - 23.0]))
+        assert steps.tolist() == [1.0, 0.0, -1.0]
+
+
+class TestPiecewiseTrendOpenWindow:
+    """L2 (kodegjennomgang 2026-07-07): liste-trend uten "from" integrerte fra
+    år -1e9 -> exp(inf). Åpen nedre grense skal forankres et dokumentert
+    maks-spenn under vinduets slutt."""
+
+    def test_open_from_window_is_finite(self):
+        import math
+        import mockdata_realism as mr
+        spec = {"trend": [
+            {"to": 2019, "annual_change": "+2%"},
+            {"from": 2020, "to": 2030, "annual_change": "+1%"},
+        ]}
+        v = mr.apply_trend_to_log_mean(0.0, spec, 2022)
+        assert math.isfinite(v) and math.isfinite(math.exp(v))
+        expected = (math.log(1.02) * mr._TREND_OPEN_SPAN_YEARS
+                    + math.log(1.01) * 2)
+        assert v == pytest.approx(expected)
+
+    def test_fully_open_window_is_finite(self):
+        import math
+        import mockdata_realism as mr
+        spec = {"trend": [{"annual_change": "+3%"}]}
+        v = mr.apply_trend_to_log_mean(0.0, spec, 2020)
+        assert math.isfinite(v) and math.isfinite(math.exp(v))
+        assert v == pytest.approx(math.log(1.03) * mr._TREND_OPEN_SPAN_YEARS)
+
+    def test_closed_windows_unchanged(self):
+        import math
+        import mockdata_realism as mr
+        spec = {"trend": [{"from": 2010, "to": 2019, "annual_change": "+2%"}]}
+        v = mr.apply_trend_to_log_mean(0.0, spec, 2015)
+        assert v == pytest.approx(math.log(1.02) * 5)

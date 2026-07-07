@@ -280,10 +280,10 @@
         const bubble = document.createElement('div');
         bubble.className = 'ai-bubble';
         if (!variables || !variables.length) {
-          bubble.textContent = 'Ingen variabler funnet.';
+          bubble.textContent = T('Ingen variabler funnet.');
         } else {
           const intro = document.createElement('p');
-          intro.textContent = `Fant ${variables.length} variabler:`;
+          intro.textContent = T('Fant {n} variabler:', { n: variables.length });
           bubble.appendChild(intro);
           const list = document.createElement('ul');
           list.style.margin = '0'; list.style.paddingLeft = '18px';
@@ -1142,7 +1142,7 @@
         if (sources && sources.length) {
           const list = document.createElement('div');
           list.className = 'ai-sources';
-          list.innerHTML = '<b>Kilder:</b> ' + sources.map(s =>
+          list.innerHTML = '<b>' + T('Kilder:') + '</b> ' + sources.map(s =>
             (s.ok ? '✅ ' : '⚠️ ') +
             '<a href="' + escapeHtml(s.url) + '" target="_blank" rel="noopener">' +
             escapeHtml(s.url.replace(/^https?:\/\//, '').slice(0, 60)) + '</a>' +
@@ -1216,8 +1216,21 @@
           return T('Kan ikke sjekke kjørestatus (mdIsScriptRunning mangler).');
         }
         let waited = 0;
-        while (btn.disabled && waited < 20000) { await sleep(200); waited += 200; }
+        // B7 (docs/REVIEW_2026-07-07.md §3): waiting on btn.disabled alone is
+        // not enough — during an active run the button stays ENABLED but
+        // relabeled "Avbryt", so a click would call performRunInterrupt() on
+        // the user's own run instead of starting ours, and the repair loop
+        // would then misread the aborted run's error as our script's error.
+        // Wait for BOTH pyodide-ready (btn no longer disabled-for-loading)
+        // AND no run already in progress; give up loudly (return an error
+        // string, never click) if that doesn't happen within the timeout.
+        while ((btn.disabled || window.mdIsScriptRunning()) && waited < 20000) {
+          await sleep(200); waited += 200;
+        }
         if (btn.disabled) return T('Kjør-knappen er ikke klar (miljøet laster fortsatt).');
+        if (window.mdIsScriptRunning()) {
+          return T('Kan ikke starte automatisk kjøring — en annen kjøring pågår allerede.');
+        }
         btn.click();
         await sleep(50);   // let the click handler's async body flip the running flag
         const start = Date.now();
@@ -1231,16 +1244,83 @@
         return errEl ? errEl.textContent : null;
       }
 
-      // Auto-run + repair loop (max 3 rounds): extract → insert → run → on
-      // failure, POST the script+error back as `repair` and try again.
+      // S2 (docs/REVIEW_2026-07-07.md §3): Web-mode answers can contain a
+      // prompt-injected script (the /api/data-svar backend does agentic web
+      // search — a poisoned page can inject arbitrary instructions), and the
+      // app runs it in main-thread Pyodide alongside localStorage secrets
+      // (GitHub PAT, API keys). The script is still auto-inserted into the
+      // editor, but the FIRST run of an answer must be user-initiated. This
+      // renders a small inline confirmation bubble styled like the existing
+      // chat action buttons (attachResponseInsertBar's ai-response-actions /
+      // ai-response-insert-btn, and ai-codeblock-btn for the secondary
+      // action) and resolves true/false on Kjør/Avbryt.
+      //
+      // Power-user opt-out (no settings UI by design — set directly):
+      //   localStorage.setItem('md_ai_autorun', '1')
+      // skips this confirmation entirely and auto-runs immediately, same as
+      // before S2. Anyone flipping this on has explicitly opted into the risk.
+      function getAutorunPref() {
+        try { return localStorage.getItem('md_ai_autorun') === '1'; } catch (e) { return false; }
+      }
+      function confirmAutoRun() {
+        if (getAutorunPref()) return Promise.resolve(true);
+        return new Promise(function (resolve) {
+          const wrap = document.createElement('div');
+          wrap.className = 'ai-msg ai-msg-assistant';
+          wrap.innerHTML = '<div class="ai-bubble"></div>';
+          const bubble = wrap.querySelector('.ai-bubble');
+          const question = document.createElement('div');
+          question.textContent = T('Kjør det genererte scriptet?');
+          bubble.appendChild(question);
+          const bar = document.createElement('div');
+          bar.className = 'ai-response-actions';
+          const runBtn = document.createElement('button');
+          runBtn.type = 'button';
+          runBtn.className = 'ai-response-insert-btn';
+          runBtn.textContent = T('Kjør');
+          const cancelBtn = document.createElement('button');
+          cancelBtn.type = 'button';
+          cancelBtn.className = 'ai-codeblock-btn';
+          cancelBtn.textContent = T('Avbryt');
+          bar.appendChild(runBtn);
+          bar.appendChild(cancelBtn);
+          bubble.appendChild(bar);
+          dom.aiThread.appendChild(wrap);
+          scrollToBottom();
+          function settle(ok) {
+            runBtn.disabled = true;
+            cancelBtn.disabled = true;
+            bar.remove();
+            const status = document.createElement('div');
+            status.className = 'ai-repair-note';
+            status.textContent = ok ? T('✓ Kjører …') : T('Avbrutt — scriptet står i editoren.');
+            bubble.appendChild(status);
+            resolve(ok);
+          }
+          runBtn.addEventListener('click', function () { settle(true); });
+          cancelBtn.addEventListener('click', function () { settle(false); });
+        });
+      }
+
+      // Auto-run + repair loop (max 3 rounds): extract → insert → confirm →
+      // run → on failure, POST the script+error back as `repair` and try
+      // again. Only the FIRST run of an answer waits on user confirmation
+      // (S2 above) — once the user has opted in for this answer, repair-round
+      // re-runs proceed automatically, since the user already agreed to run
+      // scripts for this question.
       async function webAnswerWithRepair(question, thinkingNode) {
         const mode = (typeof activeEditorMode !== 'undefined' && activeEditorMode) ? activeEditorMode : 'python';
-        let round = 0, lastError = null, script = null;
+        let round = 0, lastError = null, script = null, confirmed = false;
         let result = await runWebAnswer(question, thinkingNode, null, 0);
         while (true) {
           script = extractWebScriptBlock(result.markdown, mode);
           if (!script) return;   // prose-only answer (e.g. honest "fant ikke data") — already rendered, nothing to run
           insertScriptIntoEditor(script);
+          if (!confirmed) {
+            const ok = await confirmAutoRun();
+            if (!ok) return;   // user declined — script stays in the editor, nothing runs
+            confirmed = true;
+          }
           try {
             lastError = await runScriptAndCaptureError();
             if (!lastError) return;   // success

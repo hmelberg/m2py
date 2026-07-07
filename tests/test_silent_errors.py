@@ -724,3 +724,105 @@ class TestGiniOnWinsorizedColumn:
         df = self._df()
         res = StatsEngine().execute("summarize", df, ["x"], {"gini": True})
         assert float(res.loc["x", "Gini"]) == pytest.approx(m2py.calculate_gini(df["x"]))
+
+
+# ---------------------------------------------------------------------------
+# 13. D5 (kodegjennomgang 2026-07-07): regresjon/overlevelse hadde ikke noe
+# populasjonsminimum — `regress`/`logit`/`cox`/`kaplan-meier` kjørte på
+# subsett summarize ville T7-nektet. Samme T7-sjekk (totalt N; for
+# kaplan-meier by() også per gruppe) skal gjelde. DC av: uendret.
+# ---------------------------------------------------------------------------
+
+class TestModelPopulationMinimum:
+    def _reg_df(self, n=8):
+        rng = np.random.default_rng(1)
+        x = rng.normal(size=n)
+        return pd.DataFrame({"y": 2 * x + rng.normal(size=n), "x": x})
+
+    def _surv_df(self, n=8, groups=None):
+        rng = np.random.default_rng(2)
+        df = pd.DataFrame({
+            "dead": rng.integers(0, 2, size=n),
+            "tid": rng.uniform(1, 10, size=n),
+        })
+        if groups is not None:
+            df["g"] = groups
+        return df
+
+    def test_regress_blocked_below_t7(self, dc_on):
+        it = _interp(self._reg_df(8))
+        out = _run(it, "regress y x")
+        assert "FEIL" in out and "minst 10" in out
+
+    def test_regress_allowed_at_t7(self, dc_on):
+        it = _interp(self._reg_df(30))
+        out = _run(it, "regress y x")
+        assert "FEIL" not in out
+
+    def test_regress_if_subset_blocked(self, dc_on):
+        df = self._reg_df(30)
+        df["grp"] = [1] * 5 + [0] * 25
+        it = _interp(df)
+        out = _run(it, "regress y x if grp == 1")
+        assert "FEIL" in out and "minst 10" in out
+
+    def test_logit_blocked_below_t7(self, dc_on):
+        df = self._reg_df(8)
+        df["y"] = (df["y"] > 0).astype(float)
+        it = _interp(df)
+        out = _run(it, "logit y x")
+        assert "FEIL" in out and "minst 10" in out
+
+    def test_coefplot_blocked_below_t7(self, dc_on):
+        it = _interp(self._reg_df(8))
+        out = _run(it, "coefplot y x")
+        assert "FEIL" in out and "minst 10" in out
+
+    def test_cox_blocked_below_t7(self, dc_on):
+        it = _interp(self._surv_df(8))
+        out = _run(it, "cox dead tid")
+        assert "FEIL" in out and "minst 10" in out
+
+    def test_kaplan_meier_blocked_below_t7(self, dc_on):
+        it = _interp(self._surv_df(8))
+        out = _run(it, "kaplan-meier dead tid")
+        assert "FEIL" in out and "minst 10" in out
+
+    def test_kaplan_meier_by_group_blocked_per_group(self, dc_on):
+        # Totalt N=33 passerer, men én gruppe har 3 — per-gruppe-sjekk skal slå til
+        groups = [1] * 30 + [2] * 3
+        it = _interp(self._surv_df(33, groups=groups))
+        out = _run(it, "kaplan-meier dead tid, by(g)")
+        assert "FEIL" in out and "Gruppen" in out and "minst 10" in out
+
+    def test_kaplan_meier_by_group_allowed_when_all_big(self, dc_on):
+        groups = [1] * 15 + [2] * 15
+        it = _interp(self._surv_df(30, groups=groups))
+        out = _run(it, "kaplan-meier dead tid, by(g)")
+        assert "FEIL" not in out
+
+    def test_dc_off_unchanged(self, dc_off):
+        it = _interp(self._reg_df(8))
+        out = _run(it, "regress y x")
+        assert "FEIL" not in out
+        it2 = _interp(self._surv_df(8))
+        out2 = _run(it2, "kaplan-meier dead tid")
+        assert "FEIL" not in out2
+
+
+# ---------------------------------------------------------------------------
+# 14. S4 (kodegjennomgang 2026-07-07): variabelnavn interpoleres i
+# data-var1/data-var2-attributtene i tablehtml-embeds og konsumeres via
+# innerHTML — de skal HTML-escapes (inkl. anførselstegn).
+# ---------------------------------------------------------------------------
+
+class TestTablehtmlAttributeEscaping:
+    def test_data_var_attributes_are_escaped(self):
+        name = 'a"b'
+        it = _interp(pd.DataFrame({name: ["x"] * 6 + ["y"] * 6}))
+        _run(it, f"tabulate {name}")
+        embeds = [str(m) for m in it.output_log if "data-var1" in str(m)]
+        assert embeds, "forventet tablehtml-embed med data-var1"
+        html = embeds[0]
+        assert 'data-var1="a&quot;b"' in html
+        assert 'data-var1="a"b"' not in html

@@ -735,3 +735,117 @@ class TestCollapsePercentIsShareOfTotal:
             {},
         )
         assert float(res["pct"].iloc[0]) == pytest.approx(100.0)
+
+
+# ---------------------------------------------------------------------------
+# B9 (kodegjennomgang 2026-07-07): rowconcat bakte inn literal 'nan' for
+# missing (astype(str) FØR fillna). Missing skal bli tom streng.
+# ---------------------------------------------------------------------------
+
+class TestRowconcatMissingBecomesEmpty:
+    def test_nan_becomes_empty_string(self):
+        import functions
+        a = pd.Series(["a", None, "c"])
+        b = pd.Series([1.0, 2.0, np.nan])
+        out = functions.rowconcat(a, "-", b)
+        assert out.tolist() == ["a-1.0", "-2.0", "c-"]
+        assert not out.str.contains("nan").any()
+
+    def test_all_present_unchanged(self):
+        import functions
+        out = functions.rowconcat(pd.Series(["x", "y"]), "_", pd.Series(["1", "2"]))
+        assert out.tolist() == ["x_1", "y_2"]
+
+
+# ---------------------------------------------------------------------------
+# B10 (kodegjennomgang 2026-07-07): _elementwise var død kode med invertert
+# None-guard — skal være fjernet, ikke reparert.
+# ---------------------------------------------------------------------------
+
+def test_elementwise_helper_removed():
+    import functions
+    assert not hasattr(functions, "_elementwise")
+
+
+# ---------------------------------------------------------------------------
+# B11 (kodegjennomgang 2026-07-07): dupliserte collapse-mål —
+# `collapse (mean) x (sd) x, by(g)` lot siste statistikk stille overskrive
+# den første. Skal feile høyt (microdata.no-dokumentasjonen definerer ingen
+# auto-suffiks-atferd).
+# ---------------------------------------------------------------------------
+
+class TestCollapseDuplicateTargetsErrorLoudly:
+    def _df(self):
+        return pd.DataFrame({"g": [1, 1, 2, 2], "x": [1.0, 3.0, 5.0, 7.0]})
+
+    def test_duplicate_unnamed_targets_raise(self):
+        with pytest.raises(ValueError, match="målnavnet"):
+            StatsEngine().execute(
+                "collapse", self._df(),
+                {"targets": [
+                    {"stat": "mean", "src": "x", "target": None},
+                    {"stat": "sd", "src": "x", "target": None},
+                ]},
+                {"by": "g"},
+            )
+
+    def test_duplicate_explicit_targets_raise(self):
+        with pytest.raises(ValueError, match="målnavnet"):
+            StatsEngine().execute(
+                "collapse", self._df(),
+                {"targets": [
+                    {"stat": "mean", "src": "x", "target": "s"},
+                    {"stat": "sd", "src": "x", "target": "s"},
+                ]},
+                {"by": "g"},
+            )
+
+    def test_script_level_error_is_logged(self):
+        it = MicroInterpreter(metadata_path=None)
+        it.datasets["d"] = self._df()
+        it.active_name = "d"
+        it.run_script("collapse (mean) x (sd) x, by(g)")
+        out = "\n".join(str(m) for m in it.output_log)
+        assert "FEIL" in out and "målnavnet" in out
+
+    def test_renamed_targets_still_work(self):
+        res = StatsEngine().execute(
+            "collapse", self._df(),
+            {"targets": [
+                {"stat": "mean", "src": "x", "target": None},
+                {"stat": "sd", "src": "x", "target": "x_sd"},
+            ]},
+            {"by": "g"},
+        )
+        assert list(res.columns) == ["g", "x", "x_sd"]
+        assert sorted(res["x"]) == [pytest.approx(2.0), pytest.approx(6.0)]
+
+
+# ---------------------------------------------------------------------------
+# B12 (kodegjennomgang 2026-07-07): de døde '<n> if <cond>'-regex-grenene i
+# generate/replace er fjernet (parse_line splitter alltid ' if ' ut som egen
+# betingelse). Verifiser at oppførselen via parseren er uendret.
+# ---------------------------------------------------------------------------
+
+class TestGenerateReplaceIfStillWork:
+    def _interp(self):
+        it = MicroInterpreter(metadata_path=None)
+        it.datasets["d"] = pd.DataFrame({"y": [1, 2, 1, 3], "x": [0.0, 0.0, 0.0, 0.0]})
+        it.active_name = "d"
+        return it
+
+    def test_generate_value_if_condition(self):
+        it = self._interp()
+        it.run_script("generate z = 1 if y == 1")
+        z = it.datasets["d"]["z"]
+        assert z.tolist()[0] == 1.0 and z.tolist()[2] == 1.0
+        assert pd.isna(z.tolist()[1]) and pd.isna(z.tolist()[3])
+
+    def test_replace_value_if_condition(self):
+        it = self._interp()
+        it.run_script("replace x = 9 if y == 1")
+        assert it.datasets["d"]["x"].tolist() == [9.0, 0.0, 9.0, 0.0]
+
+    def test_dead_branch_removed_from_source(self):
+        src = inspect.getsource(m2py)
+        assert r"^(\d+)\s+if\s+(.+)$" not in src

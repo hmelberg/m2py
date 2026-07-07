@@ -36,6 +36,32 @@
   [headers.values]
     Cache-Control = "public, max-age=86400"
 
+# Content-Security-Policy-Report-Only (docs/REVIEW_2026-07-07.md §3, CSP item):
+# OBSERVE-ONLY — this is the "-Report-Only" header, not "Content-Security-Policy",
+# so nothing here can break production; browsers evaluate it and log console
+# violations but never block a request because of it. Allowlist derived from
+# what the app actually loads: sw.js CDN_HOSTS + PRECACHE_URLS (jsdelivr,
+# cdn.plot.ly), index.html's external <script>/<link> tags and dynamic
+# import()s (jsdelivr for pyodide/markdown-it/duckdb-wasm, webr.r-wasm.org for
+# WebR), js/ai-chat.js's API base (mdataapi.anvil.app) and same-origin
+# /api/* edge functions, js/github-storage.js's api.github.com calls, and the
+# fact that Open-from-URL / connect / load directives let a script fetch any
+# user-supplied https: data source (hence the broad connect-src https:).
+# Pyodide needs 'unsafe-eval'+'wasm-unsafe-eval' in script-src; the DuckDB-WASM
+# worker is spun up from a blob: URL (worker-src/script-src blob:); the app has
+# no build step and ships hand-written inline <script>/style attributes
+# throughout index.html, so 'unsafe-inline' is included to match current
+# reality rather than flood the console with expected-noise violations.
+#
+# To promote to enforcing later: watch the browser console (and/or wire up a
+# report-to endpoint) for a while, tighten anything unexpectedly broad, then
+# either add nonces/hashes to drop 'unsafe-inline' or accept it as a known
+# tradeoff, and rename this header to "Content-Security-Policy".
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net https://cdn.plot.ly https://webr.r-wasm.org; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: data: blob:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
+
 [[edge_functions]]
   function = "dm-vurder"
   path = "/api/dm-vurder"
