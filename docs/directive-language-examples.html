@@ -91,8 +91,10 @@ load        := "load" (alias["/" path] | url) "as" NAME ["," option]*
 require     := "require" target "as" NAME              # legacy alias for load
 option      := "key(" (literal | "ask") ")"
              | "exec(" ("local" | "remote") ")"
+             | "kind(" ("csv" | "parquet" | "duckdb" | "sqlite" | "json") ")"
 
 target      := registry-id | url | anvil-name</code></pre>
+<p><code>kind(...)</code> names the source's format explicitly instead of letting the loader sniff it from the URL/content-type — mainly needed for <code>duckdb</code>/<code>sqlite</code>, which can't be reliably sniffed from a URL alone. A <code>kind()</code> on <code>load</code> overrides one given on the <code>connect</code> it resolves through.</p>
 <p><code>target</code> resolves in this order:</p>
 <p>1. <strong>Registry id</strong> — an entry in <code>data/data-sources.json</code> (<code>ssb</code>, <code>eurostat</code>, <code>worldbank</code>, <code>oecd</code>, <code>who</code>, ...) → public web API, fetched with that entry's <code>base_url</code>/proxy rules.</p>
 <p>2. <strong>URL</strong> (<code>http(s)://...</code>) → fetched directly. If the bytes turn out to be a <code>safepy-enc-v1</code> encrypted envelope, a key is required.</p>
@@ -171,7 +173,25 @@ target      := registry-id | url | anvil-name</code></pre>
 <pre><code># require helse_he as h
 # load https://ourworldindata.org/grapher/co2.csv as co2</code></pre>
 <p>→ refused: "Server-kjøring kan ikke kombinere navngitte kilder og URL-kilder (ennå)" (server execution can't yet combine named sources and URL sources — use only named sources).</p>
+<h2>13. DuckDB/SQLite sources — table and column addressing (dot-grammar)</h2>
+<p>A <code>duckdb</code>/<code>sqlite</code> file holds several tables in one file, so <code>load</code>/<code>import</code> address a <em>table</em> the same way they'd otherwise address a whole source, and a <em>column</em> by appending <code>.column</code> to the table:</p>
+<pre><code># connect https://x.example/panel.duckdb as db, kind(duckdb)
+# load db/visits as visits</code></pre>
+<p><code>db/visits</code> means "table <code>visits</code> inside the <code>db</code> connection" — not a URL path segment. Loading the whole table materializes it as an ordinary frame named <code>visits</code>, exactly like loading any other source.</p>
+<p>Column-level assembly (§10) uses the same dot-grammar, with the table named before the dot and the column after it:</p>
+<pre><code># create-dataset panel, key(pid)
+# import db/patients.age, db/patients.sex into panel</code></pre>
+<p>This imports just the <code>age</code> and <code>sex</code> columns from the <code>patients</code> table — network-level column pushdown means the rest of that table (and any other tables in the same file) is never fetched.</p>
+<p>A <code>duckdb</code>/<code>sqlite</code> <code>load</code>/<code>import</code> <strong>without</strong> a table name is refused — there's no "whole file" to load, only tables inside it:</p>
+<pre><code># load db as x</code></pre>
+<p>→ rejected: <code>«x»: duckdb/sqlite-kilder krever en tabell — «load db/&lt;tabell&gt; as x»</code> (duckdb/sqlite sources require a table — write <code>load db/&lt;table&gt; as x</code>).</p>
+<p>Table-addressed sources can mix freely with plain (non-table) sources in the same assembly:</p>
+<pre><code># connect https://x.example/income.parquet as inc, kind(parquet)
+# connect https://x.example/panel.duckdb as db, kind(duckdb)
+# create-dataset combined, key(pid)
+# import inc/income into combined
+# import db/demographics.age, db/demographics.sex into combined</code></pre>
 <hr>
-<p><strong>Source:</strong> grammar and resolution order from <code>docs/superpowers/specs/2026-07-05-encrypted-external-sources-design.md</code> §1; parsing implemented in <code>js/data-directives.js</code>; fetch/decrypt implemented in <code>js/data-loader.js</code>; every example above (except #9, a composite) mirrors a case asserted in <code>netlify/edge-functions/_lib/data-directives.test.ts</code>.</p>
+<p><strong>Source:</strong> grammar and resolution order from <code>docs/superpowers/specs/2026-07-05-encrypted-external-sources-design.md</code> §1; duckdb/sqlite dot-grammar and pushdown from <code>docs/superpowers/specs/2026-07-06-remote-columnar-sources-design.md</code>; parsing implemented in <code>js/data-directives.js</code>; fetch/decrypt implemented in <code>js/data-loader.js</code>; every example above (except #9, a composite) mirrors a case asserted in <code>netlify/edge-functions/_lib/data-directives.test.ts</code>.</p>
 </body>
 </html>

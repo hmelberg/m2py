@@ -15,9 +15,15 @@ load        := "load" (alias["/" path] | url) "as" NAME ["," option]*
 require     := "require" target "as" NAME              # legacy alias for load
 option      := "key(" (literal | "ask") ")"
              | "exec(" ("local" | "remote") ")"
+             | "kind(" ("csv" | "parquet" | "duckdb" | "sqlite" | "json") ")"
 
 target      := registry-id | url | anvil-name
 ```
+
+`kind(...)` names the source's format explicitly instead of letting the
+loader sniff it from the URL/content-type — mainly needed for `duckdb`/
+`sqlite`, which can't be reliably sniffed from a URL alone. A `kind()` on
+`load` overrides one given on the `connect` it resolves through.
 
 `target` resolves in this order:
 1. **Registry id** — an entry in `data/data-sources.json` (`ssb`, `eurostat`, `worldbank`, `oecd`, `who`, ...) → public web API, fetched with that entry's `base_url`/proxy rules.
@@ -164,10 +170,54 @@ Running that line while the active editor mode/tab is **Kryptert** sends the who
 ```
 → refused: "Server-kjøring kan ikke kombinere navngitte kilder og URL-kilder (ennå)" (server execution can't yet combine named sources and URL sources — use only named sources).
 
+## 13. DuckDB/SQLite sources — table and column addressing (dot-grammar)
+
+A `duckdb`/`sqlite` file holds several tables in one file, so `load`/`import`
+address a *table* the same way they'd otherwise address a whole source, and a
+*column* by appending `.column` to the table:
+
+```
+# connect https://x.example/panel.duckdb as db, kind(duckdb)
+# load db/visits as visits
+```
+`db/visits` means "table `visits` inside the `db` connection" — not a URL
+path segment. Loading the whole table materializes it as an ordinary frame
+named `visits`, exactly like loading any other source.
+
+Column-level assembly (§10) uses the same dot-grammar, with the table named
+before the dot and the column after it:
+```
+# create-dataset panel, key(pid)
+# import db/patients.age, db/patients.sex into panel
+```
+This imports just the `age` and `sex` columns from the `patients` table —
+network-level column pushdown means the rest of that table (and any other
+tables in the same file) is never fetched.
+
+A `duckdb`/`sqlite` `load`/`import` **without** a table name is refused —
+there's no "whole file" to load, only tables inside it:
+```
+# load db as x
+```
+→ rejected: `«x»: duckdb/sqlite-kilder krever en tabell — «load db/<tabell> as x»`
+(duckdb/sqlite sources require a table — write `load db/<table> as x`).
+
+Table-addressed sources can mix freely with plain (non-table) sources in the
+same assembly:
+```
+# connect https://x.example/income.parquet as inc, kind(parquet)
+# connect https://x.example/panel.duckdb as db, kind(duckdb)
+# create-dataset combined, key(pid)
+# import inc/income into combined
+# import db/demographics.age, db/demographics.sex into combined
+```
+
 ---
 
 **Source:** grammar and resolution order from
 `docs/superpowers/specs/2026-07-05-encrypted-external-sources-design.md` §1;
+duckdb/sqlite dot-grammar and pushdown from
+`docs/superpowers/specs/2026-07-06-remote-columnar-sources-design.md`;
 parsing implemented in `js/data-directives.js`; fetch/decrypt implemented in
 `js/data-loader.js`; every example above (except #9, a composite) mirrors a
 case asserted in `netlify/edge-functions/_lib/data-directives.test.ts`.
