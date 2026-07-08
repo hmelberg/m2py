@@ -3,12 +3,14 @@
 // duplicated across this file (PRECACHE_URLS below), index.html, and
 // py2m/py2m_runner.html — update all of them together when upgrading Pyodide.
 const PYODIDE_VERSION = 'v314.0.2';
-const CACHE = 'm2py-v6';
+const CACHE = 'm2py-v7';
 const CDN_HOSTS = new Set([
   'cdn.jsdelivr.net',
   'cdn.plot.ly',
   'files.pythonhosted.org',
-  'pypi.org'
+  'pypi.org',
+  'webr.r-wasm.org',    // webR-runtime (jamovi-modus)
+  'repo.r-wasm.org'     // wasm-R-pakker: jmv, scatr m.fl. (~170 MB, cache-first)
 ]);
 const LOCAL_SWR_SUFFIXES = [
   '/m2py.py',

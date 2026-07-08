@@ -9328,7 +9328,9 @@ _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
       setRunButtonsUi('loading');
       setStatus(leftStatus, t('Laster WebR…'));
       try {
-        const { WebR } = await import('https://webr.r-wasm.org/latest/webr.mjs');
+        // Pinnet webR-versjon (jamovi-modus avhenger av at R-versjon/pakke-ABI
+        // ikke endrer seg). Oppgradering: test tests/manual/jmv_smoke.html først.
+        const { WebR } = await import('https://webr.r-wasm.org/v0.6.0/webr.mjs');
         webR = new WebR();
         await webR.init();
         setStatus(leftStatus, t('Laster r2m…'));
