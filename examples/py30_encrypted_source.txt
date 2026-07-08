@@ -5,7 +5,7 @@
 # load https://raw.githubusercontent.com/<user>/<repo>/main/helse.enc.json as df, key(PASTE-KEY-HERE)
 #
 # 2) Key via prompt (the key never ends up in the script):
-# connect https://raw.githubusercontent.com/<bruker>/<repo>/main/helse.enc.json as h, key(ask)
+# connect https://raw.githubusercontent.com/<user>/<repo>/main/helse.enc.json as h, key(ask)
 # load h as df
 #
 # 3) Registered source (the owner has shared access with you — log in first):

@@ -4175,8 +4175,8 @@
     // own content on window 'load' (openFromFragment would just overwrite it).
     var _fragNow = window.NotebookLinks ? window.NotebookLinks.classifyHash(location.hash) : null;
     var _hasFrag = !!(_fragNow && _fragNow.kind !== 'share');
-    if (!scriptInput.value.trim() && !_hasFrag) {
-      scriptInput.value = STARTUP_EXAMPLES[activeEditorMode] || STARTUP_EXAMPLES.python;
+    if (!scriptInput.value.trim() && !_hasFrag && STARTUP_EXAMPLES[activeEditorMode]) {
+      scriptInput.value = STARTUP_EXAMPLES[activeEditorMode];
       if (window.updateLineNumbers) window.updateLineNumbers();
     }
     scriptInput.scrollTop = 0;
@@ -9336,7 +9336,7 @@ options(width = 200)
         if (!scriptRunInProgress && !_nbFrag) {
           setRunButtonsUi('idle');
           // Auto-kjør starteksempelet hvis brukeren ikke har endret teksten
-          if (scriptInput.value.trim() === (STARTUP_EXAMPLES[activeEditorMode] || STARTUP_EXAMPLES.python).trim()) {
+          if (STARTUP_EXAMPLES[activeEditorMode] && scriptInput.value.trim() === STARTUP_EXAMPLES[activeEditorMode].trim()) {
             document.getElementById('btnRun').click();
           }
         } else if (!scriptRunInProgress) {
