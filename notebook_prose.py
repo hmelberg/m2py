@@ -18,15 +18,21 @@ def _emit_line(text):
     return "print(%r)" % (payload,)               # repr escapes everything, reproduces exactly
 
 
-def _line_start_offsets(src):
-    """Absolute character offset of the start of each 1-based line."""
+def _line_start_byte_offsets(data):
+    """Absolute UTF-8 byte offset of the start of each 1-based line."""
     offsets = [0]
-    for line in src.splitlines(keepends=True):
-        offsets.append(offsets[-1] + len(line))
+    start = 0
+    while True:
+        idx = data.find(b"\n", start)
+        if idx == -1:
+            break
+        offsets.append(idx + 1)
+        start = idx + 1
     return offsets
 
 
-def _to_offset(line_starts, lineno, col_offset):
+def _to_byte_offset(line_starts, lineno, col_offset):
+    # ast column offsets are already UTF-8 byte offsets.
     return line_starts[lineno - 1] + col_offset
 
 
@@ -35,19 +41,20 @@ def prep_python_prose(src):
         tree = ast.parse(src)
     except SyntaxError:
         return src
-    spans = []  # (start_offset, end_offset, text)
-    line_starts = _line_start_offsets(src)
+    spans = []  # (start_byte, end_byte, text)
+    data = src.encode("utf-8")
+    line_starts = _line_start_byte_offsets(data)
     for node in tree.body:
         if (isinstance(node, ast.Expr)
                 and isinstance(node.value, ast.Constant)
                 and isinstance(node.value.value, str)):
-            start = _to_offset(line_starts, node.lineno, node.col_offset)
-            end = _to_offset(line_starts, node.end_lineno, node.end_col_offset)
+            start = _to_byte_offset(line_starts, node.lineno, node.col_offset)
+            end = _to_byte_offset(line_starts, node.end_lineno, node.end_col_offset)
             spans.append((start, end, node.value.value))
     if not spans:
         return src
 
-    out = src
+    out = data
     for start, end, text in sorted(spans, key=lambda s: s[0], reverse=True):
-        out = out[:start] + _emit_line(text) + out[end:]
-    return out
+        out = out[:start] + _emit_line(text).encode("utf-8") + out[end:]
+    return out.decode("utf-8")

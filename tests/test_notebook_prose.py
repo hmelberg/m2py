@@ -74,3 +74,22 @@ def test_multiline_prose_with_trailing_sibling():
     assert "p1" in out and "p2" in out
     assert "10" in out
     assert out.index(START) < out.index("10")
+
+def test_non_ascii_prose_roundtrips():
+    src = '"""# Rapport Æ Ø Å"""\nprint("etter")'
+    out = _run(src)
+    assert "Rapport Æ Ø Å" in out
+    assert "etter" in out
+    assert out.index("Rapport Æ Ø Å") < out.index("etter")
+
+def test_non_ascii_prose_with_trailing_sibling():
+    src = '"""Ærlig talt Ø"""; print(42)'
+    out = _run(src)
+    assert "Ærlig talt Ø" in out
+    assert "42" in out
+
+def test_non_ascii_before_prose_same_line():
+    src = 'x = "Ø"; """note"""\nprint(len(x))'
+    out = _run(src)
+    assert "note" in out
+    assert "1" in out
