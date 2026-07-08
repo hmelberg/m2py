@@ -1,0 +1,10 @@
+# SafeStat — a quick example. Edit it freely, or pick another under "Examples".
+# Two ways to load data: the `# load` directive (below), or plain read.csv().
+# load https://raw.githubusercontent.com/hmelberg/safestat/main/data/iris.csv as iris
+# (equivalent: iris <- read.csv("https://raw.githubusercontent.com/hmelberg/safestat/main/data/iris.csv"))
+
+# A table — mean measurements per species:
+aggregate(. ~ species, data = iris, FUN = mean)
+
+# A barplot — how many flowers of each species:
+barplot(table(iris$species), main = "Iris — count per species", ylab = "count")

@@ -1,0 +1,10 @@
+# Read from an EXTERNAL source — a public CSV over the web.
+# load https://raw.githubusercontent.com/jennybc/gapminder/main/data-raw/08_gap-every-five-years.tsv as gap, kind(csv)
+# (equivalent: gap <- read.delim("…/08_gap-every-five-years.tsv"))
+# NOTE: if the URL is unavailable, use any public CSV of your choice.
+
+recent <- gap[gap$year == max(gap$year), ]
+agg <- aggregate(lifeExp ~ continent, data = recent, FUN = mean)
+agg
+barplot(agg$lifeExp, names.arg = agg$continent,
+        main = "Mean life expectancy by continent (latest year)", ylab = "years")
