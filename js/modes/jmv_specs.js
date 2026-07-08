@@ -2146,7 +2146,660 @@ window.JMV_SPECS = {
   "menuSubgroup": "scatr",
   "menuTitle": "Scatter Plot",
   "menuSubtitle": "",
-  "options": []
+  "options": [
+   {
+    "name": "x",
+    "type": "Variable",
+    "title": "X-Axis",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "y",
+    "type": "Variable",
+    "title": "Y-Axis",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "group",
+    "type": "Variable",
+    "title": "Grouping Variable",
+    "default": null,
+    "suggested": [
+     "nominal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "flipAxes",
+    "type": "Bool",
+    "title": "Flip axes",
+    "default": false
+   },
+   {
+    "name": "pointSize",
+    "type": "Number",
+    "title": "Point size",
+    "default": 2
+   },
+   {
+    "name": "regLine",
+    "type": "Bool",
+    "title": "Show line",
+    "default": false
+   },
+   {
+    "name": "lineMethod",
+    "type": "List",
+    "title": "Method",
+    "default": "lm",
+    "choices": [
+     {
+      "value": "lm",
+      "title": "Linear"
+     },
+     {
+      "value": "loess",
+      "title": "Smooth"
+     }
+    ]
+   },
+   {
+    "name": "lineSE",
+    "type": "Bool",
+    "title": "Confidence interval",
+    "default": true
+   },
+   {
+    "name": "title",
+    "type": "String",
+    "title": "Title text",
+    "default": ""
+   },
+   {
+    "name": "titleAlign",
+    "type": "List",
+    "title": "Align",
+    "default": "center",
+    "choices": [
+     {
+      "value": "left",
+      "title": "Left"
+     },
+     {
+      "value": "center",
+      "title": "Center"
+     },
+     {
+      "value": "right",
+      "title": "Right"
+     }
+    ]
+   },
+   {
+    "name": "titleFontSize",
+    "type": "Number",
+    "title": "Font size",
+    "default": 16
+   },
+   {
+    "name": "titleFontFace",
+    "type": "List",
+    "title": "Font face",
+    "default": "plain",
+    "choices": [
+     {
+      "value": "plain",
+      "title": "Plain"
+     },
+     {
+      "value": "bold",
+      "title": "Bold"
+     },
+     {
+      "value": "italic",
+      "title": "Italic"
+     },
+     {
+      "value": "bold-italic",
+      "title": "Bold Italic"
+     }
+    ]
+   },
+   {
+    "name": "subtitle",
+    "type": "String",
+    "title": "Title text",
+    "default": ""
+   },
+   {
+    "name": "subtitleAlign",
+    "type": "List",
+    "title": "Align",
+    "default": "left",
+    "choices": [
+     {
+      "value": "left",
+      "title": "Left"
+     },
+     {
+      "value": "center",
+      "title": "Center"
+     },
+     {
+      "value": "right",
+      "title": "Right"
+     }
+    ]
+   },
+   {
+    "name": "subtitleFontSize",
+    "type": "Number",
+    "title": "Font size",
+    "default": 16
+   },
+   {
+    "name": "subtitleFontFace",
+    "type": "List",
+    "title": "Font face",
+    "default": "plain",
+    "choices": [
+     {
+      "value": "plain",
+      "title": "Plain"
+     },
+     {
+      "value": "bold",
+      "title": "Bold"
+     },
+     {
+      "value": "italic",
+      "title": "Italic"
+     },
+     {
+      "value": "bold-italic",
+      "title": "Bold Italic"
+     }
+    ]
+   },
+   {
+    "name": "caption",
+    "type": "String",
+    "title": "Title text",
+    "default": ""
+   },
+   {
+    "name": "captionAlign",
+    "type": "List",
+    "title": "Align",
+    "default": "right",
+    "choices": [
+     {
+      "value": "left",
+      "title": "Left"
+     },
+     {
+      "value": "center",
+      "title": "Center"
+     },
+     {
+      "value": "right",
+      "title": "Right"
+     }
+    ]
+   },
+   {
+    "name": "captionFontSize",
+    "type": "Number",
+    "title": "Font size",
+    "default": 12
+   },
+   {
+    "name": "captionFontFace",
+    "type": "List",
+    "title": "Font face",
+    "default": "plain",
+    "choices": [
+     {
+      "value": "plain",
+      "title": "Plain"
+     },
+     {
+      "value": "bold",
+      "title": "Bold"
+     },
+     {
+      "value": "italic",
+      "title": "Italic"
+     },
+     {
+      "value": "bold-italic",
+      "title": "Bold Italic"
+     }
+    ]
+   },
+   {
+    "name": "xLabel",
+    "type": "String",
+    "title": "Title text",
+    "default": ""
+   },
+   {
+    "name": "xLabelAlign",
+    "type": "List",
+    "title": "Align",
+    "default": "center",
+    "choices": [
+     {
+      "value": "left",
+      "title": "Left"
+     },
+     {
+      "value": "center",
+      "title": "Center"
+     },
+     {
+      "value": "right",
+      "title": "Right"
+     }
+    ]
+   },
+   {
+    "name": "xLabelFontSize",
+    "type": "Number",
+    "title": "Font size",
+    "default": 16
+   },
+   {
+    "name": "xLabelFontFace",
+    "type": "List",
+    "title": "Font face",
+    "default": "plain",
+    "choices": [
+     {
+      "value": "plain",
+      "title": "Plain"
+     },
+     {
+      "value": "bold",
+      "title": "Bold"
+     },
+     {
+      "value": "italic",
+      "title": "Italic"
+     },
+     {
+      "value": "bold-italic",
+      "title": "Bold Italic"
+     }
+    ]
+   },
+   {
+    "name": "yLabel",
+    "type": "String",
+    "title": "Title text",
+    "default": ""
+   },
+   {
+    "name": "yLabelAlign",
+    "type": "List",
+    "title": "Align",
+    "default": "center",
+    "choices": [
+     {
+      "value": "left",
+      "title": "Left"
+     },
+     {
+      "value": "center",
+      "title": "Center"
+     },
+     {
+      "value": "right",
+      "title": "Right"
+     }
+    ]
+   },
+   {
+    "name": "yLabelFontSize",
+    "type": "Number",
+    "title": "Font size",
+    "default": 16
+   },
+   {
+    "name": "yLabelFontFace",
+    "type": "List",
+    "title": "Font face",
+    "default": "plain",
+    "choices": [
+     {
+      "value": "plain",
+      "title": "Plain"
+     },
+     {
+      "value": "bold",
+      "title": "Bold"
+     },
+     {
+      "value": "italic",
+      "title": "Italic"
+     },
+     {
+      "value": "bold-italic",
+      "title": "Bold Italic"
+     }
+    ]
+   },
+   {
+    "name": "titleType",
+    "type": "List",
+    "title": "titleType",
+    "default": "title",
+    "choices": [
+     {
+      "value": "title",
+      "title": "Plot Title"
+     },
+     {
+      "value": "subtitle",
+      "title": "Plot Subtitle"
+     },
+     {
+      "value": "caption",
+      "title": "Plot Caption"
+     },
+     {
+      "value": "xTitle",
+      "title": "X-Axis Title"
+     },
+     {
+      "value": "yTitle",
+      "title": "Y-Axis Title"
+     }
+    ]
+   },
+   {
+    "name": "yAxisLabelFontSize",
+    "type": "Number",
+    "title": "Label font size",
+    "default": 12
+   },
+   {
+    "name": "yAxisLabelRotation",
+    "type": "Number",
+    "title": "Label rotation",
+    "default": 0,
+    "min": 0,
+    "max": 360
+   },
+   {
+    "name": "yAxisRangeType",
+    "type": "List",
+    "title": "Y-Axis Range",
+    "default": "auto",
+    "choices": [
+     {
+      "value": "auto",
+      "title": "Auto"
+     },
+     {
+      "value": "manual",
+      "title": "Manual"
+     }
+    ]
+   },
+   {
+    "name": "yAxisRangeMin",
+    "type": "Number",
+    "title": "Min",
+    "default": 0
+   },
+   {
+    "name": "yAxisRangeMax",
+    "type": "Number",
+    "title": "Max",
+    "default": 10
+   },
+   {
+    "name": "xAxisLabelFontSize",
+    "type": "Number",
+    "title": "Label font size",
+    "default": 12
+   },
+   {
+    "name": "xAxisLabelRotation",
+    "type": "Number",
+    "title": "Label rotation",
+    "default": 0,
+    "min": 0,
+    "max": 360
+   },
+   {
+    "name": "xAxisRangeType",
+    "type": "List",
+    "title": "X-Axis Range",
+    "default": "auto",
+    "choices": [
+     {
+      "value": "auto",
+      "title": "Auto"
+     },
+     {
+      "value": "manual",
+      "title": "Manual"
+     }
+    ]
+   },
+   {
+    "name": "xAxisRangeMin",
+    "type": "Number",
+    "title": "Min",
+    "default": 0
+   },
+   {
+    "name": "xAxisRangeMax",
+    "type": "Number",
+    "title": "Max",
+    "default": 10
+   },
+   {
+    "name": "legendTitle",
+    "type": "String",
+    "title": "Title text",
+    "default": ""
+   },
+   {
+    "name": "legendTitleFontSize",
+    "type": "Number",
+    "title": "Title font size",
+    "default": 16
+   },
+   {
+    "name": "legendTitleFontFace",
+    "type": "List",
+    "title": "Title font face",
+    "default": "plain",
+    "choices": [
+     {
+      "value": "plain",
+      "title": "Plain"
+     },
+     {
+      "value": "bold",
+      "title": "Bold"
+     },
+     {
+      "value": "italic",
+      "title": "Italic"
+     },
+     {
+      "value": "bold-italic",
+      "title": "Bold Italic"
+     }
+    ]
+   },
+   {
+    "name": "legendLabelFontSize",
+    "type": "Number",
+    "title": "Label font size",
+    "default": 16
+   },
+   {
+    "name": "legendLabelFontFace",
+    "type": "List",
+    "title": "Label font face",
+    "default": "plain",
+    "choices": [
+     {
+      "value": "plain",
+      "title": "Plain"
+     },
+     {
+      "value": "bold",
+      "title": "Bold"
+     },
+     {
+      "value": "italic",
+      "title": "Italic"
+     },
+     {
+      "value": "bold-italic",
+      "title": "Bold Italic"
+     }
+    ]
+   },
+   {
+    "name": "legendKeyWidth",
+    "type": "Number",
+    "title": "Key width",
+    "default": 0.6,
+    "min": 0
+   },
+   {
+    "name": "legendKeyHeight",
+    "type": "Number",
+    "title": "Key height",
+    "default": 0.6,
+    "min": 0
+   },
+   {
+    "name": "legenPositionType",
+    "type": "List",
+    "title": "legenPositionType",
+    "default": "outside",
+    "choices": [
+     {
+      "value": "outside",
+      "title": "Outside"
+     },
+     {
+      "value": "inside",
+      "title": "Inside"
+     },
+     {
+      "value": "hide",
+      "title": "Hide"
+     }
+    ]
+   },
+   {
+    "name": "legendPosition",
+    "type": "List",
+    "title": "Position",
+    "default": "right",
+    "choices": [
+     {
+      "value": "top",
+      "title": "Top"
+     },
+     {
+      "value": "right",
+      "title": "Right"
+     },
+     {
+      "value": "bottom",
+      "title": "Bottom"
+     },
+     {
+      "value": "left",
+      "title": "Left"
+     }
+    ]
+   },
+   {
+    "name": "legendJustification",
+    "type": "List",
+    "title": "Justification",
+    "default": "center",
+    "choices": [
+     {
+      "value": "center",
+      "title": "Center"
+     },
+     {
+      "value": "top",
+      "title": "Top"
+     },
+     {
+      "value": "right",
+      "title": "Right"
+     },
+     {
+      "value": "bottom",
+      "title": "Bottom"
+     },
+     {
+      "value": "left",
+      "title": "Left"
+     }
+    ]
+   },
+   {
+    "name": "legendPositionX",
+    "type": "Number",
+    "title": "X-position",
+    "default": 0.8,
+    "min": 0,
+    "max": 1
+   },
+   {
+    "name": "legendPositionY",
+    "type": "Number",
+    "title": "Y-position",
+    "default": 0.5,
+    "min": 0,
+    "max": 1
+   },
+   {
+    "name": "legendDirection",
+    "type": "List",
+    "title": "Direction",
+    "default": "vertical",
+    "choices": [
+     {
+      "value": "horizontal",
+      "title": "Horizontal"
+     },
+     {
+      "value": "vertical",
+      "title": "Vertical"
+     }
+    ]
+   }
+  ]
  },
  "pareto": {
   "name": "pareto",
@@ -2156,6 +2809,374 @@ window.JMV_SPECS = {
   "menuSubgroup": "scatr",
   "menuTitle": "Pareto Plot",
   "menuSubtitle": "",
-  "options": []
+  "options": [
+   {
+    "name": "x",
+    "type": "Variable",
+    "title": "X-Axis",
+    "default": null,
+    "suggested": [
+     "nominal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "counts",
+    "type": "Variable",
+    "title": "Counts (optional)",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "barWidth",
+    "type": "Number",
+    "title": "Width",
+    "default": 0.6,
+    "min": 0
+   },
+   {
+    "name": "title",
+    "type": "String",
+    "title": "Title text",
+    "default": ""
+   },
+   {
+    "name": "titleAlign",
+    "type": "List",
+    "title": "Align",
+    "default": "center",
+    "choices": [
+     {
+      "value": "left",
+      "title": "Left"
+     },
+     {
+      "value": "center",
+      "title": "Center"
+     },
+     {
+      "value": "right",
+      "title": "Right"
+     }
+    ]
+   },
+   {
+    "name": "titleFontSize",
+    "type": "Number",
+    "title": "Font size",
+    "default": 16
+   },
+   {
+    "name": "titleFontFace",
+    "type": "List",
+    "title": "Font face",
+    "default": "plain",
+    "choices": [
+     {
+      "value": "plain",
+      "title": "Plain"
+     },
+     {
+      "value": "bold",
+      "title": "Bold"
+     },
+     {
+      "value": "italic",
+      "title": "Italic"
+     },
+     {
+      "value": "bold-italic",
+      "title": "Bold Italic"
+     }
+    ]
+   },
+   {
+    "name": "subtitle",
+    "type": "String",
+    "title": "Title text",
+    "default": ""
+   },
+   {
+    "name": "subtitleAlign",
+    "type": "List",
+    "title": "Align",
+    "default": "left",
+    "choices": [
+     {
+      "value": "left",
+      "title": "Left"
+     },
+     {
+      "value": "center",
+      "title": "Center"
+     },
+     {
+      "value": "right",
+      "title": "Right"
+     }
+    ]
+   },
+   {
+    "name": "subtitleFontSize",
+    "type": "Number",
+    "title": "Font size",
+    "default": 16
+   },
+   {
+    "name": "subtitleFontFace",
+    "type": "List",
+    "title": "Font face",
+    "default": "plain",
+    "choices": [
+     {
+      "value": "plain",
+      "title": "Plain"
+     },
+     {
+      "value": "bold",
+      "title": "Bold"
+     },
+     {
+      "value": "italic",
+      "title": "Italic"
+     },
+     {
+      "value": "bold-italic",
+      "title": "Bold Italic"
+     }
+    ]
+   },
+   {
+    "name": "caption",
+    "type": "String",
+    "title": "Title text",
+    "default": ""
+   },
+   {
+    "name": "captionAlign",
+    "type": "List",
+    "title": "Align",
+    "default": "right",
+    "choices": [
+     {
+      "value": "left",
+      "title": "Left"
+     },
+     {
+      "value": "center",
+      "title": "Center"
+     },
+     {
+      "value": "right",
+      "title": "Right"
+     }
+    ]
+   },
+   {
+    "name": "captionFontSize",
+    "type": "Number",
+    "title": "Font size",
+    "default": 12
+   },
+   {
+    "name": "captionFontFace",
+    "type": "List",
+    "title": "Font face",
+    "default": "plain",
+    "choices": [
+     {
+      "value": "plain",
+      "title": "Plain"
+     },
+     {
+      "value": "bold",
+      "title": "Bold"
+     },
+     {
+      "value": "italic",
+      "title": "Italic"
+     },
+     {
+      "value": "bold-italic",
+      "title": "Bold Italic"
+     }
+    ]
+   },
+   {
+    "name": "xLabel",
+    "type": "String",
+    "title": "Title text",
+    "default": ""
+   },
+   {
+    "name": "xLabelAlign",
+    "type": "List",
+    "title": "Align",
+    "default": "center",
+    "choices": [
+     {
+      "value": "left",
+      "title": "Left"
+     },
+     {
+      "value": "center",
+      "title": "Center"
+     },
+     {
+      "value": "right",
+      "title": "Right"
+     }
+    ]
+   },
+   {
+    "name": "xLabelFontSize",
+    "type": "Number",
+    "title": "Font size",
+    "default": 16
+   },
+   {
+    "name": "xLabelFontFace",
+    "type": "List",
+    "title": "Font face",
+    "default": "plain",
+    "choices": [
+     {
+      "value": "plain",
+      "title": "Plain"
+     },
+     {
+      "value": "bold",
+      "title": "Bold"
+     },
+     {
+      "value": "italic",
+      "title": "Italic"
+     },
+     {
+      "value": "bold-italic",
+      "title": "Bold Italic"
+     }
+    ]
+   },
+   {
+    "name": "yLabel",
+    "type": "String",
+    "title": "Title text",
+    "default": ""
+   },
+   {
+    "name": "yLabelAlign",
+    "type": "List",
+    "title": "Align",
+    "default": "center",
+    "choices": [
+     {
+      "value": "left",
+      "title": "Left"
+     },
+     {
+      "value": "center",
+      "title": "Center"
+     },
+     {
+      "value": "right",
+      "title": "Right"
+     }
+    ]
+   },
+   {
+    "name": "yLabelFontSize",
+    "type": "Number",
+    "title": "Font size",
+    "default": 16
+   },
+   {
+    "name": "yLabelFontFace",
+    "type": "List",
+    "title": "Font face",
+    "default": "plain",
+    "choices": [
+     {
+      "value": "plain",
+      "title": "Plain"
+     },
+     {
+      "value": "bold",
+      "title": "Bold"
+     },
+     {
+      "value": "italic",
+      "title": "Italic"
+     },
+     {
+      "value": "bold-italic",
+      "title": "Bold Italic"
+     }
+    ]
+   },
+   {
+    "name": "titleType",
+    "type": "List",
+    "title": "titleType",
+    "default": "title",
+    "choices": [
+     {
+      "value": "title",
+      "title": "Plot Title"
+     },
+     {
+      "value": "subtitle",
+      "title": "Plot Subtitle"
+     },
+     {
+      "value": "caption",
+      "title": "Plot Caption"
+     },
+     {
+      "value": "xTitle",
+      "title": "X-Axis Title"
+     },
+     {
+      "value": "yTitle",
+      "title": "Y-Axis Title"
+     }
+    ]
+   },
+   {
+    "name": "yAxisLabelFontSize",
+    "type": "Number",
+    "title": "Label font size",
+    "default": 12
+   },
+   {
+    "name": "yAxisLabelRotation",
+    "type": "Number",
+    "title": "Label rotation",
+    "default": 0,
+    "min": 0,
+    "max": 360
+   },
+   {
+    "name": "xAxisLabelFontSize",
+    "type": "Number",
+    "title": "Label font size",
+    "default": 12
+   },
+   {
+    "name": "xAxisLabelRotation",
+    "type": "Number",
+    "title": "Label rotation",
+    "default": 0,
+    "min": 0,
+    "max": 360
+   }
+  ]
  }
 };

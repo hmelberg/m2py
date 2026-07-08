@@ -50,20 +50,33 @@ def main():
                 continue
             for a in doc.get('analyses', []):
                 name = a.get('name')
-                # scatr har duplikate menyoppføringer med menuGroup '.'/'More'
-                if name not in PHASE1 or a.get('menuGroup') in ('.', 'More'):
+                if name not in PHASE1:
                     continue
-                if name in specs:
-                    continue
-                opts = [convert_option(o) for o in a.get('options', [])]
-                specs[name] = {
-                    'name': name, 'ns': ns, 'title': a.get('title'),
-                    'menuGroup': a.get('menuGroup'),
-                    'menuSubgroup': a.get('menuSubgroup') or '',
-                    'menuTitle': a.get('menuTitle'),
-                    'menuSubtitle': a.get('menuSubtitle') or '',
-                    'options': [o for o in opts if o],
-                }
+                # scatr har duplikate oppføringer per analyse: én med
+                # menuGroup '.'/'More' som bærer hele options-listen, og én
+                # menyplasserings-stub (f.eks. 'Exploration') uten options.
+                # Flett: options fra oppføringen som har dem, menyfelter fra
+                # oppføringen som ikke er '.'/'More'.
+                opts = [o for o in (convert_option(o)
+                                    for o in a.get('options') or []) if o]
+                is_menu_entry = a.get('menuGroup') not in ('.', 'More')
+                spec = specs.get(name)
+                if spec is None:
+                    spec = specs[name] = {
+                        'name': name, 'ns': ns, 'title': a.get('title'),
+                        'menuGroup': None, 'menuSubgroup': '',
+                        'menuTitle': None, 'menuSubtitle': '',
+                        'options': [],
+                    }
+                if opts and not spec['options']:
+                    spec['options'] = opts
+                if is_menu_entry and spec['menuGroup'] is None:
+                    spec.update(
+                        title=a.get('title'),
+                        menuGroup=a.get('menuGroup'),
+                        menuSubgroup=a.get('menuSubgroup') or '',
+                        menuTitle=a.get('menuTitle'),
+                        menuSubtitle=a.get('menuSubtitle') or '')
     missing = [n for n in PHASE1 if n not in specs]
     if missing:
         raise SystemExit(f'Mangler analyser i YAML: {missing}')

@@ -16,6 +16,7 @@ def test_alle_fase1_analyser_er_med():
               'anovaNP', 'corrMatrix', 'linReg', 'logRegBin', 'propTestN', 'contTables',
               'scat', 'pareto']:
         assert n in s, n
+        assert len(s[n]['options']) > 0, f'{n} har ingen opsjoner'
 
 
 def test_ttestIS_opsjoner():
@@ -33,6 +34,17 @@ def test_descriptives_har_statistikk_og_plottopsjoner():
     names = [o['name'] for o in s['descriptives']['options']]
     for n in ['hist', 'box', 'violin', 'bar', 'sd', 'skew', 'kurt', 'pcValues', 'splitBy']:
         assert n in names, n
+
+
+def test_scat_har_opsjoner_og_riktig_meny():
+    s = load_specs()
+    assert s['scat']['menuGroup'] == 'Exploration'
+    scat_names = [o['name'] for o in s['scat']['options']]
+    for n in ['x', 'y', 'group']:
+        assert n in scat_names, n
+    assert s['pareto']['menuGroup'] == 'Exploration'
+    pareto_names = [o['name'] for o in s['pareto']['options']]
+    assert 'x' in pareto_names
 
 
 def test_menygrupper():
