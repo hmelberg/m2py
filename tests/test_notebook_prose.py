@@ -51,3 +51,26 @@ def test_syntax_error_returns_source_unchanged():
 def test_no_bare_strings_is_noop():
     src = "x = 1\nprint(x)"
     assert NP.prep_python_prose(src) == src
+
+def test_trailing_sibling_after_prose_survives():
+    src = '"""foo"""; print(1)'
+    out = _run(src)
+    assert START in out and END in out
+    assert "foo" in out
+    assert "1" in out
+    assert out.index(START) < out.index("1")
+
+def test_leading_sibling_before_prose_survives():
+    src = 'x = 1; """note"""\nprint(x)'
+    out = _run(src)
+    assert START in out
+    assert "note" in out
+    assert "1" in out
+
+def test_multiline_prose_with_trailing_sibling():
+    src = 'a = 5\n"""p1\np2"""; print(a*2)\n'
+    out = _run(src)
+    assert START in out and END in out
+    assert "p1" in out and "p2" in out
+    assert "10" in out
+    assert out.index(START) < out.index("10")

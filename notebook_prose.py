@@ -18,33 +18,36 @@ def _emit_line(text):
     return "print(%r)" % (payload,)               # repr escapes everything, reproduces exactly
 
 
+def _line_start_offsets(src):
+    """Absolute character offset of the start of each 1-based line."""
+    offsets = [0]
+    for line in src.splitlines(keepends=True):
+        offsets.append(offsets[-1] + len(line))
+    return offsets
+
+
+def _to_offset(line_starts, lineno, col_offset):
+    return line_starts[lineno - 1] + col_offset
+
+
 def prep_python_prose(src):
     try:
         tree = ast.parse(src)
     except SyntaxError:
         return src
-    spans = []  # (start_line_1based, end_line_1based, text)
+    spans = []  # (start_offset, end_offset, text)
+    line_starts = _line_start_offsets(src)
     for node in tree.body:
         if (isinstance(node, ast.Expr)
                 and isinstance(node.value, ast.Constant)
                 and isinstance(node.value.value, str)):
-            spans.append((node.lineno, node.end_lineno, node.value.value))
+            start = _to_offset(line_starts, node.lineno, node.col_offset)
+            end = _to_offset(line_starts, node.end_lineno, node.end_col_offset)
+            spans.append((start, end, node.value.value))
     if not spans:
         return src
 
-    lines = src.split("\n")
-    start_map = {s[0]: s for s in spans}          # 1-based start line -> span
-    covered = set()
-    for s in spans:
-        for ln in range(s[0], s[1] + 1):
-            covered.add(ln)
-
-    out = []
-    for i, line in enumerate(lines, start=1):
-        if i in start_map:
-            out.append(_emit_line(start_map[i][2]))
-        elif i in covered:
-            continue                              # inside a multi-line prose span already emitted
-        else:
-            out.append(line)
-    return "\n".join(out)
+    out = src
+    for start, end, text in sorted(spans, key=lambda s: s[0], reverse=True):
+        out = out[:start] + _emit_line(text) + out[end:]
+    return out
