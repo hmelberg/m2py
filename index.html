@@ -255,6 +255,7 @@
     <div class="resizer" id="resizer" title="Drag to resize"></div>
     <div class="panel panel-right">
       <div class="panel-content panel-content-output">
+        <button type="button" id="notebookShowCode" class="ai-modal-btn" style="display:none" data-i18n>‹ Vis kode</button>
         <div class="output-scroll-wrap" id="outputScrollWrap">
           <div class="output-area" id="outputArea"></div>
         </div>
@@ -436,15 +437,15 @@
 
   <div class="ai-modal-backdrop" id="welcomeBackdrop">
     <div class="ai-modal" style="max-width:600px;">
-      <h3 style="font-size:20px;" data-i18n>Velkommen til SafeStat!</h3>
-      <p style="margin:0 0 10px 0; font-size:16px; line-height:1.5;" data-i18n>
-        SafeStat er en side der du kan øve på å kjøre analyser i microdata.no-stil —
-        med støtte for kryptert, beskyttet og ekstern analyse.
-      </p>
-      <div class="ai-modal-help" style="margin-bottom:14px; font-size:14px; line-height:1.5;" data-i18n-html>
-        SafeStat inneholder ikke ekte tall. Det er et hobbyprosjekt og er
-        <strong>ikke</strong> laget av microdata.no selv. Den kommer uten garantier
-        for at analysene er korrekt implementert. Søsterversjonen
+      <h3 style="font-size:20px;" id="welcomeHeading" data-i18n>Velkommen til SafeStat!</h3>
+      <div id="welcomeBodyMicro" class="ai-modal-help" style="margin-bottom:14px; font-size:14px; line-height:1.5; display:none" data-i18n>
+        Øv på å kjøre analyser i microdata.no-stil. Inneholder ikke ekte tall; et hobbyprosjekt, ikke laget av microdata.no.
+      </div>
+      <div id="welcomeBodyOpen" class="ai-modal-help" style="margin-bottom:14px; font-size:14px; line-height:1.5; display:none" data-i18n>
+        OpenStat er en motor for å stille spørsmål som kan besvares med kode og statistikk — og for å se og endre koden som gir svaret. Skriv i Python, R, DuckDB eller microdata-stil; kjør i nettleseren.
+      </div>
+      <div id="welcomeBodySafe" class="ai-modal-help" style="margin-bottom:14px; font-size:14px; line-height:1.5; display:none" data-i18n-html>
+        SafeStat er en motor for å stille spørsmål som kan besvares med kode og statistikk — og for å se og endre koden som gir svaret. I tillegg kan SafeStat dele og gi tilgang til sensitive data: bare analyser som bruker et begrenset sett kommandoer slipper gjennom, slik at resultatene viser aggregater — aldri opplysninger om enkeltpersoner. Søsterversjonen
         <a href="https://github.com/hmelberg/openstat" target="_blank" rel="noopener">OpenStat</a>
         er en åpen, forenklet utgave uten innlogging.
       </div>
@@ -817,6 +818,8 @@
   <script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/js/tabulator.min.js" defer></script>
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
+  <script>window.M2PY_APP = 'safestat';</script>
+  <script src="js/notebook-links.js"></script>
   <script>
     // Fallback hvis js/i18n.js ikke lastet (404 e.l.): vis norsk uendret.
     window.t = window.t || function (s) { return s; };
@@ -1443,6 +1446,20 @@
       }
 
       function show() {
+        var _nlCls = window.NotebookLinks ? window.NotebookLinks.classifyHash(location.hash) : null;
+        var isOutputOnly = !!(_nlCls && _nlCls.action === 'output');
+        var variant = window.NotebookLinks
+          ? window.NotebookLinks.welcomeVariant(location.hostname, window.M2PY_APP || 'safestat', isOutputOnly)
+          : 'safestat_general';
+        if (variant === null) return;                 // output-only: no welcome
+        var _bodies = { microdata: 'welcomeBodyMicro', openstat_general: 'welcomeBodyOpen', safestat_general: 'welcomeBodySafe' };
+        ['welcomeBodyMicro', 'welcomeBodyOpen', 'welcomeBodySafe'].forEach(function (id) {
+          var el = document.getElementById(id); if (el) el.style.display = (id === _bodies[variant]) ? '' : 'none';
+        });
+        var _heading = document.getElementById('welcomeHeading');
+        if (_heading) _heading.textContent = (variant === 'microdata')
+          ? t('Velkommen!')
+          : t('Velkommen til {app}!', { app: (window.M2PY_APP === 'safestat' ? 'SafeStat' : 'OpenStat') });
         if (localStorage.getItem(LS_KEY) === '1') return;
         var bd = document.getElementById('welcomeBackdrop');
         var tipEl = document.getElementById('welcomeTipText');
@@ -2547,6 +2564,48 @@
         if (rightStatus) rightStatus.textContent = '';
       }
       window.mdClearOutput = clearOutput;
+
+      window.mdHasStoredSecret = function () {
+        try {
+          if (localStorage.getItem('md_anthropic_key')) return true;
+          if (localStorage.getItem('m2py_github_pat')) return true;
+          var p = localStorage.getItem('m2py_github_profiles');
+          if (p && /"pat"\s*:\s*"[^"]/.test(p)) return true;
+        } catch (_) {}
+        return false;
+      };
+
+      window.mdConfirmRun = function (sourceLabel) {
+        return new Promise(function (resolve) {
+          var ok = window.confirm(
+            t('Kjøre scriptet fra {src}? Det kjører kode i nettleseren din.', { src: sourceLabel || t('lenken') }));
+          resolve(!!ok);
+        });
+      };
+
+      window.mdShowCodeAffordance = function () {
+        var b = document.getElementById('notebookShowCode');
+        if (!b) return;
+        b.style.display = '';
+        b.onclick = function () { if (window.mdSetInputHidden) window.mdSetInputHidden(false); b.style.display = 'none'; };
+      };
+
+      window.mdNotebookMaybeAutorun = async function () {
+        var req = window.mdNotebookAutorun;
+        if (!req) return;
+        window.mdNotebookAutorun = null;                 // consume once
+        var app = window.M2PY_APP || 'safestat';
+        var needGate = window.NotebookLinks.autorunNeedsGate(app, window.mdHasStoredSecret());
+        if (needGate) {
+          var ok = await window.mdConfirmRun(req.url);
+          if (!ok) return;                               // declined: leave input/button untouched
+        }
+        if (window.mdSetInputHidden) window.mdSetInputHidden(true);   // output-only
+        window.mdShowCodeAffordance && window.mdShowCodeAffordance();
+        if (scriptRunInProgress) return;
+        document.getElementById('btnRun').click();
+      };
+
       const _menuClearOutput = document.getElementById('menuClearOutput');
       if (_menuClearOutput) _menuClearOutput.addEventListener('click', function() {
         clearOutput();
@@ -4054,11 +4113,18 @@
     // of always in 'microdata'. Falls back to 'microdata' for an unknown/
     // unregistered mode (e.g. 'jamovi', which is only registered lazily on
     // first activation and isn't in modeRegistry yet at boot).
+    // When no persisted mode exists, fall back to the hostname's default
+    // mode via NotebookLinks.hostnameMode() (js/notebook-links.js, loaded
+    // synchronously in <head> before this script, so window.NotebookLinks
+    // is already defined here).
     (function restoreEditorMode() {
       var saved = null;
       try { saved = localStorage.getItem('md_editor_mode'); } catch (e) {}
-      if (saved && Object.prototype.hasOwnProperty.call(modeRegistry, saved) && saved !== activeEditorMode) {
-        switchEditorMode(saved);
+      var mode = (saved && Object.prototype.hasOwnProperty.call(modeRegistry, saved))
+        ? saved
+        : (window.NotebookLinks ? window.NotebookLinks.hostnameMode(location.hostname) : 'microdata');
+      if (mode && mode !== activeEditorMode && Object.prototype.hasOwnProperty.call(modeRegistry, mode)) {
+        switchEditorMode(mode);
       }
     })();
     let webR = null, webRReady = false, webRLoading = false, webRShelter = null;
@@ -8183,14 +8249,15 @@ await micropip.install('plotly')
       setStatus(leftStatus, 'Fetching m2py, functions, mockdata modules and variable_metadata...');
       const base = window.location.href.replace(/[^/]+$/, '');
       const _cb = '?v=' + (window.M2PY_VERSION || '1');
-      const [m2pyResp, funcResp, metaResp, coreResp, realismResp, protectResp, staticSrcResp] = await Promise.all([
+      const [m2pyResp, funcResp, metaResp, coreResp, realismResp, protectResp, staticSrcResp, notebookProseResp] = await Promise.all([
         fetch(base + 'm2py.py' + _cb),
         fetch(base + 'functions.py' + _cb),
         fetch(base + 'variable_metadata.json' + _cb),
         fetch(base + 'mockdata_core.py' + _cb),
         fetch(base + 'mockdata_realism.py' + _cb),
         fetch(base + 'protect.py' + _cb).catch(function() { return { ok: false }; }),
-        fetch(base + 'static_source.py' + _cb).catch(function() { return { ok: false }; })
+        fetch(base + 'static_source.py' + _cb).catch(function() { return { ok: false }; }),
+        fetch(base + 'notebook_prose.py' + _cb).catch(function() { return { ok: false }; })
       ]);
       if (!m2pyResp.ok || !funcResp.ok) {
         throw new Error('Could not load m2py.py or functions.py. Run from a local server (e.g. python -m http.server) from the microdata folder.');
@@ -8238,6 +8305,21 @@ exec(compile(protect_code, "protect.py", "exec"), sys.modules["protect"].__dict_
 `);
           window.__protectLoaded = true;
         } catch (e) { console.warn('protect register:', e); }
+      }
+      // Register notebook_prose (prose->markdown transform for notebook links) — optional.
+      if (notebookProseResp && notebookProseResp.ok) {
+        try {
+          const notebookProseCode = await notebookProseResp.text();
+          setStatus(leftStatus, 'Registering notebook_prose...');
+          await pyodide.runPythonAsync(`
+import sys, importlib.util
+np_code = ${JSON.stringify(notebookProseCode)}
+spec_np = importlib.util.spec_from_loader("notebook_prose", loader=None)
+sys.modules["notebook_prose"] = importlib.util.module_from_spec(spec_np)
+exec(compile(np_code, "notebook_prose.py", "exec"), sys.modules["notebook_prose"].__dict__)
+`);
+          window.__notebookProseLoaded = true;
+        } catch (e) { console.warn('notebook_prose register:', e); }
       }
       // Register mockdata_core and mockdata_realism (used by m2py's realism dispatch).
       // Load order: mockdata_core (no deps) -> mockdata_realism (depends on core) -> m2py.
@@ -9193,12 +9275,16 @@ options(width = 200)
         // while Pyodide was still loading, don't reset the run buttons to idle
         // or auto-click Kjør — that click would be read as performRunInterrupt()
         // on the user's in-flight run (see the click handler below).
-        if (!scriptRunInProgress) {
+        var _nbCls = window.NotebookLinks ? window.NotebookLinks.classifyHash(location.hash) : null;
+        var _nbFrag = !!(_nbCls && _nbCls.kind !== 'share');
+        if (!scriptRunInProgress && !_nbFrag) {
           setRunButtonsUi('idle');
           // Auto-kjør starteksempelet hvis brukeren ikke har endret teksten
           if (scriptInput.value.trim() === _PLACEHOLDER.trim()) {
             document.getElementById('btnRun').click();
           }
+        } else if (!scriptRunInProgress) {
+          setRunButtonsUi('idle');
         }
         schedulePrefetchLazyPackages(py);
       })
@@ -9447,6 +9533,21 @@ options(width = 200)
         let segments = parseHybridScript(effectiveScript, runDefault);
         if (segments.length === 0 && effectiveScript.trim()) {
           segments = [{ kind: runDefault, text: effectiveScript }];
+        }
+        // Notebook prose: top-level bare strings (python) and #' blocks (R)
+        // become markdown embeds, interleaved with output in source order.
+        for (var _si = 0; _si < segments.length; _si++) {
+          var _seg = segments[_si];
+          if (_seg.kind === 'pyodide' && _seg.text) {
+            try {
+              py.globals.set('_np_src', _seg.text);
+              _seg.text = String(await py.runPythonAsync(
+                'import notebook_prose as _np; _np.prep_python_prose(_np_src)'));
+            } catch (e) { console.warn('prep_python_prose:', e); }
+          } else if (_seg.kind === 'r' && _seg.text && window.NotebookLinks) {
+            try { _seg.text = window.NotebookLinks.rProsePrep(_seg.text); }
+            catch (e) { console.warn('rProsePrep:', e); }
+          }
         }
         // If any segment is DuckDB SQL, make sure the bridge module is ready
         // before the Pyodide run loop reaches a #duckdb segment.
