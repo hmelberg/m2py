@@ -11,6 +11,14 @@
     return 'python';
   };
 
+  // True iff "micro" appears in the URL before any fragment (#). Drives the
+  // microdata-specific UI gating (Oversett, Vurder personvern, Søk om data,
+  // offline Python, disclosure/data-source/label/import settings, AI routing).
+  NL.urlHasMicro = function (href) {
+    var s = String(href == null ? '' : href).split('#')[0].toLowerCase();
+    return s.indexOf('micro') !== -1;
+  };
+
   var RAW_BASE = 'https://raw.githubusercontent.com/';
 
   // "user.repo.a.b.file.ext" -> [main url, master url]; null if it can't be a dotted ref.
