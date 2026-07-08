@@ -22,3 +22,45 @@ app double as a teaching companion to the book.
 Datasets bundled under `examples/lsj/` (27 CSVs). A curated subset is offered in the
 example picker (`JAMOVI_EXAMPLES` in `js/modes/jamovi.js`); the rest are available by
 filename.
+
+## 2026-07-09 — jmv-motoren, fase 1 (jmv 2.7.7 i webR v0.6.0, R 4.6)
+
+jamovi-modus 2.0 kjører de ekte jmv-analysefunksjonene (`jmv::ttestIS`,
+`jmv::anovaOneW`, `jmv::corrMatrix`, `jmv::linReg`, `jmv::contTables`, `jmv::propTestN`,
+`jmv::descriptives`, `scatr::scatr`) via webR, med et spec-drevet opsjonspanel og en
+generisk resultatrenderer (se `docs/superpowers/specs/2026-06-27-jamovi-mode-design.md`
+og `docs/superpowers/plans/2026-06-27-jamovi-mode.md`). Nedenfor er sjekklisten for
+manuell validering mot jamovi-skrivebordsappen — hver rad krysses av etter side-om-side-
+sammenligning.
+
+### Sjekkliste
+
+| Datasett | Analyse | Opsjoner | Status |
+|---|---|---|---|
+| harpo | Independent Samples T-Test | Welch's + effect size + descriptives | til manuell kontroll |
+| chico | Paired Samples T-Test | Wilcoxon rank | til manuell kontroll |
+| zeppo | One Sample T-Test | — | til manuell kontroll |
+| clinicaltrial | One-Way ANOVA | Tukey post hoc + Levene | til manuell kontroll |
+| parenthood | Correlation Matrix + Linear Regression | CI + std. estimate | til manuell kontroll |
+| parenthood | Scatter Plot (scat) | grupper/regresjonslinje | til manuell kontroll |
+| agpp | Contingency Tables | Expected + Cramér's V | til manuell kontroll |
+| cards | Proportion Test (N Outcomes) | — | til manuell kontroll |
+| (valgfritt datasett) | Descriptives | splitBy + hist + violin + freq | til manuell kontroll |
+
+### Kjente begrensninger i fase 1
+
+- Pareto Plot fjernet (finnes ikke i wasm-scatr 1.0.1; fase 2 når nyere scatr bygges
+  som wasm)
+- Bayes factor-opsjoner (bf/bfPrior i t-tester) kan feile: BayesFactor→hypergeo→deSolve
+  mangler wasm-binær — utestet
+- contTables virker via fabrikkert websocket-stub (`.jmv_install_stubs` i
+  `js/modes/jmv_helpers.R`)
+- «Terms»-opsjoner (anova modelTerms, linReg blocks) bruker jmv sine R-defaults; ingen
+  UI ennå
+- Første lasting av jmv-motoren: ~170 MB (engangs; caches av service worker `m2py-v7`)
+
+### Hvordan teste
+
+Bytt til jamovi-modus, hamburger → «Åpne eksempeldatasett…», velg datasett, åpne
+analysen fra menyen, tilordne variabler — resultatet oppdateres live; sammenlign
+tall/kolonner mot samme analyse i jamovi-appen (`/Applications/jamovi.app`).
