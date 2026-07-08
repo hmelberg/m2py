@@ -3986,8 +3986,14 @@
     const scriptInput = document.getElementById('scriptInput');
     const outputArea = document.getElementById('outputArea');
 
-    // ── Starteksempel og auto-fokus ─────────────────────────────────────────
-    const _PLACEHOLDER = [
+    // ── Starteksempler (per modus) ──────────────────────────────────────────
+    // NB: activeEditorMode is declared further down (`let activeEditorMode`) and
+    // finalized by the restoreEditorMode() IIFE right after it (persisted mode /
+    // hostname default). The actual seed-into-editor step therefore lives there,
+    // not here — referencing activeEditorMode this early would hit the TDZ
+    // (ReferenceError) and abort this whole inline script. This block only
+    // builds the per-mode example map (pure data, no such dependency).
+    const _PLACEHOLDER_MICRODATA = [
       t('// Velkommen!'),
       t('// Dette er en side der du kan øve på å kjøre analyser i microdata.no.'),
       '',
@@ -4012,13 +4018,39 @@
       t('tabulate kjonn    // Tabellen viser fordelingen mellom kjønnene i datasettet'),
       t('barchart kjonn    // Til slutt lager vi et stolpediagram over kjønnsfordelingen'),
     ].join('\n');
-    if (!scriptInput.value.trim()) {
-      scriptInput.value = _PLACEHOLDER;
-      if (window.updateLineNumbers) window.updateLineNumbers();
-    }
-    scriptInput.scrollTop = 0;
-    scriptInput.selectionStart = scriptInput.selectionEnd = 0;
-    scriptInput.focus();
+
+    // Repo raw base for committed sample data (SafeStat; OpenStat swaps the repo).
+    const _DATA_RAW = 'https://raw.githubusercontent.com/hmelberg/safestat/main/data/';
+
+    const _STARTUP_PY = [
+      '# SafeStat — a quick example. Edit it freely, or pick another under "Examples".',
+      '# Two ways to load data: the `# load` directive (below), or plain pandas.',
+      '# load ' + _DATA_RAW + 'iris.csv as iris',
+      '# (equivalent: iris = pd.read_csv("' + _DATA_RAW + 'iris.csv"))',
+      '',
+      '# A table — mean measurements per species:',
+      'iris.groupby("species").mean(numeric_only=True).round(2)',
+      '',
+      '# A barplot — how many flowers of each species:',
+      'import matplotlib.pyplot as plt',
+      'iris["species"].value_counts().plot.bar()',
+      'plt.title("Iris — count per species"); plt.ylabel("count"); plt.show()',
+    ].join('\n');
+
+    const _STARTUP_R = [
+      '# SafeStat — a quick example. Edit it freely, or pick another under "Examples".',
+      '# Two ways to load data: the `# load` directive (below), or plain read.csv().',
+      '# load ' + _DATA_RAW + 'iris.csv as iris',
+      '# (equivalent: iris <- read.csv("' + _DATA_RAW + 'iris.csv"))',
+      '',
+      '# A table — mean measurements per species:',
+      'aggregate(. ~ species, data = iris, FUN = mean)',
+      '',
+      '# A barplot — how many flowers of each species:',
+      'barplot(table(iris$species), main = "Iris — count per species", ylab = "count")',
+    ].join('\n');
+
+    const STARTUP_EXAMPLES = { python: _STARTUP_PY, r: _STARTUP_R, microdata: _PLACEHOLDER_MICRODATA };
 
     // ── Hurtigspør-boks i toppen: Enter åpner AI-panelet og sender spørsmålet ──
     (function initTopbarAsk() {
@@ -4127,6 +4159,22 @@
         switchEditorMode(mode);
       }
     })();
+
+    // ── Starteksempel og auto-fokus ─────────────────────────────────────────
+    // Runs after restoreEditorMode() so activeEditorMode already reflects the
+    // persisted/hostname mode, and only seeds when the editor is empty (no
+    // stashed script) and there's no notebook-link fragment about to load its
+    // own content on window 'load' (openFromFragment would just overwrite it).
+    var _fragNow = window.NotebookLinks ? window.NotebookLinks.classifyHash(location.hash) : null;
+    var _hasFrag = !!(_fragNow && _fragNow.kind !== 'share');
+    if (!scriptInput.value.trim() && !_hasFrag) {
+      scriptInput.value = STARTUP_EXAMPLES[activeEditorMode] || STARTUP_EXAMPLES.python;
+      if (window.updateLineNumbers) window.updateLineNumbers();
+    }
+    scriptInput.scrollTop = 0;
+    scriptInput.selectionStart = scriptInput.selectionEnd = 0;
+    scriptInput.focus();
+
     let webR = null, webRReady = false, webRLoading = false, webRShelter = null;
     let py2mReady = false;
     let pdexplorerReady = false, pdexplorerLoading = false;
@@ -9280,7 +9328,7 @@ options(width = 200)
         if (!scriptRunInProgress && !_nbFrag) {
           setRunButtonsUi('idle');
           // Auto-kjør starteksempelet hvis brukeren ikke har endret teksten
-          if (scriptInput.value.trim() === _PLACEHOLDER.trim()) {
+          if (scriptInput.value.trim() === (STARTUP_EXAMPLES[activeEditorMode] || STARTUP_EXAMPLES.python).trim()) {
             document.getElementById('btnRun').click();
           }
         } else if (!scriptRunInProgress) {
