@@ -8248,14 +8248,15 @@ await micropip.install('plotly')
       setStatus(leftStatus, 'Fetching m2py, functions, mockdata modules and variable_metadata...');
       const base = window.location.href.replace(/[^/]+$/, '');
       const _cb = '?v=' + (window.M2PY_VERSION || '1');
-      const [m2pyResp, funcResp, metaResp, coreResp, realismResp, protectResp, staticSrcResp] = await Promise.all([
+      const [m2pyResp, funcResp, metaResp, coreResp, realismResp, protectResp, staticSrcResp, notebookProseResp] = await Promise.all([
         fetch(base + 'm2py.py' + _cb),
         fetch(base + 'functions.py' + _cb),
         fetch(base + 'variable_metadata.json' + _cb),
         fetch(base + 'mockdata_core.py' + _cb),
         fetch(base + 'mockdata_realism.py' + _cb),
         fetch(base + 'protect.py' + _cb).catch(function() { return { ok: false }; }),
-        fetch(base + 'static_source.py' + _cb).catch(function() { return { ok: false }; })
+        fetch(base + 'static_source.py' + _cb).catch(function() { return { ok: false }; }),
+        fetch(base + 'notebook_prose.py' + _cb).catch(function() { return { ok: false }; })
       ]);
       if (!m2pyResp.ok || !funcResp.ok) {
         throw new Error('Could not load m2py.py or functions.py. Run from a local server (e.g. python -m http.server) from the microdata folder.');
@@ -8303,6 +8304,21 @@ exec(compile(protect_code, "protect.py", "exec"), sys.modules["protect"].__dict_
 `);
           window.__protectLoaded = true;
         } catch (e) { console.warn('protect register:', e); }
+      }
+      // Register notebook_prose (prose->markdown transform for notebook links) — optional.
+      if (notebookProseResp && notebookProseResp.ok) {
+        try {
+          const notebookProseCode = await notebookProseResp.text();
+          setStatus(leftStatus, 'Registering notebook_prose...');
+          await pyodide.runPythonAsync(`
+import sys, importlib.util
+np_code = ${JSON.stringify(notebookProseCode)}
+spec_np = importlib.util.spec_from_loader("notebook_prose", loader=None)
+sys.modules["notebook_prose"] = importlib.util.module_from_spec(spec_np)
+exec(compile(np_code, "notebook_prose.py", "exec"), sys.modules["notebook_prose"].__dict__)
+`);
+          window.__notebookProseLoaded = true;
+        } catch (e) { console.warn('notebook_prose register:', e); }
       }
       // Register mockdata_core and mockdata_realism (used by m2py's realism dispatch).
       // Load order: mockdata_core (no deps) -> mockdata_realism (depends on core) -> m2py.
@@ -9512,6 +9528,21 @@ options(width = 200)
         let segments = parseHybridScript(effectiveScript, runDefault);
         if (segments.length === 0 && effectiveScript.trim()) {
           segments = [{ kind: runDefault, text: effectiveScript }];
+        }
+        // Notebook prose: top-level bare strings (python) and #' blocks (R)
+        // become markdown embeds, interleaved with output in source order.
+        for (var _si = 0; _si < segments.length; _si++) {
+          var _seg = segments[_si];
+          if (_seg.kind === 'pyodide' && _seg.text) {
+            try {
+              py.globals.set('_np_src', _seg.text);
+              _seg.text = String(await py.runPythonAsync(
+                'import notebook_prose as _np; _np.prep_python_prose(_np_src)'));
+            } catch (e) { console.warn('prep_python_prose:', e); }
+          } else if (_seg.kind === 'r' && _seg.text && window.NotebookLinks) {
+            try { _seg.text = window.NotebookLinks.rProsePrep(_seg.text); }
+            catch (e) { console.warn('rProsePrep:', e); }
+          }
         }
         // If any segment is DuckDB SQL, make sure the bridge module is ready
         // before the Pyodide run loop reaches a #duckdb segment.
