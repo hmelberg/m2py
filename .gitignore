@@ -16,6 +16,7 @@ Notater og mulige issues.md
 
 # Editor / IDE
 .claude/
+.playwright-mcp/
 .vscode/
 .idea/
 *.swp
