@@ -14,7 +14,7 @@ def test_alle_fase1_analyser_er_med():
     s = load_specs()
     for n in ['descriptives', 'ttestIS', 'ttestPS', 'ttestOneS', 'anovaOneW', 'anova',
               'anovaNP', 'corrMatrix', 'linReg', 'logRegBin', 'propTestN', 'contTables',
-              'scat', 'pareto']:
+              'scat']:
         assert n in s, n
         assert len(s[n]['options']) > 0, f'{n} har ingen opsjoner'
 
@@ -42,9 +42,6 @@ def test_scat_har_opsjoner_og_riktig_meny():
     scat_names = [o['name'] for o in s['scat']['options']]
     for n in ['x', 'y', 'group']:
         assert n in scat_names, n
-    assert s['pareto']['menuGroup'] == 'Exploration'
-    pareto_names = [o['name'] for o in s['pareto']['options']]
-    assert 'x' in pareto_names
 
 
 def test_menygrupper():

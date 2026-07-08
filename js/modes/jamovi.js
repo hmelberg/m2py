@@ -576,7 +576,7 @@
       return spec.ns + '::' + spec.name + '(' + args.join(', ') + ')';
     }
 
-    async function runJmvAnalysis(spec, values, cardWrap) {
+    async function runJmvAnalysis(spec, values, cardWrap, shouldRender) {
       await ensureJmvLoaded();
       await ensureJamoviDataInWebR();
       // Nominale mål-overstyringer fra Variabler-fanen -> factor() i en lokal kopi
@@ -594,6 +594,7 @@
           .map(function (m) { return m.data; }).join('\n');
         var idx = text.lastIndexOf('##JMV##');
         if (idx === -1) throw new Error(T('Fikk ikke resultat fra jmv'));
+        if (shouldRender && !shouldRender()) return;
         renderJmvResults(cardWrap, JSON.parse(text.slice(idx + 7)), cap.images || [], call);
       } finally { if (cap.cleanup) await cap.cleanup(); }
     }
@@ -746,8 +747,9 @@
           if (running) { rerunWanted = true; return; }
           running = true;
           try {
-            await runJmvAnalysis(spec, values, cardWrap);
-            if (myGen !== jmvDialogGen) return; // Fix B: bail if superseded mid-run
+            // Fix B: pass a live gen check so a stale dialog's result never renders,
+            // even though the R call already ran to completion.
+            await runJmvAnalysis(spec, values, cardWrap, function () { return myGen === jmvDialogGen; });
           }
           catch (e) {
             if (myGen !== jmvDialogGen) return; // Fix B: don't mutate a stale/closed dialog's card
@@ -955,7 +957,6 @@
         +   '<button type="button" class="jmv-ribbon-btn" data-fig="violin">Violin</button>'
         +   '<button type="button" class="jmv-ribbon-btn" data-fig="bar">Bar Plot</button>'
         +   '<button type="button" class="jmv-ribbon-btn" data-fig="scat">Scatter Plot</button>'
-        +   '<button type="button" class="jmv-ribbon-btn" data-fig="pareto">Pareto Plot</button>'
         + '</div>'
         + '<div class="jmv-panel" data-jpanel="edit" hidden><span class="jmv-ribbon-hint">Data redigeres via skript (Microdata/Python/R/Stata), ikke direkte i jamovi-modus.</span></div>'
         + '</div>';
@@ -1022,8 +1023,7 @@
         box:    { an: 'descriptives', preset: { box: true } },
         violin: { an: 'descriptives', preset: { box: true, violin: true } },
         bar:    { an: 'descriptives', preset: { bar: true } },
-        scat:   { an: 'scat', preset: {} },
-        pareto: { an: 'pareto', preset: {} }
+        scat:   { an: 'scat', preset: {} }
       };
       rib.querySelectorAll('.jmv-ribbon-btn[data-fig]').forEach(function (b) {
         b.addEventListener('click', function () {
