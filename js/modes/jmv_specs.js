@@ -1,0 +1,2161 @@
+// GENERERT av tools/gen_jmv_specs.py — ikke rediger for hånd.
+window.JMV_SPECS = {
+ "descriptives": {
+  "name": "descriptives",
+  "ns": "jmv",
+  "title": "Descriptives",
+  "menuGroup": "Exploration",
+  "menuSubgroup": "",
+  "menuTitle": "Descriptives",
+  "menuSubtitle": "",
+  "options": [
+   {
+    "name": "vars",
+    "type": "Variables",
+    "title": "Variables",
+    "default": null,
+    "suggested": [],
+    "permitted": [
+     "numeric",
+     "factor",
+     "id"
+    ]
+   },
+   {
+    "name": "splitBy",
+    "type": "Variables",
+    "title": "Split by",
+    "default": null,
+    "suggested": [
+     "nominal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "freq",
+    "type": "Bool",
+    "title": "Frequency tables",
+    "default": false
+   },
+   {
+    "name": "desc",
+    "type": "List",
+    "title": "Descriptives",
+    "default": "columns",
+    "choices": [
+     {
+      "value": "rows",
+      "title": "Variables across rows"
+     },
+     {
+      "value": "columns",
+      "title": "Variables across columns"
+     }
+    ]
+   },
+   {
+    "name": "hist",
+    "type": "Bool",
+    "title": "Histogram",
+    "default": false
+   },
+   {
+    "name": "dens",
+    "type": "Bool",
+    "title": "Density",
+    "default": false
+   },
+   {
+    "name": "bar",
+    "type": "Bool",
+    "title": "Bar plot",
+    "default": false
+   },
+   {
+    "name": "box",
+    "type": "Bool",
+    "title": "Box plot",
+    "default": false
+   },
+   {
+    "name": "violin",
+    "type": "Bool",
+    "title": "Violin",
+    "default": false
+   },
+   {
+    "name": "dot",
+    "type": "Bool",
+    "title": "Data",
+    "default": false
+   },
+   {
+    "name": "dotType",
+    "type": "List",
+    "title": "dotType",
+    "default": "jitter",
+    "choices": [
+     {
+      "value": "jitter",
+      "title": "Jittered"
+     },
+     {
+      "value": "stack",
+      "title": "Stacked"
+     }
+    ]
+   },
+   {
+    "name": "boxMean",
+    "type": "Bool",
+    "title": "Mean",
+    "default": false
+   },
+   {
+    "name": "boxLabelOutliers",
+    "type": "Bool",
+    "title": "Label outliers",
+    "default": true
+   },
+   {
+    "name": "qq",
+    "type": "Bool",
+    "title": "Q-Q plot",
+    "default": false
+   },
+   {
+    "name": "n",
+    "type": "Bool",
+    "title": "N",
+    "default": true
+   },
+   {
+    "name": "missing",
+    "type": "Bool",
+    "title": "Missing",
+    "default": true
+   },
+   {
+    "name": "mean",
+    "type": "Bool",
+    "title": "Mean",
+    "default": true
+   },
+   {
+    "name": "median",
+    "type": "Bool",
+    "title": "Median",
+    "default": true
+   },
+   {
+    "name": "mode",
+    "type": "Bool",
+    "title": "Mode",
+    "default": false
+   },
+   {
+    "name": "sum",
+    "type": "Bool",
+    "title": "Sum",
+    "default": false
+   },
+   {
+    "name": "sd",
+    "type": "Bool",
+    "title": "Standard deviation",
+    "default": true
+   },
+   {
+    "name": "variance",
+    "type": "Bool",
+    "title": "Variance",
+    "default": false
+   },
+   {
+    "name": "range",
+    "type": "Bool",
+    "title": "Range",
+    "default": false
+   },
+   {
+    "name": "min",
+    "type": "Bool",
+    "title": "Minimum",
+    "default": true
+   },
+   {
+    "name": "max",
+    "type": "Bool",
+    "title": "Maximum",
+    "default": true
+   },
+   {
+    "name": "se",
+    "type": "Bool",
+    "title": "Standard error",
+    "default": false
+   },
+   {
+    "name": "ci",
+    "type": "Bool",
+    "title": "Confidence Interval",
+    "default": false
+   },
+   {
+    "name": "ciWidth",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "iqr",
+    "type": "Bool",
+    "title": "IQR",
+    "default": false
+   },
+   {
+    "name": "skew",
+    "type": "Bool",
+    "title": "Skewness",
+    "default": false
+   },
+   {
+    "name": "kurt",
+    "type": "Bool",
+    "title": "Kurtosis",
+    "default": false
+   },
+   {
+    "name": "sw",
+    "type": "Bool",
+    "title": "Shapiro-Wilk",
+    "default": false
+   },
+   {
+    "name": "pcEqGr",
+    "type": "Bool",
+    "title": "Cut points for",
+    "default": false
+   },
+   {
+    "name": "pcNEqGr",
+    "type": "Integer",
+    "title": "Cut point values",
+    "default": 4,
+    "min": 2,
+    "max": 10
+   },
+   {
+    "name": "pc",
+    "type": "Bool",
+    "title": "Percentile",
+    "default": false
+   },
+   {
+    "name": "pcValues",
+    "type": "String",
+    "title": "Percentile values",
+    "default": "25,50,75"
+   },
+   {
+    "name": "extreme",
+    "type": "Bool",
+    "title": "Extreme values",
+    "default": false
+   },
+   {
+    "name": "extremeN",
+    "type": "Integer",
+    "title": "Number of extreme values",
+    "default": 5,
+    "min": 1,
+    "max": 20
+   }
+  ]
+ },
+ "ttestIS": {
+  "name": "ttestIS",
+  "ns": "jmv",
+  "title": "Independent Samples T-Test",
+  "menuGroup": "T-Tests",
+  "menuSubgroup": "",
+  "menuTitle": "Independent Samples T-Test",
+  "menuSubtitle": "",
+  "options": [
+   {
+    "name": "vars",
+    "type": "Variables",
+    "title": "Dependent Variables",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "group",
+    "type": "Variable",
+    "title": "Grouping Variable",
+    "default": null,
+    "suggested": [
+     "nominal",
+     "ordinal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "students",
+    "type": "Bool",
+    "title": "Student's",
+    "default": true
+   },
+   {
+    "name": "bf",
+    "type": "Bool",
+    "title": "Bayes factor",
+    "default": false
+   },
+   {
+    "name": "bfPrior",
+    "type": "Number",
+    "title": "Prior width",
+    "default": 0.707,
+    "min": 0.01,
+    "max": 2
+   },
+   {
+    "name": "welchs",
+    "type": "Bool",
+    "title": "Welch's",
+    "default": false
+   },
+   {
+    "name": "mann",
+    "type": "Bool",
+    "title": "Mann-Whitney U",
+    "default": false
+   },
+   {
+    "name": "hypothesis",
+    "type": "List",
+    "title": "Alternative hypothesis",
+    "default": "different",
+    "choices": [
+     {
+      "value": "different",
+      "title": "Group 1 ≠ Group 2"
+     },
+     {
+      "value": "oneGreater",
+      "title": "Group 1 > Group 2"
+     },
+     {
+      "value": "twoGreater",
+      "title": "Group 1 < Group 2"
+     }
+    ]
+   },
+   {
+    "name": "norm",
+    "type": "Bool",
+    "title": "Normality test",
+    "default": false
+   },
+   {
+    "name": "qq",
+    "type": "Bool",
+    "title": "Q-Q plot",
+    "default": false
+   },
+   {
+    "name": "eqv",
+    "type": "Bool",
+    "title": "Homogeneity test",
+    "default": false
+   },
+   {
+    "name": "meanDiff",
+    "type": "Bool",
+    "title": "Mean difference",
+    "default": false
+   },
+   {
+    "name": "ci",
+    "type": "Bool",
+    "title": "Confidence Interval",
+    "default": false
+   },
+   {
+    "name": "ciWidth",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "effectSize",
+    "type": "Bool",
+    "title": "Effect Size",
+    "default": false
+   },
+   {
+    "name": "ciES",
+    "type": "Bool",
+    "title": "Confidence Interval",
+    "default": false
+   },
+   {
+    "name": "ciWidthES",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "desc",
+    "type": "Bool",
+    "title": "Descriptives Table",
+    "default": false
+   },
+   {
+    "name": "plots",
+    "type": "Bool",
+    "title": "Descriptives Plots",
+    "default": false
+   },
+   {
+    "name": "miss",
+    "type": "List",
+    "title": "Missing values",
+    "default": "perAnalysis",
+    "choices": [
+     {
+      "value": "perAnalysis",
+      "title": "perAnalysis"
+     },
+     {
+      "value": "listwise",
+      "title": "listwise"
+     }
+    ]
+   }
+  ]
+ },
+ "ttestPS": {
+  "name": "ttestPS",
+  "ns": "jmv",
+  "title": "Paired Samples T-Test",
+  "menuGroup": "T-Tests",
+  "menuSubgroup": "",
+  "menuTitle": "Paired Samples T-Test",
+  "menuSubtitle": "",
+  "options": [
+   {
+    "name": "pairs",
+    "type": "Pairs",
+    "title": "Paired Variables",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "students",
+    "type": "Bool",
+    "title": "Student's test",
+    "default": true
+   },
+   {
+    "name": "bf",
+    "type": "Bool",
+    "title": "Bayes factor",
+    "default": false
+   },
+   {
+    "name": "bfPrior",
+    "type": "Number",
+    "title": "Prior width",
+    "default": 0.707,
+    "min": 0.5,
+    "max": 2
+   },
+   {
+    "name": "wilcoxon",
+    "type": "Bool",
+    "title": "Wilcoxon signed rank test",
+    "default": false
+   },
+   {
+    "name": "hypothesis",
+    "type": "List",
+    "title": "Alternative hypothesis",
+    "default": "different",
+    "choices": [
+     {
+      "value": "different",
+      "title": "different"
+     },
+     {
+      "value": "oneGreater",
+      "title": "oneGreater"
+     },
+     {
+      "value": "twoGreater",
+      "title": "twoGreater"
+     }
+    ]
+   },
+   {
+    "name": "norm",
+    "type": "Bool",
+    "title": "Normality test",
+    "default": false
+   },
+   {
+    "name": "qq",
+    "type": "Bool",
+    "title": "Q-Q Plot",
+    "default": false
+   },
+   {
+    "name": "meanDiff",
+    "type": "Bool",
+    "title": "Mean difference",
+    "default": false
+   },
+   {
+    "name": "ci",
+    "type": "Bool",
+    "title": "Confidence Interval",
+    "default": false
+   },
+   {
+    "name": "ciWidth",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "effectSize",
+    "type": "Bool",
+    "title": "Effect Size",
+    "default": false
+   },
+   {
+    "name": "ciES",
+    "type": "Bool",
+    "title": "Confidence Interval",
+    "default": false
+   },
+   {
+    "name": "ciWidthES",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "desc",
+    "type": "Bool",
+    "title": "Descriptives Table",
+    "default": false
+   },
+   {
+    "name": "plots",
+    "type": "Bool",
+    "title": "Descriptives Plots",
+    "default": false
+   },
+   {
+    "name": "miss",
+    "type": "List",
+    "title": "Missing values",
+    "default": "perAnalysis",
+    "choices": [
+     {
+      "value": "perAnalysis",
+      "title": "perAnalysis"
+     },
+     {
+      "value": "listwise",
+      "title": "listwise"
+     }
+    ]
+   }
+  ]
+ },
+ "ttestOneS": {
+  "name": "ttestOneS",
+  "ns": "jmv",
+  "title": "One Sample T-Test",
+  "menuGroup": "T-Tests",
+  "menuSubgroup": "",
+  "menuTitle": "One Sample T-Test",
+  "menuSubtitle": "",
+  "options": [
+   {
+    "name": "vars",
+    "type": "Variables",
+    "title": "Dependent Variables",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "students",
+    "type": "Bool",
+    "title": "Student's test",
+    "default": true
+   },
+   {
+    "name": "bf",
+    "type": "Bool",
+    "title": "Bayes factor",
+    "default": false
+   },
+   {
+    "name": "bfPrior",
+    "type": "Number",
+    "title": "Prior width",
+    "default": 0.707,
+    "min": 0.5,
+    "max": 2
+   },
+   {
+    "name": "wilcoxon",
+    "type": "Bool",
+    "title": "Wilcoxon signed rank test",
+    "default": false
+   },
+   {
+    "name": "testValue",
+    "type": "Number",
+    "title": "Test Value",
+    "default": 0
+   },
+   {
+    "name": "hypothesis",
+    "type": "List",
+    "title": "Alternative hypothesis",
+    "default": "dt",
+    "choices": [
+     {
+      "value": "dt",
+      "title": "dt"
+     },
+     {
+      "value": "gt",
+      "title": "gt"
+     },
+     {
+      "value": "lt",
+      "title": "lt"
+     }
+    ]
+   },
+   {
+    "name": "norm",
+    "type": "Bool",
+    "title": "Normality test",
+    "default": false
+   },
+   {
+    "name": "qq",
+    "type": "Bool",
+    "title": "Q-Q Plot",
+    "default": false
+   },
+   {
+    "name": "meanDiff",
+    "type": "Bool",
+    "title": "Mean difference",
+    "default": false
+   },
+   {
+    "name": "ci",
+    "type": "Bool",
+    "title": "Confidence Interval",
+    "default": false
+   },
+   {
+    "name": "ciWidth",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "effectSize",
+    "type": "Bool",
+    "title": "Effect size",
+    "default": false
+   },
+   {
+    "name": "ciES",
+    "type": "Bool",
+    "title": "Confidence Interval",
+    "default": false
+   },
+   {
+    "name": "ciWidthES",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "desc",
+    "type": "Bool",
+    "title": "Descriptives Table",
+    "default": false
+   },
+   {
+    "name": "plots",
+    "type": "Bool",
+    "title": "Descriptives Plots",
+    "default": false
+   },
+   {
+    "name": "miss",
+    "type": "List",
+    "title": "Missing values",
+    "default": "perAnalysis",
+    "choices": [
+     {
+      "value": "perAnalysis",
+      "title": "perAnalysis"
+     },
+     {
+      "value": "listwise",
+      "title": "listwise"
+     }
+    ]
+   }
+  ]
+ },
+ "anovaOneW": {
+  "name": "anovaOneW",
+  "ns": "jmv",
+  "title": "One-Way ANOVA",
+  "menuGroup": "ANOVA",
+  "menuSubgroup": "",
+  "menuTitle": "One-Way ANOVA",
+  "menuSubtitle": "",
+  "options": [
+   {
+    "name": "deps",
+    "type": "Variables",
+    "title": "Dependent Variables",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "group",
+    "type": "Variable",
+    "title": "Grouping Variable",
+    "default": null,
+    "suggested": [
+     "nominal",
+     "ordinal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "welchs",
+    "type": "Bool",
+    "title": "Don't assume equal (Welch's)",
+    "default": true
+   },
+   {
+    "name": "fishers",
+    "type": "Bool",
+    "title": "Assume equal (Fisher's)",
+    "default": false
+   },
+   {
+    "name": "miss",
+    "type": "List",
+    "title": "Missing values exclusion method",
+    "default": "perAnalysis",
+    "choices": [
+     {
+      "value": "perAnalysis",
+      "title": "perAnalysis"
+     },
+     {
+      "value": "listwise",
+      "title": "listwise"
+     }
+    ]
+   },
+   {
+    "name": "desc",
+    "type": "Bool",
+    "title": "Descriptives table",
+    "default": false
+   },
+   {
+    "name": "descPlot",
+    "type": "Bool",
+    "title": "Descriptives plots",
+    "default": false
+   },
+   {
+    "name": "norm",
+    "type": "Bool",
+    "title": "Normality test",
+    "default": false
+   },
+   {
+    "name": "qq",
+    "type": "Bool",
+    "title": "Q-Q Plot",
+    "default": false
+   },
+   {
+    "name": "eqv",
+    "type": "Bool",
+    "title": "Homogeneity test",
+    "default": false
+   },
+   {
+    "name": "phMethod",
+    "type": "List",
+    "title": "Post-Hoc Tests",
+    "default": "none",
+    "choices": [
+     {
+      "value": "none",
+      "title": "none"
+     },
+     {
+      "value": "gamesHowell",
+      "title": "gamesHowell"
+     },
+     {
+      "value": "tukey",
+      "title": "tukey"
+     }
+    ]
+   },
+   {
+    "name": "phMeanDif",
+    "type": "Bool",
+    "title": "Mean difference",
+    "default": true
+   },
+   {
+    "name": "phSig",
+    "type": "Bool",
+    "title": "Report significance",
+    "default": true
+   },
+   {
+    "name": "phTest",
+    "type": "Bool",
+    "title": "Test results (t and df)",
+    "default": false
+   },
+   {
+    "name": "phFlag",
+    "type": "Bool",
+    "title": "Flag significant comparisons",
+    "default": false
+   }
+  ]
+ },
+ "anova": {
+  "name": "anova",
+  "ns": "jmv",
+  "title": "ANOVA",
+  "menuGroup": "ANOVA",
+  "menuSubgroup": "",
+  "menuTitle": "ANOVA",
+  "menuSubtitle": "",
+  "options": [
+   {
+    "name": "dep",
+    "type": "Variable",
+    "title": "Dependent Variable",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "factors",
+    "type": "Variables",
+    "title": "Fixed Factors",
+    "default": null,
+    "suggested": [
+     "nominal",
+     "ordinal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "effectSize",
+    "type": "NMXList",
+    "title": "Effect Size",
+    "default": null
+   },
+   {
+    "name": "modelTest",
+    "type": "Bool",
+    "title": "Overall model test",
+    "default": false
+   },
+   {
+    "name": "modelTerms",
+    "type": "Terms",
+    "title": "Model Terms",
+    "default": null
+   },
+   {
+    "name": "ss",
+    "type": "List",
+    "title": "Sum of squares",
+    "default": "3",
+    "choices": [
+     {
+      "value": "1",
+      "title": "Type 1"
+     },
+     {
+      "value": "2",
+      "title": "Type 2"
+     },
+     {
+      "value": "3",
+      "title": "Type 3"
+     }
+    ]
+   },
+   {
+    "name": "homo",
+    "type": "Bool",
+    "title": "Homogeneity test",
+    "default": false
+   },
+   {
+    "name": "norm",
+    "type": "Bool",
+    "title": "Normality test",
+    "default": false
+   },
+   {
+    "name": "qq",
+    "type": "Bool",
+    "title": "Q-Q Plot",
+    "default": false
+   },
+   {
+    "name": "contrasts",
+    "type": "Array",
+    "title": "Contrasts",
+    "default": null
+   },
+   {
+    "name": "postHoc",
+    "type": "Terms",
+    "title": "Post Hoc Tests",
+    "default": null
+   },
+   {
+    "name": "postHocCorr",
+    "type": "NMXList",
+    "title": "Correction",
+    "default": [
+     "tukey"
+    ]
+   },
+   {
+    "name": "postHocES",
+    "type": "NMXList",
+    "title": "Effect size",
+    "default": []
+   },
+   {
+    "name": "postHocEsCi",
+    "type": "Bool",
+    "title": "Confidence Interval",
+    "default": false
+   },
+   {
+    "name": "postHocEsCiWidth",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "emMeans",
+    "type": "Array",
+    "title": "Marginal Means",
+    "default": [
+     []
+    ]
+   },
+   {
+    "name": "emmPlots",
+    "type": "Bool",
+    "title": "Marginal means plots",
+    "default": true
+   },
+   {
+    "name": "emmPlotData",
+    "type": "Bool",
+    "title": "Observed scores",
+    "default": false
+   },
+   {
+    "name": "emmPlotError",
+    "type": "List",
+    "title": "Error bars",
+    "default": "ci",
+    "choices": [
+     {
+      "value": "none",
+      "title": "None"
+     },
+     {
+      "value": "ci",
+      "title": "Confidence interval"
+     },
+     {
+      "value": "se",
+      "title": "Standard Error"
+     }
+    ]
+   },
+   {
+    "name": "emmTables",
+    "type": "Bool",
+    "title": "Marginal means tables",
+    "default": false
+   },
+   {
+    "name": "emmWeights",
+    "type": "Bool",
+    "title": "Equal cell weights",
+    "default": true
+   },
+   {
+    "name": "ciWidthEmm",
+    "type": "Number",
+    "title": "Confidence interval width",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   }
+  ]
+ },
+ "anovaNP": {
+  "name": "anovaNP",
+  "ns": "jmv",
+  "title": "One-Way ANOVA (Non-parametric)",
+  "menuGroup": "ANOVA",
+  "menuSubgroup": "Non-Parametric",
+  "menuTitle": "One-Way ANOVA",
+  "menuSubtitle": "Kruskal-Wallis",
+  "options": [
+   {
+    "name": "deps",
+    "type": "Variables",
+    "title": "Dependent Variables",
+    "default": null,
+    "suggested": [
+     "continuous",
+     "ordinal"
+    ],
+    "permitted": []
+   },
+   {
+    "name": "group",
+    "type": "Variable",
+    "title": "Grouping Variable",
+    "default": null,
+    "suggested": [
+     "nominal",
+     "ordinal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "es",
+    "type": "Bool",
+    "title": "ε²",
+    "default": false
+   },
+   {
+    "name": "pairs",
+    "type": "Bool",
+    "title": "DSCF pairwise comparisons",
+    "default": false
+   },
+   {
+    "name": "pairsDunn",
+    "type": "Bool",
+    "title": "Dunn's pairwise comparisons",
+    "default": false
+   }
+  ]
+ },
+ "corrMatrix": {
+  "name": "corrMatrix",
+  "ns": "jmv",
+  "title": "Correlation Matrix",
+  "menuGroup": "Regression",
+  "menuSubgroup": "",
+  "menuTitle": "Correlation Matrix",
+  "menuSubtitle": "",
+  "options": [
+   {
+    "name": "vars",
+    "type": "Variables",
+    "title": "Variables",
+    "default": null,
+    "suggested": [
+     "continuous",
+     "ordinal"
+    ],
+    "permitted": [
+     "numeric",
+     "factor"
+    ]
+   },
+   {
+    "name": "pearson",
+    "type": "Bool",
+    "title": "Pearson",
+    "default": true
+   },
+   {
+    "name": "spearman",
+    "type": "Bool",
+    "title": "Spearman",
+    "default": false
+   },
+   {
+    "name": "kendall",
+    "type": "Bool",
+    "title": "Kendall's tau-b",
+    "default": false
+   },
+   {
+    "name": "sig",
+    "type": "Bool",
+    "title": "Report significance",
+    "default": true
+   },
+   {
+    "name": "flag",
+    "type": "Bool",
+    "title": "Flag significant correlations",
+    "default": false
+   },
+   {
+    "name": "n",
+    "type": "Bool",
+    "title": "N",
+    "default": false
+   },
+   {
+    "name": "ci",
+    "type": "Bool",
+    "title": "Confidence intervals",
+    "default": false
+   },
+   {
+    "name": "ciWidth",
+    "type": "Number",
+    "title": "Confidence interval width",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "plots",
+    "type": "Bool",
+    "title": "Correlation matrix",
+    "default": false
+   },
+   {
+    "name": "plotDens",
+    "type": "Bool",
+    "title": "Densities for variables",
+    "default": false
+   },
+   {
+    "name": "plotStats",
+    "type": "Bool",
+    "title": "Statistics",
+    "default": false
+   },
+   {
+    "name": "hypothesis",
+    "type": "List",
+    "title": "Hypothesis",
+    "default": "corr",
+    "choices": [
+     {
+      "value": "corr",
+      "title": "Correlated"
+     },
+     {
+      "value": "pos",
+      "title": "Correlated positively"
+     },
+     {
+      "value": "neg",
+      "title": "Correlated negatively"
+     }
+    ]
+   }
+  ]
+ },
+ "linReg": {
+  "name": "linReg",
+  "ns": "jmv",
+  "title": "Linear Regression",
+  "menuGroup": "Regression",
+  "menuSubgroup": "",
+  "menuTitle": "Linear Regression",
+  "menuSubtitle": "",
+  "options": [
+   {
+    "name": "dep",
+    "type": "Variable",
+    "title": "Dependent Variable",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "covs",
+    "type": "Variables",
+    "title": "Covariates",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "factors",
+    "type": "Variables",
+    "title": "Factors",
+    "default": null,
+    "suggested": [
+     "nominal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "weights",
+    "type": "Variable",
+    "title": "Weights (optional)",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "blocks",
+    "type": "Array",
+    "title": "Blocks",
+    "default": [
+     []
+    ]
+   },
+   {
+    "name": "refLevels",
+    "type": "Array",
+    "title": "Reference Levels",
+    "default": null
+   },
+   {
+    "name": "intercept",
+    "type": "List",
+    "title": "Intercept",
+    "default": "refLevel",
+    "choices": [
+     {
+      "value": "refLevel",
+      "title": "refLevel"
+     },
+     {
+      "value": "grandMean",
+      "title": "grandMean"
+     }
+    ]
+   },
+   {
+    "name": "r",
+    "type": "Bool",
+    "title": "R",
+    "default": true
+   },
+   {
+    "name": "r2",
+    "type": "Bool",
+    "title": "R²",
+    "default": true
+   },
+   {
+    "name": "r2Adj",
+    "type": "Bool",
+    "title": "Adjusted R²",
+    "default": false
+   },
+   {
+    "name": "aic",
+    "type": "Bool",
+    "title": "AIC",
+    "default": false
+   },
+   {
+    "name": "bic",
+    "type": "Bool",
+    "title": "BIC",
+    "default": false
+   },
+   {
+    "name": "rmse",
+    "type": "Bool",
+    "title": "RMSE",
+    "default": false
+   },
+   {
+    "name": "modelTest",
+    "type": "Bool",
+    "title": "F test",
+    "default": false
+   },
+   {
+    "name": "anova",
+    "type": "Bool",
+    "title": "ANOVA test",
+    "default": false
+   },
+   {
+    "name": "ci",
+    "type": "Bool",
+    "title": "Confidence interval",
+    "default": false
+   },
+   {
+    "name": "ciWidth",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "stdEst",
+    "type": "Bool",
+    "title": "Standardized estimate",
+    "default": false
+   },
+   {
+    "name": "ciStdEst",
+    "type": "Bool",
+    "title": "Confidence interval",
+    "default": false
+   },
+   {
+    "name": "ciWidthStdEst",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "norm",
+    "type": "Bool",
+    "title": "Normality test",
+    "default": false
+   },
+   {
+    "name": "qqPlot",
+    "type": "Bool",
+    "title": "Q-Q plot of residuals",
+    "default": false
+   },
+   {
+    "name": "resPlots",
+    "type": "Bool",
+    "title": "Residual plots",
+    "default": false
+   },
+   {
+    "name": "durbin",
+    "type": "Bool",
+    "title": "Autocorrelation test",
+    "default": false
+   },
+   {
+    "name": "collin",
+    "type": "Bool",
+    "title": "Collinearity statistics",
+    "default": false
+   },
+   {
+    "name": "cooks",
+    "type": "Bool",
+    "title": "Cook's distance",
+    "default": false
+   },
+   {
+    "name": "mahal",
+    "type": "Bool",
+    "title": "Mahalanobis distance",
+    "default": false
+   },
+   {
+    "name": "mahalp",
+    "type": "List",
+    "title": "mahalp",
+    "default": "0.001",
+    "choices": [
+     {
+      "value": "0.05",
+      "title": "0.05"
+     },
+     {
+      "value": "0.01",
+      "title": "0.01"
+     },
+     {
+      "value": "0.001",
+      "title": "0.001"
+     }
+    ]
+   },
+   {
+    "name": "emMeans",
+    "type": "Array",
+    "title": "Marginal Means",
+    "default": [
+     []
+    ]
+   },
+   {
+    "name": "ciEmm",
+    "type": "Bool",
+    "title": "Confidence interval",
+    "default": true
+   },
+   {
+    "name": "ciWidthEmm",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "emmPlots",
+    "type": "Bool",
+    "title": "Marginal means plots",
+    "default": true
+   },
+   {
+    "name": "emmTables",
+    "type": "Bool",
+    "title": "Marginal means tables",
+    "default": false
+   },
+   {
+    "name": "emmWeights",
+    "type": "Bool",
+    "title": "Equal cell weights",
+    "default": true
+   }
+  ]
+ },
+ "logRegBin": {
+  "name": "logRegBin",
+  "ns": "jmv",
+  "title": "Binomial Logistic Regression",
+  "menuGroup": "Regression",
+  "menuSubgroup": "Logistic Regression",
+  "menuTitle": "2 Outcomes",
+  "menuSubtitle": "Binomial",
+  "options": [
+   {
+    "name": "dep",
+    "type": "Variable",
+    "title": "Dependent Variable",
+    "default": null,
+    "suggested": [
+     "nominal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "covs",
+    "type": "Variables",
+    "title": "Covariates",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "factors",
+    "type": "Variables",
+    "title": "Factors",
+    "default": null,
+    "suggested": [
+     "nominal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "blocks",
+    "type": "Array",
+    "title": "Blocks",
+    "default": [
+     []
+    ]
+   },
+   {
+    "name": "refLevels",
+    "type": "Array",
+    "title": "Reference Levels",
+    "default": null
+   },
+   {
+    "name": "modelTest",
+    "type": "Bool",
+    "title": "Overall model test",
+    "default": false
+   },
+   {
+    "name": "dev",
+    "type": "Bool",
+    "title": "Deviance",
+    "default": true
+   },
+   {
+    "name": "aic",
+    "type": "Bool",
+    "title": "AIC",
+    "default": true
+   },
+   {
+    "name": "bic",
+    "type": "Bool",
+    "title": "BIC",
+    "default": false
+   },
+   {
+    "name": "pseudoR2",
+    "type": "NMXList",
+    "title": "Pseudo R²",
+    "default": [
+     "r2mf"
+    ]
+   },
+   {
+    "name": "omni",
+    "type": "Bool",
+    "title": "Likelihood ratio tests",
+    "default": false
+   },
+   {
+    "name": "ci",
+    "type": "Bool",
+    "title": "Confidence interval",
+    "default": false
+   },
+   {
+    "name": "ciWidth",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "OR",
+    "type": "Bool",
+    "title": "Odds ratio",
+    "default": false
+   },
+   {
+    "name": "ciOR",
+    "type": "Bool",
+    "title": "Confidence interval",
+    "default": false
+   },
+   {
+    "name": "ciWidthOR",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "emMeans",
+    "type": "Array",
+    "title": "Marginal Means",
+    "default": [
+     []
+    ]
+   },
+   {
+    "name": "ciEmm",
+    "type": "Bool",
+    "title": "Confidence interval",
+    "default": true
+   },
+   {
+    "name": "ciWidthEmm",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "emmPlots",
+    "type": "Bool",
+    "title": "Marginal means plots",
+    "default": true
+   },
+   {
+    "name": "emmTables",
+    "type": "Bool",
+    "title": "Marginal means tables",
+    "default": false
+   },
+   {
+    "name": "emmWeights",
+    "type": "Bool",
+    "title": "Equal cell weights",
+    "default": true
+   },
+   {
+    "name": "class",
+    "type": "Bool",
+    "title": "Classification table",
+    "default": false
+   },
+   {
+    "name": "acc",
+    "type": "Bool",
+    "title": "Accuracy",
+    "default": false
+   },
+   {
+    "name": "spec",
+    "type": "Bool",
+    "title": "Specificity",
+    "default": false
+   },
+   {
+    "name": "sens",
+    "type": "Bool",
+    "title": "Sensitivity",
+    "default": false
+   },
+   {
+    "name": "auc",
+    "type": "Bool",
+    "title": "AUC",
+    "default": false
+   },
+   {
+    "name": "rocPlot",
+    "type": "Bool",
+    "title": "ROC curve",
+    "default": false
+   },
+   {
+    "name": "cutOff",
+    "type": "Number",
+    "title": "Cut-off value",
+    "default": 0.5,
+    "min": 0,
+    "max": 1
+   },
+   {
+    "name": "cutOffPlot",
+    "type": "Bool",
+    "title": "Cut-off plot",
+    "default": false
+   },
+   {
+    "name": "collin",
+    "type": "Bool",
+    "title": "Collinearity statistics",
+    "default": false
+   }
+  ]
+ },
+ "propTestN": {
+  "name": "propTestN",
+  "ns": "jmv",
+  "title": "Proportion Test (N Outcomes)",
+  "menuGroup": "Frequencies",
+  "menuSubgroup": "One Sample Proportion Tests",
+  "menuTitle": "N Outcomes",
+  "menuSubtitle": "χ² Goodness of fit",
+  "options": [
+   {
+    "name": "var",
+    "type": "Variable",
+    "title": "Variable",
+    "default": null,
+    "suggested": [
+     "nominal",
+     "ordinal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "counts",
+    "type": "Variable",
+    "title": "Counts (optional)",
+    "default": null,
+    "suggested": [],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "expected",
+    "type": "Bool",
+    "title": "Expected counts",
+    "default": false
+   },
+   {
+    "name": "ratio",
+    "type": "Array",
+    "title": "Expected Proportions",
+    "default": null
+   }
+  ]
+ },
+ "contTables": {
+  "name": "contTables",
+  "ns": "jmv",
+  "title": "Contingency Tables",
+  "menuGroup": "Frequencies",
+  "menuSubgroup": "Contingency Tables",
+  "menuTitle": "Independent Samples",
+  "menuSubtitle": "χ² test of association",
+  "options": [
+   {
+    "name": "rows",
+    "type": "Variable",
+    "title": "Rows",
+    "default": null,
+    "suggested": [
+     "nominal",
+     "ordinal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "cols",
+    "type": "Variable",
+    "title": "Columns",
+    "default": null,
+    "suggested": [
+     "nominal",
+     "ordinal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "counts",
+    "type": "Variable",
+    "title": "Counts (optional)",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "layers",
+    "type": "Variables",
+    "title": "Layers",
+    "default": null,
+    "suggested": [],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "chiSq",
+    "type": "Bool",
+    "title": "χ²",
+    "default": true
+   },
+   {
+    "name": "chiSqCorr",
+    "type": "Bool",
+    "title": "χ² continuity correction",
+    "default": false
+   },
+   {
+    "name": "zProp",
+    "type": "Bool",
+    "title": "z test for difference in 2 proportions",
+    "default": false
+   },
+   {
+    "name": "likeRat",
+    "type": "Bool",
+    "title": "Likelihood ratio",
+    "default": false
+   },
+   {
+    "name": "fisher",
+    "type": "Bool",
+    "title": "Fisher's exact test",
+    "default": false
+   },
+   {
+    "name": "contCoef",
+    "type": "Bool",
+    "title": "Contingency coefficient",
+    "default": false
+   },
+   {
+    "name": "phiCra",
+    "type": "Bool",
+    "title": "Phi and Cramer's V",
+    "default": false
+   },
+   {
+    "name": "diffProp",
+    "type": "Bool",
+    "title": "Difference in proportions",
+    "default": false
+   },
+   {
+    "name": "logOdds",
+    "type": "Bool",
+    "title": "Log odds ratio",
+    "default": false
+   },
+   {
+    "name": "odds",
+    "type": "Bool",
+    "title": "Odds ratio",
+    "default": false
+   },
+   {
+    "name": "relRisk",
+    "type": "Bool",
+    "title": "Relative risk",
+    "default": false
+   },
+   {
+    "name": "ci",
+    "type": "Bool",
+    "title": "Confidence intervals",
+    "default": true
+   },
+   {
+    "name": "ciWidth",
+    "type": "Number",
+    "title": "Interval",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "compare",
+    "type": "List",
+    "title": "Compare",
+    "default": "rows",
+    "choices": [
+     {
+      "value": "rows",
+      "title": "rows"
+     },
+     {
+      "value": "columns",
+      "title": "columns"
+     }
+    ]
+   },
+   {
+    "name": "hypothesis",
+    "type": "List",
+    "title": "Alternative hypothesis",
+    "default": "different",
+    "choices": [
+     {
+      "value": "different",
+      "title": "Group 1 ≠ Group 2"
+     },
+     {
+      "value": "oneGreater",
+      "title": "Group 1 > Group 2"
+     },
+     {
+      "value": "twoGreater",
+      "title": "Group 1 < Group 2"
+     }
+    ]
+   },
+   {
+    "name": "gamma",
+    "type": "Bool",
+    "title": "Gamma",
+    "default": false
+   },
+   {
+    "name": "taub",
+    "type": "Bool",
+    "title": "Kendall's tau-b",
+    "default": false
+   },
+   {
+    "name": "mh",
+    "type": "Bool",
+    "title": "Mantel-Haenszel",
+    "default": false
+   },
+   {
+    "name": "obs",
+    "type": "Bool",
+    "title": "Observed counts",
+    "default": true
+   },
+   {
+    "name": "exp",
+    "type": "Bool",
+    "title": "Expected counts",
+    "default": false
+   },
+   {
+    "name": "pcRow",
+    "type": "Bool",
+    "title": "Row",
+    "default": false
+   },
+   {
+    "name": "pcCol",
+    "type": "Bool",
+    "title": "Column",
+    "default": false
+   },
+   {
+    "name": "pcTot",
+    "type": "Bool",
+    "title": "Total",
+    "default": false
+   },
+   {
+    "name": "barplot",
+    "type": "Bool",
+    "title": "Bar Plot",
+    "default": false
+   },
+   {
+    "name": "yaxis",
+    "type": "List",
+    "title": "Y-axis",
+    "default": "ycounts",
+    "choices": [
+     {
+      "value": "ycounts",
+      "title": "Counts"
+     },
+     {
+      "value": "ypc",
+      "title": "Percentages"
+     }
+    ]
+   },
+   {
+    "name": "yaxisPc",
+    "type": "List",
+    "title": "yaxisPc",
+    "default": "total_pc",
+    "choices": [
+     {
+      "value": "total_pc",
+      "title": "of total"
+     },
+     {
+      "value": "column_pc",
+      "title": "within column"
+     },
+     {
+      "value": "row_pc",
+      "title": "within rows"
+     }
+    ]
+   },
+   {
+    "name": "xaxis",
+    "type": "List",
+    "title": "X-axis",
+    "default": "xrows",
+    "choices": [
+     {
+      "value": "xrows",
+      "title": "Rows"
+     },
+     {
+      "value": "xcols",
+      "title": "Columns"
+     }
+    ]
+   },
+   {
+    "name": "bartype",
+    "type": "List",
+    "title": "Bar Type",
+    "default": "dodge",
+    "choices": [
+     {
+      "value": "dodge",
+      "title": "Side by side"
+     },
+     {
+      "value": "stack",
+      "title": "Stacked"
+     }
+    ]
+   },
+   {
+    "name": "resU",
+    "type": "Bool",
+    "title": "Unstandardized residuals",
+    "default": false
+   },
+   {
+    "name": "resP",
+    "type": "Bool",
+    "title": "Pearson residuals",
+    "default": false
+   },
+   {
+    "name": "hlresP",
+    "type": "Number",
+    "title": "Highlight values above",
+    "default": 2
+   },
+   {
+    "name": "resS",
+    "type": "Bool",
+    "title": "Standardized residuals (adjusted Pearson)",
+    "default": false
+   },
+   {
+    "name": "hlresS",
+    "type": "Number",
+    "title": "Highlight values above",
+    "default": 2
+   },
+   {
+    "name": "resA",
+    "type": "Bool",
+    "title": "Deviance residuals (Poisson GLM)",
+    "default": false
+   },
+   {
+    "name": "hlresA",
+    "type": "Number",
+    "title": "Highlight values above",
+    "default": 2
+   }
+  ]
+ },
+ "scat": {
+  "name": "scat",
+  "ns": "scatr",
+  "title": "Scatter Plot",
+  "menuGroup": "Exploration",
+  "menuSubgroup": "scatr",
+  "menuTitle": "Scatter Plot",
+  "menuSubtitle": "",
+  "options": []
+ },
+ "pareto": {
+  "name": "pareto",
+  "ns": "scatr",
+  "title": "Pareto Plot",
+  "menuGroup": "Exploration",
+  "menuSubgroup": "scatr",
+  "menuTitle": "Pareto Plot",
+  "menuSubtitle": "",
+  "options": []
+ }
+};
