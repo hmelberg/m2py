@@ -55,6 +55,31 @@
     return app === 'safestat' ? 'safestat_general' : 'openstat_general';
   };
 
+  var MD_START = '__micro_transform_start_markdown__';
+  var MD_END = '__micro_transform_end__';
+
+  function emitMarkdownR(text) {
+    var safe = String(text).split(MD_END).join('');          // neutralize injected end marker
+    var block = '\n' + MD_START + '\n' + safe + '\n' + MD_END + '\n';
+    return 'cat(' + JSON.stringify(block) + ')';             // JSON string ≈ R double-quoted literal
+  }
+
+  NL.rProsePrep = function (src) {
+    var lines = String(src == null ? '' : src).split('\n');
+    var out = [], buf = null;
+    function flush() {
+      if (buf && buf.length) out.push(emitMarkdownR(buf.join('\n')));
+      buf = null;
+    }
+    for (var i = 0; i < lines.length; i++) {
+      var m = lines[i].match(/^\s*#'\s?(.*)$/);
+      if (m) { if (!buf) buf = []; buf.push(m[1]); }
+      else { flush(); out.push(lines[i]); }
+    }
+    flush();
+    return out.join('\n');
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = NL;
   else global.NotebookLinks = NL;
 })(typeof window !== 'undefined' ? window : globalThis);

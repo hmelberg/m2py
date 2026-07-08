@@ -73,3 +73,21 @@ test('welcomeVariant: general framing per app', () => {
   assert.equal(NL.welcomeVariant('safestat.app', 'safestat', false), 'safestat_general');
   assert.equal(NL.welcomeVariant('r.safestat.app', 'safestat', false), 'safestat_general');
 });
+
+test('rProsePrep: contiguous #\' block becomes one markdown cat', () => {
+  const src = "#' # Title\n#' body text\nx <- 1\nprint(x)";
+  const out = NL.rProsePrep(src);
+  assert.match(out, /cat\(/);
+  assert.match(out, /__micro_transform_start_markdown__/);
+  assert.match(out, /# Title\\nbody text/);       // joined, prefix stripped
+  assert.match(out, /x <- 1\nprint\(x\)/);          // code untouched
+});
+test('rProsePrep: ordinary # comments untouched', () => {
+  const src = "# not prose\ny <- 2";
+  assert.equal(NL.rProsePrep(src), src);
+});
+test('rProsePrep: END marker in content is neutralized', () => {
+  const src = "#' hi __micro_transform_end__ there\nz<-3";
+  const out = NL.rProsePrep(src);
+  assert.doesNotMatch(out.replace(/__micro_transform_end__\\n"\)/,''), /__micro_transform_end__ there/);
+});
