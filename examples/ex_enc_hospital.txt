@@ -3,7 +3,7 @@
 # releases only AGGREGATES — individual admissions never appear in the output.
 # (In a real deployment the source is REGISTERED as "protected", which ENFORCES
 #  aggregate-only output; here the aggregate-only-ness is by convention.)
-# load https://raw.githubusercontent.com/hmelberg/safestat/main/data/hospital_admissions.enc.json as adm, key("WpwdqNeprpW-TwW7qCeQ9RaQW3cJ8QJQy1hQfNorEjQ"), exec(local)
+# load https://raw.githubusercontent.com/hmelberg/safestat/master/data/hospital_admissions.enc.json as adm, key("WpwdqNeprpW-TwW7qCeQ9RaQW3cJ8QJQy1hQfNorEjQ"), exec(local)
 
 import pandas as pd, matplotlib.pyplot as plt
 

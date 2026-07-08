@@ -1,5 +1,5 @@
 # Read a wider CSV and build a FOCUSED dataset from specific columns.
-# load https://raw.githubusercontent.com/hmelberg/safestat/main/data/penguins.csv as penguins
+# load https://raw.githubusercontent.com/hmelberg/safestat/master/data/penguins.csv as penguins
 # (equivalent: penguins <- read.csv("…/penguins.csv"))
 
 flippers <- na.omit(penguins[, c("species", "flipper_length_mm")])
