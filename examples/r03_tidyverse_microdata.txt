@@ -1,6 +1,6 @@
-# Eksempel: tidyverse på microdata-datasett
-# Førsteblokk importerer variabler via microdata.
-# Andre blokk bruker dplyr på datasettet 'folk'.
+# Example: tidyverse on a microdata dataset
+# The first block imports variables via microdata.
+# The second block uses dplyr on the 'folk' dataset.
 
 #micro
 require no.ssb.fdb:54 as fd

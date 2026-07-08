@@ -1,4 +1,4 @@
--- Rask profilering: nøkkeltall og kvantiler per variabel, som én tabell.
+-- Quick profiling: key figures and quantiles per variable, as one table.
 
 CREATE OR REPLACE TABLE personer AS
 SELECT * FROM (VALUES

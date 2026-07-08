@@ -1,5 +1,5 @@
-# Eksempel: base R — frekvens og gjennomsnitt
-# table() for frekvens, tapply() for gruppestatistikk.
+# Example: base R — frequency and mean
+# table() for frequency, tapply() for group statistics.
 df <- data.frame(
   kjonn   = c("Mann", "Kvinne", "Mann", "Kvinne", "Mann", "Kvinne"),
   inntekt = c(620000, 540000, 710000, 820000, 480000, 610000),

@@ -1,4 +1,4 @@
--- JOIN: koble to tabeller på felles nøkkel (fnr).
+-- JOIN: link two tables on a common key (fnr).
 
 CREATE OR REPLACE TABLE personer AS
 SELECT * FROM (VALUES
@@ -16,7 +16,7 @@ SELECT * FROM (VALUES
   (4, 'Sykepleier', 520000)
 ) AS t(fnr, yrke, lonn);
 
--- Personer med yrke og lønn.
+-- People with occupation and wage.
 SELECT p.fnr, p.kjonn, p.alder, p.kommune, j.yrke, j.lonn
 FROM personer p
 JOIN jobber j USING (fnr)

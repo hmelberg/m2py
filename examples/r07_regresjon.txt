@@ -1,4 +1,4 @@
-# Eksempel: regresjon — lineær og logistisk
+# Example: regression — linear and logistic
 # lm() -> regress, glm(family=binomial) -> logit.
 
 #micro
@@ -17,9 +17,9 @@ folk <- folk |>
     mann  = ifelse(kjonn == 1, 1, 0)
   )
 
-# Lineær regresjon av inntekt på alder og kjønn
+# Linear regression of income on age and sex
 lm(inntekt ~ alder + mann, data = folk)
 
-# Logistisk regresjon: sannsynlighet for høy inntekt
+# Logistic regression: probability of high income
 folk <- folk |> mutate(hoyinntekt = ifelse(inntekt > 600000, 1, 0))
 glm(hoyinntekt ~ alder + mann, family = binomial(), data = folk)

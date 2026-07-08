@@ -1,5 +1,5 @@
-# Eksempel: pandas + matplotlib — histogram og boxplot
-# Microdata henter variabler. matplotlib plotter direkte.
+# Example: pandas + matplotlib — histogram and boxplot
+# Microdata fetches variables. matplotlib plots directly.
 
 #micro
 require no.ssb.fdb:54 as fd

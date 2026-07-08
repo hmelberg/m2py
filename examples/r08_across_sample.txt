@@ -1,5 +1,5 @@
-# Eksempel: across() og tilfeldig utvalg
-# across() -> én generate per kolonne; set.seed + slice_sample -> sample.
+# Example: across() and random sampling
+# across() -> one generate per column; set.seed + slice_sample -> sample.
 
 #micro
 require no.ssb.fdb:54 as fd
@@ -11,10 +11,10 @@ import fd/BEFOLKNING_KJOENN as kjonn
 #r
 library(dplyr)
 
-# Skaler flere beløpskolonner samtidig til tusen kroner
+# Scale several amount columns at once to thousands of kroner
 folk <- folk |> mutate(across(c(lonn, kapital), ~ .x / 1000))
 
-# Tilfeldig utvalg — seed gir reproduserbart resultat
+# Random sample — the seed gives a reproducible result
 set.seed(2022)
 utvalg <- folk |> slice_sample(prop = 0.3)
 

@@ -1,6 +1,6 @@
-* Eksempel: Stata – generate og egen
-* Første blokk importerer variabler via microdata.
-* Andre blokk lager nye variabler: log-inntekt og gjennomsnittsinntekt.
+* Example: Stata – generate and egen
+* The first block imports variables via microdata.
+* The second block creates new variables: log income and mean income.
 
 #micro
 require no.ssb.fdb:54 as fd

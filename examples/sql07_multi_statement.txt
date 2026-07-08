@@ -1,5 +1,5 @@
--- Flere setninger i ett skript: lag rådata, lag et oppsummeringsdatasett,
--- og vis til slutt en tabell. Setningene kjøres i rekkefølge.
+-- Several statements in one script: create raw data, create a summary dataset,
+-- and finally show a table. The statements run in order.
 
 CREATE OR REPLACE TABLE personer AS
 SELECT * FROM (VALUES
@@ -11,7 +11,7 @@ SELECT * FROM (VALUES
   (6, 'Kvinne', 67, 390000, 'Oslo')
 ) AS t(fnr, kjonn, alder, inntekt, kommune);
 
--- Oppsummeringsdatasett per kommune (dukker opp i dataoversikten).
+-- Summary dataset per municipality (appears in the data overview).
 CREATE OR REPLACE TABLE per_kommune AS
 SELECT kommune,
        count(*)            AS antall,
@@ -19,5 +19,5 @@ SELECT kommune,
 FROM personer
 GROUP BY kommune;
 
--- Avsluttende SELECT vises som tabell i utdataområdet.
+-- The final SELECT is shown as a table in the output area.
 SELECT * FROM per_kommune ORDER BY snitt_inntekt DESC;

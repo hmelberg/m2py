@@ -1,4 +1,4 @@
--- Omkoding med CASE WHEN: lag aldersgrupper og inntektsklasse.
+-- Recoding with CASE WHEN: create age groups and income class.
 
 CREATE OR REPLACE TABLE personer AS
 SELECT * FROM (VALUES

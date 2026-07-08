@@ -1,5 +1,5 @@
-# Eksempel: ggplot2 — histogram og boxplot på microdata-datasett
-# Microdata henter variabler. ggplot2 plotter.
+# Example: ggplot2 — histogram and boxplot on a microdata dataset
+# Microdata fetches variables. ggplot2 plots.
 
 #micro
 require no.ssb.fdb:54 as fd

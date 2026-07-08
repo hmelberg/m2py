@@ -1,5 +1,5 @@
-# Eksempel: statsmodels — OLS-regresjon med formel
-# Microdata henter variabler. statsmodels.formula.api kjører OLS.
+# Example: statsmodels — OLS regression with a formula
+# Microdata fetches variables. statsmodels.formula.api runs OLS.
 
 #micro
 require no.ssb.fdb:54 as fd

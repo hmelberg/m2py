@@ -1,5 +1,5 @@
-# Eksempel: pandas — grunnleggende statistikk
-# Lite datasett, describe() og groupby().
+# Example: pandas — basic statistics
+# Small dataset, describe() and groupby().
 import pandas as pd
 
 df = pd.DataFrame({

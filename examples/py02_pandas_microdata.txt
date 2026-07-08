@@ -1,6 +1,6 @@
-# Eksempel: pandas på microdata-datasett
-# Førsteblokk importerer variabler via microdata.
-# Andre blokk bruker pandas på resultatet (datasett-navnet blir variabelnavnet).
+# Example: pandas on a microdata dataset
+# The first block imports variables via microdata.
+# The second block uses pandas on the result (the dataset name becomes the variable name).
 
 #micro
 require no.ssb.fdb:54 as fd

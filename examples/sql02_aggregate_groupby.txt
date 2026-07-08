@@ -1,4 +1,4 @@
--- Aggregering: GROUP BY med count/avg/sum, og HAVING for å filtrere grupper.
+-- Aggregation: GROUP BY with count/avg/sum, and HAVING to filter groups.
 
 CREATE OR REPLACE TABLE personer AS
 SELECT * FROM (VALUES
@@ -12,7 +12,7 @@ SELECT * FROM (VALUES
   (8, 'Kvinne', 29, 480000, 'Bergen')
 ) AS t(fnr, kjonn, alder, inntekt, kommune);
 
--- Antall og gjennomsnittsinntekt per kommune, kun kommuner med minst 2 personer.
+-- Count and mean income per municipality, only municipalities with at least 2 people.
 SELECT kommune,
        count(*)         AS antall,
        round(avg(inntekt)) AS snitt_inntekt,

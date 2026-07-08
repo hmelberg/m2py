@@ -1,4 +1,4 @@
-# Python + DuckDB: bygg data i pandas, kjør SQL med #duckdb, fortsett i pandas.
+# Python + DuckDB: build data in pandas, run SQL with #duckdb, continue in pandas.
 import pandas as pd
 folk = pd.DataFrame({
     "fnr":    [1, 2, 3, 4, 5, 6],
