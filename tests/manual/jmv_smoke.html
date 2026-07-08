@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="no"><head><meta charset="utf-8"><title>jmv røyktest</title>
+<style>body{font:14px/1.5 -apple-system,sans-serif;margin:20px;max-width:900px}
+pre{background:#f6f7f9;border:1px solid #ddd;padding:8px;overflow-x:auto;font-size:12px}
+img{border:1px solid #ddd;max-width:100%}.ok{color:#15803d}.feil{color:#b91c1c}</style>
+</head><body>
+<h1>jmv-serialiserer: røyktest</h1>
+<div id="status">Starter…</div><div id="out"></div>
+<script type="module">
+const st = document.getElementById('status'), out = document.getElementById('out');
+const put = (h) => out.insertAdjacentHTML('beforeend', h);
+window.__SMOKE = { done: false, failures: [] };
+try {
+  const { WebR } = await import('https://webr.r-wasm.org/latest/webr.mjs');
+  const webR = new WebR(); await webR.init();
+  st.textContent = 'Installerer jmv/scatr/jsonlite…';
+  await webR.evalRVoid(`webr::install(c('jmv','scatr','jsonlite'))`);
+  await webR.evalRVoid(`suppressMessages({library(jmv);library(scatr);library(jsonlite)})`);
+  const helpers = await fetch('../../js/modes/jmv_helpers.R').then(r => r.text());
+  await webR.evalRVoid(helpers);
+  const shelter = await new webR.Shelter();
+  const CASES = [
+    ['ttestIS', `d <- subset(ToothGrowth, dose != 1)
+      .r <- jmv::ttestIS(data=d, vars='len', group='supp', welchs=TRUE, desc=TRUE, qq=TRUE)`,
+      { minTables: 2, minImages: 1 }],
+    ['descriptives', `d <- ToothGrowth; d$dose <- factor(d$dose)
+      .r <- jmv::descriptives(data=d, vars='len', splitBy='dose', hist=TRUE, box=TRUE, freq=TRUE)`,
+      { minTables: 1, minImages: 2 }],
+    // NB: jmv::contTables er byttet ut med jmv::propTestN. contTables trekker inn
+    // vcdExtra -> htmlwidgets -> webshot2 -> chromote -> websocket (chromote styrer en
+    // headless Chrome via WebSocket for widget-skjermbilder). 'websocket' finnes ikke
+    // som wasm-binær i webR-repoet, så ENHVER jmv::contTables-kjøring (uansett opsjoner)
+    // feiler med «there is no package called 'websocket'» — bekreftet ved sporing av
+    // loadNamespace()-kjeden. Dette er en webR/CRAN-økosystembegrensning, ikke en feil i
+    // serialiseren. propTestN gir samme type resultat (kategorisk/khi-kvadrat, 2 tabeller,
+    // ingen bilder) uten den brutte avhengighetskjeden.
+    ['propTestN', `d <- data.frame(x=factor(rep(c('a','b','c'), c(10,15,20))))
+      .r <- jmv::propTestN(data=d, var='x')`,
+      { minTables: 2, minImages: 0 }],
+  ];
+  for (const [name, setup, want] of CASES) {
+    st.textContent = 'Kjører ' + name + '…';
+    const cap = await shelter.captureR(
+      `local({\n${setup}\nprint(.r)\ncat('\\n##JMV##')\ncat(jsonlite::toJSON(.jmv_serialize(.r), auto_unbox=TRUE, na='null'))\n})`,
+      { captureGraphics: { width: 520, height: 380 } });
+    const text = cap.output.filter(m => m.type === 'stdout').map(m => m.data).join('\n');
+    const payload = JSON.parse(text.slice(text.lastIndexOf('##JMV##') + 7));
+    const count = (n, t) => (n.type === t ? 1 : 0) + (n.items || []).reduce((s, k) => s + count(k, t), 0);
+    const nT = count(payload, 'table'), nI = count(payload, 'image');
+    const ok = nT >= want.minTables && nI >= want.minImages && nI === (cap.images || []).length;
+    if (!ok) window.__SMOKE.failures.push(name);
+    put(`<h2 class="${ok ? 'ok' : 'feil'}">${name}: ${ok ? 'OK' : 'FEIL'} — ${nT} tabeller, ${nI} image-noder, ${(cap.images||[]).length} bilder fanget</h2><pre>${JSON.stringify(payload, null, 1).slice(0, 4000)}</pre>`);
+    for (const bmp of cap.images || []) {
+      const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+      c.getContext('2d').drawImage(bmp, 0, 0);
+      put(`<img src="${c.toDataURL('image/png')}">`);
+    }
+    if (cap.cleanup) await cap.cleanup();
+  }
+  st.textContent = window.__SMOKE.failures.length ? 'RØYKTEST FEIL: ' + window.__SMOKE.failures.join(', ') : 'RØYKTEST OK';
+} catch (e) { st.textContent = 'RØYKTEST FEIL: ' + (e.message || e); window.__SMOKE.failures.push(String(e.message || e)); }
+window.__SMOKE.done = true;
+</script></body></html>
