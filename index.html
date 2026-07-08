@@ -437,15 +437,15 @@
 
   <div class="ai-modal-backdrop" id="welcomeBackdrop">
     <div class="ai-modal" style="max-width:600px;">
-      <h3 style="font-size:20px;" data-i18n>Velkommen til SafeStat!</h3>
-      <p style="margin:0 0 10px 0; font-size:16px; line-height:1.5;" data-i18n>
-        SafeStat er en side der du kan øve på å kjøre analyser i microdata.no-stil —
-        med støtte for kryptert, beskyttet og ekstern analyse.
-      </p>
-      <div class="ai-modal-help" style="margin-bottom:14px; font-size:14px; line-height:1.5;" data-i18n-html>
-        SafeStat inneholder ikke ekte tall. Det er et hobbyprosjekt og er
-        <strong>ikke</strong> laget av microdata.no selv. Den kommer uten garantier
-        for at analysene er korrekt implementert. Søsterversjonen
+      <h3 style="font-size:20px;" id="welcomeHeading" data-i18n>Velkommen til SafeStat!</h3>
+      <div id="welcomeBodyMicro" class="ai-modal-help" style="margin-bottom:14px; font-size:14px; line-height:1.5; display:none" data-i18n>
+        Øv på å kjøre analyser i microdata.no-stil. Inneholder ikke ekte tall; et hobbyprosjekt, ikke laget av microdata.no.
+      </div>
+      <div id="welcomeBodyOpen" class="ai-modal-help" style="margin-bottom:14px; font-size:14px; line-height:1.5; display:none" data-i18n>
+        OpenStat er en motor for å stille spørsmål som kan besvares med kode og statistikk — og for å se og endre koden som gir svaret. Skriv i Python, R, DuckDB eller microdata-stil; kjør i nettleseren.
+      </div>
+      <div id="welcomeBodySafe" class="ai-modal-help" style="margin-bottom:14px; font-size:14px; line-height:1.5; display:none" data-i18n-html>
+        SafeStat er en motor for å stille spørsmål som kan besvares med kode og statistikk — og for å se og endre koden som gir svaret. I tillegg kan SafeStat dele og gi tilgang til sensitive data: bare analyser som bruker et begrenset sett kommandoer slipper gjennom, slik at resultatene viser aggregater — aldri opplysninger om enkeltpersoner. Søsterversjonen
         <a href="https://github.com/hmelberg/openstat" target="_blank" rel="noopener">OpenStat</a>
         er en åpen, forenklet utgave uten innlogging.
       </div>
@@ -1446,6 +1446,19 @@
       }
 
       function show() {
+        var isOutputOnly = !!window.mdNotebookAutorun;
+        var variant = window.NotebookLinks
+          ? window.NotebookLinks.welcomeVariant(location.hostname, window.M2PY_APP || 'safestat', isOutputOnly)
+          : 'safestat_general';
+        if (variant === null) return;                 // output-only: no welcome
+        var _bodies = { microdata: 'welcomeBodyMicro', openstat_general: 'welcomeBodyOpen', safestat_general: 'welcomeBodySafe' };
+        ['welcomeBodyMicro', 'welcomeBodyOpen', 'welcomeBodySafe'].forEach(function (id) {
+          var el = document.getElementById(id); if (el) el.style.display = (id === _bodies[variant]) ? '' : 'none';
+        });
+        var _heading = document.getElementById('welcomeHeading');
+        if (_heading) _heading.textContent = (variant === 'microdata')
+          ? t('Velkommen!')
+          : t('Velkommen til {app}!', { app: (window.M2PY_APP === 'safestat' ? 'SafeStat' : 'OpenStat') });
         if (localStorage.getItem(LS_KEY) === '1') return;
         var bd = document.getElementById('welcomeBackdrop');
         var tipEl = document.getElementById('welcomeTipText');
