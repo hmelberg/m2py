@@ -13,11 +13,18 @@ window.__SMOKE = { done: false, failures: [] };
 try {
   const { WebR } = await import('https://webr.r-wasm.org/latest/webr.mjs');
   const webR = new WebR(); await webR.init();
-  st.textContent = 'Installerer jmv/scatr/jsonlite…';
-  await webR.evalRVoid(`webr::install(c('jmv','scatr','jsonlite'))`);
+  st.textContent = 'Installerer jmv/scatr/jsonlite/vcdExtra…';
+  await webR.evalRVoid(`webr::install(c('jmv','scatr','jsonlite','vcdExtra'))`);
   await webR.evalRVoid(`suppressMessages({library(jmv);library(scatr);library(jsonlite)})`);
   const helpers = await fetch('../../js/modes/jmv_helpers.R').then(r => r.text());
   await webR.evalRVoid(helpers);
+  // jmv::contTables() trekker inn vcdExtra -> ca -> htmlwidgets -> webshot2 -> chromote ->
+  // websocket. 'websocket' finnes ikke som wasm-binær i webR-repoet, men chromote bruker den
+  // KUN til å fjernstyre en ekte Chrome for widget-skjermbilder — noe contTables sine
+  // beregninger aldri kaller. .jmv_install_stubs() (i jmv_helpers.R) installerer derfor en
+  // minimal ren-R stub-pakke som lar navneroms-lastingen lykkes. Idempotent/stille hvis
+  // websocket alt finnes (ekte pakke eller stub fra tidligere kjøring).
+  await webR.evalRVoid(`.jmv_install_stubs()`);
   const shelter = await new webR.Shelter();
   const CASES = [
     ['ttestIS', `d <- subset(ToothGrowth, dose != 1)
@@ -26,17 +33,16 @@ try {
     ['descriptives', `d <- ToothGrowth; d$dose <- factor(d$dose)
       .r <- jmv::descriptives(data=d, vars='len', splitBy='dose', hist=TRUE, box=TRUE, freq=TRUE)`,
       { minTables: 1, minImages: 2 }],
-    // NB: jmv::contTables er byttet ut med jmv::propTestN. contTables trekker inn
-    // vcdExtra -> htmlwidgets -> webshot2 -> chromote -> websocket (chromote styrer en
-    // headless Chrome via WebSocket for widget-skjermbilder). 'websocket' finnes ikke
-    // som wasm-binær i webR-repoet, så ENHVER jmv::contTables-kjøring (uansett opsjoner)
-    // feiler med «there is no package called 'websocket'» — bekreftet ved sporing av
-    // loadNamespace()-kjeden. Dette er en webR/CRAN-økosystembegrensning, ikke en feil i
-    // serialiseren. propTestN gir samme type resultat (kategorisk/khi-kvadrat, 2 tabeller,
-    // ingen bilder) uten den brutte avhengighetskjeden.
     ['propTestN', `d <- data.frame(x=factor(rep(c('a','b','c'), c(10,15,20))))
       .r <- jmv::propTestN(data=d, var='x')`,
       { minTables: 2, minImages: 0 }],
+    // Dekker websocket-stubben (se over) OG superTitle-kontraktsfeltet (utestet av de andre
+    // casene): contTables sin "Contingency Tables"-tabell grupperer kolonnene for hver
+    // kategori i kolonnevariabelen (Eye) under en felles superTitle.
+    ['contTables', `d <- as.data.frame(HairEyeColor)
+      d <- d[rep(seq_len(nrow(d)), d$Freq), c('Hair','Eye')]
+      .r <- jmv::contTables(data=d, rows='Hair', cols='Eye', exp=TRUE)`,
+      { minTables: 2, minImages: 0, needSuperTitle: true }],
   ];
   for (const [name, setup, want] of CASES) {
     st.textContent = 'Kjører ' + name + '…';
@@ -46,10 +52,13 @@ try {
     const text = cap.output.filter(m => m.type === 'stdout').map(m => m.data).join('\n');
     const payload = JSON.parse(text.slice(text.lastIndexOf('##JMV##') + 7));
     const count = (n, t) => (n.type === t ? 1 : 0) + (n.items || []).reduce((s, k) => s + count(k, t), 0);
+    const hasSuperTitle = (n) => (n.type === 'table' && (n.columns || []).some(c => c.superTitle && c.superTitle.length))
+      || (n.items || []).some(hasSuperTitle);
     const nT = count(payload, 'table'), nI = count(payload, 'image');
-    const ok = nT >= want.minTables && nI >= want.minImages && nI === (cap.images || []).length;
+    const stOk = !want.needSuperTitle || hasSuperTitle(payload);
+    const ok = nT >= want.minTables && nI >= want.minImages && nI === (cap.images || []).length && stOk;
     if (!ok) window.__SMOKE.failures.push(name);
-    put(`<h2 class="${ok ? 'ok' : 'feil'}">${name}: ${ok ? 'OK' : 'FEIL'} — ${nT} tabeller, ${nI} image-noder, ${(cap.images||[]).length} bilder fanget</h2><pre>${JSON.stringify(payload, null, 1).slice(0, 4000)}</pre>`);
+    put(`<h2 class="${ok ? 'ok' : 'feil'}">${name}: ${ok ? 'OK' : 'FEIL'} — ${nT} tabeller, ${nI} image-noder, ${(cap.images||[]).length} bilder fanget${want.needSuperTitle ? ', superTitle: ' + (stOk ? 'OK' : 'MANGLER') : ''}</h2><pre>${JSON.stringify(payload, null, 1).slice(0, 4000)}</pre>`);
     for (const bmp of cap.images || []) {
       const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
       c.getContext('2d').drawImage(bmp, 0, 0);

@@ -47,3 +47,100 @@
   }
   walk(x)
 }
+
+# jmv::contTables() drar (via vcdExtra -> ca -> htmlwidgets -> webshot2 -> chromote) inn
+# pakken 'websocket', som chromote bruker til å fjernstyre en ekte Chrome-nettleser for
+# skjermbilder av htmlwidgets. 'websocket' finnes ikke som wasm-binær i webR-repoet, så
+# loadNamespace('websocket') feiler alltid der - selv om funksjonaliteten aldri kalles av
+# contTables sine beregninger (bekreftet ved å lese chromote sin NAMESPACE: den importerer
+# kun websocket::WebSocket, ingenting annet). .jmv_install_stubs() installerer derfor en
+# minimal, ren-R stub-pakke som lar navneroms-lastingen lykkes; stubben feiler tydelig hvis
+# noen faktisk prøver å bruke den (noe som ikke skjer i vår bruk).
+#
+# webR støtter ikke install.packages(..., type='source') (ingen R CMD INSTALL/kompilator i
+# wasm - "This version of R is not set up to install source packages"), så vi bygger
+# "installert pakke"-strukturen for hånd direkte i .libPaths()[1]:
+#   DESCRIPTION + NAMESPACE + en lazyload-database (tools:::makeLazyLoadDB, ren R) +
+#   standard nspackloader.R-lasteren (identisk i alle installerte R-pakker, kobler
+#   loadNamespace() til databasen) + Meta/package.rds (tools:::.split_description).
+# Idempotent: hvis requireNamespace() alt lykkes (ekte pakke, eller stub fra forrige kjøring
+# i samme webR-økt/lib), gjøres ingenting.
+.jmv_stub_specs <- list(
+  websocket = list(
+    # >= chromote sitt krav (websocket (>= 1.2.0) i Imports); .9000 markerer tydelig at
+    # dette er en uferdig/dev-stub, ikke et ekte utgitt versjonsnummer.
+    version = '1.2.0.9000',
+    title = 'Stub for websocket (mangler som wasm-binær i webR)',
+    description = paste(
+      'Minimal stub-pakke som lar chromote sin navneroms-lasting lykkes i webR/wasm,',
+      'der den ekte websocket-pakken ikke finnes som wasm-binær.',
+      'chromote importerer kun websocket::WebSocket, og bruker den utelukkende til å',
+      'fjernstyre en ekte Chrome-nettleser for skjermbilder av htmlwidgets - noe',
+      'jmv::contTables() sine beregninger aldri kaller. Stubben feiler tydelig hvis',
+      'noen faktisk forsøker å bruke den.'),
+    exports = 'WebSocket',
+    code = paste(
+      'WebSocket <- list(new = function(...) stop(',
+      '"websocket er ikke tilgjengelig i webR (stub-pakke): fjernstyring av en ekte ',
+      'Chrome-nettleser er ikke støttet i wasm.", call. = FALSE))', sep = '')
+  )
+)
+
+# Innholdet i share/R/nspackloader.R, som R CMD INSTALL normalt legger i R/<pkg> for enhver
+# installert pakke. Generisk (leser pakkenavn/libsti fra loadingNamespaceInfo()), så samme
+# tekst kan brukes uendret for enhver stub - vi trenger ikke lese den fra en installert pakke.
+.jmv_nspackloader <- paste(
+  'local({',
+  '    info <- loadingNamespaceInfo()',
+  '    pkg <- info$pkgname',
+  '    ns <- .getNamespace(as.name(pkg))',
+  '    if (is.null(ns))',
+  '        stop("cannot find namespace environment for ", pkg, domain = NA);',
+  '    dbbase <- file.path(info$libname, pkg, "R", pkg)',
+  '    lazyLoad(dbbase, ns, filter = function(n) n != ".__NAMESPACE__.")',
+  '})', sep = '\n')
+
+.jmv_build_stub_pkg <- function(pkg, spec) {
+  libdir <- .libPaths()[1]
+  pkgdir <- file.path(libdir, pkg)
+  unlink(pkgdir, recursive = TRUE)
+  dir.create(file.path(pkgdir, 'R'), recursive = TRUE)
+  dir.create(file.path(pkgdir, 'Meta'), recursive = TRUE)
+
+  writeLines(c(
+    paste('Package:', pkg),
+    'Type: Package',
+    paste('Title:', spec$title),
+    paste('Version:', spec$version),
+    'Authors@R: person("safestat", role = c("aut", "cre"))',
+    paste('Description:', spec$description),
+    'License: MIT',
+    'Encoding: UTF-8',
+    # loadNamespace() krever et gyldig 'Built:'-felt ("package has not been installed
+    # properly" ellers) - dette er normalt satt av R CMD INSTALL, som vi hopper over.
+    sprintf('Built: R %s; ; %s; unix', getRversion(), format(Sys.time(), '%Y-%m-%d %H:%M:%S', tz = 'UTC'))
+  ), file.path(pkgdir, 'DESCRIPTION'))
+
+  writeLines(paste0('export(', spec$exports, ')'), file.path(pkgdir, 'NAMESPACE'))
+
+  env <- new.env()
+  eval(parse(text = spec$code), envir = env)
+  tools:::makeLazyLoadDB(env, file.path(pkgdir, 'R', pkg))
+  writeLines(.jmv_nspackloader, file.path(pkgdir, 'R', pkg))
+
+  db <- read.dcf(file.path(pkgdir, 'DESCRIPTION'))[1, ]
+  saveRDS(tools:::.split_description(db), file.path(pkgdir, 'Meta', 'package.rds'))
+  invisible(NULL)
+}
+
+.jmv_install_stubs <- function() {
+  for (pkg in names(.jmv_stub_specs)) {
+    if (requireNamespace(pkg, quietly = TRUE)) next
+    tryCatch(
+      .jmv_build_stub_pkg(pkg, .jmv_stub_specs[[pkg]]),
+      error = function(e)
+        warning(sprintf("Klarte ikke å installere stub for '%s': %s", pkg, conditionMessage(e)))
+    )
+  }
+  invisible(NULL)
+}
