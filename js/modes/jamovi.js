@@ -554,7 +554,15 @@
     // Created lazily; the first jamovi result clears any prior (non-jamovi) output.
     function jamoviResultsContainer() {
       var c = M.outputArea.querySelector('#jamoviResults');
-      if (!c) { M.outputArea.innerHTML = ''; c = document.createElement('div'); c.id = 'jamoviResults'; M.outputArea.appendChild(c); }
+      if (!c) {
+        M.outputArea.innerHTML = '';
+        var ws = document.createElement('div'); ws.id = 'jamoviWorkspace';
+        var op = document.createElement('div'); op.id = 'jamoviOptions'; op.hidden = true;
+        var pane = document.createElement('div'); pane.id = 'jamoviResultsPane';
+        c = document.createElement('div'); c.id = 'jamoviResults';
+        pane.appendChild(c); ws.appendChild(op); ws.appendChild(pane);
+        M.outputArea.appendChild(ws);
+      }
       return c;
     }
 
@@ -1365,8 +1373,215 @@
       }
     }
 
+    // Kuratert opsjons-seksjonering for de viktigste analysene (Task 4). Andre analyser
+    // faller tilbake til én samlet "Valg"-seksjon (YAML-rekkefølge). Navn som ikke finnes
+    // i den genererte spec'en ignoreres stille av addSection.
+    var JMV_SECTIONS = {
+      descriptives: [
+        { title: 'Statistics', opts: ['splitBy','n','missing','mean','median','mode','sum','sd','variance','range','min','max','se','ci','ciWidth','iqr','skew','kurt','sw','pc','pcValues'] },
+        { title: 'Plots', opts: ['hist','dens','box','violin','dot','boxMean','boxLabelOutliers','qq','bar'] },
+        { title: 'Tables', opts: ['freq','desc','extreme','extremeN'] }
+      ],
+      ttestIS: [
+        { title: 'Tests', opts: ['students','welchs','mann','hypothesis'] },
+        { title: 'Additional Statistics', opts: ['meanDiff','ci','ciWidth','effectSize','ciES','ciWidthES','desc'] },
+        { title: 'Assumption Checks', opts: ['norm','eqv','qq'] },
+        { title: 'Plots', opts: ['plots'] }
+      ],
+      anovaOneW: [
+        { title: 'Variances', opts: ['welchs','fishers'] },
+        { title: 'Additional Statistics', opts: ['desc','descPlot'] },
+        { title: 'Assumption Checks', opts: ['norm','qq','eqv'] },
+        { title: 'Post Hoc Tests', opts: ['phMethod','phMeanDif','phSig','phTest','phFlag'] }
+      ],
+      contTables: [
+        { title: 'Statistics', opts: ['chiSq','chiSqCorr','likeRat','fisher','contCoef','phiCra','odds','logOdds','relRisk','ci','ciWidth','gamma','taub'] },
+        { title: 'Cells', opts: ['obs','exp','pcRow','pcCol','pcTot'] },
+        { title: 'Plots', opts: ['barplot','yaxis','yaxisPc','xaxis','bartype'] }
+      ]
+    };
+
+    // Åpne en jamovi 2.0-analyse: dialog generert fra spec'en, dokket til venstre for
+    // resultatene, med live-kjøring (debounce) hver gang en rolle/opsjon endres.
+    function openJmvAnalysis(name, presets) {
+      var spec = window.JMV_SPECS && window.JMV_SPECS[name];
+      if (!spec) { alert(T('Analyse ikke funnet: {id}', { id: name })); return; }
+      var vars = jamoviVariables();
+      if (!vars.length) { alert(T('Lag/importer data først (kjør et skript eller åpne et eksempeldatasett)')); return; }
+
+      jamoviResultsContainer(); // sikrer workspace-DOM
+      var panel = document.getElementById('jamoviOptions');
+      panel.hidden = false; panel.innerHTML = '';
+
+      var values = {};
+      spec.options.forEach(function (o) {
+        if (o.type === 'Variables' || o.type === 'Variable' || o.type === 'Pairs') values[o.name] = [];
+        else values[o.name] = (o.default === undefined) ? null : o.default;
+      });
+      Object.assign(values, presets || {});
+
+      // Resultatkort som live-oppdateres
+      var card = jamoviTitleCard(spec.title);
+      var cardWrap = card.querySelector('div');
+
+      var runTimer = null, running = false, rerunWanted = false;
+      function scheduleRun() {
+        clearTimeout(runTimer);
+        runTimer = setTimeout(async function () {
+          var roles = spec.options.filter(function (o) { return o.type === 'Variables' || o.type === 'Variable' || o.type === 'Pairs'; });
+          var firstRole = roles[0];
+          if (!firstRole || !(values[firstRole.name] || []).length) return; // ikke nok til å kjøre
+          if (running) { rerunWanted = true; return; }
+          running = true;
+          try { await runJmvAnalysis(spec, values, cardWrap); }
+          catch (e) {
+            cardWrap.innerHTML = '';
+            var pre = document.createElement('pre');
+            pre.style.cssText = 'color:#b91c1c;white-space:pre-wrap;font-size:12px;';
+            pre.textContent = T('Analysefeil: {msg}', { msg: e.message || e });
+            cardWrap.appendChild(pre);
+          }
+          finally { running = false; if (rerunWanted) { rerunWanted = false; scheduleRun(); } }
+        }, 400);
+      }
+
+      // Hode med lukkeknapp
+      var head = document.createElement('div'); head.className = 'jmv-dialog-head';
+      var ht = document.createElement('span'); ht.textContent = spec.title; head.appendChild(ht);
+      var x = document.createElement('button'); x.textContent = '✕';
+      x.style.cssText = 'border:none;background:none;cursor:pointer;font-size:14px;color:#555;';
+      x.addEventListener('click', function () { panel.hidden = true; });
+      head.appendChild(x); panel.appendChild(head);
+
+      var body = document.createElement('div'); body.className = 'jmv-dialog-body';
+      body.style.display = 'block'; panel.appendChild(body);
+
+      // ── Roller: variabel-liste + rollebokser (gjenbruker v1-markup/CSS) ──
+      var roleOpts = spec.options.filter(function (o) { return o.type === 'Variables' || o.type === 'Variable' || o.type === 'Pairs'; });
+      var assigned = function () { return roleOpts.reduce(function (a, o) { return a.concat(values[o.name] || []); }, []); };
+      var srcSel = null;
+      var srcList = document.createElement('ul');
+      function typeAllowed(o, v) {
+        // suggested/permitted fra YAML: 'continuous'~numeric, ellers nominal/ordinal/factor
+        var p = (o.permitted || []).concat(o.suggested || []);
+        if (!p.length) return true;
+        var wantsNum = p.indexOf('continuous') !== -1 || p.indexOf('numeric') !== -1;
+        var wantsNom = p.indexOf('nominal') !== -1 || p.indexOf('ordinal') !== -1 || p.indexOf('factor') !== -1 || p.indexOf('id') !== -1;
+        return (v.type === 'numeric' && wantsNum) || (v.type === 'nominal' && wantsNom) || (wantsNum && wantsNom);
+      }
+      function redraw() {
+        srcList.innerHTML = '';
+        vars.forEach(function (v) {
+          if (assigned().indexOf(v.name) !== -1) return;
+          var li = document.createElement('li');
+          li.innerHTML = jamoviTypeIcon(v.type) + '<span class="jmv-var-name">' + M.escapeHtml(v.name) + '</span>';
+          li.classList.toggle('jmv-selected', srcSel === v.name);
+          li.addEventListener('click', function () { srcSel = v.name; redraw(); });
+          li.addEventListener('dblclick', function () { assignTo(roleOpts[0], v.name); });
+          srcList.appendChild(li);
+        });
+        roleOpts.forEach(function (o) {
+          var ul = o.__ul; ul.innerHTML = '';
+          (values[o.name] || []).forEach(function (n) {
+            var v = vars.filter(function (x) { return x.name === n; })[0] || { type: 'numeric' };
+            var li = document.createElement('li');
+            li.innerHTML = jamoviTypeIcon(v.type) + '<span class="jmv-var-name">' + M.escapeHtml(n) + '</span><span class="jmv-remove">✕</span>';
+            li.addEventListener('click', function () {
+              values[o.name] = values[o.name].filter(function (x) { return x !== n; });
+              redraw(); scheduleRun();
+            });
+            ul.appendChild(li);
+          });
+        });
+      }
+      function assignTo(o, name) {
+        if (!o || !name) return;
+        var v = vars.filter(function (x) { return x.name === name; })[0];
+        if (v && !typeAllowed(o, v)) return;
+        var max = (o.type === 'Variable') ? 1 : (o.type === 'Pairs' ? 2 : Infinity);
+        if ((values[o.name] || []).length >= max) { if (max === 1) values[o.name] = []; else return; }
+        values[o.name].push(name); srcSel = null;
+        redraw(); scheduleRun();
+      }
+      var varlistDiv = document.createElement('div'); varlistDiv.className = 'jmv-varlist';
+      var vl = document.createElement('div'); vl.className = 'jmv-role-label'; vl.textContent = T('Variabler');
+      varlistDiv.appendChild(vl); varlistDiv.appendChild(srcList);
+      srcList.style.cssText = 'list-style:none;margin:0;padding:0;border:1px solid #828282;max-height:220px;overflow:auto;background:#fff;';
+      body.appendChild(varlistDiv);
+      roleOpts.forEach(function (o) {
+        var lab = document.createElement('div'); lab.className = 'jmv-role-label'; lab.textContent = o.title;
+        var row = document.createElement('div'); row.className = 'jmv-role-row';
+        var arrow = document.createElement('button'); arrow.className = 'jmv-arrow'; arrow.textContent = '→';
+        arrow.addEventListener('click', function () { assignTo(o, srcSel); });
+        var box = document.createElement('ul'); box.className = 'jmv-rolebox';
+        box.style.cssText = 'list-style:none;';
+        o.__ul = box;
+        row.appendChild(arrow); row.appendChild(box);
+        body.appendChild(lab); body.appendChild(row);
+      });
+
+      // ── Øvrige opsjoner i sammenleggbare seksjoner ──
+      var sections = JMV_SECTIONS[spec.name] || null;
+      var nonRole = spec.options.filter(function (o) { return roleOpts.indexOf(o) === -1; });
+      function control(o) {
+        var wrap = document.createElement('label'); wrap.className = 'jmv-opt-item';
+        if (o.type === 'Bool') {
+          var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!values[o.name];
+          cb.addEventListener('change', function () { values[o.name] = cb.checked; scheduleRun(); });
+          wrap.appendChild(cb); wrap.appendChild(document.createTextNode(' ' + o.title));
+        } else if (o.type === 'List') {
+          wrap.appendChild(document.createTextNode(o.title + ' '));
+          var sel = document.createElement('select'); sel.className = 'jmv-opt-select';
+          (o.choices || []).forEach(function (c) {
+            var op = document.createElement('option'); op.value = c.value; op.textContent = c.title;
+            if (c.value === values[o.name]) op.selected = true; sel.appendChild(op);
+          });
+          sel.addEventListener('change', function () { values[o.name] = sel.value; scheduleRun(); });
+          wrap.appendChild(sel);
+        } else if (o.type === 'Number' || o.type === 'Integer') {
+          wrap.appendChild(document.createTextNode(o.title + ' '));
+          var inp = document.createElement('input'); inp.type = 'number'; inp.value = values[o.name];
+          inp.style.cssText = 'width:70px;padding:2px 4px;border:1px solid #828282;border-radius:3px;';
+          if (o.min !== undefined) inp.min = o.min;
+          if (o.max !== undefined) inp.max = o.max;
+          inp.addEventListener('change', function () { values[o.name] = inp.value === '' ? o.default : Number(inp.value); scheduleRun(); });
+          wrap.appendChild(inp);
+        } else if (o.type === 'String') {
+          wrap.appendChild(document.createTextNode(o.title + ' '));
+          var ti = document.createElement('input'); ti.type = 'text'; ti.value = values[o.name] || '';
+          ti.style.cssText = 'width:130px;padding:2px 4px;border:1px solid #828282;border-radius:3px;';
+          ti.addEventListener('change', function () { values[o.name] = ti.value || null; scheduleRun(); });
+          wrap.appendChild(ti);
+        } else { return null; } // Level/andre: fase 2
+        return wrap;
+      }
+      function addSection(title, opts, open) {
+        var found = opts.map(function (n) { return nonRole.filter(function (o) { return o.name === n; })[0]; }).filter(Boolean);
+        if (!found.length) return;
+        var sec = document.createElement('div'); sec.className = 'jmv-section' + (open ? '' : ' collapsed');
+        var hdr = document.createElement('div'); hdr.className = 'jmv-section-hdr';
+        hdr.innerHTML = '<span class="jmv-section-caret">▾</span><span class="jmv-section-title">' + M.escapeHtml(title) + '</span>';
+        hdr.addEventListener('click', function () { sec.classList.toggle('collapsed'); });
+        var sb = document.createElement('div'); sb.className = 'jmv-section-body';
+        found.forEach(function (o) { var c = control(o); if (c) sb.appendChild(c); });
+        sec.appendChild(hdr); sec.appendChild(sb); body.appendChild(sec);
+      }
+      if (sections) {
+        sections.forEach(function (s, i) { addSection(s.title, s.opts, i === 0); });
+        var covered = sections.reduce(function (a, s) { return a.concat(s.opts); }, []);
+        addSection(T('Flere valg'), nonRole.map(function (o) { return o.name; })
+          .filter(function (n) { return covered.indexOf(n) === -1; }), false);
+      } else {
+        addSection(T('Valg'), nonRole.map(function (o) { return o.name; }), true);
+      }
+
+      redraw(); scheduleRun();
+    }
+
     // DEV-ONLY: exposed for manual console testing (Task 3 Step 4). Removed in Task 5.
     window.__runJmv = runJmvAnalysis;
+    // DEV-ONLY: exposed for manual console testing (Task 4 Step 5). Removed in Task 5.
+    window.__openJmv = openJmvAnalysis;
 
     // Inject ribbon DOM
     var bar = M.getModeGuiBar();

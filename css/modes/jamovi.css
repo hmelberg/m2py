@@ -52,6 +52,12 @@
 .jmv-menu button svg { flex:0 0 auto; margin-right:1px; }
 .jmv-menu button:hover { background:#e8eefc; color:var(--jmv-blue); }
 .jmv-menu button:disabled { opacity:.4; cursor:not-allowed; }
+/* ── jamovi 2.0: dokket opsjonspanel + resultat-arbeidsflate ────────────── */
+#jamoviWorkspace { display:flex; align-items:flex-start; gap:0; }
+#jamoviOptions { flex:0 0 440px; max-width:48%; position:sticky; top:0; background:#fff; border:1px solid var(--jmv-line); border-radius:8px; margin:6px 8px 6px 4px; max-height:calc(100vh - 160px); overflow-y:auto; }
+#jamoviOptions .jmv-dialog-head { display:flex; justify-content:space-between; align-items:center; }
+#jamoviOptions[hidden] { display:none; }
+#jamoviResultsPane { flex:1; min-width:0; }
 /* ── jamovi result tables ───────────────────────────────────────────────── */
 #jamoviResults { padding:6px 4px; }
 .jmv-result-card { position:relative; border:1px solid var(--jmv-line); border-radius:8px; margin:0 0 16px; background:#fff; }
