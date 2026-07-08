@@ -673,7 +673,8 @@ summarize kjonn
   <!-- ── MODES ── -->
   <section id="modes">
     <h2>Modes</h2>
-    <p>Choose a mode from the dropdown menu in the bottom bar, or use mode-switch lines in the script to switch along the way (see <a href="#hybrid">Hybrid scripts</a>).</p>
+    <p>Choose a language from the dropdown menu in the bottom bar, or use mode-switch lines in the script to switch along the way (see <a href="#hybrid">Hybrid scripts</a>).</p>
+    <p>Next to the language selector, two badges show the session's <strong>security level</strong> and <strong>compute location</strong>. The level is derived automatically from the sources in the script and cannot be overridden — green <em>Open</em> (no protected sources), amber <em>Restricted</em> (strict profile or a protected source: only aggregated results are released), dashed amber <em>Unknown</em> (a source we cannot vouch for — log in to see its level), purple <em>Encrypted</em> (a homomorphically encrypted source: only <code>group_agg</code> / <code>value_counts</code> / <code>crosstab</code> / <code>ols</code>). The location badge shows <em>Local</em> (in the browser) or <em>Server</em>; when both are possible you can click it — the choice is written as <code>exec(local|remote)</code> into the script, so the script remains the single source of truth. Hover the badges to see which source determined the level.</p>
 
     <div class="card-grid">
       <div class="card">

@@ -673,7 +673,8 @@ summarize kjonn
   <!-- ── MODES ── -->
   <section id="modes">
     <h2>Moduser</h2>
-    <p>Velg modus fra dropdown-menyen i bunnbaren, eller bruk modusveksler-linjer i scriptet for å veksle underveis (se <a href="#hybrid">Hybrid-skript</a>).</p>
+    <p>Velg språk fra dropdown-menyen i bunnbaren, eller bruk modusveksler-linjer i scriptet for å veksle underveis (se <a href="#hybrid">Hybrid-skript</a>).</p>
+    <p>Ved siden av språkvelgeren viser to merker sesjonens <strong>sikkerhetsnivå</strong> og <strong>beregningssted</strong>. Nivået avledes automatisk av kildene i skriptet og kan ikke overstyres — grønt <em>Åpen</em> (ingen beskyttede kilder), gult <em>Begrenset</em> (strict-profil eller beskyttet kilde: bare aggregerte resultater slipper ut), gult stiplet <em>Ukjent</em> (kilde vi ikke kjenner — logg inn for å se nivå), lilla <em>Kryptert</em> (homomorf kryptert kilde: kun <code>group_agg</code> / <code>value_counts</code> / <code>crosstab</code> / <code>ols</code>). Sted-merket viser <em>Lokalt</em> (i nettleseren) eller <em>Server</em>; når begge er mulig kan du klikke på merket — valget skrives som <code>exec(local|remote)</code> i skriptet, slik at skriptet alltid er fasiten. Hold musepekeren over merkene for å se hvilken kilde som bestemte nivået.</p>
 
     <div class="card-grid">
       <div class="card">

@@ -504,7 +504,7 @@
       </button>
       <div style="width:1px;height:20px;background:var(--border);margin:0 6px;flex-shrink:0"></div>
       <div class="mode-dropdown-wrap">
-        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg modus (Microdata, Python, R, Statx, jamovi, DuckDB, Kryptert, SafeStat)">
+        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg språk (Microdata, Python, R, Statx, jamovi, DuckDB, SafeStat)">
           <span id="editorModeLabel">Microdata</span>
           <span class="chevron">▲</span>
         </button>
@@ -515,10 +515,13 @@
           <button type="button" data-mode="statx">Statx</button>
           <button type="button" data-mode="jamovi">jamovi</button>
           <button type="button" data-mode="duckdb">DuckDB</button>
-          <button type="button" data-mode="he" data-i18n>Kryptert</button>
           <button type="button" data-mode="safestat">SafeStat</button>
         </div>
       </div>
+      <!-- Sesjonskontekst: nivå avledes av kildene (kan ikke overstyres),
+           sted er klikkbart kun når både lokal og server er mulig. -->
+      <button type="button" class="ctx-badge" id="ctxLevelBadge" aria-live="polite"></button>
+      <button type="button" class="ctx-badge" id="ctxPlaceBadge"></button>
       <button type="button" class="btn btn-tolk" id="btnDmQuick" style="display:none;gap:6px" data-i18n-title title="Vurder personvern: sjekk om scriptet henter mer detaljerte data enn n&#248;dvendig (dataminimering), og f&#229; forslag til &#229; aggregere/forenkle. Krever innlogging.">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/></svg>
         <span data-i18n>Vurder personvern</span>
@@ -824,6 +827,7 @@
   <script src="command_help.js"></script>
   <script>window.M2PY_APP = 'safestat';</script>
   <script src="js/notebook-links.js"></script>
+  <script src="js/session-context.js"></script>
   <script>
     // Fallback hvis js/i18n.js ikke lastet (404 e.l.): vis norsk uendret.
     window.t = window.t || function (s) { return s; };
@@ -3793,12 +3797,6 @@
         runSelf: async function (script, ctx) { await runStatxScript(script, ctx); } },
       duckdb: { id: 'duckdb', label: 'DuckDB', hlConfig: SQL_HL_CFG, handleTab: microdataHandleTab,
         translate: { showsButton: false }, runDefault: 'duckdb' },
-      // Kryptert (Plane B): scripts run server-side against a homomorphically
-      // encrypted source (dialect "he"). The facade verbs are group_agg /
-      // value_counts / crosstab / ols on an EncryptedSource; the data is never
-      // decrypted. Same require-directive routing as the other remote dialects.
-      he: { id: 'he', label: 'Kryptert', handleTab: microdataHandleTab,
-        translate: { showsButton: false }, runDefault: 'he' },
       // SafeStat: same microdata language, but runs by translating to pandas and
       // executing the generated code (offline path) rather than the emulator.
       // Execution is local now; a remote compute-to-data executor is a placeholder.
@@ -3858,7 +3856,94 @@
       if (window.mdApplyMicroGating) window.mdApplyMicroGating();
       if (typeof updateModeGuiBar==='function') updateModeGuiBar();
       if (window.mdUpdateSafestatToggle) window.mdUpdateSafestatToggle();
+      updateSessionContextUi();
     }
+
+    // ── Sesjonskontekst-badges: [● Nivå] [Sted] ────────────────────────────
+    // Nivå (open/unknown/restricted/he) avledes av kildene i skriptet via
+    // js/session-context.js — mest-restriktive-vinner, kan ikke overstyres av
+    // brukeren (serveren håndhever uansett; badgen er ærlig visning). Sted
+    // (lokal/server) er klikkbart KUN når hver direktivlinje kan flyttes;
+    // klikket skriver exec(local|remote) i skriptet, som forblir eneste
+    // sannhetskilde. Re-avledes på input (debounce 400 ms), modusbytte og
+    // (u-debouncet) i run-dispatchen.
+    var _ctxDebounce = null;
+    var _ctxWebRegistry = null;   // data/data-sources.json — offentlige web-kilder
+    function _ctxEnsureRegistry() {
+      if (_ctxWebRegistry) return Promise.resolve(_ctxWebRegistry);
+      return fetch('data/data-sources.json')
+        .then(function (r) { return r.ok ? r.json() : []; })
+        .catch(function () { return []; })
+        .then(function (j) { _ctxWebRegistry = j || []; return _ctxWebRegistry; });
+    }
+    function _ctxLevelWhyText(r) {
+      switch (r.why) {
+        case 'profile-strict': return t('skriptet ber om strict-profil (options.profile)');
+        case 'grant-strict': return t('kilden «{name}» har strict-profil', { name: r.name });
+        case 'level-protected': return t('kilden «{name}» er beskyttet (protected)', { name: r.name });
+        case 'level-sensitive': return t('kilden «{name}» er sensitiv (sensitive)', { name: r.name });
+        case 'non-public': return t('kilden «{name}» er ikke offentlig', { name: r.name });
+        case 'he-envelope': return t('kilden «{name}» er homomorfisk kryptert — kun group_agg / value_counts / crosstab / ols', { name: r.name });
+        default: return t('kilden «{name}» er ukjent her — logg inn for å se nivå', { name: r.name });
+      }
+    }
+    function updateSessionContextUi() {
+      var lv = document.getElementById('ctxLevelBadge');
+      var pl = document.getElementById('ctxPlaceBadge');
+      var si = document.getElementById('scriptInput');
+      if (!lv || !pl || !si || !window.SessionContext) return;
+      var cached = window.SessionContext.cachedMeta();
+      var ctx = window.SessionContext.derive(si.value, activeEditorMode, cached);
+      window.__sessionCtx = ctx;
+      var LV_LABEL = { open: t('Åpen'), unknown: t('Ukjent'), restricted: t('Begrenset'), he: t('Kryptert') };
+      lv.className = 'ctx-badge ctx-badge--' + ctx.level;
+      lv.textContent = LV_LABEL[ctx.level];
+      lv.title = ctx.levelReasons.length
+        ? ctx.levelReasons.map(_ctxLevelWhyText).join('\n')
+        : t('Åpne data — ingen beskyttede kilder i skriptet');
+      pl.className = 'ctx-badge' + (ctx.placeChoosable ? ' ctx-badge--choosable' : '');
+      pl.textContent = ctx.place === 'remote' ? '☁ ' + t('Server') : '⌂ ' + t('Lokalt');
+      pl.title = ctx.placeChoosable
+        ? t('Klikk for å bytte til {other} — valget skrives som exec() i skriptet', {
+            other: ctx.place === 'remote' ? t('lokal kjøring') : t('server-kjøring') })
+        : (ctx.place === 'remote' ? t('Kjøres på server (bestemt av kildene)') : t('Kjøres lokalt i nettleseren'));
+      // Asynkron beriking: hent metadata KUN for kilder som mangler i cachen,
+      // og re-render når svaret kommer (cachede navn gir ingen ny runde —
+      // det er det som terminerer rekursjonen her).
+      var missing = ctx.sourceIds.filter(function (n) { return !(n in cached); });
+      if (missing.length) {
+        _ctxEnsureRegistry().then(function (reg) {
+          return window.SessionContext.metaFor(missing, {
+            apiBase: getMdApiBase(), authToken: getAuthToken(), webRegistry: reg });
+        }).then(function () { updateSessionContextUi(); });
+      }
+    }
+
+    (function initSessionContextUi() {
+      var si = document.getElementById('scriptInput');
+      if (si) si.addEventListener('input', function () {
+        clearTimeout(_ctxDebounce);
+        _ctxDebounce = setTimeout(updateSessionContextUi, 400);
+      });
+      var pl = document.getElementById('ctxPlaceBadge');
+      if (pl) pl.addEventListener('click', function () {
+        var ctx = window.__sessionCtx;
+        if (!ctx || !ctx.placeChoosable || scriptRunInProgress) return;
+        var next = ctx.place === 'remote' ? 'local' : 'remote';
+        var el = document.getElementById('scriptInput');
+        var pos = el.selectionStart;
+        el.value = window.SessionContext.applyExec(el.value, next, activeEditorMode,
+          window.SessionContext.cachedMeta());
+        el.selectionStart = el.selectionEnd = Math.min(pos, el.value.length);
+        if (typeof editorContent !== 'undefined') editorContent[activeEditorMode] = el.value;
+        if (window.updateLineNumbers) window.updateLineNumbers();
+        updateSessionContextUi();
+      });
+      // Boot: badgene skal vise riktig fra start, også når restoreEditorMode
+      // ikke bytter modus. setTimeout(0) lar starteksempel-seedingen (som
+      // ligger senere i dette synkrone scriptet) lande først.
+      setTimeout(updateSessionContextUi, 0);
+    })();
 
     // Microdata-specific UI is shown only when the URL (before any #) contains
     // "micro" (js/notebook-links.js urlHasMicro). Fixed for the page lifetime;
@@ -4141,19 +4226,12 @@
     let scriptRunInProgress = false;
     // ── Editor mode (always-on, controlled by bottom-bar dropdown) ──────
     let activeEditorMode  = 'microdata'; // 'microdata' | 'python' | 'r'
-    // Kryptert (he)-modus placeholder: rent kommentert (ingen kjørbare linjer),
-    // så et bytte til modusen aldri viser den bokstavelige strengen "undefined"
-    // (B3, docs/REVIEW_2026-07-07.md §3) og aldri kjører noe uventet.
-    var HE_PLACEHOLDER = [
-      '# Kryptert (homomorfisk, Plane B): kjører mot en kryptert kilde uten å',
-      '# dekryptere den. Kun facade-verbene group_agg / value_counts / crosstab / ols',
-      '# er tilgjengelige (se docs/superpowers/specs/2026-07-05-encrypted-external-sources-design.md).',
-      '#',
-      '# # require <kilde> as data',
-      '# group_agg data, mean(inntekt) by(kjonn)',
-    ].join('\n');
-    const editorContent   = { microdata: '', python: '', r: '', statx: '', jamovi: '', duckdb: '', he: HE_PLACEHOLDER, safestat: '' };
-    const editorBP        = { microdata: new Set(), python: new Set(), r: new Set(), statx: new Set(), jamovi: new Set(), duckdb: new Set(), he: new Set(), safestat: new Set() };
+    // «Kryptert» (he) er ikke lenger en egen modus: HE er et sikkerhetsNIVÅ
+    // som avledes av kildene (safepy-he-v1) i hvilken som helst språkmodus —
+    // se sesjonskontekst-badgene og js/session-context.js. Eksempel på
+    // HE-script ligger i docs/directive-language-examples.md.
+    const editorContent   = { microdata: '', python: '', r: '', statx: '', jamovi: '', duckdb: '', safestat: '' };
+    const editorBP        = { microdata: new Set(), python: new Set(), r: new Set(), statx: new Set(), jamovi: new Set(), duckdb: new Set(), safestat: new Set() };
     // B4/B5 (docs/REVIEW_2026-07-07.md §3): switchEditorMode() persists
     // md_editor_mode but nothing ever read it back, so a reload always
     // landed on 'microdata'. Restore it here, synchronously, as part of this
@@ -4175,6 +4253,13 @@
     (function restoreEditorMode() {
       var saved = null;
       try { saved = localStorage.getItem('md_editor_mode'); } catch (e) {}
+      // Migrering: «Kryptert» (he) er ikke lenger en modus — HE-scripts var
+      // safestat-DSL-formede, så land der (og skriv tilbake så vi ikke
+      // migrerer på hver load).
+      if (saved === 'he') {
+        saved = 'safestat';
+        try { localStorage.setItem('md_editor_mode', saved); } catch (e) {}
+      }
       var mode = (saved && Object.prototype.hasOwnProperty.call(modeRegistry, saved))
         ? saved
         : (window.NotebookLinks ? window.NotebookLinks.hostnameMode(location.hostname) : 'microdata');
@@ -8948,9 +9033,9 @@ has and "int" in (m.get_microdata_functions() or {})
       // I dialekt-moduser står require som kommentar; i safestat-modus er en
       // kommentert require nettopp utkommentert og skal IKKE tolkes.
       var commentDirectives = !!(opts && opts.commentDirectives);
-      var re = commentDirectives
-        ? /^[ \t]*(?:#|--|\/\/)[ \t]*require\s+(\S+)\s+as\s+(\w+)(?:\s*,\s*exec\(\s*(local|remote)\s*\))?/gim
-        : /^\s*require\s+(\S+)\s+as\s+(\w+)(?:\s*,\s*exec\(\s*(local|remote)\s*\))?/gim;
+      // Delt med badge-avledningen (js/session-context.js) så de to parserne
+      // aldri driver fra hverandre.
+      var re = window.SessionContext.requireRe(commentDirectives);
       // strip every `, exec(...)` so the translator never sees the option
       var cleanScript = script.replace(/(\brequire\b[^\n]*?)\s*,\s*exec\(\s*(?:local|remote)\s*\)/gi, '$1');
       var localScript = cleanScript;
@@ -8972,6 +9057,10 @@ has and "int" in (m.get_microdata_functions() or {})
           } catch (e) { return { error: t('source_info feilet for «{raw}»: {msg}', { raw: ref.raw, msg: e.message || e }) }; }
           if (!info || info.error) return { error: t('ukjent kilde: «{raw}» (ikke-offentlige kilder krever innlogging)', { raw: ref.raw }) };
         }
+        // Badge-cachen (js/session-context.js) lærer av kjørebanens oppslag —
+        // level/kind er valgfrie felter serveren kan begynne å sende senere.
+        if (window.SessionContext) window.SessionContext.noteFetchedLoad(ref.raw,
+          { public: info.public, level: info.level, envelopeKind: info.kind });
         var refExec;
         if (!info.public) {
           refExec = 'remote';
@@ -9065,7 +9154,12 @@ has and "int" in (m.get_microdata_functions() or {})
     async function runSafeStatScript(script, ctx) {
       var derived = await deriveSafeStatExecutor(script);
       if (derived.error) { outputArea.innerHTML = '<pre class="error">SafeStat: ' + escapeHtmlOutput(derived.error) + '</pre>'; return; }
-      if (derived.executor === 'remote') { await runSafeStatRemote(derived.cleanScript, ctx, derived.sources, derived.reason); return; }
+      if (derived.executor === 'remote') {
+        // HE-nivå (homomorf kilde): serveren må få dialect 'he', ikke DSL-motoren.
+        var _ssDialect = (window.__sessionCtx && window.__sessionCtx.level === 'he') ? 'he' : undefined;
+        await runSafeStatRemote(derived.cleanScript, ctx, derived.sources, derived.reason, _ssDialect);
+        return;
+      }
       var script = derived.localScript;   // public-name refs rewritten to their URL; exec() stripped
       var py = (ctx && ctx.py) || await loadPyodideAndM2py();
       outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('SafeStat: oversetter til pandas og kjører lokalt…') + '</div>';
@@ -9436,12 +9530,33 @@ options(width = 200)
           : getShowCommandsDefault();
         var _mr = currentMode();
         var _ctx = { py: py, rightStatus: rightStatus, showCommands: _showCmds, profile: _scriptOpts.profile };
+        // Autoritativ (u-debouncet) sesjonskontekst for akkurat dette scriptet —
+        // samme avledning som badgene viser (js/session-context.js).
+        updateSessionContextUi();
+        var _sessionCtx = window.__sessionCtx || { level: 'open' };
+        // HE-nivå: kun fasade-verbene er lovlige — stopp med tydelig feil FØR
+        // noe sendes (serveren håndhever uansett selv). Kun DSL-modusene:
+        // python-modus kan skrive he-kode python-formet (meta-dialekten
+        // velger he/polars-he server-side), så der ville sjekken slå feil.
+        if (_sessionCtx.level === 'he' && (activeEditorMode === 'safestat' || activeEditorMode === 'microdata')) {
+          var _heCheck = window.SessionContext.checkHeVerbs(effectiveScript);
+          if (!_heCheck.ok) {
+            outputArea.innerHTML = '<pre class="error">' + escapeHtmlOutput(
+              t('Kryptert nivå: kun group_agg / value_counts / crosstab / ols er tillatt mot homomorfisk krypterte kilder.') + '\n' +
+              _heCheck.offending.map(function (o) { return t('linje {n}: {text}', { n: o.lineNo, text: o.text }); }).join('\n')) + '</pre>';
+            return;
+          }
+        }
         // Compute-to-data: i python/r/duckdb-modus ruter et `# require <navn> as <alias>`-
         // direktiv scriptet til serveren (safepy). Uten direktiv kjøres lokalt som før.
         // 'python' is a meta-dialect: the server picks pandas vs polars from the
         // script's imports (and he/polars-he for encrypted sources). See
         // safepy detect_python_dialect / spec 2026-07-04-python-meta-dialect-design.
-        var _remoteDialect = { python: 'python', r: 'r', duckdb: 'duckdb', he: 'he' }[activeEditorMode];
+        // Dialekten 'he' følger NIVÅET (homomorf kilde i skriptet), ikke modusen —
+        // «Kryptert» er ikke lenger en egen modus. (safestat-modus ruter ikke her:
+        // dens bare require håndteres av runSafeStatScript, som gjør samme he-valg.)
+        var _remoteDialect = { python: 'python', r: 'r', duckdb: 'duckdb' }[activeEditorMode];
+        if (_remoteDialect && _sessionCtx.level === 'he') _remoteDialect = 'he';
         if (_remoteDialect && await maybeRunRemote(effectiveScript, _ctx, _remoteDialect)) return;
         // Microdata-modus, katalog-først: server-kilder ruter til legacy m2py-motoren
         if (activeEditorMode === 'microdata' && await maybeRunRemoteMicrodata(effectiveScript, _ctx)) return;
@@ -9483,7 +9598,7 @@ options(width = 200)
             }
             var _stripped = effectiveScript.replace(/^[ \t]*(?:#|--|\/\/)[ \t]*(?:connect|load|require|import|join|create-dataset)\b[^\n]*\n?/gim, '');
             await runSafeStatRemote(_stripped, _ctx, _rSources, t('ikke-offentlig kilde'),
-              activeEditorMode === 'duckdb' ? 'duckdb' : 'python', _rKeys, _asmSpec);
+              _sessionCtx.level === 'he' ? 'he' : (activeEditorMode === 'duckdb' ? 'duckdb' : 'python'), _rKeys, _asmSpec);
             return;
           }
           var _rawLoads = _dl.loads;
@@ -9493,7 +9608,13 @@ options(width = 200)
           // dataset's inputs onto the assembled dataset name, or set it
           // directly for a plain whole-table `load ... as x`.
           var _sourceLevels = {};
-          _rawLoads.forEach(function (l) { _sourceLevels[l.alias] = l.level || 'public'; });
+          _rawLoads.forEach(function (l) {
+            _sourceLevels[l.alias] = l.level || 'public';
+            // Badge-cachen lærer den FAKTISKE beskyttelsen (grant-level,
+            // strict, konvoluttype) — mer enn source_info avslører i dag.
+            if (window.SessionContext) window.SessionContext.noteFetchedLoad(l.alias,
+              { level: l.level, strict: !!l.strict, envelopeKind: l.envelope && l.envelope.format });
+          });
           if (window.__markAssemblyLevels && _asmSpec && _asmSpec.datasets && _asmSpec.datasets.length) {
             window.__markAssemblyLevels(_asmSpec, _sourceLevels);
           } else if (window.__setDatasetLevel) {

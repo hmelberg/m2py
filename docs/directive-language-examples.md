@@ -150,11 +150,15 @@ Referencing a registered HE source is written exactly like a protected source (�
 ```
 The difference is invisible in the directive text — it's the registered source's `format` field, checked at `/source_access` resolution time, that routes it into the HE facade instead of a normal remote run.
 
-The legacy `require` form works the same way and is the one actually wired to the "Kryptert" (HE) editor tab, whose `dialect` is fixed to `'he'` for every script run in that tab:
+The legacy `require` form works the same way:
 ```
 # require helse_he as h
 ```
-Running that line while the active editor mode/tab is **Kryptert** sends the whole script to the server with `dialect: 'he'`; the server never decrypts the data, and only the HE facade verbs (`group_agg`, `value_counts`, `crosstab`, `ols`) are available against it.
+There is no separate "Kryptert" editor mode anymore (2026-07-08): HE is a security *level* derived from the sources, shown in the bottom-bar level badge (purple "Kryptert") in whatever language mode you are in. When the script references an HE source, the run is sent to the server with `dialect: 'he'`; the server never decrypts the data, and only the HE facade verbs (`group_agg`, `value_counts`, `crosstab`, `ols`) are available against it. In the DSL modes (SafeStat/Microdata) the client pre-flights this verb whitelist and refuses the run with a line-numbered error before anything is sent; the server enforces it regardless. An example HE script:
+```
+# require helse_he as data
+group_agg data, mean(inntekt) by(kjonn)
+```
 
 **`exec(local)` is always refused on an HE source** — there's no plaintext to run against locally:
 ```

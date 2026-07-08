@@ -799,6 +799,36 @@
     }
     .mode-dropdown-menu button:hover { background: var(--border); }
     .mode-dropdown-menu button.active { color: var(--accent); font-weight: 700; }
+    /* ── Sesjonskontekst-badges: [● Nivå] [Sted] i bunnlinjen ─────────
+       Nivå avledes av kildene i skriptet (grønn=åpen, gul=begrenset,
+       gul stiplet=ukjent, lilla=kryptert/he) og kan ikke overstyres. */
+    .ctx-badge {
+      height: 28px; padding: 0 10px; border: 1px solid var(--border);
+      border-radius: 8px; background: var(--bg-panel); color: var(--text);
+      font-size: 12px; font-weight: 600; white-space: nowrap;
+      display: inline-flex; align-items: center; gap: 6px;
+      cursor: default; margin-left: 6px; font-family: inherit;
+    }
+    .ctx-badge--open, .ctx-badge--restricted, .ctx-badge--unknown, .ctx-badge--he {
+      color: var(--ctx);
+      border-color: color-mix(in srgb, var(--ctx) 45%, transparent);
+      background: color-mix(in srgb, var(--ctx) 12%, transparent);
+    }
+    .ctx-badge--open::before, .ctx-badge--restricted::before,
+    .ctx-badge--unknown::before, .ctx-badge--he::before {
+      content: ''; width: 7px; height: 7px; border-radius: 50%;
+      background: var(--ctx); flex-shrink: 0;
+    }
+    .ctx-badge--open { --ctx: #16a34a; }
+    .ctx-badge--restricted { --ctx: #d97706; }
+    .ctx-badge--unknown { --ctx: #d97706; border-style: dashed; }
+    .ctx-badge--he { --ctx: #7c3aed; }
+    body[data-theme="dark"] .ctx-badge--open { --ctx: #4ade80; }
+    body[data-theme="dark"] .ctx-badge--restricted { --ctx: #fbbf24; }
+    body[data-theme="dark"] .ctx-badge--unknown { --ctx: #fbbf24; }
+    body[data-theme="dark"] .ctx-badge--he { --ctx: #a78bfa; }
+    .ctx-badge--choosable { cursor: pointer; transition: border-color .15s; }
+    .ctx-badge--choosable:hover { border-color: var(--accent); }
     .oversett-btn {
       height: 28px; padding: 0 12px; border: 1px solid var(--border);
       border-radius: 8px; background: transparent; color: var(--text-muted);
