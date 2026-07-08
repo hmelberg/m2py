@@ -80,6 +80,10 @@
     return out.join('\n');
   };
 
+  NL.autorunNeedsGate = function (app, hasSecret) {
+    return app === 'safestat' || !!hasSecret;
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = NL;
   else global.NotebookLinks = NL;
 })(typeof window !== 'undefined' ? window : globalThis);

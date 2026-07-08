@@ -91,3 +91,12 @@ test('rProsePrep: END marker in content is neutralized', () => {
   const out = NL.rProsePrep(src);
   assert.doesNotMatch(out.replace(/__micro_transform_end__\\n"\)/,''), /__micro_transform_end__ there/);
 });
+
+test('autorunNeedsGate: safestat always gates', () => {
+  assert.equal(NL.autorunNeedsGate('safestat', false), true);
+  assert.equal(NL.autorunNeedsGate('safestat', true), true);
+});
+test('autorunNeedsGate: openstat gates only when a secret is present', () => {
+  assert.equal(NL.autorunNeedsGate('openstat', false), false);
+  assert.equal(NL.autorunNeedsGate('openstat', true), true);
+});

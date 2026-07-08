@@ -255,6 +255,7 @@
     <div class="resizer" id="resizer" title="Drag to resize"></div>
     <div class="panel panel-right">
       <div class="panel-content panel-content-output">
+        <button type="button" id="notebookShowCode" class="ai-modal-btn" style="display:none" data-i18n>‹ Vis kode</button>
         <div class="output-scroll-wrap" id="outputScrollWrap">
           <div class="output-area" id="outputArea"></div>
         </div>
@@ -2549,6 +2550,48 @@
         if (rightStatus) rightStatus.textContent = '';
       }
       window.mdClearOutput = clearOutput;
+
+      window.mdHasStoredSecret = function () {
+        try {
+          if (localStorage.getItem('md_anthropic_key')) return true;
+          if (localStorage.getItem('m2py_github_pat')) return true;
+          var p = localStorage.getItem('m2py_github_profiles');
+          if (p && /"pat"\s*:\s*"[^"]/.test(p)) return true;
+        } catch (_) {}
+        return false;
+      };
+
+      window.mdConfirmRun = function (sourceLabel) {
+        return new Promise(function (resolve) {
+          var ok = window.confirm(
+            t('Kjøre scriptet fra {src}? Det kjører kode i nettleseren din.', { src: sourceLabel || t('lenken') }));
+          resolve(!!ok);
+        });
+      };
+
+      window.mdShowCodeAffordance = function () {
+        var b = document.getElementById('notebookShowCode');
+        if (!b) return;
+        b.style.display = '';
+        b.onclick = function () { if (window.mdSetInputHidden) window.mdSetInputHidden(false); b.style.display = 'none'; };
+      };
+
+      window.mdNotebookMaybeAutorun = async function () {
+        var req = window.mdNotebookAutorun;
+        if (!req) return;
+        window.mdNotebookAutorun = null;                 // consume once
+        if (window.mdSetInputHidden) window.mdSetInputHidden(true);   // output-only
+        window.mdShowCodeAffordance && window.mdShowCodeAffordance();
+        var app = window.M2PY_APP || 'safestat';
+        var needGate = window.NotebookLinks.autorunNeedsGate(app, window.mdHasStoredSecret());
+        if (needGate) {
+          var ok = await window.mdConfirmRun(req.url);
+          if (!ok) { if (window.mdSetInputHidden) window.mdSetInputHidden(false); return; }
+        }
+        if (scriptRunInProgress) return;
+        document.getElementById('btnRun').click();
+      };
+
       const _menuClearOutput = document.getElementById('menuClearOutput');
       if (_menuClearOutput) _menuClearOutput.addEventListener('click', function() {
         clearOutput();
