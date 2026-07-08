@@ -93,3 +93,9 @@ def test_non_ascii_before_prose_same_line():
     out = _run(src)
     assert "note" in out
     assert "1" in out
+
+def test_crlf_multiline_prose_roundtrips():
+    src = '"""# Head\r\n\r\nbody line"""\r\nprint("after")'
+    out = _run(src)   # exec the transformed source, capture stdout
+    assert "# Head" in out and "body line" in out and "after" in out
+    assert out.index("body line") < out.index("after")

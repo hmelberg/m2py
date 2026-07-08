@@ -1446,7 +1446,8 @@
       }
 
       function show() {
-        var isOutputOnly = !!window.mdNotebookAutorun;
+        var _nlCls = window.NotebookLinks ? window.NotebookLinks.classifyHash(location.hash) : null;
+        var isOutputOnly = !!(_nlCls && _nlCls.action === 'output');
         var variant = window.NotebookLinks
           ? window.NotebookLinks.welcomeVariant(location.hostname, window.M2PY_APP || 'safestat', isOutputOnly)
           : 'safestat_general';
@@ -2593,14 +2594,14 @@
         var req = window.mdNotebookAutorun;
         if (!req) return;
         window.mdNotebookAutorun = null;                 // consume once
-        if (window.mdSetInputHidden) window.mdSetInputHidden(true);   // output-only
-        window.mdShowCodeAffordance && window.mdShowCodeAffordance();
         var app = window.M2PY_APP || 'safestat';
         var needGate = window.NotebookLinks.autorunNeedsGate(app, window.mdHasStoredSecret());
         if (needGate) {
           var ok = await window.mdConfirmRun(req.url);
-          if (!ok) { if (window.mdSetInputHidden) window.mdSetInputHidden(false); return; }
+          if (!ok) return;                               // declined: leave input/button untouched
         }
+        if (window.mdSetInputHidden) window.mdSetInputHidden(true);   // output-only
+        window.mdShowCodeAffordance && window.mdShowCodeAffordance();
         if (scriptRunInProgress) return;
         document.getElementById('btnRun').click();
       };
@@ -9274,12 +9275,16 @@ options(width = 200)
         // while Pyodide was still loading, don't reset the run buttons to idle
         // or auto-click Kjør — that click would be read as performRunInterrupt()
         // on the user's in-flight run (see the click handler below).
-        if (!scriptRunInProgress) {
+        var _nbCls = window.NotebookLinks ? window.NotebookLinks.classifyHash(location.hash) : null;
+        var _nbFrag = !!(_nbCls && _nbCls.kind !== 'share');
+        if (!scriptRunInProgress && !_nbFrag) {
           setRunButtonsUi('idle');
           // Auto-kjør starteksempelet hvis brukeren ikke har endret teksten
           if (scriptInput.value.trim() === _PLACEHOLDER.trim()) {
             document.getElementById('btnRun').click();
           }
+        } else if (!scriptRunInProgress) {
+          setRunButtonsUi('idle');
         }
         schedulePrefetchLazyPackages(py);
       })
