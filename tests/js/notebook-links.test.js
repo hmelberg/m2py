@@ -60,3 +60,16 @@ test('classifyHash: non-matching returns null', () => {
   assert.equal(NL.classifyHash('#section-heading'), null);  // no extension / too few tokens
   assert.equal(NL.classifyHash('#only.two'), null);         // needs user.repo.path.ext
 });
+
+test('welcomeVariant: output-only shows nothing', () => {
+  assert.equal(NL.welcomeVariant('micro.safestat.app', 'safestat', true), null);
+});
+test('welcomeVariant: micro host → microdata framing (either app)', () => {
+  assert.equal(NL.welcomeVariant('microdata.run', 'openstat', false), 'microdata');
+  assert.equal(NL.welcomeVariant('micro.safestat.app', 'safestat', false), 'microdata');
+});
+test('welcomeVariant: general framing per app', () => {
+  assert.equal(NL.welcomeVariant('py.openstat.app', 'openstat', false), 'openstat_general');
+  assert.equal(NL.welcomeVariant('safestat.app', 'safestat', false), 'safestat_general');
+  assert.equal(NL.welcomeVariant('r.safestat.app', 'safestat', false), 'safestat_general');
+});

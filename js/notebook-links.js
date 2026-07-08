@@ -49,6 +49,12 @@
     return { action: action, kind: 'dotted', urls: urls };
   };
 
+  NL.welcomeVariant = function (hostname, app, isOutputOnly) {
+    if (isOutputOnly) return null;
+    if (NL.hostnameMode(hostname) === 'microdata') return 'microdata';
+    return app === 'safestat' ? 'safestat_general' : 'openstat_general';
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = NL;
   else global.NotebookLinks = NL;
 })(typeof window !== 'undefined' ? window : globalThis);
