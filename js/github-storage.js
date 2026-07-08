@@ -19,7 +19,7 @@
       // Sett editor-innhold + språk slik at modus-buffrene holdes konsistente.
       function setEditor(text, lang) {
         if (window.mdClearOutput) window.mdClearOutput();
-        lang = (lang === 'python' || lang === 'r') ? lang : 'microdata';
+        lang = (lang === 'python' || lang === 'r' || lang === 'duckdb') ? lang : 'microdata';
         if (typeof editorContent !== 'undefined') editorContent[lang] = text;
         if (typeof switchEditorMode === 'function' && typeof activeEditorMode !== 'undefined' && lang !== activeEditorMode) {
           switchEditorMode(lang); // laster editorContent[lang] inn i scriptInput
@@ -33,6 +33,7 @@
         const s = (p || '').toLowerCase().split('?')[0];
         if (s.endsWith('.py')) return 'python';
         if (s.endsWith('.r')) return 'r';
+        if (s.endsWith('.sql')) return 'duckdb';
         return 'microdata';
       }
 
@@ -122,22 +123,59 @@
         }
       }
 
-      async function openFromFragment() {
-        const m = location.hash.match(/[#&]s=([^&]+)/);
-        if (!m) return;
-        try {
-          const data = JSON.parse(await gunzip(m[1]));
-          if (data && typeof data.script === 'string') {
-            setEditor(data.script, data.lang);
-            setCurrent(null); // delt lenke er ikke en GitHub-fil
-            if (data.name && $('scriptName')) $('scriptName').value = data.name;
-            toast(T('Delt script åpnet'));
-          }
-        } catch (e) {
-          console.warn('Kunne ikke åpne delt script fra lenke:', e);
-        } finally {
-          history.replaceState(null, document.title, location.pathname + location.search);
+      async function fetchFirstOk(urls) {
+        for (var i = 0; i < urls.length; i++) {
+          try { const r = await fetch(urls[i]); if (r.ok) return await r.text(); } catch (_) {}
         }
+        throw new Error('not found (tried main, master)');
+      }
+
+      async function loadNotebookScript(urls, primaryUrl) {
+        const text = await fetchFirstOk(urls);
+        setEditor(text, langFromPath(primaryUrl));
+        setCurrent(null);
+        const nameEl = $('scriptName');
+        if (nameEl) {
+          const fn = decodeURIComponent(primaryUrl.split('?')[0].split('/').pop() || '');
+          if (fn) nameEl.value = fn.replace(/\.(txt|py|r|sql)$/i, '');
+        }
+      }
+
+      async function openFromFragment() {
+        // Legacy #s= inline share (unchanged), stripped after handling.
+        const share = location.hash.match(/[#&]s=([^&]+)/);
+        if (share) {
+          try {
+            const data = JSON.parse(await gunzip(share[1]));
+            if (data && typeof data.script === 'string') {
+              setEditor(data.script, data.lang);
+              setCurrent(null);
+              if (data.name && $('scriptName')) $('scriptName').value = data.name;
+              toast(T('Delt script åpnet'));
+            }
+          } catch (e) { console.warn('Kunne ikke åpne delt script fra lenke:', e); }
+          finally { history.replaceState(null, document.title, location.pathname + location.search); }
+          return;
+        }
+
+        // New notebook fragments (dotted / raw). Kept in the URL (durable link).
+        const cls = window.NotebookLinks && window.NotebookLinks.classifyHash(location.hash);
+        if (!cls || cls.kind === 'share') return;
+        const urls = cls.kind === 'raw' ? [cls.raw] : cls.urls;
+        const primary = urls[0];
+        try {
+          await loadNotebookScript(urls, primary);
+        } catch (e) {
+          if ($('openUrlError')) $('openUrlError').textContent =
+            T('Kunne ikke hente notebook-lenken: {msg}', { msg: e.message || e });
+          console.warn('notebook fragment load:', e);
+          window.mdNotebookAutorun = null;
+          return;
+        }
+        window.mdNotebookAutorun = (cls.action === 'output')
+          ? { url: primary, mode: langFromPath(primary) }
+          : null;
+        if (window.mdNotebookMaybeAutorun) window.mdNotebookMaybeAutorun();
       }
 
       // --- Verb 2: Åpne fra URL ---
