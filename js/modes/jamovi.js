@@ -1200,6 +1200,174 @@
       document.body.appendChild(backdrop);
     }
 
+    // ── jamovi 2.0-motor: ekte jmv/scatr i webR ─────────────────────────────
+    var jmvReady = false, jmvLoadingP = null;
+    async function ensureJmvLoaded() {
+      if (jmvReady) return;
+      if (!jmvLoadingP) {
+        jmvLoadingP = (async function () {
+          M.setStatus(M.rightStatus, T('Laster jamovi-motoren … (~170 MB første gang, sekunder senere)'));
+          await M.ensureWebRShelter();
+          var webr = M.getWebR();
+          await webr.evalRVoid("webr::install(c('jmv','scatr','jsonlite'))");
+          await webr.evalRVoid('suppressMessages({library(jmv); library(scatr); library(jsonlite)})');
+          var helpers = await fetch('js/modes/jmv_helpers.R').then(function (r) {
+            if (!r.ok) throw new Error('jmv_helpers.R: HTTP ' + r.status);
+            return r.text();
+          });
+          await webr.evalRVoid(helpers);
+          // Task 2b: fabricate a websocket stub package so jmv analyses that expect a
+          // live jamovi server (e.g. jmv::contTables) don't error inside webR.
+          await webr.evalRVoid('.jmv_install_stubs()');
+          jmvReady = true;
+          M.setStatus(M.rightStatus, '');
+        })();
+        jmvLoadingP.catch(function () { jmvLoadingP = null; M.setStatus(M.rightStatus, ''); });
+      }
+      return jmvLoadingP;
+    }
+
+    function rQuote(s) { return "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'"; }
+
+    // Dialogtilstand -> R-kall. Opsjoner med default-verdi utelates (ren syntaks).
+    function buildJmvCall(spec, values) {
+      var args = ['data = data'];
+      spec.options.forEach(function (o) {
+        var v = values[o.name];
+        if (v === undefined || v === null) return;
+        if (o.type === 'Variables') {
+          if (v.length) args.push(o.name + ' = c(' + v.map(rQuote).join(', ') + ')');
+          return;
+        }
+        if (o.type === 'Variable') {
+          if (v.length) args.push(o.name + ' = ' + rQuote(v[0]));
+          return;
+        }
+        if (o.type === 'Pairs') {
+          if (v.length >= 2) args.push(o.name + ' = list(list(i1 = ' + rQuote(v[0]) + ', i2 = ' + rQuote(v[1]) + '))');
+          return;
+        }
+        if (JSON.stringify(v) === JSON.stringify(o.default)) return;
+        if (o.type === 'Bool') { args.push(o.name + ' = ' + (v ? 'TRUE' : 'FALSE')); return; }
+        if (o.type === 'Number' || o.type === 'Integer') {
+          if (isFinite(Number(v))) args.push(o.name + ' = ' + Number(v));
+          return;
+        }
+        args.push(o.name + ' = ' + rQuote(v)); // List, String, Level
+      });
+      return spec.ns + '::' + spec.name + '(' + args.join(', ') + ')';
+    }
+
+    async function runJmvAnalysis(spec, values, cardWrap) {
+      await ensureJmvLoaded();
+      await ensureJamoviDataInWebR();
+      // Nominale mål-overstyringer fra Variabler-fanen -> factor() i en lokal kopi
+      var factorLines = jamoviVariables()
+        .filter(function (v) { return v.type === 'nominal'; })
+        .map(function (v) { return 'data[[' + rQuote(v.name) + ']] <- factor(data[[' + rQuote(v.name) + ']])'; })
+        .join('\n');
+      var call = buildJmvCall(spec, values);
+      var rCode = 'local({\n' + factorLines + '\n.r <- ' + call +
+        '\nprint(.r)\ncat("\\n##JMV##")\ncat(jsonlite::toJSON(.jmv_serialize(.r), auto_unbox = TRUE, na = "null"))\n})';
+      var shelter = await M.ensureWebRShelter();
+      var cap = await shelter.captureR(rCode, { captureGraphics: { width: 560, height: 400 } });
+      try {
+        var text = cap.output.filter(function (m) { return m.type === 'stdout'; })
+          .map(function (m) { return m.data; }).join('\n');
+        var idx = text.lastIndexOf('##JMV##');
+        if (idx === -1) throw new Error(T('Fikk ikke resultat fra jmv'));
+        renderJmvResults(cardWrap, JSON.parse(text.slice(idx + 7)), cap.images || [], call);
+      } finally { if (cap.cleanup) await cap.cleanup(); }
+    }
+
+    // JSON-payload + bildekø -> DOM med eksisterende jamovi-CSS
+    function renderJmvResults(cardWrap, payload, images, callString) {
+      cardWrap.innerHTML = '';
+      var imgQueue = images.slice();
+      function fmtCell(v, fmt) {
+        if (v === null || v === undefined) return '';
+        if (typeof v !== 'number') return String(v);
+        if (/pvalue/.test(fmt)) return v < 0.001 ? '< .001' : v.toFixed(3).replace(/^(-?)0\./, '$1.');
+        if (Number.isInteger(v)) return String(v);
+        var a = Math.abs(v);
+        if (a >= 1e9 || (a > 0 && a < 1e-4)) return v.toExponential(2);
+        if (a >= 1000) return v.toFixed(0);
+        return v.toFixed(a >= 1 ? 2 : 3);
+      }
+      function walk(node, depth) {
+        if (!node) return;
+        if (node.type === 'group') {
+          if (node.title && depth > 0) {
+            var gh = document.createElement('h3'); gh.className = 'jmv-result-title';
+            gh.style.fontWeight = '600'; gh.textContent = node.title; cardWrap.appendChild(gh);
+          }
+          (node.items || []).forEach(function (k) { walk(k, depth + 1); });
+          return;
+        }
+        if (node.type === 'image') {
+          var bmp = imgQueue.shift();
+          if (bmp) jamoviAppendPlot(node.title || '', bmp, cardWrap);
+          return;
+        }
+        if (node.type === 'text') {
+          var pre = document.createElement('pre');
+          pre.style.cssText = 'font-size:12px;white-space:pre-wrap;';
+          pre.textContent = node.text || ''; cardWrap.appendChild(pre);
+          return;
+        }
+        if (node.type !== 'table') return;
+        var h = document.createElement('h3'); h.className = 'jmv-result-title';
+        h.textContent = node.title || ''; cardWrap.appendChild(h);
+        var cols = (node.columns && node.columns.length) ? node.columns
+          : (node.colNames || []).map(function (n) { return { name: n, title: n, superTitle: '', format: '' }; });
+        var table = document.createElement('table'); table.className = 'jmv-result-table';
+        var thead = document.createElement('thead');
+        var hasSuper = cols.some(function (c) { return c.superTitle; });
+        if (hasSuper) {
+          var trs = document.createElement('tr');
+          for (var i = 0; i < cols.length;) {
+            var stt = cols[i].superTitle, span = 1;
+            while (i + span < cols.length && cols[i + span].superTitle === stt) span++;
+            var th0 = document.createElement('th'); th0.colSpan = span; th0.textContent = stt || '';
+            if (stt) th0.style.borderBottom = '1px solid #999';
+            trs.appendChild(th0); i += span;
+          }
+          thead.appendChild(trs);
+        }
+        var trh = document.createElement('tr');
+        cols.forEach(function (c) {
+          var th = document.createElement('th'); th.textContent = c.title || c.name; trh.appendChild(th);
+        });
+        thead.appendChild(trh); table.appendChild(thead);
+        var tb = document.createElement('tbody');
+        var nameToIdx = {}; (node.colNames || []).forEach(function (n, i) { nameToIdx[n] = i; });
+        (node.rows || []).forEach(function (row) {
+          var tr = document.createElement('tr');
+          cols.forEach(function (c) {
+            var td = document.createElement('td');
+            var ri = (c.name in nameToIdx) ? nameToIdx[c.name] : -1;
+            td.textContent = ri === -1 ? '' : fmtCell(row[ri], c.format || '');
+            tr.appendChild(td);
+          });
+          tb.appendChild(tr);
+        });
+        table.appendChild(tb); cardWrap.appendChild(table);
+        (node.notes || []).forEach(function (n) {
+          var note = document.createElement('div'); note.className = 'jmv-result-note';
+          note.innerHTML = '<i>Note.</i> ' + M.escapeHtml(String(n)); cardWrap.appendChild(note);
+        });
+      }
+      walk(payload, 0);
+      if (callString) {
+        var syn = document.createElement('pre');
+        syn.className = 'jmv-syntax'; syn.textContent = callString;
+        cardWrap.appendChild(syn);
+      }
+    }
+
+    // DEV-ONLY: exposed for manual console testing (Task 3 Step 4). Removed in Task 5.
+    window.__runJmv = runJmvAnalysis;
+
     // Inject ribbon DOM
     var bar = M.getModeGuiBar();
     if (bar && !document.getElementById('jamoviRibbon')) {

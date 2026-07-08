@@ -116,3 +116,4 @@
 .jmv-var-search:focus { border-color:#2e8ac7; box-shadow:0 0 0 1px #2e8ac7; }
 .jmv-opt-group { margin:0 0 8px; }
 .jmv-opt-grouphdr { font:700 12px inherit; color:#555; margin:8px 0 3px; }
+.jmv-syntax { font: 12px/1.5 ui-monospace, monospace; color: #555; background: #f6f7f9; border: 1px solid var(--jmv-line); border-radius: 4px; padding: 6px 10px; margin: 4px 0 10px; white-space: pre-wrap; }

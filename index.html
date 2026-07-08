@@ -4003,7 +4003,7 @@
       getWebR: function(){ return webR; },
       ensureWebRShelter: async function(){ if (!webRReady) await loadWebR(); if (!webRShelter) webRShelter = await new webR.Shelter(); return webRShelter; }
     };
-    var MODE_MODULES = { jamovi: { js: 'js/modes/jamovi.js', css: 'css/modes/jamovi.css' } };
+    var MODE_MODULES = { jamovi: { js: ['js/modes/jmv_specs.js', 'js/modes/jamovi.js'], css: 'css/modes/jamovi.css' } };
     var _modeModuleP = {};
     function loadModeModule(id){
       if (_modeModuleP[id]) return _modeModuleP[id];
@@ -4011,10 +4011,15 @@
       if (!m) return Promise.resolve();
       _modeModuleP[id] = new Promise(function(resolve, reject){
         if (m.css){ var l = document.createElement('link'); l.rel='stylesheet'; l.href=m.css; document.head.appendChild(l); }
-        var s = document.createElement('script'); s.src = m.js;
-        s.onload = function(){ resolve(); };
-        s.onerror = function(){ reject(new Error('mode module load failed: ' + id)); };
-        document.body.appendChild(s);
+        var files = Array.isArray(m.js) ? m.js.slice() : [m.js];
+        (function next() {
+          var f = files.shift();
+          if (!f) { resolve(); return; }
+          var s = document.createElement('script'); s.src = f;
+          s.onload = next;
+          s.onerror = function(){ reject(new Error('mode module load failed: ' + id + ' (' + f + ')')); };
+          document.body.appendChild(s);
+        })();
       });
       return _modeModuleP[id];
     }
