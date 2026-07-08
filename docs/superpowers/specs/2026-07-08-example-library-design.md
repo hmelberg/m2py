@@ -235,18 +235,15 @@ aggregates with `table`/`aggregate`/`barplot`).
 - Registered in the dropdown with `data-mode="python"` / `"r"` and English labels
   ("Encrypted data — safe-mode analysis (Python/R)"). **Not ported to OpenStat.**
 
-## Open question for the user
+## Resolved decision — safemodus delivery
 
-The encrypted example (Part 4) is runnable and demonstrates the full workflow,
-but true *enforcement* of aggregate-only output currently requires registering
-the source as protected (login + backend). Two ways to deliver "safemodus":
-1. **Workflow-by-convention (default in this spec)** — self-contained example;
-   comment explains that registration enforces it in production. No engine change.
-2. **Add `exec(strict)`** — a small engine addition letting an ad-hoc encrypted
-   load run through the local strict/safe facade, so the example's aggregate-only
-   restriction is genuinely enforced without login. More work, but the demo then
-   truly runs "in safe mode." Would be a separate small engine task folded into
-   the plan.
+**Chosen: option 1 (workflow-by-convention), 2026-07-08.** The encrypted example
+is self-contained and runnable: it loads the encrypted file with a demo key and
+performs aggregate-only analysis, with a prominent comment explaining that in a
+real deployment the source is *registered as protected* so the strict facade
+*enforces* aggregate-only output. **No engine change** in this plan. (Deferred,
+may revisit: an `exec(strict)` directive to make ad-hoc enforcement real without
+login — explicitly out of scope for now.)
 
 ---
 
