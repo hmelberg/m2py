@@ -3851,6 +3851,8 @@
       // Web send button is only shown in python/r/duckdb modes (admin-gated);
       // re-check eligibility now that the mode changed (cross-IIFE via window).
       if (window.mdSyncWebBtnVisibility) window.mdSyncWebBtnVisibility();
+      // Vurder personvern (dm) is microdata-only too; re-evaluate on mode change.
+      if (window.mdUpdateAskVisibility) window.mdUpdateAskVisibility();
     }
 
     function updateModeButtonsUi() {
@@ -3862,8 +3864,8 @@
           b.classList.toggle('active', b.dataset.mode === activeEditorMode);
         });
       }
-      // Oversett-knapp: kun synlig i Python/R-modus
-      var _shows = !!(currentMode().translate && currentMode().translate.showsButton);
+      // Oversett: for now only in microdata mode (de-emphasized in code-first modes).
+      var _shows = (activeEditorMode === 'microdata');
       var oBtn = document.getElementById('oversettBtn');
       if (oBtn) oBtn.style.display = _shows ? '' : 'none';
       if (typeof updateModeGuiBar==='function') updateModeGuiBar();
@@ -4083,7 +4085,7 @@
         const tolk = document.getElementById('btnTolkFooter');
         if (tolk) tolk.style.display = loggedIn ? '' : 'none';
         const dm = document.getElementById('btnDmQuick');
-        if (dm) dm.style.display = loggedIn ? 'inline-flex' : 'none';
+        if (dm) dm.style.display = (loggedIn && activeEditorMode === 'microdata') ? 'inline-flex' : 'none';
       }
       window.mdUpdateAskVisibility = updateVisible;
       setTimeout(updateVisible, 0);
