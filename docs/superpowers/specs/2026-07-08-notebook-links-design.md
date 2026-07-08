@@ -1,4 +1,4 @@
-# Notebook links — URL-fragment autorun + prose rendering
+# Notebook links — URL-driven startup, autorun, and prose rendering
 
 **Date:** 2026-07-08
 **Applies to:** SafeStat (source of truth) → ported to OpenStat
@@ -7,8 +7,10 @@
 ## Summary
 
 Turn a shared URL into a self-contained "notebook": a link can load a script
-from GitHub straight into the editor, or run it and show only the output, and
-scripts can carry rendered prose (markdown) inline. Three parts, one spec:
+from GitHub straight into the editor, or run it and show only the output;
+scripts can carry rendered prose (markdown) inline; and the hostname the app is
+served on picks the starting mode and repositions the welcome message. Four
+parts, one spec:
 
 1. **Fragment loader** — `#user.repo.path.file.ext` (or a raw URL) fetches a
    script from GitHub and opens it in the editor.
@@ -16,6 +18,10 @@ scripts can carry rendered prose (markdown) inline. Three parts, one spec:
    the output, with a "show code" escape hatch. Autorun trust differs per app.
 3. **Prose rendering** — top-level bare strings (Python) and `#'` roxygen lines
    (R) render as markdown, always on, interleaved with output.
+4. **Hostname-driven startup mode & repositioned welcome** — the subdomain/host
+   (`py.`, `r.`, `duck.`, or `micro`/`microdata.run`) selects the initial editor
+   mode; the bare domain defaults to **python**; the welcome message reframes the
+   product per mode (code-first, not microdata-first).
 
 Most of this is wiring over machinery that already exists (see *Reuse map*).
 
@@ -94,7 +100,8 @@ For `#output…` links: after the script is set, call
 `window.mdSetInputHidden(true)` (the same path jamovi uses) to hide the editor
 and show only `#outputArea`. Add a small **"‹ show code / edit"** affordance
 that calls `mdSetInputHidden(false)` to reveal the editor (so a reader can
-inspect or fork the script). This does not re-hide automatically.
+inspect or fork the script). This does not re-hide automatically. Output-only
+also **suppresses the welcome message** entirely (see Part 4).
 
 ### Autorun trust — differs per app (decision)
 
@@ -167,6 +174,73 @@ that would render unexpectedly.
 
 ---
 
+## Part 4 — Hostname-driven startup mode & repositioned welcome
+
+### Startup mode from hostname
+
+At boot, before the fragment router, resolve a **default editor mode** from
+`location.hostname`:
+
+1. First hostname label matched exactly against a map:
+   `py → python`, `r → r`, `duck → duckdb` (extensible: `statx`, `jamovi`).
+2. Else if the hostname contains the substring `micro`
+   (covers `micro.safestat.app` and `microdata.run`) → `microdata`.
+3. Else (bare `openstat.app` / `safestat.app`, localhost, Netlify previews) →
+   `python` (**the default flips from today's microdata**).
+
+Exact first-label matching (not substring) for `py`/`r`/`duck` avoids false hits
+like `spy.` → `py`. All modes remain available in the mode menu regardless of
+host; the hostname only sets the *initial* mode.
+
+### Precedence
+
+- **No fragment:** hostname decides the initial mode.
+- **Fragment present:** the file extension in the fragment decides the mode
+  (`langFromPath`), overriding the hostname — you cannot run a `.r` file in
+  python mode. The hostname still selects the welcome framing.
+
+### DNS note (ops, not code)
+
+The code reads whatever hostname it is served on. Creating the actual subdomains
+(`py.openstat.app`, `r.safestat.app`, …) is a Netlify domain + DNS task outside
+this spec. Until they exist, the bare-domain default (python) applies.
+
+### Repositioned welcome — `f(framing, app)`
+
+The welcome message is chosen by **framing** (microdata vs general) and **app**
+(OpenStat vs SafeStat). Output-only (`#output…`) shows **no welcome** at all.
+One global dismissal key (unchanged `*_welcome_dismissed`); the variant is
+selected at show time.
+
+- **microdata framing** (hostname contains `micro`), either app — keep the
+  existing microdata-practice copy (adjusted only to name the app):
+  > *Øv på å kjøre analyser i microdata.no-stil. Inneholder ikke ekte tall; et
+  > hobbyprosjekt, ikke laget av microdata.no.*
+  > EN: *Practise running analyses in the microdata.no style. No real figures; a
+  > hobby project, not made by microdata.no.*
+
+- **OpenStat, general framing** (python/r/duck/bare host):
+  > *OpenStat er en motor for å stille spørsmål som kan besvares med kode og
+  > statistikk — og for å se og endre koden som gir svaret. Skriv i Python, R,
+  > DuckDB eller microdata-stil; kjør i nettleseren.*
+  > EN: *OpenStat is an engine for asking questions that can be answered with
+  > code and statistics — and for seeing and revising the code behind the
+  > answer. Write in Python, R, DuckDB or microdata style; run in the browser.*
+
+- **SafeStat, general framing** — OpenStat general **plus** the sensitive-data
+  angle:
+  > *SafeStat gjør det samme, og kan i tillegg dele og gi tilgang til sensitive
+  > data: bare analyser som bruker et begrenset sett kommandoer slipper gjennom,
+  > slik at resultatene viser aggregater — aldri opplysninger om enkeltpersoner.*
+  > EN: *SafeStat does the same, and can additionally distribute and grant access
+  > to sensitive data: only analyses using a restricted set of commands are
+  > permitted, so results show aggregates — never information about individuals.*
+
+Copy above is a draft for refinement; all strings go through the i18n catalog
+(`js/i18n/en.js`) as elsewhere.
+
+---
+
 ## Architecture & components
 
 | Unit | Responsibility | Location |
@@ -175,6 +249,7 @@ that would render unexpectedly.
 | output-only presenter | `mdSetInputHidden(true)` + "show code" affordance; per-app autorun (OpenStat direct/safety-valve, SafeStat S2 gate) | `index.html` + `js/ai-chat.js` gate reuse |
 | `prose-segmenter` (Python) | AST transform of top-level bare-string `Expr` → `__md_emit__` call; inject emitter | Python run path (the `runPythonAsync` that executes editor content) |
 | `prose-segmenter` (R) | `#'` block scan → `cat`-emitted markdown embed | R run path (webR hybrid runner) |
+| `startup-mode` resolver | `location.hostname` → default mode (`py`/`r`/`duck` exact label, `micro` substring, else python); pick welcome framing | boot path in `index.html`, runs before the fragment router |
 
 Interfaces stay narrow: the router takes a hash string and returns a
 `{action, url, mode}` decision (pure, testable without the DOM); the Python
@@ -192,10 +267,18 @@ Pyodide); the R segmenter takes source and returns transformed source.
   prose; marker-injection payload neutralized.
 - **R segmenter (unit):** contiguous `#'` block → one markdown block; `#'`
   interleaved with code; ordinary `#` comments untouched.
+- **Startup-mode resolver (unit):** `py.openstat.app`→python, `r.…`→r,
+  `duck.…`→duckdb, `microdata.run`/`micro.safestat.app`→microdata,
+  `spy.openstat.app`→python (no false `py` hit), bare host→python, localhost→
+  python; fragment file-extension overrides host mode but host still picks
+  welcome framing.
+- **Welcome variant (unit):** framing×app → correct copy; output-only →
+  no welcome; dismissal respected across variants.
 - **E2E per app:** open-link loads into editor with correct mode; output-link
-  runs and hides input; "show code" reveals editor; SafeStat shows the gate,
-  OpenStat runs directly (and OpenStat falls back to the gate when a secret is
-  present).
+  runs and hides input and shows no welcome; "show code" reveals editor;
+  SafeStat shows the gate, OpenStat runs directly (and OpenStat falls back to the
+  gate when a secret is present); `micro` host boots microdata with the
+  microdata welcome, bare host boots python with the general welcome.
 
 ## Rollout
 
