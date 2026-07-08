@@ -1,14 +1,14 @@
 #py
-# Kryptert kilde på nett (safepy-enc-v1) — tre måter:
+# Encrypted source on the web (safepy-enc-v1) — three ways:
 #
-# 1) Nøkkel i scriptet (enkelt, minst sikkert):
-# load https://raw.githubusercontent.com/<bruker>/<repo>/main/helse.enc.json as df, key(LIM-INN-NØKKEL)
+# 1) Key in the script (simple, least secure):
+# load https://raw.githubusercontent.com/<user>/<repo>/main/helse.enc.json as df, key(PASTE-KEY-HERE)
 #
-# 2) Nøkkel via ledetekst (nøkkelen havner aldri i scriptet):
-# connect https://raw.githubusercontent.com/<bruker>/<repo>/main/helse.enc.json as h, key(ask)
+# 2) Key via prompt (the key never ends up in the script):
+# connect https://raw.githubusercontent.com/<user>/<repo>/main/helse.enc.json as h, key(ask)
 # load h as df
 #
-# 3) Registrert kilde (eieren har delt tilgang med deg — logg inn først):
+# 3) Registered source (the owner has shared access with you — log in first):
 # connect helse2025 as h
 # load h as df
 

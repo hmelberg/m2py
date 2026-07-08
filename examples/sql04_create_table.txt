@@ -1,5 +1,5 @@
--- Bygg et datasett med SQL: resultatet av CREATE TABLE skrives IKKE ut,
--- men dukker opp i dataoversikten og kan brukes fra de andre modusene
+-- Build a dataset with SQL: the result of CREATE TABLE is NOT printed,
+-- but appears in the data overview and can be used from the other modes
 -- (microdata, Python, R, jamovi).
 
 CREATE OR REPLACE TABLE personer AS
@@ -12,7 +12,7 @@ SELECT * FROM (VALUES
   (6, 'Kvinne', 67, 390000)
 ) AS t(fnr, kjonn, alder, inntekt);
 
--- Lag et nytt datasett 'hoytlonnede' med bare dem som tjener mye.
+-- Create a new dataset 'hoytlonnede' with only those who earn a lot.
 CREATE OR REPLACE TABLE hoytlonnede AS
 SELECT fnr, kjonn, alder, inntekt
 FROM personer

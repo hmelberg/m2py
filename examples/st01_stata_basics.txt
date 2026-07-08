@@ -1,6 +1,6 @@
-* Eksempel: Stata – beskrivende statistikk
-* Første blokk importerer variabler via microdata.
-* Andre blokk kjører enkle Stata-kommandoer på datasettet 'folk'.
+* Example: Stata – descriptive statistics
+* The first block imports variables via microdata.
+* The second block runs simple Stata commands on the 'folk' dataset.
 
 #micro
 require no.ssb.fdb:54 as fd

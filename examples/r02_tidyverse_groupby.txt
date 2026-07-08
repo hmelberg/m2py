@@ -1,4 +1,4 @@
-# Eksempel: tidyverse — gruppestatistikk med dplyr
+# Example: tidyverse — group statistics with dplyr
 library(dplyr)
 
 df <- tibble(

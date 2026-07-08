@@ -1,0 +1,14 @@
+# Read a wider CSV and build a FOCUSED dataset from specific columns.
+# load https://raw.githubusercontent.com/hmelberg/safestat/main/data/penguins.csv as penguins
+# (equivalent: penguins = pd.read_csv("…/penguins.csv"))
+
+# Keep only the columns we need:
+flippers = penguins[["species", "flipper_length_mm"]].dropna()
+
+# Mean flipper length per species (a table):
+flippers.groupby("species")["flipper_length_mm"].mean().round(1)
+
+# …and as a barplot:
+import matplotlib.pyplot as plt
+flippers.groupby("species")["flipper_length_mm"].mean().plot.bar(title="Mean flipper length by species")
+plt.ylabel("mm"); plt.show()

@@ -1,4 +1,4 @@
--- CTE (WITH) + vindusfunksjon: ranger innen gruppe uten å kollapse radene.
+-- CTE (WITH) + window function: rank within a group without collapsing the rows.
 
 CREATE OR REPLACE TABLE personer AS
 SELECT * FROM (VALUES
@@ -12,7 +12,7 @@ SELECT * FROM (VALUES
   (8, 'Kvinne', 29, 480000)
 ) AS t(fnr, kjonn, alder, inntekt);
 
--- Topp 2 inntekter innen hvert kjønn.
+-- Top 2 incomes within each sex.
 WITH rangert AS (
   SELECT fnr, kjonn, inntekt,
          row_number() OVER (PARTITION BY kjonn ORDER BY inntekt DESC) AS rang

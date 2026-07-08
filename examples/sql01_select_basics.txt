@@ -1,6 +1,6 @@
--- Grunnleggende SQL: velg, filtrer, sorter, begrens.
--- Eksemplene er selvstendige: de lager først litt demodata med CREATE TABLE
--- (datasettet dukker da opp i dataoversikten) og spør så mot det.
+-- Basic SQL: select, filter, sort, limit.
+-- The examples are self-contained: they first create some demo data with CREATE TABLE
+-- (the dataset then appears in the data overview) and then query it.
 
 CREATE OR REPLACE TABLE personer AS
 SELECT * FROM (VALUES
@@ -14,7 +14,7 @@ SELECT * FROM (VALUES
   (8, 'Kvinne', 29, 480000, 'Bergen')
 ) AS t(fnr, kjonn, alder, inntekt, kommune);
 
--- Voksne, sortert etter inntekt (høyest først), de 5 øverste.
+-- Adults, sorted by income (highest first), the top 5.
 SELECT fnr, kjonn, alder, inntekt, kommune
 FROM personer
 WHERE alder >= 18

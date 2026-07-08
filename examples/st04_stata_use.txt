@@ -1,6 +1,6 @@
-* Eksempel: Stata – use (bytte mellom datasett)
-* Første blokk oppretter to datasett: 'folk' og 'folk2'.
-* Andre blokk demonstrerer 'use NAME' for å bytte aktivt datasett.
+* Example: Stata – use (switch between datasets)
+* The first block creates two datasets: 'folk' and 'folk2'.
+* The second block demonstrates 'use NAME' to switch the active dataset.
 
 #micro
 require no.ssb.fdb:54 as fd

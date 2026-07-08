@@ -1,13 +1,13 @@
 #r
-# Variabel-nivå montering i R-modus: datasettene bygges av den delte
-# executoren og lastes inn i R som data.frames før analysen kjører.
+# Variable-level assembly in R mode: the datasets are built by the shared
+# executor and loaded into R as data.frames before the analysis runs.
 
 # connect https://raw.githubusercontent.com/mwaskom/seaborn-data/master/penguins.csv as pen
 # load pen as pingviner
 
 aggregate(body_mass_g ~ island, data = pingviner, FUN = function(x) mean(x, na.rm = TRUE))
 
-# ── Import + join (kilder med felles nøkkel) ──
+# ── Import + join (sources with a common key) ──
 # connect https://x.example/personer.csv as p
 # create-dataset panel, key(pid)
 # import p/inntekt, p/region into panel

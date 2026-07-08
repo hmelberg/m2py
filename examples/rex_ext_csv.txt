@@ -1,0 +1,9 @@
+# Reading from an EXTERNAL source — a public TSV file over the web.
+# R reads tab-separated files natively with read.delim(), so no "load ... kind()" directive is needed here.
+gap <- read.delim("https://raw.githubusercontent.com/jennybc/gapminder/main/data-raw/08_gap-every-five-years.tsv")
+
+recent <- gap[gap$year == max(gap$year), ]
+agg <- aggregate(lifeExp ~ continent, data = recent, FUN = mean)
+agg
+barplot(agg$lifeExp, names.arg = agg$continent,
+        main = "Mean life expectancy by continent (latest year)", ylab = "years")

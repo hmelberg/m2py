@@ -1,0 +1,8 @@
+# Read a wider CSV and build a FOCUSED dataset from specific columns.
+# load https://raw.githubusercontent.com/hmelberg/safestat/main/data/penguins.csv as penguins
+# (equivalent: penguins <- read.csv("…/penguins.csv"))
+
+flippers <- na.omit(penguins[, c("species", "flipper_length_mm")])
+aggregate(flipper_length_mm ~ species, data = flippers, FUN = mean)
+barplot(tapply(flippers$flipper_length_mm, flippers$species, mean),
+        main = "Mean flipper length by species", ylab = "mm")

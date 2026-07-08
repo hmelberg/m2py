@@ -1,5 +1,5 @@
-# Eksempel: dplyr — omkoding og nye variabler
-# Viser case_when, ifelse og count. Oversettes til generate/replace/tabulate.
+# Example: dplyr — recoding and new variables
+# Shows case_when, ifelse and count. Translates to generate/replace/tabulate.
 
 #micro
 require no.ssb.fdb:54 as fd
