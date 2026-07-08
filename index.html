@@ -817,6 +817,8 @@
   <script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/js/tabulator.min.js" defer></script>
   <script src="widgets/forklar-widgets.js"></script>
   <script src="command_help.js"></script>
+  <script>window.M2PY_APP = 'safestat';</script>
+  <script src="js/notebook-links.js"></script>
   <script>
     // Fallback hvis js/i18n.js ikke lastet (404 e.l.): vis norsk uendret.
     window.t = window.t || function (s) { return s; };
@@ -4054,11 +4056,18 @@
     // of always in 'microdata'. Falls back to 'microdata' for an unknown/
     // unregistered mode (e.g. 'jamovi', which is only registered lazily on
     // first activation and isn't in modeRegistry yet at boot).
+    // When no persisted mode exists, fall back to the hostname's default
+    // mode via NotebookLinks.hostnameMode() (js/notebook-links.js, loaded
+    // synchronously in <head> before this script, so window.NotebookLinks
+    // is already defined here).
     (function restoreEditorMode() {
       var saved = null;
       try { saved = localStorage.getItem('md_editor_mode'); } catch (e) {}
-      if (saved && Object.prototype.hasOwnProperty.call(modeRegistry, saved) && saved !== activeEditorMode) {
-        switchEditorMode(saved);
+      var mode = (saved && Object.prototype.hasOwnProperty.call(modeRegistry, saved))
+        ? saved
+        : (window.NotebookLinks ? window.NotebookLinks.hostnameMode(location.hostname) : 'microdata');
+      if (mode && mode !== activeEditorMode && Object.prototype.hasOwnProperty.call(modeRegistry, mode)) {
+        switchEditorMode(mode);
       }
     })();
     let webR = null, webRReady = false, webRLoading = false, webRShelter = null;
