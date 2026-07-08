@@ -335,6 +335,7 @@
           title="Eksperimentell: 2-stegs variabelvalg + auto-retting (kan være tregere)"
           aria-label="Send (eksperimentell)">Send⚗︎</button>
         <button type="button" class="ai-send-fast-btn ai-send-web-btn" id="aiSendWebBtn" style="display:none;" data-i18n-title title="Web: finn åpne data og generer script (krever admin eller egen Anthropic-nøkkel; python/r/duckdb-modus)" aria-label="Send (web)">Web</button>
+        <button type="button" class="ai-send-fast-btn ai-send-anvil-btn" id="aiSendAnvilBtn" style="display:none;" data-i18n-title title="Anvil: full vurdering med reparasjonsloop (kun admin, microdata)" aria-label="Send (Anvil)">Anvil</button>
       </div>
     </div>
   </aside>
@@ -680,11 +681,6 @@
           <label data-i18n>Datakilde</label>
           <button type="button" class="btn btn-secondary" id="menuDataSource" data-i18n-title title="Dynamisk: variabler genereres på nytt ved hver kjøring (standard). Statisk: import laster fra ferdige, konsistente datafiler (static_data/*.parquet) via DuckDB-WASM. Variabler/datoer som ikke finnes statisk faller tilbake til generering. Kan også settes per script med // m2py: data-source=static.">Datakilde: Dynamisk</button>
           <p class="settings-hint" data-i18n-html>Dynamisk = generer ved kjøring (standard). Statisk = last fra <code>static_data/*.parquet</code> (krever at filene er tilgjengelige). Per script: <code>// m2py: data-source=static</code>.</p>
-        </div>
-        <div class="settings-field">
-          <label data-i18n>AI-svar</label>
-          <button type="button" class="btn btn-secondary" id="menuAiMode" data-i18n-title title="Sykler Send-knappen mellom rask AI (enkelt svar), Anvil-AI (full vurdering med reparasjonsloop) og — for admin i python/r/duckdb-modus — Web (agentisk websøk + generering med auto-kjøring og reparasjon)">AI-svar: Rask</button>
-          <p class="settings-hint" data-i18n>Sykler mellom rask AI (enkelt svar), Anvil-AI (full vurdering med reparasjonsloop) og — kun for admin, i python/r/duckdb-modus — Web (websøk etter data + generering, med auto-kjøring og inntil 3 reparasjonsrunder).</p>
         </div>
       </div>
       <div class="settings-buttons">
@@ -3436,10 +3432,6 @@
         if (dcCellEl) dcCellEl.value = getDcThreshold('dc_tabulate_low_cell');
         if (dcAffEl)  dcAffEl.value  = getDcThreshold('dc_min_affected');
         if (dcSumEl)  dcSumEl.value  = getDcThreshold('dc_min_summarize');
-        // AI-svar-knappen (menuAiMode) sin visning avhenger av admin-status og
-        // editor-modus, som kan ha endret seg siden forrige gang panelet var
-        // åpent — la ai-chat.js oppdatere etiketten før dialogen vises.
-        if (window.mdRefreshAiModeLabel) window.mdRefreshAiModeLabel();
         overlay.classList.add('open');
       }
       function closeSettings() { overlay.classList.remove('open'); }
@@ -3851,8 +3843,6 @@
       // Web send button is only shown in python/r/duckdb modes (admin-gated);
       // re-check eligibility now that the mode changed (cross-IIFE via window).
       if (window.mdSyncWebBtnVisibility) window.mdSyncWebBtnVisibility();
-      // Vurder personvern (dm) is microdata-only too; re-evaluate on mode change.
-      if (window.mdUpdateAskVisibility) window.mdUpdateAskVisibility();
     }
 
     function updateModeButtonsUi() {
@@ -3864,13 +3854,33 @@
           b.classList.toggle('active', b.dataset.mode === activeEditorMode);
         });
       }
-      // Oversett: for now only in microdata mode (de-emphasized in code-first modes).
-      var _shows = (activeEditorMode === 'microdata');
-      var oBtn = document.getElementById('oversettBtn');
-      if (oBtn) oBtn.style.display = _shows ? '' : 'none';
+      // oversettBtn visibility is URL-gated (applyMicroGating), not mode-gated.
+      if (window.mdApplyMicroGating) window.mdApplyMicroGating();
       if (typeof updateModeGuiBar==='function') updateModeGuiBar();
       if (window.mdUpdateSafestatToggle) window.mdUpdateSafestatToggle();
     }
+
+    // Microdata-specific UI is shown only when the URL (before any #) contains
+    // "micro" (js/notebook-links.js urlHasMicro). Fixed for the page lifetime;
+    // re-run on auth changes so the admin-gated Anvil button re-evaluates.
+    // (btnDmQuick is handled in updateVisible, which also depends on login.)
+    function applyMicroGating() {
+      var micro = !!(window.NotebookLinks && window.NotebookLinks.urlHasMicro(location.href));
+      ['oversettBtn', 'menuSokData', 'menuOfflineBtn'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = micro ? '' : 'none';
+      });
+      ['menuDisclosureControl', 'menuDataSource', 'settingLabelFormat', 'settingImportLimit'].forEach(function (id) {
+        var el = document.getElementById(id);
+        var field = el && el.closest ? el.closest('.settings-field') : null;
+        if (field) field.style.display = micro ? '' : 'none';
+      });
+      var anvil = document.getElementById('aiSendAnvilBtn');
+      var isAdmin = !!(window.mdAuth && window.mdAuth.user && window.mdAuth.user.is_admin);
+      if (anvil) anvil.style.display = (micro && isAdmin && window.M2PY_APP === 'safestat') ? '' : 'none';
+    }
+    window.mdApplyMicroGating = applyMicroGating;
+    applyMicroGating();
 
     function updateModeGuiBar() {
       var bar = document.getElementById('modeGuiBar');
@@ -4085,7 +4095,10 @@
         const tolk = document.getElementById('btnTolkFooter');
         if (tolk) tolk.style.display = loggedIn ? '' : 'none';
         const dm = document.getElementById('btnDmQuick');
-        if (dm) dm.style.display = (loggedIn && activeEditorMode === 'microdata') ? 'inline-flex' : 'none';
+        const _micro = !!(window.NotebookLinks && window.NotebookLinks.urlHasMicro(location.href));
+        if (dm) dm.style.display = (loggedIn && _micro) ? 'inline-flex' : 'none';
+        // Re-evaluate the admin-gated Anvil AI button now that auth changed.
+        if (window.mdApplyMicroGating) window.mdApplyMicroGating();
       }
       window.mdUpdateAskVisibility = updateVisible;
       setTimeout(updateVisible, 0);

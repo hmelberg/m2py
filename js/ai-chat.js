@@ -60,8 +60,8 @@
       const dom = {};
       function cacheDom() {
         ['aiToggleBtn','aiSidebar','aiCloseBtn','aiSettingsBtn','aiClearBtn',
-         'aiThread','aiInput','aiSendFastBtn','aiSendV2Btn','aiSendWebBtn','aiAbortBtn',
-         'aiIncludeScript','menuAiMode',
+         'aiThread','aiInput','aiSendFastBtn','aiSendV2Btn','aiSendWebBtn','aiSendAnvilBtn','aiAbortBtn',
+         'aiIncludeScript',
          'aiSettingsBackdrop','aiCfgBaseUrl','aiCfgApiKey','aiCfgAnthropicKey','aiCfgSave','aiCfgCancel',
          'aiCfgLoggedIn','aiCfgLoggedOut','aiCfgUserEmail','aiCfgUserMeta',
          'aiCfgLogout','aiCfgAdmin','aiCfgLogin','aiCfgByokStored','aiCfgByokRemove',
@@ -1623,19 +1623,24 @@
           });
         }
 
-        // Send uses the AI mode chosen in the hamburger menu: fast edge-fn or
-        // full Anvil-path. Web mode is never reached through this path — it
-        // has its own dedicated button (aiSendWebBtn) below.
+        // Send is routed by the URL (urlHasMicro): with "micro" in the URL the
+        // microdata AI (kode-svar) answers; otherwise the agentic data-svar flow
+        // (search data → script in the active mode's language → run → revise).
         function sendCurrent() {
-          sendMessage(!state.anvilMode);
+          if (window.NotebookLinks && window.NotebookLinks.urlHasMicro(location.href)) {
+            sendMessage(true);
+          } else {
+            sendWebMessage();
+          }
         }
         if (dom.aiSendFastBtn) dom.aiSendFastBtn.addEventListener('click', sendCurrent);
         if (dom.aiSendV2Btn) dom.aiSendV2Btn.addEventListener('click', () => sendMessage(true, true));
-        // Web is a dedicated send button (admin-only, python/r/duckdb), not a
-        // hidden state of the fast/anvil menu cycler — see syncWebBtnVisibility().
-        // It consumes the same textarea/state.sending discipline as the other
-        // send buttons; sendWebMessage() itself does its own auth/sending gate.
-        if (dom.aiSendWebBtn) dom.aiSendWebBtn.addEventListener('click', () => { sendWebMessage(); });
+        // The old Web button is subsumed by the URL-routed Send (non-micro uses
+        // data-svar); keep it permanently hidden.
+        if (dom.aiSendWebBtn) { dom.aiSendWebBtn.style.display = 'none'; dom.aiSendWebBtn.addEventListener('click', () => { sendWebMessage(); }); }
+        // Anvil full-vurdering: one button, shown only for admins on a micro URL
+        // in SafeStat (visibility gated by index.html applyMicroGating()).
+        if (dom.aiSendAnvilBtn) dom.aiSendAnvilBtn.addEventListener('click', () => { sendMessage(false); });
         if (dom.aiAbortBtn) dom.aiAbortBtn.addEventListener('click', () => { if (state.abortCtrl) state.abortCtrl.abort(); });
         dom.aiInput.addEventListener('input', autoresize);
         dom.aiInput.addEventListener('keydown', (e) => {
@@ -1649,33 +1654,16 @@
         // Called after login/user fetch (refreshUserPanel), on editor-mode changes
         // (see switchEditorMode() in index.html), and once here at init.
         function syncWebBtnVisibility() {
-          if (!dom.aiSendWebBtn) return;
-          dom.aiSendWebBtn.style.display = webModeEligible() ? '' : 'none';
+          // The Web button is subsumed by the URL-routed Send; keep it hidden.
+          if (dom.aiSendWebBtn) dom.aiSendWebBtn.style.display = 'none';
         }
         window.mdSyncWebBtnVisibility = syncWebBtnVisibility;
         syncWebBtnVisibility();
 
-        // AI-modus-bryter i hamburgermenyen — sykler fast ↔ anvil. Web is not
-        // part of this cycle; it has its own send button (see above).
-        function updateAiModeLabel() {
-          if (!dom.menuAiMode) return;
-          const eff = effectiveAiMode();
-          const label = eff === 'anvil' ? T('Anvil (full vurdering)') : T('Rask');
-          dom.menuAiMode.textContent = T('AI-svar: {label}', { label: label });
-        }
-        if (dom.menuAiMode) {
-          dom.menuAiMode.addEventListener('click', () => {
-            state.aiMode = effectiveAiMode() === 'fast' ? 'anvil' : 'fast';
-            updateAiModeLabel();
-            const dd = document.getElementById('hamburgerDropdown');
-            if (dd) dd.classList.remove('open');
-          });
-        }
-        updateAiModeLabel();
-        // Exposed so index.html's general settings dialog (which hosts this
-        // button) can refresh the label right before it opens — eligibility
-        // (admin/editor mode) may have changed since the label was last set.
-        window.mdRefreshAiModeLabel = updateAiModeLabel;
+        // The fast/anvil AI-svar setting was removed — AI now routes by URL
+        // (urlHasMicro): micro → kode-svar, non-micro → data-svar. No label to
+        // refresh; keep the exposed hook as a no-op for any stale caller.
+        window.mdRefreshAiModeLabel = function () {};
 
         // Keyboard shortcut Ctrl+I
         document.addEventListener('keydown', (e) => {
