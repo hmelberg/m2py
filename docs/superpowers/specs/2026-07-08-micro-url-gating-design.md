@@ -26,10 +26,23 @@ rule. A single pure helper `urlHasMicro()` drives all of it.
   (`menuDataSource`), Label format (tabulate), Import row limit.
 - **Remove the AI-svar setting entirely** (`menuAiMode` + its label) from
   Settings, both repos.
-- **AI Send routed by URL** (replaces the removed fast/anvil choice): non-micro →
-  the Web/data AI (`/api/data-svar`, agentic web search + python/r/duck script
-  generation); micro → the microdata AI (`/api/kode-svar`, microdata code
-  generation). See the cost note.
+- **AI is BYOK everywhere.** The user's `md_anthropic_key` powers all AI via the
+  Netlify edge functions → Anthropic; no Anvil in the default AI paths. With no
+  key, the AI Send is disabled and points to the key setting (existing BYOK
+  mechanism). Non-AI Anvil features (login, `deldata.html` source registration,
+  remote/compute-to-data execution) are **unchanged** — only the AI path moves.
+- **AI Send routed by `urlHasMicro()`** (replaces the removed fast/anvil choice):
+  - **micro** → `/api/kode-svar` (microdata code generation), BYOK; the micro AI
+    suite `dm-vurder` (privacy evaluation) and `tolk-resultat` (result
+    interpretation) also run BYOK.
+  - **non-micro** → the agentic `/api/data-svar` flow, BYOK: search for data →
+    generate a script **in the active editor mode's language** (`activeEditorMode`
+    ∈ python/r/duckdb, not microdata) → run it → revise in a loop (the old "Web"
+    button's behavior, now the default Send).
+- **The one Anvil-calling AI button** (the full-vurdering-via-`mdataapi.anvil.app`
+  path) is kept but gated to **`M2PY_APP === 'safestat' && isAdmin &&
+  urlHasMicro()`**: SafeStat only (OpenStat has no admin concept → never shown),
+  admin only, micro only.
 
 ## Deferred (need the user to identify before building)
 
@@ -81,33 +94,39 @@ gated element, called after DOM/settings wiring (it does not depend on
 Because the gate is URL-based and fixed for the page's lifetime, it is applied
 once at boot; no per-mode re-evaluation is needed.
 
-## Part 3 — Remove AI-svar setting + route AI by URL
+## Part 3 — AI: BYOK everywhere, routed by URL
 
-### Remove the setting
+### Remove the fast/anvil setting
 Delete the `AI-svar` label + `menuAiMode` button (and its settings-hint) from the
 Settings markup in both repos, and the JS that cycles/binds it
 (`effectiveAiMode` cycling, the `menuAiMode` click handler and its label-refresh).
-`state.aiMode` / `md_ai_mode` localStorage is no longer user-facing.
+`state.aiMode` / `md_ai_mode` localStorage is no longer user-facing; AI is BYOK.
 
-### Route the Send button by URL
-The AI Send dispatch chooses the flow by `urlHasMicro()`:
-- **micro** → `/api/kode-svar` (microdata code generation — today's "fast" flow).
-- **non-micro** → `/api/data-svar` (agentic web search + python/r/duck script
-  generation — today's "Web" flow, with the S2 confirmation gate already built).
+### Route the Send button by URL (BYOK)
+All flows authenticate with the user's `md_anthropic_key` (BYOK) to the Netlify
+edge functions. The Send dispatch chooses the flow by `urlHasMicro()`:
+- **micro** → `/api/kode-svar` (microdata code generation). The micro AI suite
+  `/api/dm-vurder` (privacy evaluation) and `/api/tolk-resultat` (result
+  interpretation) also run BYOK.
+- **non-micro** → the agentic `/api/data-svar` flow: search for data → generate a
+  script **in `activeEditorMode`'s language** (python/r/duckdb) → run it → revise
+  in a loop. This is the old "Web" button, now the default Send. The S2
+  confirmation gate (already built) governs its auto-run.
 
-The separate admin-gated Web button (`aiSendWebBtn`) and `webModeEligible()` are
-subsumed: on non-micro the main Send *is* the web flow.
+The separate Web button (`aiSendWebBtn`) and its `webModeEligible()` admin gate are
+subsumed: on non-micro the main Send *is* the data-svar flow, available to any
+user who has entered a key. No operator cost — the user's key pays.
 
-### Cost note (must be confirmed)
-`/api/data-svar` is agentic (web search, higher token cost) and today is
-admin/BYOK-gated. Making it the default non-micro path exposes it to all users.
-Current protection is per-IP rate limiting (10/hr, fails open) + the S2 gate.
-**Decision to confirm:** either (a) accept that with the existing rate limit, or
-(b) keep a fallback — non-micro users who are not admin/BYOK get the cheaper
-`/api/kode-svar` flow instead, and only admin/BYOK get `data-svar`. This spec's
-default is **(b)**: gate `data-svar` behind `webModeEligible()` as today, and use
-`kode-svar` as the non-micro fallback for everyone else — so nothing gets more
-expensive without privilege, while micro always uses the microdata AI.
+### No-key behavior
+If `md_anthropic_key` is empty, the Send button is disabled (or shows a short
+"add your API key in Settings" affordance) rather than calling any endpoint.
+
+### The one Anvil AI button
+The full-vurdering path that calls `mdataapi.anvil.app` is retained as a single
+button gated to `M2PY_APP === 'safestat' && isAdmin && urlHasMicro()`. In OpenStat
+`isAdmin` is never true (no login), so it never appears there. (Identify the exact
+current control during implementation — it is the "anvil"-mode Send path; it moves
+from the removed fast/anvil cycle to this standalone gated button.)
 
 ---
 
@@ -117,8 +136,9 @@ expensive without privilege, while micro always uses the microdata AI.
 |---|---|---|
 | `urlHasMicro(href)` | pure URL→bool, before-fragment substring | `js/notebook-links.js` (+ tests) |
 | `applyMicroGating()` | toggle all gated buttons + settings fields once at boot | `index.html` boot path |
-| AI Send router | pick kode-svar vs data-svar by `urlHasMicro()` + `webModeEligible` fallback | `js/ai-chat.js` |
+| AI Send router | BYOK; micro→kode-svar, non-micro→data-svar (mode-language, run+revise); disabled without a key | `js/ai-chat.js` |
 | AI-svar removal | delete `menuAiMode` markup + cycling JS | `index.html` + `js/ai-chat.js` |
+| Anvil AI button | single control gated to `safestat && isAdmin && urlHasMicro()` | `index.html` + `js/ai-chat.js` |
 
 ## Testing
 
