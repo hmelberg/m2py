@@ -11,7 +11,7 @@ const st = document.getElementById('status'), out = document.getElementById('out
 const put = (h) => out.insertAdjacentHTML('beforeend', h);
 window.__SMOKE = { done: false, failures: [] };
 try {
-  const { WebR } = await import('https://webr.r-wasm.org/latest/webr.mjs');
+  const { WebR } = await import('https://webr.r-wasm.org/v0.6.0/webr.mjs');
   const webR = new WebR(); await webR.init();
   st.textContent = 'Installerer jmv/scatr/jsonlite/vcdExtra…';
   await webR.evalRVoid(`webr::install(c('jmv','scatr','jsonlite','vcdExtra'))`);
@@ -43,6 +43,15 @@ try {
       d <- d[rep(seq_len(nrow(d)), d$Freq), c('Hair','Eye')]
       .r <- jmv::contTables(data=d, rows='Hair', cols='Eye', exp=TRUE)`,
       { minTables: 2, minImages: 0, needSuperTitle: true }],
+    // Regression-fix (jamovi.js buildJmvCall): jmv::linReg's `blocks` option has no dialog
+    // control and defaults to [[]] — with an empty block jmv renders dot-filled (all-NA)
+    // tables. buildJmvCall now synthesizes `blocks = list(list(covs..., factors...))`; this
+    // case reproduces that exact R-call shape end-to-end and asserts the Coefficients table
+    // actually has numbers in it (catches the empty-model regression that minTables alone would miss).
+    ['linReg', `set.seed(1)
+      d <- data.frame(y = rnorm(30), x1 = rnorm(30), x2 = rnorm(30))
+      .r <- jmv::linReg(data = d, dep = 'y', covs = c('x1','x2'), blocks = list(list('x1','x2')))`,
+      { minTables: 2, minImages: 0, needFiniteCell: true }],
   ];
   for (const [name, setup, want] of CASES) {
     st.textContent = 'Kjører ' + name + '…';
@@ -54,11 +63,17 @@ try {
     const count = (n, t) => (n.type === t ? 1 : 0) + (n.items || []).reduce((s, k) => s + count(k, t), 0);
     const hasSuperTitle = (n) => (n.type === 'table' && (n.columns || []).some(c => c.superTitle && c.superTitle.length))
       || (n.items || []).some(hasSuperTitle);
+    // Fix 1 regression guard: SOME table row has a finite numeric cell. An empty-model table
+    // (e.g. blocks[[1]] == list()) renders all-NA/dot-filled rows and would pass minTables
+    // alone, so this is what actually catches that regression.
+    const hasFiniteCell = (n) => (n.type === 'table' && (n.rows || []).some(r => r.some(v => typeof v === 'number' && isFinite(v))))
+      || (n.items || []).some(hasFiniteCell);
     const nT = count(payload, 'table'), nI = count(payload, 'image');
     const stOk = !want.needSuperTitle || hasSuperTitle(payload);
-    const ok = nT >= want.minTables && nI >= want.minImages && nI === (cap.images || []).length && stOk;
+    const fcOk = !want.needFiniteCell || hasFiniteCell(payload);
+    const ok = nT >= want.minTables && nI >= want.minImages && nI === (cap.images || []).length && stOk && fcOk;
     if (!ok) window.__SMOKE.failures.push(name);
-    put(`<h2 class="${ok ? 'ok' : 'feil'}">${name}: ${ok ? 'OK' : 'FEIL'} — ${nT} tabeller, ${nI} image-noder, ${(cap.images||[]).length} bilder fanget${want.needSuperTitle ? ', superTitle: ' + (stOk ? 'OK' : 'MANGLER') : ''}</h2><pre>${JSON.stringify(payload, null, 1).slice(0, 4000)}</pre>`);
+    put(`<h2 class="${ok ? 'ok' : 'feil'}">${name}: ${ok ? 'OK' : 'FEIL'} — ${nT} tabeller, ${nI} image-noder, ${(cap.images||[]).length} bilder fanget${want.needSuperTitle ? ', superTitle: ' + (stOk ? 'OK' : 'MANGLER') : ''}${want.needFiniteCell ? ', finite cell: ' + (fcOk ? 'OK' : 'MANGLER') : ''}</h2><pre>${JSON.stringify(payload, null, 1).slice(0, 4000)}</pre>`);
     for (const bmp of cap.images || []) {
       const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
       c.getContext('2d').drawImage(bmp, 0, 0);

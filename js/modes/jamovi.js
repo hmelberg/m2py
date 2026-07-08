@@ -5,6 +5,12 @@
     var jamoviTypeOverrides = {};
     var jamoviDataTable = null; // Tabulator instance for the Data tab
     var jamoviFilter = '';      // pandas query applied (non-destructively) to data sent to analyses
+    // Fix B (Task 5 review): bumped whenever a live options panel/card is invalidated (dialog
+    // reopened/closed, dataset switched, card removed) so an orphaned debounce timer / in-flight
+    // rerun loop can recognize it's stale and bail. Declared here (module top) rather than next to
+    // openJmvAnalysis so it's unambiguously in scope for jamoviSwitchDataset/jamoviLoadExample/
+    // jamoviTitleCard, which also invalidate it.
+    var jmvDialogGen = 0;
 
     // Write a single edited cell back to the engine's pandas DataFrame.
     async function jamoviWriteBack(cell) {
@@ -200,6 +206,10 @@
       window.lastDatasetInfo = window.lastDatasetInfo || {};
       window.lastDatasetInfo[name] = JSON.parse(infoJson);
       jamoviTypeOverrides = {}; jamoviFilter = '';   // these were per-dataset
+      // Fix 2: a live options panel's variable list belongs to the old dataset — invalidate it.
+      jmvDialogGen++;
+      var _op = document.getElementById('jamoviOptions');
+      if (_op) { _op.hidden = true; _op.innerHTML = ''; }
       // refresh the current data/variables view if shown
       var at = (document.querySelector('#jamoviRibbon .jmv-tab.active') || {}).getAttribute && document.querySelector('#jamoviRibbon .jmv-tab.active').getAttribute('data-jtab');
       if (at === 'data') renderDataView();
@@ -297,7 +307,15 @@
     function jamoviTitleCard(title) {
       var card = document.createElement('div'); card.className = 'jmv-result-card';
       var rm = document.createElement('button'); rm.className = 'jmv-card-remove'; rm.title = T('Fjern'); rm.textContent = '✕';
-      rm.addEventListener('click', function() { card.remove(); });
+      rm.addEventListener('click', function() {
+        card.remove();
+        // Fix 3: this card's analysis dialog (if still open) must stop live-updating a
+        // now-detached card. All jamovi-mode cards are analysis cards, so always invalidate
+        // here (jamoviSingletonCard — Data/Variabler — must NOT get this behavior).
+        jmvDialogGen++;
+        var _op = document.getElementById('jamoviOptions');
+        if (_op) { _op.hidden = true; _op.innerHTML = ''; }
+      });
       card.appendChild(rm);
       var wrap = document.createElement('div'); wrap.style.cssText = 'padding:12px 18px;';
       var h = document.createElement('h3'); h.className = 'jmv-result-title'; h.textContent = title; wrap.appendChild(h);
@@ -470,6 +488,11 @@
         window.lastDatasetInfo = window.lastDatasetInfo || {};
         window.lastDatasetInfo[ex.name] = info;
         jamoviTypeOverrides = {}; jamoviFilter = '';
+        // Fix 2: same as jamoviSwitchDataset — a live options panel's variable list belongs to
+        // the previous dataset.
+        jmvDialogGen++;
+        var _op = document.getElementById('jamoviOptions');
+        if (_op) { _op.hidden = true; _op.innerHTML = ''; }
         M.setStatus(M.rightStatus, '');
         jamoviRefreshDatasetPicker();
         renderDataView();
@@ -517,9 +540,6 @@
 
     // ── jamovi 2.0-motor: ekte jmv/scatr i webR ─────────────────────────────
     var jmvReady = false, jmvLoadingP = null;
-    // Fix B (Task 5 review): bumped on every openJmvAnalysis call so a reopened/closed
-    // dialog's orphaned debounce timer / in-flight rerun loop can recognize it's stale and bail.
-    var jmvDialogGen = 0;
     async function ensureJmvLoaded() {
       if (jmvReady) return;
       if (!jmvLoadingP) {
@@ -573,6 +593,17 @@
         }
         args.push(o.name + ' = ' + rQuote(v)); // List, String, Level
       });
+      // Fix 1: jmv's `blocks` option (type Array, default [[]]) has no dialog control — the
+      // generic loop above always skips it (values.blocks never leaves its default). jmv's R
+      // code renders empty (dot-filled) tables when length(blocks[[1]]) == 0, so linReg/
+      // logRegBin need a synthesized single block with every assigned covariate/factor.
+      // (anova's modelTerms is NOT special-cased: jmv falls back to full factorial there.)
+      if (spec.options.some(function (o) { return o.name === 'blocks'; })) {
+        var blockVars = (values.covs || []).concat(values.factors || []);
+        if (blockVars.length) {
+          args.push('blocks = list(list(' + blockVars.map(rQuote).join(', ') + '))');
+        }
+      }
       return spec.ns + '::' + spec.name + '(' + args.join(', ') + ')';
     }
 

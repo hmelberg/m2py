@@ -28,9 +28,10 @@
       rows <- lapply(seq_len(nrow(df)), function(i)
         unname(lapply(as.list(df[i, , drop = FALSE]), function(v)
           if (is.numeric(v) && !is.finite(v)) NA else v)))
-      notes <- tryCatch(
-        unname(lapply(it$notes, function(n) if (is.list(n)) n$note else as.character(n))),
-        error = function(e) list())
+      notes <- tryCatch({
+        ns <- unname(lapply(it$notes, function(n) if (is.list(n)) (n$note %||% '') else as.character(n)))
+        Filter(function(s) nzchar(s), ns)
+      }, error = function(e) list())
       return(list(type = 'table', title = it$title, colNames = as.list(names(df)),
                   columns = cols, rows = rows, notes = notes))
     }
