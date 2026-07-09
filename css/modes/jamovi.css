@@ -175,4 +175,8 @@
 .jmv-model-src li:hover { background: #f2f2f2; }
 .jmv-model-src li.jmv-selected { background: #eaf0fa; border-inline-start-color: #2e8ac7; }
 .jmv-model-btnrow { display: flex; gap: 8px; margin: 0 0 8px; }
+.jmv-model-btnrow button:disabled, .jmv-model-btnrow button.jmv-disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
+/* Flettet inn øverst i en eksisterende Model-seksjon (anova/ancova): luft mot ss-comboen under. */
+.jmv-model-builder { margin: 0 0 4px; }
+.jmv-section-body > .jmv-model-builder:not(:only-child) { border-bottom: 1px solid #e3e6ec; padding-bottom: 8px; margin-bottom: 10px; }
 .jmv-posthoc { margin-top: 6px; border-top: 1px solid #e3e6ec; padding-top: 8px; }

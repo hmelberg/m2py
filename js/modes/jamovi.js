@@ -917,7 +917,9 @@
     }
     // Sammenlign ledd som sorterte arrays (jamovi behandler c('a','b') og c('b','a') likt;
     // duplikater ignoreres ved sammenligning).
-    function jmvTermKey(t) { return t.slice().sort().join(''); }
+    // JSON.stringify av sortert kopi — en join-basert nøkkel ville kollidere for
+    // f.eks. ['ab'] vs ['a','b'].
+    function jmvTermKey(t) { return JSON.stringify(t.slice().sort()); }
 
     // Modell-seksjon (term-bygger): jmv-section «Model», åpen, injisert av openJmvAnalysis for
     // spec'er med modelTerms (anova/ancova) eller blocks (regresjonene/logLinear). Termene lagres
@@ -936,17 +938,35 @@
         return list.concat([term]);
       }
 
-      var sec = document.createElement('div'); sec.className = 'jmv-section';
-      var hdr = document.createElement('div'); hdr.className = 'jmv-section-hdr';
-      hdr.innerHTML = '<span class="jmv-section-caret">▾</span><span class="jmv-section-title">' + M.escapeHtml(T('Model')) + '</span>';
-      hdr.addEventListener('click', function () { sec.classList.toggle('collapsed'); });
-      var sb = document.createElement('div'); sb.className = 'jmv-section-body';
-      sec.appendChild(hdr); sec.appendChild(sb); body.appendChild(sec);
+      // Fletting (review-fix 1): har layout'et allerede en «Model»-seksjon (anova/ancova sin
+      // ss-combo fra u.yaml), PREPENDes term-byggeren øverst i dens body (foran ss-comboen) og
+      // seksjonen tvinges åpen — én Model-seksjon, ikke to. Ellers (regresjonene, senere
+      // logLinear): dagens frittstående seksjon. All innmat tegnes i en egen container slik at
+      // re-render aldri rører ss-comboen (eller annet vertsinnhold).
+      var container = document.createElement('div'); container.className = 'jmv-model-builder';
+      var hostSec = Array.prototype.filter.call(body.querySelectorAll('.jmv-section'), function (s) {
+        var t = s.querySelector('.jmv-section-title');
+        return t && t.textContent === 'Model';
+      })[0];
+      if (hostSec) {
+        hostSec.classList.remove('collapsed');
+        var hostBody = hostSec.querySelector('.jmv-section-body');
+        hostBody.insertBefore(container, hostBody.firstChild);
+      } else {
+        var sec = document.createElement('div'); sec.className = 'jmv-section';
+        var hdr = document.createElement('div'); hdr.className = 'jmv-section-hdr';
+        hdr.innerHTML = '<span class="jmv-section-caret">▾</span><span class="jmv-section-title">' + M.escapeHtml(T('Model')) + '</span>';
+        hdr.addEventListener('click', function () { sec.classList.toggle('collapsed'); });
+        var sb = document.createElement('div'); sb.className = 'jmv-section-body';
+        sb.appendChild(container);
+        sec.appendChild(hdr); sec.appendChild(sb); body.appendChild(sec);
+      }
 
       var selected = {}; // navn valgt i kilde-listen under redigering (toggle)
 
+      // Fyller term-bygger-containeren (auto-tilstand ELLER term-liste + redigering).
       function render() {
-        sb.innerHTML = '';
+        container.innerHTML = '';
         var terms = getTerms();
         var srcVars = modelSourceVars(spec, values);
         if (terms === null) {
@@ -958,7 +978,7 @@
             render(); onChange();
           });
           autoRow.appendChild(lbl); autoRow.appendChild(btn);
-          sb.appendChild(autoRow);
+          container.appendChild(autoRow);
           return;
         }
 
@@ -981,11 +1001,14 @@
           list.appendChild(row);
         });
         if (!terms.length) {
+          // Review-fix 3: buildJmvCall utelater et TOMT term-sett (samme R-kall som auto) —
+          // vis den faktiske virkningen i stedet for et misvisende «(ingen ledd)».
           var empty = document.createElement('div'); empty.className = 'jmv-term-row';
-          empty.style.color = '#6b7280'; empty.textContent = T('(ingen ledd)');
+          empty.style.color = '#6b7280';
+          empty.textContent = T('Ingen ledd valgt — automatisk modell (alle hovedeffekter) brukes');
           list.appendChild(empty);
         }
-        sb.appendChild(list);
+        container.appendChild(list);
 
         var editWrap = document.createElement('div'); editWrap.className = 'jmv-model-edit';
         var srcUl = document.createElement('ul'); srcUl.className = 'jmv-model-src';
@@ -995,6 +1018,7 @@
           li.addEventListener('click', function () {
             if (selected[v]) delete selected[v]; else selected[v] = true;
             li.classList.toggle('jmv-selected');
+            refreshInterBtn(); // review-fix 4: knappen speiler antall valgte ved hvert toggle
           });
           srcUl.appendChild(li);
         });
@@ -1009,15 +1033,22 @@
           render(); onChange();
         });
         var interBtn = document.createElement('button'); interBtn.type = 'button'; interBtn.textContent = T('Interaksjon');
+        // Review-fix 4: interaksjon krever ≥2 valgte kildevariabler — disable under det.
+        function refreshInterBtn() {
+          var off = Object.keys(selected).length < 2;
+          interBtn.disabled = off;
+          interBtn.classList.toggle('jmv-disabled', off);
+        }
         interBtn.addEventListener('click', function () {
           var names = Object.keys(selected); if (names.length < 2) return;
           var nt = addTermIfNew(getTerms() || [], names);
           setTerms(nt); selected = {};
           render(); onChange();
         });
+        refreshInterBtn();
         btnRow.appendChild(addBtn); btnRow.appendChild(interBtn);
         editWrap.appendChild(btnRow);
-        sb.appendChild(editWrap);
+        container.appendChild(editWrap);
 
         var resetBtn = document.createElement('button'); resetBtn.type = 'button'; resetBtn.className = 'jmv-model-reset';
         resetBtn.textContent = T('Tilbakestill (automatisk)');
@@ -1025,7 +1056,7 @@
           setTerms(null); if (hasPostHoc) values.postHoc = null; selected = {};
           render(); onChange();
         });
-        sb.appendChild(resetBtn);
+        container.appendChild(resetBtn);
 
         if (hasPostHoc) {
           var phWrap = document.createElement('div'); phWrap.className = 'jmv-posthoc';
@@ -1047,7 +1078,7 @@
             phUl.appendChild(li);
           });
           phWrap.appendChild(phUl);
-          sb.appendChild(phWrap);
+          container.appendChild(phWrap);
         }
       }
 
