@@ -19,7 +19,12 @@
       // Sett editor-innhold + språk slik at modus-buffrene holdes konsistente.
       function setEditor(text, lang) {
         if (window.mdClearOutput) window.mdClearOutput();
-        lang = (lang === 'python' || lang === 'r' || lang === 'duckdb') ? lang : 'microdata';
+        // Ukjent/utelatt språk: python med mindre URL-en sier micro — appen kan
+        // ikke vite modusen fra en .txt-fil; #options.mode i scriptet kan
+        // overstyre etterpå (autorun-flyten).
+        if (lang !== 'python' && lang !== 'r' && lang !== 'duckdb' && lang !== 'microdata') {
+          lang = (window.NotebookLinks && window.NotebookLinks.urlHasMicro(location.href)) ? 'microdata' : 'python';
+        }
         if (typeof editorContent !== 'undefined') editorContent[lang] = text;
         if (typeof switchEditorMode === 'function' && typeof activeEditorMode !== 'undefined' && lang !== activeEditorMode) {
           switchEditorMode(lang); // laster editorContent[lang] inn i scriptInput
@@ -34,7 +39,9 @@
         if (s.endsWith('.py')) return 'python';
         if (s.endsWith('.r')) return 'r';
         if (s.endsWith('.sql')) return 'duckdb';
-        return 'microdata';
+        // .txt m.m.: python med mindre URL-en sier micro (setEditor gjør
+        // samme vurdering; #options.mode i scriptet er autoritativ).
+        return (window.NotebookLinks && window.NotebookLinks.urlHasMicro(location.href)) ? 'microdata' : 'python';
       }
 
       // --- base64url + gzip via innebygd CompressionStream ---
