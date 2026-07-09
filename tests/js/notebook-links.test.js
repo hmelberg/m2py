@@ -57,7 +57,9 @@ test('classifyHash: legacy share defers', () => {
 test('classifyHash: non-matching returns null', () => {
   assert.equal(NL.classifyHash(''), null);
   assert.equal(NL.classifyHash('#'), null);
-  assert.equal(NL.classifyHash('#section-heading'), null);  // no extension / too few tokens
+  // '#section-heading' er nå et registernavn (dashboard-spec §4) — appen
+  // (index.html) har ingen egne side-ankre, så tokenet var ledig.
+  assert.equal(NL.classifyHash('#section-heading').action, 'name');
   assert.equal(NL.classifyHash('#only.two'), null);         // needs user.repo.path.ext
 });
 
@@ -112,4 +114,23 @@ test('urlHasMicro: false when micro only after the fragment, or absent', () => {
   assert.equal(NL.urlHasMicro('http://localhost:8080/'), false);
   assert.equal(NL.urlHasMicro(''), false);
   assert.equal(NL.urlHasMicro(null), false);
+});
+
+test('classifyHash: single lowercase token → name lookup', () => {
+  assert.deepEqual(NL.classifyHash('#dodsarsaker'), { action: 'name', kind: 'name', name: 'dodsarsaker' });
+  assert.deepEqual(NL.classifyHash('#kommune-helse'), { action: 'name', kind: 'name', name: 'kommune-helse' });
+  assert.equal(NL.classifyHash('#Hans.demo.analyser.dod.py').action, 'open');  // dotted urørt
+  assert.equal(NL.classifyHash('#s=abc').kind, 'share');                       // share urørt
+  assert.equal(NL.classifyHash('#UPPER'), null);                               // ikke navn, ikke dotted
+});
+
+test('classifyNameValue: url and dotted values', () => {
+  const r1 = NL.classifyNameValue('https://x.example/a.py');
+  assert.deepEqual(r1, { action: 'output', kind: 'raw', raw: 'https://x.example/a.py' });
+  const r2 = NL.classifyNameValue('hans.demo.analyser.dod.py');
+  assert.equal(r2.action, 'output');
+  assert.equal(r2.kind, 'dotted');
+  assert.ok(r2.urls[0].includes('raw.githubusercontent.com/hans/demo/main/analyser/dod.py'));
+  assert.equal(NL.classifyNameValue('ugyldig'), null);
+  assert.equal(NL.classifyNameValue(''), null);
 });

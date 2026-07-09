@@ -49,12 +49,30 @@
       return { action: mRaw[1] === 'output' ? 'output' : 'open', kind: 'raw', raw: decodeURIComponent(mRaw[2]) };
     }
 
+    // Navneregister (dashboard-spec 2026-07-09 §4): ett token, små bokstaver/
+    // siffer/bindestrek, ingen punktum → slås opp i names.json av
+    // openFromFragment. Kolliderer ikke med dotted (krever ≥4 ledd) — et
+    // enkelt-token returnerte null her før.
+    if (/^[a-z0-9][a-z0-9-]*$/.test(h)) return { action: 'name', kind: 'name', name: h };
+
     // dotted shorthand, optional "output." prefix
     var action = 'open', dotted = h;
     if (/^output\./.test(h)) { action = 'output'; dotted = h.slice('output.'.length); }
     var urls = NL.resolveDotted(dotted);
     if (!urls) return null;
     return { action: action, kind: 'dotted', urls: urls };
+  };
+
+  // Registerverdi (streng fra names.json) → samme form som classifyHash,
+  // alltid med output-intensjon: mottakere av et navn skal se resultatet,
+  // ikke editoren (dashboard-spec §4).
+  NL.classifyNameValue = function (value) {
+    var v = String(value == null ? '' : value).trim();
+    if (!v) return null;
+    if (/^https?:\/\//i.test(v)) return { action: 'output', kind: 'raw', raw: v };
+    var urls = NL.resolveDotted(v);
+    if (!urls) return null;
+    return { action: 'output', kind: 'dotted', urls: urls };
   };
 
   NL.welcomeVariant = function (hostname, app, isOutputOnly) {
