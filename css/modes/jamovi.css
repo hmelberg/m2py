@@ -140,5 +140,9 @@
    text down to a couple of px, so the browser breaks it one character per line. Reset the
    inherited wrapping behaviour inside the layout tree; flex-wrap above lets a genuinely tight
    row fall to two lines (label, then control) instead of collapsing vertically char-by-char. */
-.jmv-grid, .jmv-optgroup, .jmv-suboptions { white-space: normal; word-break: normal; overflow-wrap: normal; }
+.jmv-grid, .jmv-optgroup, .jmv-suboptions, .jmv-opt-row { white-space: normal; word-break: normal; overflow-wrap: normal; }
 .jmv-opt-select { min-width: 0; }
+/* Etiketter i opsjonsrader skal bryte mellom ord, aldri inni dem («Confide/nce»),
+   og tallfeltet skal beholde bredden sin når raden faller til to linjer. */
+.jmv-opt-row { min-width: 0; }
+.jmv-opt-num { flex: 0 0 auto; }
