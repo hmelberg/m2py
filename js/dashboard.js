@@ -422,6 +422,101 @@
   };
   D._onTabShown = function (indexes) {};   // erstattes av start()
 
+  // ── Orkestrering (spec §3) ────────────────────────────────────────────────
+  // Én kjørekjede: initial fylling, widget-batcher og late fane-kjøringer
+  // serialiseres alle på _state.chain — aldri to ctx.run i flukt.
+  function cardOf(i) { return _state.cards[i]; }
+
+  async function runCell(i) {
+    var s = _state;
+    if (!s) return;
+    var cell = s.parsed.cells[i], c = cardOf(i);
+    c.card.classList.add('dash-card--running');
+    c.card.classList.remove('dash-card--stale');
+    var result = await s.ctx.run(cell.code);
+    if (!_state) return;                       // unmount underveis
+    s.ctx.renderOutput(result, c.body);
+    c.card.classList.remove('dash-card--loading', 'dash-card--running');
+    return result;
+  }
+
+  function isHidden(i) {
+    var c = cardOf(i);
+    return !!(c && c.card.closest('.dash-tabpanel[hidden]'));
+  }
+
+  function markStale(i) {
+    var c = cardOf(i);
+    c.card.classList.remove('dash-card--running', 'dash-card--loading');
+    c.card.setAttribute('data-stale-label', _state.t('Utdatert'));
+    c.card.classList.add('dash-card--stale');
+  }
+
+  async function runSet(indexes) {
+    var s = _state;
+    var failed = false;
+    for (var k = 0; k < indexes.length; k++) {
+      if (!_state) return;
+      var i = indexes[k];
+      if (isHidden(i)) { s.dirtyHidden[i] = true; continue; }   // lat (spec §3)
+      if (failed) { markStale(i); continue; }                   // nedstrøms for feilet celle
+      var res = await runCell(i);
+      if (res && res.error) failed = true;
+      delete s.dirtyHidden[i];
+    }
+  }
+
+  D.start = async function (ctx) {
+    if (!_state) return;
+    var s = _state;
+    s.ctx = ctx;
+    D.setProgress(s.t('Kjører …'));
+
+    // 1) Widget-defaults i én kjøring (spec §3 pkt 1).
+    var assigns = s.parsed.inputs.map(function (inp) {
+      return D.assignStatement(ctx.mode, inp.name, s.values[inp.name]);
+    });
+    if (assigns.length) {
+      var r0 = await ctx.run(assigns.join('\n'));
+      if (r0 && r0.error) throw new Error(r0.error);
+    }
+
+    // 2) Synlige celler i dokumentrekkefølge; skjulte faner venter.
+    await runSet(s.parsed.cells.map(function (_, i) { return i; }));
+    if (!_state) return;
+
+    // 3) Åpne for interaksjon.
+    if (s.controls) s.controls.classList.remove('dash-controls--loading');
+    D.setProgress('');
+    s.queue = D.createQueue(function (batch) {
+      s.chain = s.chain.then(function () { return executeBatch(batch); })['catch'](function () {});
+      return s.chain;
+    }, 250);
+    D._onTabShown = function (indexes) {
+      var dirty = indexes.filter(function (i) { return s.dirtyHidden[i]; });
+      if (!dirty.length) return;
+      s.chain = s.chain.then(function () { return runSet(dirty); })['catch'](function () {});
+    };
+  };
+
+  async function executeBatch(batch) {
+    var s = _state;
+    if (!s) return;
+    var names = Object.keys(batch);
+    var assigns = names.map(function (n) { return D.assignStatement(s.ctx.mode, n, batch[n]); });
+    var set = D.planReruns(s.parsed.cells, names, s.ctx.mode);
+    set.forEach(function (i) {
+      if (!isHidden(i)) cardOf(i).card.classList.add('dash-card--running');
+    });
+    var r = await s.ctx.run(assigns.join('\n'));
+    if (!_state) return;
+    if (r && r.error) {
+      set.forEach(function (i) { if (!isHidden(i)) markStale(i); });
+      return;
+    }
+    await runSet(set);
+  }
+
   if (typeof module !== 'undefined' && module.exports) module.exports = D;
   global.Dashboard = D;
 })(typeof window !== 'undefined' ? window : globalThis);
