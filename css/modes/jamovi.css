@@ -153,3 +153,26 @@
    og tallfeltet skal beholde bredden sin når raden faller til to linjer. */
 .jmv-opt-row { min-width: 0; }
 .jmv-opt-num { flex: 0 0 auto; }
+/* fase 3 del 3 (Task 1): Modell-seksjon (term-bygger) — gjenbruker .jmv-section/-hdr/-body og
+   kilde-liste-mønsteret fra .jmv-varlist (rolleboks), egne klasser kun der formen skiller seg. */
+.jmv-model-auto { display: flex; align-items: center; gap: 10px; color: #6b7280; font: 13px/1.4 inherit; flex-wrap: wrap; }
+.jmv-model-auto button, .jmv-model-btnrow button, .jmv-model-reset {
+  padding: 5px 12px; border: 1px solid var(--jmv-line); border-radius: 5px; background: #fff;
+  cursor: pointer; font: 13px inherit; color: var(--jmv-blue-d);
+}
+.jmv-model-auto button:hover, .jmv-model-btnrow button:hover { background: var(--jmv-blue); color: #fff; border-color: var(--jmv-blue); }
+.jmv-model-reset { color: #555; margin: 0 0 10px; }
+.jmv-model-reset:hover { background: #ececec; }
+.jmv-term-list { border: 1px solid #828282; background: #fff; margin: 0 0 8px; max-height: 160px; overflow: auto; }
+.jmv-term-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 10px; font-size: 13px; border-bottom: 1px solid #eaeaea; }
+.jmv-term-row:last-child { border-bottom: none; }
+.jmv-term-remove { border: none; background: transparent; color: #555; cursor: pointer; font-size: 12px; padding: 2px 4px; }
+.jmv-term-remove:hover { color: #c15050; }
+.jmv-model-edit { margin: 6px 0; }
+.jmv-model-src { list-style: none; margin: 0 0 6px; padding: 0; border: 1px solid #828282; max-height: 140px; overflow: auto; background: #fff; }
+.jmv-model-src li { padding: 5px 10px; cursor: pointer; font-size: 13px; border-inline-start: 4px solid transparent; border-bottom: 1px solid #eaeaea; }
+.jmv-model-src li:last-child { border-bottom: none; }
+.jmv-model-src li:hover { background: #f2f2f2; }
+.jmv-model-src li.jmv-selected { background: #eaf0fa; border-inline-start-color: #2e8ac7; }
+.jmv-model-btnrow { display: flex; gap: 8px; margin: 0 0 8px; }
+.jmv-posthoc { margin-top: 6px; border-top: 1px solid #e3e6ec; padding-top: 8px; }

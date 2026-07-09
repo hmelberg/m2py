@@ -586,10 +586,19 @@
 
     function rQuote(s) { return "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'"; }
 
+    // fase 3 del 3 (Task 1): opsjonene under har egne verdi-former (term-lister, blocks,
+    // refLevels) og egne R-kallformater — den generiske løkka hopper dem over med vilje
+    // (uten dette ville fallback-grenen `rQuote(v)` nederst i løkka stringifisert en array
+    // til søppel-R-syntaks, f.eks. `modelTerms = 'a,b,a,b'`).
+    var JMV_MODEL_OPT_NAMES = { modelTerms: 1, postHoc: 1, blocks: 1, refLevels: 1 };
+    function rTermVec(t) { return 'c(' + t.map(rQuote).join(', ') + ')'; }
+
     // Dialogtilstand -> R-kall. Opsjoner med default-verdi utelates (ren syntaks).
     function buildJmvCall(spec, values) {
       var args = ['data = data'];
+      function hasOpt(n) { return spec.options.some(function (o) { return o.name === n; }); }
       spec.options.forEach(function (o) {
+        if (JMV_MODEL_OPT_NAMES[o.name]) return; // håndtert eksplisitt nedenfor
         var v = values[o.name];
         if (v === undefined || v === null) return;
         if (o.type === 'Variables') {
@@ -612,17 +621,33 @@
         }
         args.push(o.name + ' = ' + rQuote(v)); // List, String, Level
       });
-      // Fix 1: jmv's `blocks` option (type Array, default [[]]) has no dialog control — the
-      // generic loop above always skips it (values.blocks never leaves its default). jmv's R
-      // code renders empty (dot-filled) tables when length(blocks[[1]]) == 0, so linReg/
-      // logRegBin need a synthesized single block with every assigned covariate/factor.
-      // (anova's modelTerms is NOT special-cased: jmv falls back to full factorial there.)
-      if (spec.options.some(function (o) { return o.name === 'blocks'; })) {
-        var blockVars = (values.covs || []).concat(values.factors || []);
-        if (blockVars.length) {
-          args.push('blocks = list(list(' + blockVars.map(rQuote).join(', ') + '))');
+      // modelTerms/postHoc (anova/ancova): values er null (auto, jmv sin fulle faktorielle
+      // default) eller [[navn,...],...] (brukertilpasset via Modell-seksjonen).
+      if (hasOpt('modelTerms') && values.modelTerms && values.modelTerms.length)
+        args.push('modelTerms = list(' + values.modelTerms.map(rTermVec).join(', ') + ')');
+      if (hasOpt('postHoc') && values.postHoc && values.postHoc.length)
+        args.push('postHoc = list(' + values.postHoc.map(rTermVec).join(', ') + ')');
+      // blocks (regresjonene/logLinear): jmv's `blocks` option (type Array, default [[]]) har
+      // ingen dialogkontroll fra generatoren. Brukertilpasset (values.blocks er satt av
+      // Modell-seksjonen) -> énblokk-kallet fra leddene. Ellers dagens auto-syntese (fase 1,
+      // Fix 1), oppgradert til samme c(...)-ledd-form (ren normalisering, samme R-semantikk):
+      // covs+factors som enkelt-hovedledd, slik at jmv ikke tegner tomme (prikkfylte) tabeller.
+      if (hasOpt('blocks')) {
+        var customBlock = (values.blocks && values.blocks[0] && values.blocks[0].length) ? values.blocks[0] : null;
+        if (customBlock) {
+          args.push('blocks = list(list(' + customBlock.map(rTermVec).join(', ') + '))');
+        } else {
+          var blockVars = (values.covs || []).concat(values.factors || []);
+          if (blockVars.length) {
+            args.push('blocks = list(list(' + blockVars.map(function (v) { return rTermVec([v]); }).join(', ') + '))');
+          }
         }
       }
+      // refLevels (Task 2 bygger UI for denne; motoren støtter den allerede).
+      if (hasOpt('refLevels') && values.refLevels && values.refLevels.length)
+        args.push('refLevels = list(' + values.refLevels.map(function (r) {
+          return 'list(var = ' + rQuote(r.var) + ', ref = ' + rQuote(r.ref) + ')';
+        }).join(', ') + ')');
       return spec.ns + '::' + spec.name + '(' + args.join(', ') + ')';
     }
 
@@ -881,6 +906,178 @@
       refreshDisabled();
     }
 
+    // fase 3 del 3 (Task 1): kildevariabler for modell-hovedeffekter, per analyse. jamovi selv
+    // avgjør rollene per skjema; siden generatoren ikke gir oss dette eksplisitt, leser vi det
+    // fra spec.name (kun 6 analyser har modelTerms/blocks p.t. — se PLAN_jamovi_fase3_del3).
+    function modelSourceVars(spec, values) {
+      if (spec.name === 'anova') return (values.factors || []).slice();
+      if (spec.name === 'ancova') return (values.factors || []).concat(values.covs || []);
+      if (spec.name === 'logLinear') return (values.factors || []).slice(); // counts er ikke et ledd
+      return (values.covs || []).concat(values.factors || []); // regresjonene (linReg/logReg*)
+    }
+    // Sammenlign ledd som sorterte arrays (jamovi behandler c('a','b') og c('b','a') likt;
+    // duplikater ignoreres ved sammenligning).
+    function jmvTermKey(t) { return t.slice().sort().join(''); }
+
+    // Modell-seksjon (term-bygger): jmv-section «Model», åpen, injisert av openJmvAnalysis for
+    // spec'er med modelTerms (anova/ancova) eller blocks (regresjonene/logLinear). Termene lagres
+    // i values.modelTerms (null=auto ELLER [[navn,...],...]) eller values.blocks (null=auto ELLER
+    // [[navn,...],...] — én blokk). postHoc (kun anova/ancova) i values.postHoc, samme form.
+    // Returnerer { refresh } slik at openJmvAnalysis kan kalle refresh() når rolleboksene endres
+    // (fjernede variabler lukes ut av ledd; nye variabler auto-legges IKKE til).
+    function renderModelSection(spec, values, body, onChange) {
+      var key = spec.options.some(function (o) { return o.name === 'modelTerms'; }) ? 'modelTerms' : 'blocks';
+      var hasPostHoc = spec.options.some(function (o) { return o.name === 'postHoc'; });
+      function getTerms() { return key === 'modelTerms' ? values.modelTerms : (values.blocks ? values.blocks[0] : null); }
+      function setTerms(terms) { if (key === 'modelTerms') values.modelTerms = terms; else values.blocks = terms ? [terms] : null; }
+      function addTermIfNew(list, term) {
+        var k = jmvTermKey(term);
+        if (list.some(function (t) { return jmvTermKey(t) === k; })) return list; // duplikat: ignorert
+        return list.concat([term]);
+      }
+
+      var sec = document.createElement('div'); sec.className = 'jmv-section';
+      var hdr = document.createElement('div'); hdr.className = 'jmv-section-hdr';
+      hdr.innerHTML = '<span class="jmv-section-caret">▾</span><span class="jmv-section-title">' + M.escapeHtml(T('Model')) + '</span>';
+      hdr.addEventListener('click', function () { sec.classList.toggle('collapsed'); });
+      var sb = document.createElement('div'); sb.className = 'jmv-section-body';
+      sec.appendChild(hdr); sec.appendChild(sb); body.appendChild(sec);
+
+      var selected = {}; // navn valgt i kilde-listen under redigering (toggle)
+
+      function render() {
+        sb.innerHTML = '';
+        var terms = getTerms();
+        var srcVars = modelSourceVars(spec, values);
+        if (terms === null) {
+          var autoRow = document.createElement('div'); autoRow.className = 'jmv-model-auto';
+          var lbl = document.createElement('span'); lbl.textContent = T('Automatisk: alle hovedeffekter');
+          var btn = document.createElement('button'); btn.type = 'button'; btn.textContent = T('Tilpass modell');
+          btn.addEventListener('click', function () {
+            setTerms(srcVars.map(function (v) { return [v]; }));
+            render(); onChange();
+          });
+          autoRow.appendChild(lbl); autoRow.appendChild(btn);
+          sb.appendChild(autoRow);
+          return;
+        }
+
+        var list = document.createElement('div'); list.className = 'jmv-term-list';
+        terms.forEach(function (t, i) {
+          var row = document.createElement('div'); row.className = 'jmv-term-row';
+          var nm = document.createElement('span'); nm.textContent = t.join(' ✻ ');
+          var rm = document.createElement('button'); rm.type = 'button'; rm.className = 'jmv-term-remove'; rm.title = T('Fjern'); rm.textContent = '✕';
+          rm.addEventListener('click', function () {
+            var nt = terms.slice(); nt.splice(i, 1);
+            setTerms(nt);
+            if (hasPostHoc && values.postHoc) {
+              var validKeys = nt.map(jmvTermKey);
+              values.postHoc = values.postHoc.filter(function (pt) { return validKeys.indexOf(jmvTermKey(pt)) !== -1; });
+              if (!values.postHoc.length) values.postHoc = null;
+            }
+            render(); onChange();
+          });
+          row.appendChild(nm); row.appendChild(rm);
+          list.appendChild(row);
+        });
+        if (!terms.length) {
+          var empty = document.createElement('div'); empty.className = 'jmv-term-row';
+          empty.style.color = '#6b7280'; empty.textContent = T('(ingen ledd)');
+          list.appendChild(empty);
+        }
+        sb.appendChild(list);
+
+        var editWrap = document.createElement('div'); editWrap.className = 'jmv-model-edit';
+        var srcUl = document.createElement('ul'); srcUl.className = 'jmv-model-src';
+        srcVars.forEach(function (v) {
+          var li = document.createElement('li'); li.textContent = v;
+          li.classList.toggle('jmv-selected', !!selected[v]);
+          li.addEventListener('click', function () {
+            if (selected[v]) delete selected[v]; else selected[v] = true;
+            li.classList.toggle('jmv-selected');
+          });
+          srcUl.appendChild(li);
+        });
+        editWrap.appendChild(srcUl);
+        var btnRow = document.createElement('div'); btnRow.className = 'jmv-model-btnrow';
+        var addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.textContent = T('→ Legg til');
+        addBtn.addEventListener('click', function () {
+          var names = Object.keys(selected); if (!names.length) return;
+          var nt = getTerms() || [];
+          names.forEach(function (n) { nt = addTermIfNew(nt, [n]); });
+          setTerms(nt); selected = {};
+          render(); onChange();
+        });
+        var interBtn = document.createElement('button'); interBtn.type = 'button'; interBtn.textContent = T('Interaksjon');
+        interBtn.addEventListener('click', function () {
+          var names = Object.keys(selected); if (names.length < 2) return;
+          var nt = addTermIfNew(getTerms() || [], names);
+          setTerms(nt); selected = {};
+          render(); onChange();
+        });
+        btnRow.appendChild(addBtn); btnRow.appendChild(interBtn);
+        editWrap.appendChild(btnRow);
+        sb.appendChild(editWrap);
+
+        var resetBtn = document.createElement('button'); resetBtn.type = 'button'; resetBtn.className = 'jmv-model-reset';
+        resetBtn.textContent = T('Tilbakestill (automatisk)');
+        resetBtn.addEventListener('click', function () {
+          setTerms(null); if (hasPostHoc) values.postHoc = null; selected = {};
+          render(); onChange();
+        });
+        sb.appendChild(resetBtn);
+
+        if (hasPostHoc) {
+          var phWrap = document.createElement('div'); phWrap.className = 'jmv-posthoc';
+          var phTitle = document.createElement('div'); phTitle.className = 'jmv-role-label'; phTitle.textContent = T('Post Hoc-ledd');
+          phWrap.appendChild(phTitle);
+          var phUl = document.createElement('ul'); phUl.className = 'jmv-model-src';
+          terms.forEach(function (t) {
+            var li = document.createElement('li'); li.textContent = t.join(' ✻ ');
+            var k = jmvTermKey(t);
+            li.classList.toggle('jmv-selected', (values.postHoc || []).some(function (pt) { return jmvTermKey(pt) === k; }));
+            li.addEventListener('click', function () {
+              var cur = values.postHoc || [];
+              if (cur.some(function (pt) { return jmvTermKey(pt) === k; })) cur = cur.filter(function (pt) { return jmvTermKey(pt) !== k; });
+              else cur = cur.concat([t]);
+              values.postHoc = cur.length ? cur : null;
+              li.classList.toggle('jmv-selected');
+              onChange();
+            });
+            phUl.appendChild(li);
+          });
+          phWrap.appendChild(phUl);
+          sb.appendChild(phWrap);
+        }
+      }
+
+      // Rolleboks-endring mens modellen er tilpasset (values.<key> !== null): fjernede
+      // variabler lukes ut av ledd (ledd som mister alle komponenter fjernes); ledd som blir
+      // duplikater etter luking slås sammen. Nye variabler legges IKKE til automatisk.
+      function refresh() {
+        var terms = getTerms();
+        if (terms !== null) {
+          var srcVars = modelSourceVars(spec, values);
+          var pruned = [];
+          terms.forEach(function (t) {
+            var nt = t.filter(function (n) { return srcVars.indexOf(n) !== -1; });
+            if (nt.length) pruned = addTermIfNew(pruned, nt);
+          });
+          setTerms(pruned);
+          if (hasPostHoc && values.postHoc) {
+            var validKeys = pruned.map(jmvTermKey);
+            values.postHoc = values.postHoc.filter(function (pt) { return validKeys.indexOf(jmvTermKey(pt)) !== -1; });
+            if (!values.postHoc.length) values.postHoc = null;
+          }
+          // fjern valg som ikke lenger er tilgjengelige som kildevariabel
+          Object.keys(selected).forEach(function (n) { if (srcVars.indexOf(n) === -1) delete selected[n]; });
+        }
+        render();
+      }
+      render();
+      return { refresh: refresh };
+    }
+
     // Åpne en jamovi 2.0-analyse: dialog generert fra spec'en, dokket til venstre for
     // resultatene, med live-kjøring (debounce) hver gang en rolle/opsjon endres.
     function openJmvAnalysis(name, presets) {
@@ -897,6 +1094,11 @@
       var values = {};
       spec.options.forEach(function (o) {
         if (o.type === 'Variables' || o.type === 'Variable' || o.type === 'Pairs') values[o.name] = [];
+        // fase 3 del 3 (Task 1): modelTerms/postHoc/blocks/refLevels starter alltid som null
+        // (auto/utelatt), uansett spec.default (jmv's `blocks` default er f.eks. [[]]) — dette
+        // ER auto-tilstanden Modell-seksjonen viser, og buildJmvCall sin auto-synteseren
+        // (covs+factors) trer i kraft nettopp når verdien er null.
+        else if (JMV_MODEL_OPT_NAMES[o.name]) values[o.name] = null;
         else values[o.name] = (o.default === undefined) ? null : o.default;
       });
       Object.assign(values, presets || {});
@@ -969,6 +1171,12 @@
         var wantsNom = p.indexOf('nominal') !== -1 || p.indexOf('ordinal') !== -1 || p.indexOf('factor') !== -1 || p.indexOf('id') !== -1;
         return (v.type === 'numeric' && wantsNum) || (v.type === 'nominal' && wantsNom) || (wantsNum && wantsNom);
       }
+      // fase 3 del 3 (Task 1): Modell-seksjonen (satt av renderModelSection(), under) må
+      // gjenspeile rolleboks-endringer i covs/factors — fjernede variabler lukes ut av
+      // eksisterende ledd. refreshModelSection() er en no-op før seksjonen er tegnet, og for
+      // analyser uten modelTerms/blocks (modelSectionRef forblir null).
+      var modelSectionRef = null;
+      function refreshModelSection() { if (modelSectionRef) modelSectionRef.refresh(); }
       function redraw() {
         srcList.innerHTML = '';
         vars.forEach(function (v) {
@@ -989,6 +1197,7 @@
             li.innerHTML = jamoviTypeIcon(v.type) + '<span class="jmv-var-name">' + M.escapeHtml(n) + '</span><span class="jmv-remove">✕</span>';
             li.addEventListener('click', function () {
               values[o.name] = values[o.name].filter(function (x) { return x !== n; });
+              refreshModelSection();
               redraw(); scheduleRun();
             });
             ul.appendChild(li);
@@ -1004,6 +1213,7 @@
         var max = (o.__max !== undefined) ? o.__max : ((o.type === 'Variable') ? 1 : (o.type === 'Pairs' ? 2 : Infinity));
         if ((values[o.name] || []).length >= max) { if (max === 1) values[o.name] = []; else return; }
         values[o.name].push(name); srcSel = null;
+        refreshModelSection();
         redraw(); scheduleRun();
       }
       function optByName(n) { return spec.options.filter(function (o) { return o.name === n; })[0]; }
@@ -1108,6 +1318,12 @@
         // Dagens flate fallback for analyser uten generert layout (holdes for robusthet).
         roleBoxBuilder(roleOpts.map(function (o) { return { name: o.name }; }), body);
         addSection(T('Valg'), nonRole.map(function (o) { return o.name; }), true);
+      }
+
+      // fase 3 del 3 (Task 1): Modell-seksjonen (term-bygger) etter layout-rendring, for
+      // spec'er med modelTerms (anova/ancova) eller blocks (regresjonene/logLinear).
+      if (spec.options.some(function (o) { return o.name === 'modelTerms' || o.name === 'blocks'; })) {
+        modelSectionRef = renderModelSection(spec, values, body, scheduleRun);
       }
 
       redraw(); scheduleRun();
