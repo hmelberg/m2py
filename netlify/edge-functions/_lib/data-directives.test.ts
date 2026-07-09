@@ -257,6 +257,9 @@ Deno.test("parseUse: use <navn> from r|python, alle markørtripler", () => {
     { name: "x", from: "r" },
   ]);
   assertEquals(u.errors.length, 2);
+  // duckdb som kilde (use-utvidelsen 2026-07-10)
+  assertEquals(DD.parseUse("# use t from duckdb").uses, [{ name: "t", from: "duckdb" }]);
+  assertEquals(DD.parseUse("# use t from DuckDB").uses, [{ name: "t", from: "duckdb" }]);
 });
 
 Deno.test("parseUse: tom/ingen direktiver", () => {

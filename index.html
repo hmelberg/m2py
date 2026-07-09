@@ -3372,6 +3372,29 @@
         finally { this.conn = null; }
       }
     };
+    // "# use <navn> from duckdb": trekk en tabell/visning ut av wasm-
+    // katalogen som parquet-bytes. Katalogen lever til NESTE duckdb-kjøring
+    // starter (begin() rydder) — semantikken er altså «hent resultatet av
+    // forrige duckdb-kjøring», samme økt-logikk som use from r/python.
+    async function __duckUseBytes(name) {
+      var db = await __ensureDuckDB();
+      var conn = await db.connect();
+      try {
+        var ident = String(name).replace(/"/g, '""');
+        var chk = __arrowToColumns(await conn.query(
+          "SELECT count(*) AS n FROM information_schema.tables WHERE table_schema = 'main' AND table_name = '" +
+          String(name).replace(/'/g, "''") + "'"));
+        if (!Number((chk.n || [0])[0])) {
+          throw new Error(t('use «{name}» from duckdb: fant ingen tabell/visning «{name}» i duckdb-økten — kjør duckdb-scriptet først', { name: name }));
+        }
+        var fname = '_use_' + String(name).replace(/'/g, "''") + '.parquet';
+        await conn.query('COPY (SELECT * FROM "' + ident + '") TO \'' + fname + "' (FORMAT PARQUET)");
+        var bytes = await db.copyFileToBuffer(fname);
+        try { await db.dropFile(fname); } catch (e) {}
+        return bytes;
+      } finally { await conn.close(); }
+    }
+
     // Phase 1 (spec 2026-07-06-remote-columnar-sources-design §1/§9): pull ONE
     // table out of a whole duckdb/sqlite file already fetched into memory, as
     // Parquet bytes the existing pd.read_parquet() materialization path can
@@ -5027,9 +5050,11 @@
       // R-datasett (runtime:'r' i sidepanel-infoen): hent radene fra webR i
       // NØYAKTIG samme JSON-form som python-veien — Tabulator-renderingen
       // under er felles og uendret.
-      var _idIsR = !!(window.lastDatasetInfo && window.lastDatasetInfo[datasetName]
-        && window.lastDatasetInfo[datasetName].runtime === 'r');
-      if (!_idIsR && !pyodide) {
+      var _idRt = (window.lastDatasetInfo && window.lastDatasetInfo[datasetName]
+        && window.lastDatasetInfo[datasetName].runtime) || 'python';
+      var _idIsR = _idRt === 'r';
+      var _idIsDuck = _idRt === 'duckdb';
+      if (!_idIsR && !_idIsDuck && !pyodide) {
         bodyEl.innerHTML = '<div class="individata-status error">' + t('Kjør et skript først så datasettet er lastet inn.') + '</div>';
         return;
       }
@@ -5039,7 +5064,37 @@
       }
       try {
         var info;
-        if (_idIsR) {
+        if (_idIsDuck) {
+          // Katalogtabell → samme JSON-form som python/R-veiene; Tabulator-
+          // renderingen under er felles. BigInt → Number for JSON/sortering.
+          var _ddb = await __ensureDuckDB();
+          var _dconn = await _ddb.connect();
+          try {
+            var _dIdent = String(datasetName).replace(/"/g, '""');
+            var _dColSel = columnName ? '"' + String(columnName).replace(/"/g, '""') + '"' : '*';
+            var _dCnt = __arrowToColumns(await _dconn.query('SELECT count(*) AS n FROM "' + _dIdent + '"'));
+            var _dTotal = Number((_dCnt.n || [0])[0]);
+            var _dCols = __arrowToColumns(await _dconn.query('SELECT ' + _dColSel + ' FROM "' + _dIdent + '" LIMIT 5000'));
+            var _dNames = Object.keys(_dCols);
+            var _dRows = [];
+            var _dShown = _dNames.length ? (_dCols[_dNames[0]] || []).length : 0;
+            for (var _dri = 0; _dri < _dShown; _dri++) {
+              var _rec = {};
+              _dNames.forEach(function (c) {
+                var v = (_dCols[c] || [])[_dri];
+                _rec[c] = (typeof v === 'bigint') ? Number(v) : v;
+              });
+              _dRows.push(_rec);
+            }
+            var _dDesc = __arrowToColumns(await _dconn.query('DESCRIBE "' + _dIdent + '"'));
+            var _dDtypes = {};
+            (_dDesc.column_name || []).forEach(function (c, j) {
+              _dDtypes[String(c)] = __duckTypeToPandas((_dDesc.column_type || [])[j]);
+            });
+            info = { columns: _dNames, dtypes: _dDtypes, total_rows: _dTotal,
+                     shown_rows: _dShown, rows_json: JSON.stringify(_dRows) };
+          } finally { await _dconn.close(); }
+        } else if (_idIsR) {
           try { await webR.installPackages(['jsonlite'], { quiet: true }); } catch (e) {}
           var _rj = await webR.evalR(
             'local({\n' +
@@ -5248,18 +5303,22 @@
       // R-datasett (runtime:'r' fra refreshDatasetSidebarFromR): detalj- og
       // individata-visningene er Pyodide-bundne og ville lastet/feilet mot
       // et datasett som bare finnes i webR — vis en ærlig status i stedet.
-      function isRDataset(ds) {
-        return !!(window.lastDatasetInfo && window.lastDatasetInfo[ds] && window.lastDatasetInfo[ds].runtime === 'r');
+      function nonPyRuntime(ds) {
+        var m = window.lastDatasetInfo && window.lastDatasetInfo[ds];
+        return (m && (m.runtime === 'r' || m.runtime === 'duckdb')) ? m.runtime : null;
       }
-      function rDatasetNotice() {
-        setStatus(rightStatus, t('Detaljvisning for R-datasett støttes ikke ennå — bruk str()/summary() i R.'), true);
+      function rDatasetNotice(rt) {
+        setStatus(rightStatus, rt === 'duckdb'
+          ? t('Distribusjonsvisning for duckdb-tabeller støttes ikke ennå — bruk SELECT/SUMMARIZE.')
+          : t('Detaljvisning for R-datasett støttes ikke ennå — bruk str()/summary() i R.'), true);
       }
       datasetsEl.querySelectorAll('.sidebar-var-row').forEach(function(el) {
         el.addEventListener('click', function(e) {
           if (e.target.closest('.sidebar-var-view-btn')) return; // handled separately below
           var ds = this.getAttribute('data-ds');
           var v = this.getAttribute('data-var');
-          if (isRDataset(ds)) return rDatasetNotice();
+          var rt = nonPyRuntime(ds);
+          if (rt) return rDatasetNotice(rt);
           showVariableDetail(ds, v);
         });
       });
@@ -7687,6 +7746,46 @@ async def _run_duck_sql(_sql):
 `;
     }
 
+    // DuckDB-motstykket: katalogen (tabeller/visninger fra siste duckdb-
+    // kjøring — begin() rydder ved neste) er sannheten for duckdb-modus.
+    // Kjøringens egen sidebar-oppdatering kom fra en per-kjøring-dict som
+    // døde med kjøringen — klikk ga da py-feil mot et datasett som ikke
+    // fantes der. runtime:'duckdb' ruter individata-modalen til katalogen.
+    function __duckTypeToPandas(tp) {
+      var s = String(tp || '').toUpperCase();
+      if (/BIGINT|INTEGER|SMALLINT|TINYINT|HUGEINT/.test(s)) return 'int64';
+      if (/DOUBLE|FLOAT|REAL|DECIMAL/.test(s)) return 'float64';
+      if (/BOOLEAN/.test(s)) return 'bool';
+      if (/DATE|TIME/.test(s)) return 'datetime64[ns]';
+      return 'object';
+    }
+    async function refreshDatasetSidebarFromDuck() {
+      try {
+        var db = await __ensureDuckDB();
+        var conn = await db.connect();
+        try {
+          var objs = __arrowToColumns(await conn.query(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' ORDER BY table_name"));
+          var names = objs.table_name || [];
+          var info = {};
+          for (var i = 0; i < names.length; i++) {
+            var nm = String(names[i]);
+            var ident = nm.replace(/"/g, '""');
+            var desc = __arrowToColumns(await conn.query('DESCRIBE "' + ident + '"'));
+            var cols = (desc.column_name || []).map(String);
+            var dtypes = {};
+            cols.forEach(function (c, j) { dtypes[c] = __duckTypeToPandas((desc.column_type || [])[j]); });
+            var cnt = __arrowToColumns(await conn.query('SELECT count(*) AS n FROM "' + ident + '"'));
+            info[nm] = { columns: cols, dtypes: dtypes, nrows: Number((cnt.n || [0])[0]), runtime: 'duckdb' };
+          }
+          window.lastDatasetInfo = info;
+          updateSidebarDatasets(info, 'duckdb');
+        } finally { await conn.close(); }
+      } catch (e) {
+        console.warn('duckdb-sidepanel:', e);
+      }
+    }
+
     // R-motstykket til refreshDatasetSidebarFromPy: sidepanelet var før et
     // rent Python-vindu (R-datasett vistes aldri). Leser alle data.frames i
     // globalenv via evalR/toJs — ingen jsonlite-avhengighet. dtypes mappes
@@ -8353,7 +8452,11 @@ json.dumps(out)
       if (_useR.errors.length) throw new Error(_useR.errors.join('; '));
       for (var _uri = 0; _uri < _useR.uses.length; _uri++) {
         var _ur = _useR.uses[_uri];
-        if (_ur.from !== 'python') throw new Error(t('use «{name}» from r: du er allerede i R — mente du from python?', { name: _ur.name }));
+        if (_ur.from === 'r') throw new Error(t('use «{name}» from r: du er allerede i R — mente du from python eller duckdb?', { name: _ur.name }));
+        if (_ur.from === 'duckdb') {
+          _loadsR.push({ alias: _ur.name, format: 'parquet', bytes: await __duckUseBytes(_ur.name) });
+          continue;
+        }
         if (!__pyodidePromise) throw new Error(t('use «{name}» from python: ingen python-økt i denne fanen — kjør python-scriptet først', { name: _ur.name }));
         var _upy = await loadPyodideAndM2py();
         await ensurePyarrowFor(_upy);          // to_parquet trenger pyarrow-motoren
@@ -10034,15 +10137,46 @@ options(width = 200)
           if (_useP.errors.length) throw new Error(_useP.errors.join('; '));
           for (var _ui = 0; _ui < _useP.uses.length; _ui++) {
             var _u = _useP.uses[_ui];
-            if (_u.from !== 'r') throw new Error(t('use «{name}» from python: du er allerede i python — mente du from r?', { name: _u.name }));
-            if (!webRReady || !webR) throw new Error(t('use «{name}» from r: ingen R-økt i denne fanen — kjør R-scriptet først', { name: _u.name }));
-            var _uchk = await webR.evalR('exists(' + JSON.stringify(_u.name) + ', envir = .GlobalEnv) && is.data.frame(get(' + JSON.stringify(_u.name) + ', envir = .GlobalEnv))');
-            var _uok = false;
-            try { _uok = !!((await _uchk.toJs()).values || [])[0]; } finally { try { await webR.destroy(_uchk); } catch (e) {} }
-            if (!_uok) throw new Error(t('use «{name}» from r: fant ingen data.frame «{name}» i R-økten', { name: _u.name }));
-            var _upath = '/tmp/_use_' + _u.name + '.parquet';
-            await webR.evalRVoid('nanoparquet::write_parquet(get(' + JSON.stringify(_u.name) + ', envir = .GlobalEnv), ' + JSON.stringify(_upath) + ')');
-            _rawLoads.push({ alias: _u.name, format: 'parquet', bytes: await webR.FS.readFile(_upath) });
+            if (_u.from === 'python' && activeEditorMode !== 'duckdb') {
+              throw new Error(t('use «{name}» from python: du er allerede i python — mente du from r?', { name: _u.name }));
+            }
+            if (_u.from === 'duckdb' && activeEditorMode === 'duckdb') {
+              throw new Error(t('use «{name}» from duckdb: du er allerede i duckdb — tabellene fra forrige kjøring refereres direkte', { name: _u.name }));
+            }
+            if (_u.from === 'r') {
+              if (!webRReady || !webR) throw new Error(t('use «{name}» from r: ingen R-økt i denne fanen — kjør R-scriptet først', { name: _u.name }));
+              var _uchk = await webR.evalR('exists(' + JSON.stringify(_u.name) + ', envir = .GlobalEnv) && is.data.frame(get(' + JSON.stringify(_u.name) + ', envir = .GlobalEnv))');
+              var _uok = false;
+              try { _uok = !!((await _uchk.toJs()).values || [])[0]; } finally { try { await webR.destroy(_uchk); } catch (e) {} }
+              if (!_uok) throw new Error(t('use «{name}» from r: fant ingen data.frame «{name}» i R-økten', { name: _u.name }));
+              var _upath = '/tmp/_use_' + _u.name + '.parquet';
+              await webR.evalRVoid('nanoparquet::write_parquet(get(' + JSON.stringify(_u.name) + ', envir = .GlobalEnv), ' + JSON.stringify(_upath) + ')');
+              _rawLoads.push({ alias: _u.name, format: 'parquet', bytes: await webR.FS.readFile(_upath) });
+            } else if (_u.from === 'duckdb') {
+              _rawLoads.push({ alias: _u.name, format: 'parquet', bytes: await __duckUseBytes(_u.name) });
+            } else { // 'python' i duckdb-modus: hent pandas-rammen fra py-økten
+              var _udPath = '/tmp/_use_' + _u.name + '.parquet';
+              await ensurePyarrowFor(py);
+              await py.runPythonAsync([
+                'import __main__ as _m_u',
+                '_df_u = None',
+                'try:',
+                '    _df_u = _m_u.micro_interpreter.datasets.get(' + JSON.stringify(_u.name) + ')',
+                'except Exception:',
+                '    pass',
+                'if _df_u is None:',
+                '    _df_u = getattr(_m_u, ' + JSON.stringify(_u.name) + ', None)',
+                'if _df_u is None:',
+                '    _g_u = getattr(_m_u, "_g", None)',
+                '    if isinstance(_g_u, dict):',
+                '        _df_u = _g_u.get(' + JSON.stringify(_u.name) + ')',
+                'if _df_u is None:',
+                '    raise NameError(' + JSON.stringify('use «' + _u.name + '» from python: fant ingen dataframe «' + _u.name + '» i python-økten') + ')',
+                '_df_u.to_parquet(' + JSON.stringify(_udPath) + ', index=False)',
+              ].join('\n'));
+              _rawLoads.push({ alias: _u.name, format: 'parquet', bytes: py.FS.readFile(_udPath) });
+              try { py.FS.unlink(_udPath); } catch (e) {}
+            }
           }
           if (_rawLoads.some(function (l) { return l.bytes; })) py.FS.mkdirTree('/home/pyodide/_webdata');
           _pyLoads = await Promise.all(_rawLoads.map(async function (l) {
@@ -10302,6 +10436,9 @@ async def _m2py_run_segment(_seg_json):
         explainRunActive = false;
         scriptRunInProgress = false;
         setRunButtonsUi('idle');
+        // duckdb-modus: sidepanelet mates fra wasm-katalogen (sannheten for
+        // denne øktens tabeller/visninger) — fire-and-forget.
+        if (activeEditorMode === 'duckdb') { refreshDatasetSidebarFromDuck(); }
         // Dashboard-hook: setup-sonen har kjørt (evt. feilet) — start celle-
         // kjøringen, eller vis setup-feilen (pre.error-sjekken er samme
         // presedens som ai-chat.js' runScriptAndCaptureError bruker).

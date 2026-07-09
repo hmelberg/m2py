@@ -182,7 +182,7 @@
     while ((m = USE_RE.exec(script || '')) !== null) {
       var name = m[1], from = m[2].toLowerCase();
       if (!/^[A-Za-z_]\w*$/.test(name)) { errors.push('ugyldig datasettnavn i use: «' + name + '»'); continue; }
-      if (from !== 'r' && from !== 'python') { errors.push('use «' + name + '»: kilde må være r eller python, fikk «' + m[2] + '»'); continue; }
+      if (from !== 'r' && from !== 'python' && from !== 'duckdb') { errors.push('use «' + name + '»: kilde må være r, python eller duckdb, fikk «' + m[2] + '»'); continue; }
       uses.push({ name: name, from: from });
     }
     return { uses: uses, errors: errors };
