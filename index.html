@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://cdn.plot.ly" crossorigin>
   <link rel="preload" as="script" href="https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.js">
   <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="css/dashboard.css">
 </head>
 <body data-theme="light">
   <header class="topbar">
@@ -825,6 +826,8 @@
   <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/js/tabulator.min.js" defer></script>
   <script src="widgets/forklar-widgets.js"></script>
+  <script src="js/names.js"></script>
+  <script src="js/dashboard.js"></script>
   <script src="command_help.js"></script>
   <script>window.M2PY_APP = 'safestat';</script>
   <script src="js/notebook-links.js"></script>
@@ -4264,6 +4267,9 @@
     let pyodide = null;
     let pyInterruptBuf = null;
     let scriptRunInProgress = false;
+    // Satt av dashboard-grenen i btnRun-handleren; konsumeres av finally-
+    // hooken samme sted (dashboard-spec 2026-07-09 §2/§3).
+    let dashboardPendingParsed = null;
     // ── Editor mode (always-on, controlled by bottom-bar dropdown) ──────
     let activeEditorMode  = 'microdata'; // 'microdata' | 'python' | 'r'
     // «Kryptert» (he) er ikke lenger en egen modus: HE er et sikkerhetsNIVÅ
@@ -7929,28 +7935,32 @@ json.dumps(out)
       return pkgs;
     }
 
-    function renderROutputParts(outputParts) {
-      purgePlots(outputArea);
-      outputArea.innerHTML = '';
-      if (outputParts.length === 0) {
-        outputArea.innerHTML = '<pre style="opacity:.5">(ingen output)</pre>';
-        return;
+    // Fragment-bygger delt mellom vanlig R-visning og dashboard-kort
+    // (dashboard-spec §2, ctx.renderOutput) — kortene skal se identiske ut.
+    function buildROutputNodes(outputParts) {
+      var frag = document.createDocumentFragment();
+      if (!outputParts || outputParts.length === 0) {
+        var empty = document.createElement('pre');
+        empty.style.opacity = '.5';
+        empty.textContent = '(ingen output)';
+        frag.appendChild(empty);
+        return frag;
       }
       outputParts.forEach(function(p) {
         if (p.type === 'html') {
           var d = document.createElement('div');
           d.innerHTML = p.text;
-          outputArea.appendChild(d);
+          frag.appendChild(d);
         } else if (p.type === 'code') {
           var pre = document.createElement('pre');
           pre.className = 'm2py-stmt-code';
           pre.textContent = p.text;
-          outputArea.appendChild(pre);
+          frag.appendChild(pre);
         } else if (p.type === 'error') {
           var pre = document.createElement('pre');
           pre.className = 'error';
           pre.textContent = p.text;
-          outputArea.appendChild(pre);
+          frag.appendChild(pre);
         } else if (p.type === 'image') {
           try {
             var canvas = document.createElement('canvas');
@@ -7960,19 +7970,26 @@ json.dumps(out)
             var img = document.createElement('img');
             img.src = canvas.toDataURL('image/png');
             img.className = 'm2py-plot';
-            outputArea.appendChild(img);
+            frag.appendChild(img);
           } catch(e) {
             var pre = document.createElement('pre');
             pre.textContent = '[Plot render error: ' + e.message + ']';
-            outputArea.appendChild(pre);
+            frag.appendChild(pre);
           }
         } else {
           var pre = document.createElement('pre');
           if (p.className) pre.className = p.className;
           pre.textContent = p.text;
-          outputArea.appendChild(pre);
+          frag.appendChild(pre);
         }
       });
+      return frag;
+    }
+
+    function renderROutputParts(outputParts) {
+      purgePlots(outputArea);
+      outputArea.innerHTML = '';
+      outputArea.appendChild(buildROutputNodes(outputParts));
     }
 
     // R code that decodes a base64-encoded Parquet payload (produced Python-
@@ -9518,6 +9535,71 @@ options(width = 200)
     // run has settled before inspecting #outputArea for a `pre.error` node.
     window.mdIsScriptRunning = function () { return scriptRunInProgress; };
 
+    // Dashboard-kontrakten (spec 2026-07-09 §2): kjør en chunk i ved-
+    // varende scope og returner resultatet — python via _exec_pyodide_
+    // block/_g (samme maskineri som forklar), R via shelter.captureR.
+    // renderOutput gjenbruker appens output-byggere så kortene ser
+    // identiske ut med vanlig visning.
+    function buildDashboardCtx() {
+      var mode = (activeEditorMode === 'r') ? 'r' : 'python';
+      async function runPy(code) {
+        var py = await loadPyodideAndM2py();
+        var buf = '';
+        if (typeof py.setStdout === 'function') py.setStdout({ batched: function (s) { buf += s + '\n'; } });
+        if (typeof py.setStderr === 'function') py.setStderr({ batched: function (s) { buf += s + '\n'; } });
+        try {
+          await py.runPythonAsync(
+            'import json\n' +
+            'try:\n    _g\nexcept NameError:\n    _g = globals()\n' +
+            '_st = json.loads(' + JSON.stringify(JSON.stringify(code)) + ')\n' +
+            '_exec_pyodide_block(_st, _g)');
+          await new Promise(function (r) { setTimeout(r, 0); });
+          return { kind: 'py', text: buf, error: null };
+        } catch (e) {
+          return { kind: 'py', text: buf, error: (e && e.message) || String(e) };
+        } finally {
+          if (typeof py.setStdout === 'function') py.setStdout();
+          if (typeof py.setStderr === 'function') py.setStderr();
+        }
+      }
+      async function runR(code) {
+        try {
+          if (!webRReady) await loadWebR();
+          if (!webRShelter) webRShelter = await new webR.Shelter();
+          var captured = await webRShelter.captureR(code, { withAutoprint: true });
+          var parts = [];
+          // WebR stripper trailing \n per linje-entry; join med '\n'
+          // (samme regel som forklarRunOneRBlock).
+          var lines = (captured.output || []).filter(function (o) { return o.type === 'stdout'; })
+            .map(function (o) { return String(o.data); }).join('\n');
+          if (lines.trim()) parts.push({ type: 'text', text: lines, className: 'm2py-stmt-output' });
+          (captured.images || []).forEach(function (bm) { parts.push({ type: 'image', bitmap: bm }); });
+          return { kind: 'r', parts: parts, error: null };
+        } catch (e) {
+          return { kind: 'r', parts: [], error: (e && e.message) || String(e) };
+        }
+      }
+      function renderInto(result, node) {
+        purgePlots(node);
+        node.innerHTML = '';
+        if (result.kind === 'r') {
+          node.appendChild(buildROutputNodes(result.parts || []));
+        } else {
+          var _omEl = document.querySelector('input[name="outputMode"]:checked');
+          var _asHtml = !_omEl || _omEl.value === 'html';
+          var _sup = (typeof suppressEmbedded !== 'undefined' && suppressEmbedded) ? !!suppressEmbedded.checked : false;
+          node.appendChild(buildOutputNodes(result.text || '', _asHtml, _sup));
+        }
+        if (result.error) {
+          var pre = document.createElement('pre');
+          pre.className = 'error';
+          pre.textContent = result.error;
+          node.appendChild(pre);
+        }
+      }
+      return { mode: mode, run: (mode === 'r') ? runR : runPy, renderOutput: renderInto, t: t };
+    }
+
     btnRun.addEventListener('click', async () => {
       if (scriptRunInProgress) {
         performRunInterrupt();
@@ -9531,6 +9613,29 @@ options(width = 200)
         if (_bps && _bps.size > 0) {
           const _stopLine = Math.min(..._bps);
           effectiveScript = rawScript.split('\n').slice(0, _stopLine).join('\n');
+        }
+      }
+      // Dashboard-visning (spec 2026-07-09-dashboard-design.md): monter
+      // skjelettet FØR runtime laster, og la pipelinen kjøre KUN setup-sonen
+      // (alt over første #input) — samme trunkeringstriks som breakpoints
+      // over. Cellene kjøres inkrementelt via buildDashboardCtx() når denne
+      // kjøringen har satt seg (se hooken i finally-blokken).
+      dashboardPendingParsed = null;
+      if (window.Dashboard && (activeEditorMode === 'python' || activeEditorMode === 'r')) {
+        var _dOpts = extractScriptOptions(effectiveScript);
+        if (String(_dOpts.view || '').toLowerCase() === 'dashboard') {
+          var _dp = window.Dashboard.parse(effectiveScript);
+          window.Dashboard.mountSkeleton(_dp, {
+            container: outputArea.parentNode, hideNode: outputArea, t: t,
+            onShowCode: function () { if (window.mdSetInputHidden) window.mdSetInputHidden(false); }
+          });
+          window.Dashboard.setProgress(t('Laster kjøremiljø og data …'));
+          if (window.mdSetInputHidden) window.mdSetInputHidden(true);
+          dashboardPendingParsed = _dp;
+          // Tom setup-sone må fortsatt gi en gyldig pipeline-kjøring (den
+          // etablerer _g/_exec_pyodide_block for python-chunkene).
+          effectiveScript = _dp.setupCode.trim() ? _dp.setupCode
+            : (activeEditorMode === 'r' ? 'invisible(0)' : 'pass');
         }
       }
       const scriptTrim = effectiveScript.trim();
@@ -9941,6 +10046,20 @@ async def _m2py_run_segment(_seg_json):
         explainRunActive = false;
         scriptRunInProgress = false;
         setRunButtonsUi('idle');
+        // Dashboard-hook: setup-sonen har kjørt (evt. feilet) — start celle-
+        // kjøringen, eller vis setup-feilen (pre.error-sjekken er samme
+        // presedens som ai-chat.js' runScriptAndCaptureError bruker).
+        if (dashboardPendingParsed) {
+          dashboardPendingParsed = null;
+          var _dSetupErr = outputArea.querySelector('pre.error');
+          if (_dSetupErr) {
+            window.Dashboard.showSetupError(_dSetupErr.textContent);
+          } else {
+            window.Dashboard.start(buildDashboardCtx()).catch(function (e) {
+              window.Dashboard.showSetupError((e && e.message) || String(e));
+            });
+          }
+        }
       }
     });
 
