@@ -1,49 +1,64 @@
 # Roadmap — safestat/openstat
 
-*Levende dokument. Oppdatert 2026-07-09. Punktene er ikke forpliktelser, men
-prioritert idéliste. Kilder: designdok/reviews fra jamovi 2.0 fase 1
-(docs/PLAN_jamovi_jmv_engine.md, docs/jamovi-validation.md) + løpende samtaler.*
+*Levende dokument. Oppdatert 2026-07-09 (kveld). Punktene er ikke forpliktelser, men
+prioritert idéliste. Kilder: designdok/reviews fra jamovi 2.0 fase 1–3
+(docs/PLAN_jamovi_*.md, docs/jamovi-validation.md) + løpende samtaler og Hans' testing.*
 
-## jamovi-modus fase 2
+## jamovi-modus — gjenstående arbeid
 
-**Figurer (størst synlig gevinst først):**
-- [ ] Bygge nyere `scatr` fra jamovi sitt GitHub-repo som wasm (rwasm-verktøyet).
-      Gir Bar/Box/Histogram/Line/Pareto som egne analyser med alle ~60
-      stilopsjonene (error bars, titler, akser, legend, fonter).
-- [ ] Pareto Plot tilbake i menyen (røk ut av fase 1 — finnes ikke i CRAN/wasm-scatr 1.0.1)
+**Analyser (24 av ~26 i menyen; disse to gjenstår):**
+- [ ] **Repeated Measures ANOVA** (anovaRM) — den tyngste gjenstående biten: krever
+      RM-design-UI (definer faktorer med navn+nivåer via `rm`, tilordne målekolonner
+      til celler via `rmCells`) + rmTerms/bsTerms (modellbyggeren gjenbrukes),
+      kontraster og utvidet postHoc-form. Estimat: egen dedikert økt.
+- [ ] **CFA** — faktor-definisjons-UI (`factors` = Array of Group {label, vars}:
+      navngi latente faktorer og tilordne variabler; ligner rolleboksene med
+      redigerbart navn + «legg til faktor»-knapp) + `resCov` (Pairs, finnes).
+      FØRSTESTEG: lavaan-røyktest i webR (kjøring er utestet; lasting virker).
+      Estimat: én økt, forutsatt at lavaan kjører.
 
-**Flere analyser (resten av jamovi-menyen):**
-- [x] ANCOVA, Partial Correlation, logRegMulti/Ord, McNemar, Reliability, PCA, EFA (implementert 2026-07-09)
-- [x] ANOVA: Friedman (implementert 2026-07-09)
-- [x] MANCOVA (implementert 2026-07-09, med NMXList-kontroller i hele dialogsystemet)
-- [ ] ANOVA: Repeated Measures
-- [ ] Factor: CFA (CFA krever at lavaan-kjeden fungerer i webR)
-- [x] Frequencies: Log-Linear (implementert 2026-07-09)
+**Figurer (utsatt av Hans 9/7 — tas når han sier fra):**
+- [ ] Bygge nyere `scatr` fra jamovi sitt GitHub-repo som wasm (rwasm-verktøyet;
+      finnes IKKE ferdigbygget på r-universe — verifisert). Gir Bar/Box/Histogram/
+      Line/Pareto som egne analyser med alle ~60 stilopsjonene (error bars, titler,
+      akser, legend, fonter). Krever eget wasm-byggmiljø (emscripten) — den tyngste
+      enkeltjobben i køen.
+- [ ] Pareto Plot tilbake i menyen (avhenger av punktet over)
 
-**UI/layout (fase 3 — prioritet 1 per Hans 9/7: dialogene skal se bra ut og ha god struktur):**
-- [x] **Dialog-layout fra jamovi sine u.yaml-kildefiler** (verifisert tilgjengelig på
-      raw.githubusercontent.com/jamovi/jmv/master/jamovi/<analyse>.u.yaml): utvid
-      spec-generatoren til å lese u.yaml og generere ekte jamovi-struktur —
-      to-kolonne grid (LayoutBox cell column/row), gruppe-etiketter (Label),
-      nøstede/innrykkede under-opsjoner (CheckBox children, f.eks. CI-bredde under
-      CI-checkbox), enable-avhengigheter. Erstatter dagens håndkuraterte
-      JMV_SECTIONS som oppleves rotete. (implementert 2026-07-09, branch jamovi-fase3-dialoger)
-- [x] Visuell polish av panelet: luft, justering, konsistent typografi, rolleboks-høyder (implementert 2026-07-09)
-- [x] Ikoner i analysemenyen (jamovi-lignende SVG-er) (implementert 2026-07-09)
-- [x] Skjult toppmeny i jamovi-modus (datasettvelger ligger alt i jamovi-linjen;
-      modusbytte/fil-handlinger må inn i jamovi-hamburgeren) (implementert 2026-07-09)
-- [x] `Level`-opsjonstype i dialogene (f.eks. referansenivå i logistisk regresjon) (implementert 2026-07-09 som refLevels-velger med nivåer fra data)
+**Validering:**
+- [ ] Manuell side-om-side-validering av TALLENE mot ekte jamovi-appen —
+      sjekklisten med 9 rader står klar i docs/jamovi-validation.md (UX er testet
+      av Hans 9/7; den numeriske gjennomgangen gjenstår)
 
-**Teknisk gjeld fra fase 1-reviewene:**
-- [x] Model Builder-UI for `blocks`/`modelTerms` (i dag syntetiseres én blokk av
-      alle kovariater i linReg/logRegBin; ingen blokk-inndeling/interaksjonsledd) (implementert 2026-07-09: term-bygger med interaksjoner, post hoc-ledd og blokk-kall)
+**Teknisk gjeld (fra reviewene, småting):**
 - [ ] Skille pliktige/valgfrie roller i «Velg variabler»-hintet (i dag kan hintet
       maskere reelle R-feil når en valgfri rolle står tom)
+- [ ] `refLevels`: feilet nivå-henting gir permanent deaktivert nedtrekksliste
+      uten retry (kun ved motorfeil; lav prioritet)
+- [ ] NMXList: tømt valg sender `character(0)` — live-verifisert kun for
+      jmv::mancova; de 6 andre analysene med NMXList deler antakelsen uverifisert
 - [ ] Bilde-rekkefølgenøkler i `.jmv_serialize` (i dag ordre-basert matching mot
       captureGraphics; robust nok, men skjørt ved fremtidige jmv-endringer)
 - [ ] `console.warn` ved bilde-underskudd i renderJmvResults (feilsøkingshjelp)
 - [ ] Bayes factor-opsjonene (bf/bfPrior): krever wasm-bygg eller stub av `deSolve`
-- [ ] Måle minnebruk på svake maskiner; `jamovi_v1` er nødbrems
+- [ ] Måle minnebruk på svake maskiner; `jamovi_v1`/«Jamovi light» er nødbrems
+
+**Avklaringer (Hans bestemmer):**
+- [ ] Output-rens ved modusbytte: jamovi-resultater tømmes også ved
+      jamovi→python→jamovi (konsekvens av ønsket rensing ved inngang).
+      Alternativ: bevare jamovi-resultatene over en tur innom andre moduser.
+- [ ] Modus-gjenoppretting ved sidelast: appen kan i dag ikke starte rett i
+      jamovi-modus (lazy-registrering; faller tilbake til standardmodus).
+      Ville kreve at MODE_MODULES-moduler lastes før restoreEditorMode.
+
+**Ferdig (jamovi fase 1–3, alt merget 2026-07-09):** ekte jmv 2.7.7 i webR (pinnet
+v0.6.0, SW-cachet); 24 analyser inkl. ANCOVA/MANCOVA/Friedman/Log-Linear/Factor-
+gruppen; u.yaml-genererte dialoger m/ grupper, grid, nøsting, enable-avhengigheter,
+NMXList-checkparts og radiogrupper; modellbygger (interaksjoner/post hoc/blocks);
+refLevels-velger m/ nivåer fra data; live-oppdatering uten Kjør-knapp; skjult
+toppmeny m/ bryter; ikoner + finpolish; «Jamovi light» (v1) som egen modus;
+websocket-stub for contTables; kopier-knapp på tabeller og figurer; datasett-synk
+på tvers av moduser; output-rens ved inngang.
 
 ## AI-assistenten
 
@@ -57,6 +72,9 @@ prioritert idéliste. Kilder: designdok/reviews fra jamovi 2.0 fase 1
       - Nivå 2 (senere, hvis nivå 1 ikke fanger nok): sandkasse-prøvekjøring mot
         kopi av aktivt datasett med timeout; send runtime-feilen til
         reparasjonsrunden. Utfordringer: bivirkninger, nettkall, kjøretid.
+- [ ] Vurdere Send⚗︎-flyten (v2) også for openstat-brukere på ikke-micro-URL-er
+      (i dag går de til data-svar som er admin-gated — bevisst valg 9/7, men verdt
+      å revurdere hvis vanlige brukere trenger AI-hjelp uten egen nøkkel)
 
 ## Pakkeinstallasjon (python/r)
 
@@ -84,7 +102,7 @@ prøve fra PyPI eller GitHub. Nivåene:
       2. **r-universe**: nesten alle CRAN- og GitHub-R-pakker finnes som wasm-binærer
          der — `webr::install(pkg, repos='https://<bruker>.r-universe.dev')`;
          direktivet kan ta `bruker/repo` og utlede universe-URL-en
-      3. Egenbygde wasm-pakker med rwasm (som planlagt for nyere scatr i jamovi fase 2)
+      3. Egenbygde wasm-pakker med rwasm (som planlagt for nyere scatr)
       4. `require()`/`pkg::` trigges ikke av dagens `library()`-overstyring — dekkes
          av direktivet
 - [ ] **`!pip install X`-høflighet**: preprosesser Jupyter-vane-linjer til
@@ -96,3 +114,6 @@ prøve fra PyPI eller GitHub. Nivåene:
 
 - [ ] Pandas-basert GUI som egen modus (Hans' idé — holdes adskilt fra
       jamovi-modus, som skal forbli tro mot ekte jamovi/R)
+- [ ] «Kjør»-knappen reinitialiserer Python-tolken hver gang (modus-uavhengig,
+      eldre oppførsel) — datasett laget i jamovi overlever bytte til python-modus,
+      men ikke et nytt «Kjør»-trykk der. Vurder varmere tolk-gjenbruk.
