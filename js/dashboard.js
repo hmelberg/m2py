@@ -241,6 +241,187 @@
     } };
   };
 
+  // ═══ Nettleser-delen: DOM + orkestrering ══════════════════════════════════
+  // Alt under her rører DOM og kjører aldri i node-testene. Tilstanden bor i
+  // ett _state-objekt så unmount() kan rydde fullstendig (isolasjonskravet).
+  var _state = null;
+
+  function el(tag, className, text) {
+    var n = document.createElement(tag);
+    if (className) n.className = className;
+    if (text != null) n.textContent = text;   // alltid textContent (spec §5)
+    return n;
+  }
+
+  function buildWidget(inp, tf) {
+    var wrap = el('div', 'dash-widget' + (inp.type === 'checkbox' ? ' dash-widget--checkbox' : ''));
+    var lab = el('label', null, inp.label);
+    var ctrl, getVal;
+    if (inp.type === 'slider') {
+      ctrl = el('input');
+      ctrl.type = 'range';
+      ctrl.min = inp.min; ctrl.max = inp.max; ctrl.step = inp.step; ctrl.value = inp['default'];
+      var out = el('output', null, String(inp['default']));
+      getVal = function () { return Number(ctrl.value); };
+      ctrl.addEventListener('input', function () {
+        out.textContent = ctrl.value;
+        D._onChange(inp.name, getVal());
+      });
+      wrap.appendChild(lab); wrap.appendChild(ctrl); wrap.appendChild(out);
+    } else if (inp.type === 'dropdown') {
+      ctrl = el('select');
+      inp.choices.forEach(function (c) {
+        var o = el('option', null, c);
+        o.value = c;
+        if (c === inp['default']) o.selected = true;
+        ctrl.appendChild(o);
+      });
+      getVal = function () { return String(ctrl.value); };
+      ctrl.addEventListener('change', function () { D._onChange(inp.name, getVal()); });
+      wrap.appendChild(lab); wrap.appendChild(ctrl);
+    } else { // checkbox
+      ctrl = el('input');
+      ctrl.type = 'checkbox';
+      ctrl.checked = inp['default'] === true;
+      getVal = function () { return !!ctrl.checked; };
+      ctrl.addEventListener('change', function () { D._onChange(inp.name, getVal()); });
+      wrap.appendChild(ctrl); wrap.appendChild(lab);
+    }
+    return wrap;
+  }
+
+  function buildCard(cell, idx, tf) {
+    var card = el('div', 'dash-card dash-card--loading' + (cell.wide ? ' dash-card--wide' : ''));
+    if (cell.name) card.appendChild(el('h3', null, cell.name));
+    var body = el('div', 'dash-card-body');
+    card.appendChild(body);
+    _state.cards[idx] = { card: card, body: body };
+    return card;
+  }
+
+  // Skjelettet rendres FØR runtime laster (spec §3): struktur på <1 sek.
+  D.mountSkeleton = function (parsed, ui) {
+    if (_state) D.unmount();
+    var tf = ui.t || function (s) { return s; };
+    _state = {
+      parsed: parsed, ui: ui, ctx: null, queue: null, cards: {},
+      values: {}, dirtyHidden: {}, chain: Promise.resolve(), t: tf
+    };
+    parsed.inputs.forEach(function (inp) { _state.values[inp.name] = inp['default']; });
+
+    var root = el('div', 'dash-root');
+    var header = el('div', 'dash-header');
+    header.appendChild(el('h1', null, parsed.title || tf('Dashboard')));
+    if (parsed.description) header.appendChild(el('p', null, parsed.description));
+    root.appendChild(header);
+
+    if (parsed.inputs.length) {
+      var controls = el('div', 'dash-controls dash-controls--loading');
+      parsed.inputs.forEach(function (inp) { controls.appendChild(buildWidget(inp, tf)); });
+      root.appendChild(controls);
+      _state.controls = controls;
+    }
+
+    var grid = el('div', 'dash-grid');
+    _state.grid = grid;
+    D.groupLayout(parsed.cells).forEach(function (g) {
+      if (g.kind === 'card') {
+        grid.appendChild(buildCard(parsed.cells[g.index], g.index, tf));
+      } else if (g.kind === 'row') {
+        var row = el('div', 'dash-row');
+        g.indexes.forEach(function (i) { row.appendChild(buildCard(parsed.cells[i], i, tf)); });
+        grid.appendChild(row);
+      } else { // tabs
+        var tabsWrap = el('div', 'dash-tabs');
+        var bar = el('div', 'dash-tabbar');
+        var panels = [];
+        g.tabs.forEach(function (tab, ti) {
+          var btn = el('button', null, tab.label);
+          btn.type = 'button';
+          btn.setAttribute('aria-selected', ti === 0 ? 'true' : 'false');
+          var panel = el('div', 'dash-tabpanel');
+          if (ti > 0) panel.hidden = true;
+          tab.indexes.forEach(function (i) {
+            panel.appendChild(buildCard(parsed.cells[i], i, tf));
+            if (ti > 0) _state.dirtyHidden[i] = true;   // lat kjøring (spec §3)
+          });
+          btn.addEventListener('click', function () {
+            bar.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-selected', 'false'); });
+            panels.forEach(function (p) { p.hidden = true; });
+            btn.setAttribute('aria-selected', 'true');
+            panel.hidden = false;
+            D._onTabShown(tab.indexes);
+          });
+          bar.appendChild(btn);
+          panels.push(panel);
+          tabsWrap.appendChild(panel);
+        });
+        tabsWrap.insertBefore(bar, tabsWrap.firstChild);
+        grid.appendChild(tabsWrap);
+      }
+    });
+    root.appendChild(grid);
+
+    var footer = el('div', 'dash-footer');
+    var show = el('a', 'dash-showcode', tf('Vis koden'));
+    show.addEventListener('click', function () { D.unmount(); });
+    var progress = el('span', 'dash-progress', '');
+    footer.appendChild(show);
+    footer.appendChild(progress);
+    root.appendChild(footer);
+    _state.progress = progress;
+
+    _state.root = root;
+    ui.hideNode.hidden = true;
+    ui.hideNode.parentNode.insertBefore(root, ui.hideNode);
+
+    // Parse-feil er forfatterfeil — vis dem ærlig i et eget kort øverst.
+    if (parsed.errors && parsed.errors.length) {
+      var errCard = el('div', 'dash-card dash-error-card');
+      errCard.appendChild(el('h3', null, tf('Feil i dashboard-direktivene')));
+      var pre = el('pre', 'error', parsed.errors.join('\n'));
+      errCard.appendChild(pre);
+      grid.insertBefore(errCard, grid.firstChild);
+    }
+  };
+
+  D.setProgress = function (text) {
+    if (_state && _state.progress) _state.progress.textContent = text || '';
+  };
+
+  D.unmount = function () {
+    if (!_state) return;
+    if (_state.root && _state.root.parentNode) _state.root.parentNode.removeChild(_state.root);
+    _state.ui.hideNode.hidden = false;
+    if (_state.ui.onShowCode) _state.ui.onShowCode();
+    _state = null;
+  };
+
+  // Feil i setup-sonen (spec §3): ett feilkort erstatter hele gridet.
+  D.showSetupError = function (message) {
+    if (!_state) return;
+    var tf = _state.t;
+    if (_state.controls) _state.controls.remove();
+    _state.grid.textContent = '';
+    var card = el('div', 'dash-card dash-error-card');
+    card.appendChild(el('h3', null, tf('Kunne ikke laste dashboardet')));
+    card.appendChild(el('pre', 'error', String(message || '')));
+    var btn = el('button', 'dash-open-editor', tf('Åpne i editor'));
+    btn.type = 'button';
+    btn.addEventListener('click', function () { D.unmount(); });
+    card.appendChild(btn);
+    _state.grid.appendChild(card);
+    D.setProgress('');
+  };
+
+  // Fylles inn av start() — før det oppdaterer endringer bare lagret verdi.
+  D._onChange = function (name, value) {
+    if (!_state) return;
+    _state.values[name] = value;
+    if (_state.queue) _state.queue.change(name, value);
+  };
+  D._onTabShown = function (indexes) {};   // erstattes av start()
+
   if (typeof module !== 'undefined' && module.exports) module.exports = D;
   global.Dashboard = D;
 })(typeof window !== 'undefined' ? window : globalThis);
