@@ -19,13 +19,13 @@ prioritert idéliste. Kilder: designdok/reviews fra jamovi 2.0 fase 1
 - [ ] Frequencies: McNemar (paired), Log-Linear
 
 **UI/layout (fase 3 — prioritet 1 per Hans 9/7: dialogene skal se bra ut og ha god struktur):**
-- [ ] **Dialog-layout fra jamovi sine u.yaml-kildefiler** (verifisert tilgjengelig på
+- [x] **Dialog-layout fra jamovi sine u.yaml-kildefiler** (verifisert tilgjengelig på
       raw.githubusercontent.com/jamovi/jmv/master/jamovi/<analyse>.u.yaml): utvid
       spec-generatoren til å lese u.yaml og generere ekte jamovi-struktur —
       to-kolonne grid (LayoutBox cell column/row), gruppe-etiketter (Label),
       nøstede/innrykkede under-opsjoner (CheckBox children, f.eks. CI-bredde under
       CI-checkbox), enable-avhengigheter. Erstatter dagens håndkuraterte
-      JMV_SECTIONS som oppleves rotete.
+      JMV_SECTIONS som oppleves rotete. (implementert 2026-07-09, branch jamovi-fase3-dialoger)
 - [ ] Visuell polish av panelet: luft, justering, konsistent typografi, rolleboks-høyder
 - [ ] Ikoner i analysemenyen (jamovi-lignende SVG-er)
 - [ ] Skjult toppmeny i jamovi-modus (datasettvelger ligger alt i jamovi-linjen;
