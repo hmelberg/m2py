@@ -158,9 +158,20 @@
           return;
         }
 
-        // New notebook fragments (dotted / raw). Kept in the URL (durable link).
-        const cls = window.NotebookLinks && window.NotebookLinks.classifyHash(location.hash);
+        // New notebook fragments (dotted / raw / name). Kept in the URL (durable link).
+        let cls = window.NotebookLinks && window.NotebookLinks.classifyHash(location.hash);
         if (!cls || cls.kind === 'share') return;
+        // Navneregister (dashboard-spec 2026-07-09 §4): slå opp navnet og
+        // fortsett som om hashen var registerverdien (alltid output-intensjon).
+        if (cls.action === 'name') {
+          const target = window.DashboardNames ? await window.DashboardNames.lookup(cls.name) : null;
+          const ncls = target && window.NotebookLinks.classifyNameValue(target);
+          if (!ncls) {
+            if (window.DashboardNames) window.DashboardNames.showNameError(cls.name, window.t);
+            return;
+          }
+          cls = ncls;
+        }
         const urls = cls.kind === 'raw' ? [cls.raw] : cls.urls;
         const primary = urls[0];
         try {

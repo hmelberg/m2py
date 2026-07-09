@@ -5,7 +5,7 @@
 (function (global) {
   'use strict';
   var N = {};
-  N.REGISTRY_URL = 'https://raw.githubusercontent.com/hansmelberg/stat-navn/main/names.json';
+  N.REGISTRY_URL = 'https://raw.githubusercontent.com/hmelberg/stat-navn/main/names.json';
   var LS_KEY = 'm2py_names_cache';
 
   // Verdi kan være streng (dotted ref eller URL) eller objekt med .url
