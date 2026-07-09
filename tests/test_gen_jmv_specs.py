@@ -49,3 +49,66 @@ def test_menygrupper():
     assert s['descriptives']['menuGroup'] == 'Exploration'
     assert s['scat']['menuGroup'] == 'Exploration'     # ikke '.'-oppføringen
     assert s['anovaNP']['menuSubgroup'] == 'Non-Parametric'
+
+
+def _find(node, pred):
+    """Depth-first søk i layout-treet."""
+    if pred(node):
+        return node
+    for child in (node.get('children') or []):
+        hit = _find(child, pred)
+        if hit:
+            return hit
+    for cell in (node.get('cells') or []):
+        hit = _find({'children': cell.get('children') or []}, pred)
+        if hit:
+            return hit
+    return None
+
+
+def test_layout_ttestIS_struktur():
+    s = load_specs()
+    lay = s['ttestIS'].get('layout')
+    assert lay and lay['t'] == 'root'
+    assert _find(lay, lambda n: n.get('t') == 'supplier')
+    tests_grp = _find(lay, lambda n: n.get('t') == 'label' and n.get('label') == 'Tests')
+    assert tests_grp is not None
+    students = _find(tests_grp, lambda n: n.get('t') == 'check' and n.get('name') == 'students')
+    assert students is not None
+    bf = _find(students, lambda n: n.get('t') == 'check' and n.get('name') == 'bf')
+    assert bf is not None, 'bf skal være nøstet under students'
+    bfprior = _find(bf, lambda n: n.get('t') == 'text' and n.get('name') == 'bfPrior')
+    assert bfprior is not None and bfprior.get('enable') == 'bf'
+    radio = _find(lay, lambda n: n.get('t') == 'radio' and n.get('option') == 'hypothesis'
+                  and n.get('part') == 'oneGreater')
+    assert radio is not None
+
+
+def test_layout_gyldige_navn_og_dekning():
+    s = load_specs()
+    med_layout = [n for n in s if s[n].get('layout')]
+    assert len(med_layout) >= 10, f'for få layouts: {med_layout}'
+    for n in med_layout:
+        gyldige = {o['name'] for o in s[n]['options']}
+        def sjekk(node):
+            nm = node.get('name') or node.get('option')
+            if nm is not None:
+                assert nm in gyldige, f'{n}: layout refererer ukjent opsjon {nm}'
+            for c in (node.get('children') or []):
+                sjekk(c)
+            for cell in (node.get('cells') or []):
+                for c in (cell.get('children') or []):
+                    sjekk(c)
+        for barn in s[n]['layout']['children']:
+            if barn.get('t') == 'supplier':
+                for t in barn['targets']:
+                    assert t['name'] in gyldige, f"{n}: ukjent rolle {t['name']}"
+            else:
+                sjekk(barn)
+
+
+def test_layout_descriptives_har_seksjoner():
+    s = load_specs()
+    lay = s['descriptives'].get('layout')
+    assert lay is not None
+    assert _find(lay, lambda n: n.get('t') == 'collapse'), 'descriptives skal ha CollapseBox'

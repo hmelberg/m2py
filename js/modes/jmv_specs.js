@@ -275,7 +275,335 @@ window.JMV_SPECS = {
     "min": 1,
     "max": 20
    }
-  ]
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "vars"
+      },
+      {
+       "name": "splitBy"
+      }
+     ]
+    },
+    {
+     "t": "grid",
+     "cells": [
+      {
+       "col": 0,
+       "row": 0,
+       "children": [
+        {
+         "t": "combo",
+         "name": "desc",
+         "label": ""
+        }
+       ]
+      },
+      {
+       "col": 1,
+       "row": 0,
+       "children": [
+        {
+         "t": "check",
+         "name": "freq",
+         "label": "Frequency tables"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Statistics",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Sample Size",
+           "children": [
+            {
+             "t": "check",
+             "name": "n"
+            },
+            {
+             "t": "check",
+             "name": "missing"
+            }
+           ]
+          },
+          {
+           "t": "label",
+           "label": "Percentile Values",
+           "children": [
+            {
+             "t": "check",
+             "name": "pcEqGr",
+             "label": "Cut points for",
+             "children": [
+              {
+               "t": "text",
+               "name": "pcNEqGr",
+               "label": "",
+               "format": "number",
+               "enable": "pcEqGr"
+              }
+             ]
+            },
+            {
+             "t": "check",
+             "name": "pc",
+             "label": "Percentiles",
+             "children": [
+              {
+               "t": "text",
+               "name": "pcValues",
+               "label": "",
+               "format": "string",
+               "enable": "pc"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Central Tendency",
+           "children": [
+            {
+             "t": "check",
+             "name": "mean"
+            },
+            {
+             "t": "check",
+             "name": "median"
+            },
+            {
+             "t": "check",
+             "name": "mode"
+            },
+            {
+             "t": "check",
+             "name": "sum"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 0,
+         "row": 1,
+         "children": [
+          {
+           "t": "label",
+           "label": "Dispersion",
+           "children": [
+            {
+             "t": "check",
+             "name": "sd",
+             "label": "Std. deviation"
+            },
+            {
+             "t": "check",
+             "name": "variance"
+            },
+            {
+             "t": "check",
+             "name": "range"
+            },
+            {
+             "t": "check",
+             "name": "min"
+            },
+            {
+             "t": "check",
+             "name": "max"
+            },
+            {
+             "t": "check",
+             "name": "iqr"
+            }
+           ]
+          },
+          {
+           "t": "label",
+           "label": "Mean Dispersion",
+           "children": [
+            {
+             "t": "check",
+             "name": "se",
+             "label": "Std. error of Mean"
+            },
+            {
+             "t": "check",
+             "name": "ci",
+             "label": "Confidence interval for Mean",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidth",
+               "label": "",
+               "format": "number",
+               "enable": "ci"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 1,
+         "children": [
+          {
+           "t": "label",
+           "label": "Distribution",
+           "children": [
+            {
+             "t": "check",
+             "name": "skew"
+            },
+            {
+             "t": "check",
+             "name": "kurt"
+            }
+           ]
+          },
+          {
+           "t": "label",
+           "label": "Normality",
+           "children": [
+            {
+             "t": "check",
+             "name": "sw"
+            }
+           ]
+          },
+          {
+           "t": "label",
+           "label": "Outliers",
+           "children": [
+            {
+             "t": "check",
+             "name": "extreme",
+             "label": "Most extreme",
+             "children": [
+              {
+               "t": "text",
+               "name": "extremeN",
+               "label": "",
+               "format": "number",
+               "enable": "extreme"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Plots",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "label",
+       "label": "Histograms",
+       "children": [
+        {
+         "t": "check",
+         "name": "hist"
+        },
+        {
+         "t": "check",
+         "name": "dens"
+        }
+       ]
+      },
+      {
+       "t": "label",
+       "label": "Q-Q Plots",
+       "children": [
+        {
+         "t": "check",
+         "name": "qq",
+         "label": "Q-Q"
+        }
+       ]
+      },
+      {
+       "t": "label",
+       "label": "Box Plots",
+       "children": [
+        {
+         "t": "check",
+         "name": "box",
+         "children": [
+          {
+           "t": "check",
+           "name": "boxLabelOutliers",
+           "enable": "box"
+          }
+         ]
+        },
+        {
+         "t": "check",
+         "name": "violin"
+        },
+        {
+         "t": "check",
+         "name": "dot",
+         "children": [
+          {
+           "t": "combo",
+           "name": "dotType",
+           "label": "",
+           "enable": "dot"
+          }
+         ]
+        },
+        {
+         "t": "check",
+         "name": "boxMean"
+        }
+       ]
+      },
+      {
+       "t": "label",
+       "label": "Bar Plots",
+       "children": [
+        {
+         "t": "check",
+         "name": "bar"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
  },
  "ttestIS": {
   "name": "ttestIS",
@@ -449,7 +777,193 @@ window.JMV_SPECS = {
      }
     ]
    }
-  ]
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "vars"
+      },
+      {
+       "name": "group",
+       "max": 1
+      }
+     ]
+    },
+    {
+     "t": "grid",
+     "cells": [
+      {
+       "col": 0,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Tests",
+         "children": [
+          {
+           "t": "check",
+           "name": "students",
+           "children": [
+            {
+             "t": "check",
+             "name": "bf",
+             "label": "Bayes factor",
+             "children": [
+              {
+               "t": "text",
+               "name": "bfPrior",
+               "label": "Prior",
+               "format": "number",
+               "enable": "bf"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "t": "check",
+           "name": "welchs"
+          },
+          {
+           "t": "check",
+           "name": "mann"
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Hypothesis",
+         "children": [
+          {
+           "t": "radio",
+           "option": "hypothesis",
+           "part": "different",
+           "label": "Group 1 ≠ Group 2"
+          },
+          {
+           "t": "radio",
+           "option": "hypothesis",
+           "part": "oneGreater",
+           "label": "Group 1 > Group 2"
+          },
+          {
+           "t": "radio",
+           "option": "hypothesis",
+           "part": "twoGreater",
+           "label": "Group 1 < Group 2"
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Missing values",
+         "children": [
+          {
+           "t": "radio",
+           "option": "miss",
+           "part": "perAnalysis",
+           "label": "Exclude cases analysis by analysis"
+          },
+          {
+           "t": "radio",
+           "option": "miss",
+           "part": "listwise",
+           "label": "Exclude cases listwise"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "col": 1,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Additional Statistics",
+         "children": [
+          {
+           "t": "check",
+           "name": "meanDiff",
+           "label": "Mean difference",
+           "children": [
+            {
+             "t": "check",
+             "name": "ci",
+             "label": "Confidence interval",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidth",
+               "label": "",
+               "format": "number"
+              }
+             ],
+             "enable": "meanDiff"
+            }
+           ]
+          },
+          {
+           "t": "check",
+           "name": "effectSize",
+           "label": "Effect size",
+           "children": [
+            {
+             "t": "check",
+             "name": "ciES",
+             "label": "Confidence interval",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidthES",
+               "label": "",
+               "format": "number"
+              }
+             ],
+             "enable": "effectSize"
+            }
+           ]
+          },
+          {
+           "t": "check",
+           "name": "desc",
+           "label": "Descriptives"
+          },
+          {
+           "t": "check",
+           "name": "plots",
+           "label": "Descriptives plots"
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Assumption Checks",
+         "children": [
+          {
+           "t": "check",
+           "name": "eqv"
+          },
+          {
+           "t": "check",
+           "name": "norm"
+          },
+          {
+           "t": "check",
+           "name": "qq"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
  },
  "ttestPS": {
   "name": "ttestPS",
@@ -598,7 +1112,183 @@ window.JMV_SPECS = {
      }
     ]
    }
-  ]
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "pairs"
+      }
+     ]
+    },
+    {
+     "t": "grid",
+     "cells": [
+      {
+       "col": 0,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Tests",
+         "children": [
+          {
+           "t": "check",
+           "name": "students",
+           "label": "Student's",
+           "children": [
+            {
+             "t": "check",
+             "name": "bf",
+             "label": "Bayes factor",
+             "children": [
+              {
+               "t": "text",
+               "name": "bfPrior",
+               "label": "Prior",
+               "format": "number",
+               "enable": "bf"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "t": "check",
+           "name": "wilcoxon",
+           "label": "Wilcoxon rank"
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Hypothesis",
+         "children": [
+          {
+           "t": "radio",
+           "option": "hypothesis",
+           "part": "different",
+           "label": "Measure 1 ≠ Measure 2"
+          },
+          {
+           "t": "radio",
+           "option": "hypothesis",
+           "part": "oneGreater",
+           "label": "Measure 1 > Measure 2"
+          },
+          {
+           "t": "radio",
+           "option": "hypothesis",
+           "part": "twoGreater",
+           "label": "Measure 1 < Measure 2"
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Missing values",
+         "children": [
+          {
+           "t": "radio",
+           "option": "miss",
+           "part": "perAnalysis",
+           "label": "Exclude cases analysis by analysis"
+          },
+          {
+           "t": "radio",
+           "option": "miss",
+           "part": "listwise",
+           "label": "Exclude cases listwise"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "col": 1,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Additional Statistics",
+         "children": [
+          {
+           "t": "check",
+           "name": "meanDiff",
+           "label": "Mean difference",
+           "children": [
+            {
+             "t": "check",
+             "name": "ci",
+             "label": "Confidence interval",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidth",
+               "label": "",
+               "format": "number"
+              }
+             ],
+             "enable": "meanDiff"
+            }
+           ]
+          },
+          {
+           "t": "check",
+           "name": "effectSize",
+           "label": "Effect size",
+           "children": [
+            {
+             "t": "check",
+             "name": "ciES",
+             "label": "Confidence interval",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidthES",
+               "label": "",
+               "format": "number"
+              }
+             ],
+             "enable": "effectSize"
+            }
+           ]
+          },
+          {
+           "t": "check",
+           "name": "desc",
+           "label": "Descriptives"
+          },
+          {
+           "t": "check",
+           "name": "plots",
+           "label": "Descriptives plots"
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Assumption Checks",
+         "children": [
+          {
+           "t": "check",
+           "name": "norm"
+          },
+          {
+           "t": "check",
+           "name": "qq"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
  },
  "ttestOneS": {
   "name": "ttestOneS",
@@ -753,7 +1443,189 @@ window.JMV_SPECS = {
      }
     ]
    }
-  ]
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "vars"
+      }
+     ]
+    },
+    {
+     "t": "grid",
+     "cells": [
+      {
+       "col": 0,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Tests",
+         "children": [
+          {
+           "t": "check",
+           "name": "students",
+           "label": "Student's",
+           "children": [
+            {
+             "t": "check",
+             "name": "bf",
+             "label": "Bayes factor",
+             "children": [
+              {
+               "t": "text",
+               "name": "bfPrior",
+               "label": "Prior",
+               "format": "number",
+               "enable": "bf"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "t": "check",
+           "name": "wilcoxon",
+           "label": "Wilcoxon rank"
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Hypothesis",
+         "children": [
+          {
+           "t": "text",
+           "name": "testValue",
+           "label": "Test value",
+           "format": "number"
+          },
+          {
+           "t": "radio",
+           "option": "hypothesis",
+           "part": "dt",
+           "label": "≠ Test value"
+          },
+          {
+           "t": "radio",
+           "option": "hypothesis",
+           "part": "gt",
+           "label": "> Test value"
+          },
+          {
+           "t": "radio",
+           "option": "hypothesis",
+           "part": "lt",
+           "label": "< Test value"
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Missing values",
+         "children": [
+          {
+           "t": "radio",
+           "option": "miss",
+           "part": "perAnalysis",
+           "label": "Exclude cases analysis by analysis"
+          },
+          {
+           "t": "radio",
+           "option": "miss",
+           "part": "listwise",
+           "label": "Exclude cases listwise"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "col": 1,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Additional Statistics",
+         "children": [
+          {
+           "t": "check",
+           "name": "meanDiff",
+           "label": "Mean difference",
+           "children": [
+            {
+             "t": "check",
+             "name": "ci",
+             "label": "Confidence interval",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidth",
+               "label": "",
+               "format": "number"
+              }
+             ],
+             "enable": "meanDiff"
+            }
+           ]
+          },
+          {
+           "t": "check",
+           "name": "effectSize",
+           "label": "Effect size",
+           "children": [
+            {
+             "t": "check",
+             "name": "ciES",
+             "label": "Confidence interval",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidthES",
+               "label": "",
+               "format": "number"
+              }
+             ],
+             "enable": "effectSize"
+            }
+           ]
+          },
+          {
+           "t": "check",
+           "name": "desc",
+           "label": "Descriptives"
+          },
+          {
+           "t": "check",
+           "name": "plots",
+           "label": "Descriptives plots"
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Assumption Checks",
+         "children": [
+          {
+           "t": "check",
+           "name": "norm"
+          },
+          {
+           "t": "check",
+           "name": "qq"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
  },
  "anovaOneW": {
   "name": "anovaOneW",
@@ -891,7 +1763,175 @@ window.JMV_SPECS = {
     "title": "Flag significant comparisons",
     "default": false
    }
-  ]
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "deps"
+      },
+      {
+       "name": "group",
+       "max": 1
+      }
+     ]
+    },
+    {
+     "t": "grid",
+     "cells": [
+      {
+       "col": 0,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Variances",
+         "children": [
+          {
+           "t": "check",
+           "name": "welchs"
+          },
+          {
+           "t": "check",
+           "name": "fishers"
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Missing Values",
+         "children": [
+          {
+           "t": "radio",
+           "option": "miss",
+           "part": "perAnalysis",
+           "label": "Exclude cases analysis by analysis"
+          },
+          {
+           "t": "radio",
+           "option": "miss",
+           "part": "listwise",
+           "label": "Exclude cases listwise"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "col": 1,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Additional Statistics",
+         "children": [
+          {
+           "t": "check",
+           "name": "desc"
+          },
+          {
+           "t": "check",
+           "name": "descPlot"
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Assumption Checks",
+         "children": [
+          {
+           "t": "check",
+           "name": "eqv"
+          },
+          {
+           "t": "check",
+           "name": "norm"
+          },
+          {
+           "t": "check",
+           "name": "qq"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Post-Hoc Tests",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Post-Hoc Test",
+           "children": [
+            {
+             "t": "radio",
+             "option": "phMethod",
+             "part": "none",
+             "label": "None"
+            },
+            {
+             "t": "radio",
+             "option": "phMethod",
+             "part": "gamesHowell",
+             "label": "Games-Howell (unequal variances)"
+            },
+            {
+             "t": "radio",
+             "option": "phMethod",
+             "part": "tukey",
+             "label": "Tukey (equal variances)"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Statistics",
+           "children": [
+            {
+             "t": "check",
+             "name": "phMeanDif"
+            },
+            {
+             "t": "check",
+             "name": "phSig"
+            },
+            {
+             "t": "check",
+             "name": "phTest"
+            },
+            {
+             "t": "check",
+             "name": "phFlag"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
  },
  "anova": {
   "name": "anova",
@@ -1083,7 +2123,138 @@ window.JMV_SPECS = {
     "min": 50,
     "max": 99.9
    }
-  ]
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "dep",
+       "max": 1
+      },
+      {
+       "name": "factors"
+      }
+     ]
+    },
+    {
+     "t": "label",
+     "label": "Model Fit",
+     "children": [
+      {
+       "t": "check",
+       "name": "modelTest"
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Model",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "combo",
+       "name": "ss",
+       "label": ""
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Assumption Checks",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "check",
+       "name": "homo"
+      },
+      {
+       "t": "check",
+       "name": "norm"
+      },
+      {
+       "t": "check",
+       "name": "qq"
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Estimated Marginal Means",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "supplier",
+       "targets": []
+      },
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Output",
+           "children": [
+            {
+             "t": "check",
+             "name": "emmPlots"
+            },
+            {
+             "t": "check",
+             "name": "emmTables"
+            }
+           ]
+          },
+          {
+           "t": "label",
+           "label": "General Options",
+           "children": [
+            {
+             "t": "check",
+             "name": "emmWeights"
+            },
+            {
+             "t": "text",
+             "name": "ciWidthEmm",
+             "label": "Confidence interval",
+             "format": "number"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Plot",
+           "children": [
+            {
+             "t": "combo",
+             "name": "emmPlotError",
+             "label": ""
+            },
+            {
+             "t": "check",
+             "name": "emmPlotData"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
  },
  "anovaNP": {
   "name": "anovaNP",
@@ -1136,7 +2307,48 @@ window.JMV_SPECS = {
     "title": "Dunn's pairwise comparisons",
     "default": false
    }
-  ]
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "deps"
+      },
+      {
+       "name": "group",
+       "max": 1
+      }
+     ]
+    },
+    {
+     "t": "label",
+     "label": "Effect Size",
+     "children": [
+      {
+       "t": "check",
+       "name": "es"
+      }
+     ]
+    },
+    {
+     "t": "label",
+     "label": "Post Hoc Tests",
+     "children": [
+      {
+       "t": "check",
+       "name": "pairs"
+      },
+      {
+       "t": "check",
+       "name": "pairsDunn"
+      }
+     ]
+    }
+   ]
+  }
  },
  "corrMatrix": {
   "name": "corrMatrix",
@@ -1249,7 +2461,119 @@ window.JMV_SPECS = {
      }
     ]
    }
-  ]
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "vars"
+      }
+     ]
+    },
+    {
+     "t": "label",
+     "label": "Correlation Coefficients",
+     "children": [
+      {
+       "t": "check",
+       "name": "pearson",
+       "label": "Pearson"
+      },
+      {
+       "t": "check",
+       "name": "spearman",
+       "label": "Spearman"
+      },
+      {
+       "t": "check",
+       "name": "kendall"
+      }
+     ]
+    },
+    {
+     "t": "label",
+     "label": "Additional Options",
+     "children": [
+      {
+       "t": "check",
+       "name": "sig"
+      },
+      {
+       "t": "check",
+       "name": "flag"
+      },
+      {
+       "t": "check",
+       "name": "n"
+      },
+      {
+       "t": "check",
+       "name": "ci",
+       "label": "Confidence intervals",
+       "children": [
+        {
+         "t": "text",
+         "name": "ciWidth",
+         "label": "Interval",
+         "format": "number",
+         "enable": "ci"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "label",
+     "label": "Hypothesis",
+     "children": [
+      {
+       "t": "radio",
+       "option": "hypothesis",
+       "part": "corr",
+       "label": "corr"
+      },
+      {
+       "t": "radio",
+       "option": "hypothesis",
+       "part": "pos",
+       "label": "pos"
+      },
+      {
+       "t": "radio",
+       "option": "hypothesis",
+       "part": "neg",
+       "label": "neg"
+      }
+     ]
+    },
+    {
+     "t": "label",
+     "label": "Plot",
+     "children": [
+      {
+       "t": "check",
+       "name": "plots",
+       "label": "Correlation matrix",
+       "children": [
+        {
+         "t": "check",
+         "name": "plotDens",
+         "enable": "plots"
+        },
+        {
+         "t": "check",
+         "name": "plotStats",
+         "enable": "plots"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
  },
  "linReg": {
   "name": "linReg",
@@ -1522,7 +2846,334 @@ window.JMV_SPECS = {
     "title": "Equal cell weights",
     "default": true
    }
-  ]
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "dep",
+       "max": 1
+      },
+      {
+       "name": "covs"
+      },
+      {
+       "name": "factors"
+      },
+      {
+       "name": "weights",
+       "max": 1
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Reference Levels",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "label",
+       "label": "Intercept",
+       "children": [
+        {
+         "t": "radio",
+         "option": "intercept",
+         "part": "refLevel",
+         "label": "Reference level (dummy coding)"
+        },
+        {
+         "t": "radio",
+         "option": "intercept",
+         "part": "grandMean",
+         "label": "Grand mean (simple coding)"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Assumption Checks",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Assumption Checks",
+           "children": [
+            {
+             "t": "check",
+             "name": "durbin"
+            },
+            {
+             "t": "check",
+             "name": "collin"
+            },
+            {
+             "t": "check",
+             "name": "norm"
+            },
+            {
+             "t": "check",
+             "name": "qqPlot"
+            },
+            {
+             "t": "check",
+             "name": "resPlots"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Data Summary",
+           "children": [
+            {
+             "t": "check",
+             "name": "cooks"
+            },
+            {
+             "t": "check",
+             "name": "mahal",
+             "children": [
+              {
+               "t": "combo",
+               "name": "mahalp",
+               "label": "p < ",
+               "enable": "mahal"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Model Fit",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Fit Measures",
+           "children": [
+            {
+             "t": "check",
+             "name": "r"
+            },
+            {
+             "t": "check",
+             "name": "r2"
+            },
+            {
+             "t": "check",
+             "name": "r2Adj"
+            },
+            {
+             "t": "check",
+             "name": "aic"
+            },
+            {
+             "t": "check",
+             "name": "bic"
+            },
+            {
+             "t": "check",
+             "name": "rmse"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Overall Model Test",
+           "children": [
+            {
+             "t": "check",
+             "name": "modelTest"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Model Coefficients",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Omnibus Test",
+           "children": [
+            {
+             "t": "check",
+             "name": "anova"
+            }
+           ]
+          },
+          {
+           "t": "label",
+           "label": "Estimate",
+           "children": [
+            {
+             "t": "check",
+             "name": "ci",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidth",
+               "label": "Interval",
+               "format": "number",
+               "enable": "ci"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Standardized Estimate",
+           "children": [
+            {
+             "t": "check",
+             "name": "stdEst"
+            },
+            {
+             "t": "check",
+             "name": "ciStdEst",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidthStdEst",
+               "label": "Interval",
+               "format": "number",
+               "enable": "ciStdEst"
+              }
+             ],
+             "enable": "stdEst"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Estimated Marginal Means",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "supplier",
+       "targets": []
+      },
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "General Options",
+           "children": [
+            {
+             "t": "check",
+             "name": "emmWeights"
+            },
+            {
+             "t": "check",
+             "name": "ciEmm",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidthEmm",
+               "label": "Interval",
+               "format": "number",
+               "enable": "ciEmm"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Output",
+           "children": [
+            {
+             "t": "check",
+             "name": "emmPlots"
+            },
+            {
+             "t": "check",
+             "name": "emmTables"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
  },
  "logRegBin": {
   "name": "logRegBin",
@@ -1751,7 +3402,307 @@ window.JMV_SPECS = {
     "title": "Collinearity statistics",
     "default": false
    }
-  ]
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "dep",
+       "max": 1
+      },
+      {
+       "name": "covs"
+      },
+      {
+       "name": "factors"
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Assumption Checks",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "check",
+       "name": "collin"
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Model Fit",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Fit Measures",
+           "children": [
+            {
+             "t": "check",
+             "name": "dev"
+            },
+            {
+             "t": "check",
+             "name": "aic"
+            },
+            {
+             "t": "check",
+             "name": "bic"
+            },
+            {
+             "t": "check",
+             "name": "modelTest"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": []
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Model Coefficients",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Omnibus Tests",
+           "children": [
+            {
+             "t": "check",
+             "name": "omni"
+            }
+           ]
+          },
+          {
+           "t": "label",
+           "label": "Estimate (Log Odds Ratio)",
+           "children": [
+            {
+             "t": "check",
+             "name": "ci",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidth",
+               "label": "Interval",
+               "format": "number",
+               "enable": "ci"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Odds Ratio",
+           "children": [
+            {
+             "t": "check",
+             "name": "OR"
+            },
+            {
+             "t": "check",
+             "name": "ciOR",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidthOR",
+               "label": "Interval",
+               "format": "number",
+               "enable": "ciOR"
+              }
+             ],
+             "enable": "OR"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Estimated Marginal Means",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "supplier",
+       "targets": []
+      },
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "General Options",
+           "children": [
+            {
+             "t": "check",
+             "name": "emmWeights"
+            },
+            {
+             "t": "check",
+             "name": "ciEmm",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidthEmm",
+               "label": "Interval",
+               "format": "number",
+               "enable": "ciEmm"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Output",
+           "children": [
+            {
+             "t": "check",
+             "name": "emmPlots"
+            },
+            {
+             "t": "check",
+             "name": "emmTables"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Prediction",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Cut-Off",
+           "children": [
+            {
+             "t": "check",
+             "name": "cutOffPlot"
+            },
+            {
+             "t": "text",
+             "name": "cutOff",
+             "label": "",
+             "format": "number"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Predictive Measures",
+           "children": [
+            {
+             "t": "check",
+             "name": "class"
+            },
+            {
+             "t": "check",
+             "name": "acc"
+            },
+            {
+             "t": "check",
+             "name": "spec"
+            },
+            {
+             "t": "check",
+             "name": "sens"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 2,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "ROC",
+           "children": [
+            {
+             "t": "check",
+             "name": "rocPlot"
+            },
+            {
+             "t": "check",
+             "name": "auc"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
  },
  "propTestN": {
   "name": "propTestN",
@@ -1797,7 +3748,29 @@ window.JMV_SPECS = {
     "title": "Expected Proportions",
     "default": null
    }
-  ]
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "var",
+       "max": 1
+      },
+      {
+       "name": "counts",
+       "max": 1
+      }
+     ]
+    },
+    {
+     "t": "check",
+     "name": "expected"
+    }
+   ]
+  }
  },
  "contTables": {
   "name": "contTables",
@@ -2136,7 +4109,406 @@ window.JMV_SPECS = {
     "title": "Highlight values above",
     "default": 2
    }
-  ]
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "rows",
+       "max": 1
+      },
+      {
+       "name": "cols",
+       "max": 1
+      },
+      {
+       "name": "counts",
+       "max": 1
+      },
+      {
+       "name": "layers"
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Statistics",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Tests",
+           "children": [
+            {
+             "t": "check",
+             "name": "chiSq"
+            },
+            {
+             "t": "check",
+             "name": "chiSqCorr"
+            },
+            {
+             "t": "check",
+             "name": "likeRat"
+            },
+            {
+             "t": "check",
+             "name": "fisher"
+            },
+            {
+             "t": "check",
+             "name": "zProp"
+            }
+           ]
+          },
+          {
+           "t": "label",
+           "label": "Hypothesis",
+           "children": [
+            {
+             "t": "radio",
+             "option": "hypothesis",
+             "part": "different",
+             "label": "Group 1 ≠ Group 2"
+            },
+            {
+             "t": "radio",
+             "option": "hypothesis",
+             "part": "oneGreater",
+             "label": "Group 1 > Group 2"
+            },
+            {
+             "t": "radio",
+             "option": "hypothesis",
+             "part": "twoGreater",
+             "label": "Group 1 < Group 2"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Comparative Measures (2x2 only)",
+           "children": [
+            {
+             "t": "check",
+             "name": "odds"
+            },
+            {
+             "t": "check",
+             "name": "logOdds"
+            },
+            {
+             "t": "check",
+             "name": "relRisk"
+            },
+            {
+             "t": "check",
+             "name": "diffProp"
+            },
+            {
+             "t": "check",
+             "name": "ci",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidth",
+               "label": "",
+               "format": "number",
+               "enable": "ci"
+              }
+             ]
+            },
+            {
+             "t": "combo",
+             "name": "compare",
+             "label": ""
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Nominal",
+           "children": [
+            {
+             "t": "check",
+             "name": "contCoef"
+            },
+            {
+             "t": "check",
+             "name": "phiCra"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Ordinal",
+           "children": [
+            {
+             "t": "check",
+             "name": "gamma"
+            },
+            {
+             "t": "check",
+             "name": "taub"
+            },
+            {
+             "t": "check",
+             "name": "mh"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Cells",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Counts",
+           "children": [
+            {
+             "t": "check",
+             "name": "obs"
+            },
+            {
+             "t": "check",
+             "name": "exp"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Percentages",
+           "children": [
+            {
+             "t": "check",
+             "name": "pcRow"
+            },
+            {
+             "t": "check",
+             "name": "pcCol"
+            },
+            {
+             "t": "check",
+             "name": "pcTot"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Post Hoc Tests",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Post Hoc Tests",
+           "children": [
+            {
+             "t": "check",
+             "name": "resU"
+            },
+            {
+             "t": "check",
+             "name": "resP",
+             "children": [
+              {
+               "t": "text",
+               "name": "hlresP",
+               "label": "",
+               "format": "number",
+               "enable": "resP"
+              }
+             ]
+            },
+            {
+             "t": "check",
+             "name": "resS",
+             "children": [
+              {
+               "t": "text",
+               "name": "hlresS",
+               "label": "",
+               "format": "number",
+               "enable": "resS"
+              }
+             ]
+            },
+            {
+             "t": "check",
+             "name": "resA",
+             "children": [
+              {
+               "t": "text",
+               "name": "hlresA",
+               "label": "",
+               "format": "number",
+               "enable": "resA"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Plots",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Plots",
+           "children": [
+            {
+             "t": "check",
+             "name": "barplot"
+            }
+           ]
+          },
+          {
+           "t": "label",
+           "label": "Bar Type",
+           "children": [
+            {
+             "t": "radio",
+             "option": "bartype",
+             "part": "dodge",
+             "label": "dodge"
+            },
+            {
+             "t": "radio",
+             "option": "bartype",
+             "part": "stack",
+             "label": "stack"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Y-Axis",
+           "children": [
+            {
+             "t": "radio",
+             "option": "yaxis",
+             "part": "ycounts",
+             "label": "ycounts"
+            },
+            {
+             "t": "radio",
+             "option": "yaxis",
+             "part": "ypc",
+             "label": "ypc"
+            }
+           ]
+          },
+          {
+           "t": "label",
+           "label": "X-Axis",
+           "children": [
+            {
+             "t": "radio",
+             "option": "xaxis",
+             "part": "xrows",
+             "label": "xrows"
+            },
+            {
+             "t": "radio",
+             "option": "xaxis",
+             "part": "xcols",
+             "label": "xcols"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
  },
  "scat": {
   "name": "scat",
@@ -2799,6 +5171,43 @@ window.JMV_SPECS = {
      }
     ]
    }
-  ]
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "x",
+       "max": 1
+      },
+      {
+       "name": "y",
+       "max": 1
+      },
+      {
+       "name": "group",
+       "max": 1
+      }
+     ]
+    },
+    {
+     "t": "grid",
+     "cells": [
+      {
+       "col": 0,
+       "row": 0,
+       "children": []
+      },
+      {
+       "col": 1,
+       "row": 0,
+       "children": []
+      }
+     ]
+    }
+   ]
+  }
  }
 };

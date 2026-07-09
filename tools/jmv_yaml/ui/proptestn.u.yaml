@@ -1,0 +1,72 @@
+name: propTestN
+title: Proportion Test (N Outcomes)
+jus: '2.0'
+compilerMode: tame
+events:
+  update: './proptestn.events::update'
+  remoteDataChanged: './proptestn.events::onRemoteDataChanged'
+children:
+  - type: VariableSupplier
+    persistentItems: false
+    stretchFactor: 1
+    children:
+      - type: TargetLayoutBox
+        children:
+          - type: VariablesListBox
+            name: var
+            maxItemCount: 1
+            isTarget: true
+            events:
+              change: './proptestn.events::onChange_var'
+      - type: TargetLayoutBox
+        children:
+          - type: VariablesListBox
+            name: counts
+            maxItemCount: 1
+            isTarget: true
+  - type: LayoutBox
+    margin: large
+    children:
+      - name: expected
+        type: CheckBox
+  - type: CollapseBox
+    label: Expected Proportions
+    collapsed: true
+    stretchFactor: 1
+    children:
+      - type: ListBox
+        name: ratio
+        showColumnHeaders: true
+        fullRowSelect: true
+        height: large
+        stretchFactor: 1
+        events:
+          change: './proptestn.events::onChange_ratio'
+        columns:
+          - name: level
+            label: Level
+            headerAlign: left
+            stretchFactor: 1
+            isVirtual: true
+            maxWidth: 300
+            selectable: false
+            template:
+                type: Label
+          - name: ratio
+            label: Ratio
+            maxWidth: 50
+            stretchFactor: 0.25
+            selectable: false
+            template:
+                type: TextBox
+                format: number
+          - name: proportion
+            label: Proportion
+            maxWidth: 100
+            headerAlign: right
+            isVirtual: true
+            stretchFactor: 0.5
+            selectable: false
+            template:
+                type: Label
+                horizontalAlignment: right

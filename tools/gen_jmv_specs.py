@@ -7,12 +7,14 @@ Kilder:   tools/jmv_yaml/{jmv,scatr}.yaml — kopier av jamovi-full.yaml fra
 """
 import json
 import pathlib
+import re
 
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SOURCES = {'jmv': ROOT / 'tools/jmv_yaml/jmv.yaml',
            'scatr': ROOT / 'tools/jmv_yaml/scatr.yaml'}
+UI_DIR = ROOT / 'tools/jmv_yaml/ui'
 PHASE1 = ['descriptives', 'ttestIS', 'ttestPS', 'ttestOneS', 'anovaOneW', 'anova',
           'anovaNP', 'corrMatrix', 'linReg', 'logRegBin', 'propTestN', 'contTables',
           'scat']
@@ -41,6 +43,147 @@ def convert_option(o):
         if o.get('max') is not None:
             out['max'] = o.get('max')
     return out
+
+
+# u.yaml-typer -> kompakt layout-tre. Ukjente containere flates ut; ukjente
+# løvnoder droppes. Se docs/PLAN_jamovi_fase3_dialoglayout.md.
+
+def _parse_enable(expr):
+    if isinstance(expr, str):
+        m = re.fullmatch(r'\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)', expr.strip())
+        if m:
+            return m.group(1)
+    return None
+
+
+def _group_cells(nodes):
+    """Grupper nabosekvenser av _cell-markører i en flat nodeliste til ett
+    grid-node hver; behold rekkefølgen på alt annet. Brukes både på toppnivå
+    (parse_layout) og for enhver children-liste som bygges underveis
+    (Label/CollapseBox kan selv inneholde LayoutBox-celler)."""
+    out, buf = [], []
+
+    def flush():
+        if buf:
+            out.append({'t': 'grid', 'cells': [
+                {'col': c['col'], 'row': c['row'], 'children': c['children']}
+                for c in sorted(buf, key=lambda c: (c['row'], c['col']))]})
+            buf.clear()
+
+    for n in nodes:
+        if isinstance(n, dict) and n.get('t') == '_cell':
+            buf.append(n)
+        else:
+            flush()
+            out.append(n)
+    flush()
+    return out
+
+
+def _layout_node(el, valid, warns):
+    t = el.get('type')
+    kids = el.get('children') or []
+
+    def parsed_children():
+        out = []
+        for k in kids:
+            n = _layout_node(k, valid, warns)
+            if n is None:
+                continue
+            out.extend(n) if isinstance(n, list) else out.append(n)
+        return _group_cells(out)
+
+    def gated(node):
+        en = _parse_enable(el.get('enable'))
+        if en and en in valid:
+            node['enable'] = en
+        return node
+
+    if t == 'VariableSupplier':
+        targets = []
+        def grab(e):
+            if e.get('type') == 'VariablesListBox' and e.get('isTarget'):
+                tg = {'name': e.get('name')}
+                if e.get('maxItemCount'):
+                    tg['max'] = e['maxItemCount']
+                targets.append(tg)
+            for c in (e.get('children') or []):
+                grab(c)
+        grab(el)
+        targets = [tg for tg in targets if tg['name'] in valid or warns.append(f'ukjent rolle {tg["name"]}')]
+        return {'t': 'supplier', 'targets': targets}
+
+    if t == 'LayoutBox':
+        if isinstance(el.get('cell'), dict):
+            # celle håndteres av forelderen (grid-assemblering) — returner marker
+            return {'t': '_cell', 'col': el['cell'].get('column', 0),
+                    'row': el['cell'].get('row', 0), 'children': parsed_children()}
+        return parsed_children()   # transparent container -> flat
+
+    if t == 'Label':
+        ch = parsed_children()
+        return gated({'t': 'label', 'label': el.get('label', ''), 'children': ch}) if ch else None
+
+    if t == 'CheckBox':
+        nm = el.get('name')
+        if nm not in valid:
+            warns.append(f'ukjent opsjon {nm}'); return None
+        node = {'t': 'check', 'name': nm}
+        if el.get('label'):
+            node['label'] = el['label']
+        ch = parsed_children()
+        if ch:
+            node['children'] = ch
+        return gated(node)
+
+    if t == 'RadioButton':
+        opt = el.get('optionName')
+        if opt not in valid:
+            warns.append(f'ukjent opsjon {opt}'); return None
+        return gated({'t': 'radio', 'option': opt, 'part': el.get('optionPart'),
+                      'label': el.get('label', el.get('optionPart', ''))})
+
+    if t == 'ComboBox':
+        nm = el.get('name')
+        if nm not in valid:
+            warns.append(f'ukjent opsjon {nm}'); return None
+        return gated({'t': 'combo', 'name': nm, 'label': el.get('label', '')})
+
+    if t == 'TextBox':
+        nm = el.get('name')
+        if nm not in valid:
+            warns.append(f'ukjent opsjon {nm}'); return None
+        node = {'t': 'text', 'name': nm, 'label': el.get('label', '')}
+        if el.get('format'):
+            node['format'] = str(el['format'])
+        return gated(node)
+
+    if t == 'CollapseBox':
+        ch = parsed_children()
+        return {'t': 'collapse', 'label': el.get('label', ''),
+                'collapsed': bool(el.get('collapsed', True)), 'children': ch} if ch else None
+
+    # Ukjent type: container -> flat ut barna; løvnode -> dropp
+    ch = parsed_children()
+    if ch:
+        warns.append(f'flatet ut ukjent type {t}')
+        return ch
+    return None
+
+
+def parse_layout(name, valid_names):
+    path = UI_DIR / (name.lower() + '.u.yaml')
+    if not path.exists():
+        return None, []
+    doc = yaml.safe_load(path.read_text())
+    warns = []
+    children = []
+    for el in (doc.get('children') or []):
+        n = _layout_node(el, valid_names, warns)
+        if n is None:
+            continue
+        children.extend(n) if isinstance(n, list) else children.append(n)
+    return {'t': 'root', 'children': _group_cells(children)}, warns
 
 
 def main():
@@ -81,6 +224,13 @@ def main():
     missing = [n for n in PHASE1 if n not in specs]
     if missing:
         raise SystemExit(f'Mangler analyser i YAML: {missing}')
+    for name, spec in specs.items():
+        valid_names = {o['name'] for o in spec['options']}
+        lay, warns = parse_layout(name, valid_names)
+        if lay:
+            spec['layout'] = lay
+        for w in warns:
+            print(f'{name}: {w}')
     js = ('// GENERERT av tools/gen_jmv_specs.py — ikke rediger for hånd.\n'
           'window.JMV_SPECS = '
           + json.dumps(specs, ensure_ascii=False, indent=1) + ';\n')
