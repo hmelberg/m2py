@@ -11,6 +11,10 @@
     // openJmvAnalysis so it's unambiguously in scope for jamoviSwitchDataset/jamoviLoadExample/
     // jamoviTitleCard, which also invalidate it.
     var jmvDialogGen = 0;
+    // fase 3 del 3 (Task 2): refLevels level cache, keyed "dataset::column" -> Promise<string[]>.
+    // Cleared at the same two hooks as jmvDialogGen++ above (jamoviSwitchDataset/jamoviLoadExample)
+    // since cached levels belong to a specific dataset's column values.
+    var jmvLevelCache = {};
 
     // Write a single edited cell back to the engine's pandas DataFrame.
     async function jamoviWriteBack(cell) {
@@ -208,6 +212,7 @@
       jamoviTypeOverrides = {}; jamoviFilter = '';   // these were per-dataset
       // Fix 2: a live options panel's variable list belongs to the old dataset — invalidate it.
       jmvDialogGen++;
+      jmvLevelCache = {}; // Task 2: cached refLevels levels belonged to the old dataset
       var _op = document.getElementById('jamoviOptions');
       if (_op) { _op.hidden = true; _op.innerHTML = ''; }
       // refresh the current data/variables view if shown
@@ -491,6 +496,7 @@
         // Fix 2: same as jamoviSwitchDataset — a live options panel's variable list belongs to
         // the previous dataset.
         jmvDialogGen++;
+        jmvLevelCache = {}; // Task 2: cached refLevels levels belonged to the previous dataset
         var _op = document.getElementById('jamoviOptions');
         if (_op) { _op.hidden = true; _op.innerHTML = ''; }
         M.setStatus(M.rightStatus, '');
@@ -1109,6 +1115,159 @@
       return { refresh: refresh };
     }
 
+    // fase 3 del 3 (Task 2): referansenivå-kilder for refLevels. Verifisert i vendored jmv.yaml
+    // (a.yaml-nivå, ikke u.yaml): linReg/logRegBin/logRegMulti/logRegOrd/logLinear sin refLevels-
+    // beskrivelse sier alle "reference levels of the dependent variable and all the factors" —
+    // dep ER altså med, ikke bare factors. Vi trenger ingen spec-spesifikk liste for dette: dep
+    // sitt permitted-sett er 'numeric' for linReg (alltid kontinuerlig, aldri nominal i praksis)
+    // og 'factor' for logRegBin/Multi/Ord (nominal/ordinal) — filteret på FAKTISK måltype i det
+    // aktive datasettet (jamoviVariables()) ekskluderer linReg sin dep naturlig, uten hardkoding.
+    // logLinear har ingen dep-rolle (counts+factors) og faller ut av dep-sjekken av seg selv.
+    function refLevelSourceVars(spec, values) {
+      var names = [];
+      if (spec.options.some(function (o) { return o.name === 'dep'; })) names = names.concat(values.dep || []);
+      if (spec.options.some(function (o) { return o.name === 'factors'; })) names = names.concat(values.factors || []);
+      var nominal = {};
+      jamoviVariables().forEach(function (v) { if (v.type === 'nominal') nominal[v.name] = true; });
+      return names.filter(function (n) { return nominal[n]; });
+    }
+
+    // fetchLevels(varName): unike ikke-NA verdier for kolonnen i det AKTIVE datasettet, som
+    // R/jmv ser dem — dvs. med codelist-etiketter påført (samme mapping som
+    // ensureJamoviDataInWebR/renderDataView: string-koerserte nøkler, "1.0" -> "1" for hele
+    // flyttall) — sortert, maks 50. Cachet per (datasett, kolonne) i jmvLevelCache; feilede
+    // henter cacher IKKE (så et forbigående Pyodide-problem ikke låser seg fast).
+    function fetchLevels(varName) {
+      var ds = window.activeDatasetName;
+      var key = ds + '::' + varName;
+      if (jmvLevelCache[key]) return jmvLevelCache[key];
+      var p = (async function () {
+        var py = await M.loadPyodideAndM2py();
+        py.globals.set('_lv_col', varName);
+        var json = String(await py.runPythonAsync(
+          'import json as _j, pandas as _pd\n' +
+          '_col = e.datasets[e.active_name][_lv_col]\n' +
+          'def _lk(_x, _m):\n' +
+          '    if _pd.isna(_x): return _x\n' +
+          '    _k = str(int(_x)) if isinstance(_x, float) and _x.is_integer() else str(_x).strip()\n' +
+          '    return _m.get(_k, _x)\n' +
+          'try:\n' +
+          '    _cl = e.label_manager.get_codelist_for_var(_lv_col)\n' +
+          'except Exception:\n' +
+          '    _cl = None\n' +
+          'if _cl:\n' +
+          '    _m = {str(_key): _val for _key, _val in _cl.items()}\n' +
+          '    _col = _col.map(lambda _x: _lk(_x, _m))\n' +
+          '_j.dumps(sorted(set(str(v) for v in _col.dropna().unique()))[:50])'
+        ));
+        return JSON.parse(json);
+      })();
+      jmvLevelCache[key] = p;
+      p.catch(function () { delete jmvLevelCache[key]; });
+      return p;
+    }
+
+    // Reference Levels-seksjon (Task 2): jmv-section, KOLLAPSET som default (i motsetning til
+    // Modell-seksjonen), én rad per variabel fra refLevelSourceVars. Radene fylles asynkront
+    // (select disabled/«…» til fetchLevels løser); isStale() (dialoggenerasjon) OG en lokal
+    // renderGen (rolleendring rebygger raden før forrige henting rekker å svare) beskytter mot at
+    // en sent innkommet henting fyller en select som ikke lenger representerer riktig variabel/
+    // dialog. values.refLevels inneholder KUN rader brukeren har valgt et eksplisitt nivå for —
+    // tom liste normaliseres til null (buildJmvCall utelater da opsjonen; jmv bruker sin egen
+    // auto-regel, første nivå alfabetisk).
+    //
+    // Fletting (samme mønster som renderModelSection): linReg sin u.yaml har ALLEREDE en
+    // «Reference Levels»-CollapseBox (refLevels-ListBoxen droppes av layout-generatoren som
+    // ukjent type, men Intercept-radioknappene — dummy/simple coding — overlever og tegnes der).
+    // Verifisert i browser: uten fletting fikk brukeren TO seksjoner med samme tittel «Reference
+    // Levels» (forvirrende). Finnes en slik seksjon fra før, PREPENDes radene våre øverst i dens
+    // body i stedet — og vi lar den beholde sin egen collapsed-tilstand (allerede kollapset i
+    // u.yaml, så «kollapset default»-kravet holder uansett). logRegBin/Multi/Ord har samme
+    // CollapseBox, men UTEN Intercept-innhold (ingen intercept-opsjon der) — flettingen fungerer
+    // likt, bare inn i en ellers tom seksjon-body.
+    function renderRefLevelsSection(spec, values, body, onChange, isStale) {
+      var container = document.createElement('div'); container.className = 'jmv-reflevel-builder';
+      var hostSec = Array.prototype.filter.call(body.querySelectorAll('.jmv-section'), function (s) {
+        var t = s.querySelector('.jmv-section-title');
+        return t && t.textContent === T('Reference Levels');
+      })[0];
+      var sb;
+      if (hostSec) {
+        sb = hostSec.querySelector('.jmv-section-body');
+        sb.insertBefore(container, sb.firstChild);
+      } else {
+        var sec = document.createElement('div'); sec.className = 'jmv-section collapsed';
+        var hdr = document.createElement('div'); hdr.className = 'jmv-section-hdr';
+        hdr.innerHTML = '<span class="jmv-section-caret">▾</span><span class="jmv-section-title">' + M.escapeHtml(T('Reference Levels')) + '</span>';
+        hdr.addEventListener('click', function () { sec.classList.toggle('collapsed'); });
+        sb = document.createElement('div'); sb.className = 'jmv-section-body';
+        sb.appendChild(container);
+        sec.appendChild(hdr); sec.appendChild(sb); body.appendChild(sec);
+      }
+
+      function setRef(varName, ref) {
+        var cur = (values.refLevels || []).filter(function (r) { return r.var !== varName; });
+        if (ref) cur.push({ var: varName, ref: ref });
+        values.refLevels = cur.length ? cur : null;
+      }
+
+      var renderGen = 0;
+      function render() {
+        var myRenderGen = ++renderGen;
+        container.innerHTML = '';
+        var names = refLevelSourceVars(spec, values);
+        if (!names.length) {
+          var empty = document.createElement('div'); empty.className = 'jmv-reflevel-row';
+          empty.style.color = '#6b7280';
+          empty.textContent = T('Ingen kategoriske variabler tilordnet ennå.');
+          container.appendChild(empty);
+          return;
+        }
+        names.forEach(function (n) {
+          var row = document.createElement('div'); row.className = 'jmv-reflevel-row';
+          var lab = document.createElement('span'); lab.className = 'jmv-reflevel-var'; lab.textContent = n;
+          var sel = document.createElement('select'); sel.className = 'jmv-opt-select'; sel.disabled = true;
+          var loadingOpt = document.createElement('option'); loadingOpt.textContent = '…'; sel.appendChild(loadingOpt);
+          row.appendChild(lab); row.appendChild(sel);
+          container.appendChild(row);
+          fetchLevels(n).then(function (levels) {
+            if (isStale() || myRenderGen !== renderGen) return; // dialog lukket / raden bygget om
+            sel.innerHTML = '';
+            var autoOpt = document.createElement('option'); autoOpt.value = ''; autoOpt.textContent = T('(auto: første nivå)');
+            sel.appendChild(autoOpt);
+            levels.forEach(function (lv) {
+              var op = document.createElement('option'); op.value = lv; op.textContent = lv;
+              sel.appendChild(op);
+            });
+            var cur = (values.refLevels || []).filter(function (r) { return r.var === n; })[0];
+            sel.value = cur ? cur.ref : '';
+            sel.disabled = false;
+            sel.addEventListener('change', function () {
+              setRef(n, sel.value || null);
+              onChange();
+            });
+          }).catch(function () {
+            if (isStale() || myRenderGen !== renderGen) return;
+            sel.innerHTML = '<option>' + M.escapeHtml(T('(feil ved henting)')) + '</option>';
+          });
+        });
+      }
+
+      // Rolleboks-endring (dep/factors): rader for variabler som ikke lenger er kilde lukes ut av
+      // values.refLevels (samme luke-mønster som Modell-seksjonens refresh); raden bygges om —
+      // nye/gjenværende variabler henter nivåer på nytt (billig: cachet per (datasett, kolonne)).
+      function refresh() {
+        var names = refLevelSourceVars(spec, values);
+        if (values.refLevels) {
+          values.refLevels = values.refLevels.filter(function (r) { return names.indexOf(r.var) !== -1; });
+          if (!values.refLevels.length) values.refLevels = null;
+        }
+        render();
+      }
+      render();
+      return { refresh: refresh };
+    }
+
     // Åpne en jamovi 2.0-analyse: dialog generert fra spec'en, dokket til venstre for
     // resultatene, med live-kjøring (debounce) hver gang en rolle/opsjon endres.
     function openJmvAnalysis(name, presets) {
@@ -1208,6 +1367,10 @@
       // analyser uten modelTerms/blocks (modelSectionRef forblir null).
       var modelSectionRef = null;
       function refreshModelSection() { if (modelSectionRef) modelSectionRef.refresh(); }
+      // fase 3 del 3 (Task 2): samme mønster for Reference Levels-seksjonen — no-op før seksjonen
+      // er tegnet, og for analyser uten refLevels (refLevelsSectionRef forblir null).
+      var refLevelsSectionRef = null;
+      function refreshRefLevelsSection() { if (refLevelsSectionRef) refLevelsSectionRef.refresh(); }
       function redraw() {
         srcList.innerHTML = '';
         vars.forEach(function (v) {
@@ -1229,6 +1392,7 @@
             li.addEventListener('click', function () {
               values[o.name] = values[o.name].filter(function (x) { return x !== n; });
               refreshModelSection();
+              refreshRefLevelsSection();
               redraw(); scheduleRun();
             });
             ul.appendChild(li);
@@ -1245,6 +1409,7 @@
         if ((values[o.name] || []).length >= max) { if (max === 1) values[o.name] = []; else return; }
         values[o.name].push(name); srcSel = null;
         refreshModelSection();
+        refreshRefLevelsSection();
         redraw(); scheduleRun();
       }
       function optByName(n) { return spec.options.filter(function (o) { return o.name === n; })[0]; }
@@ -1355,6 +1520,12 @@
       // spec'er med modelTerms (anova/ancova) eller blocks (regresjonene/logLinear).
       if (spec.options.some(function (o) { return o.name === 'modelTerms' || o.name === 'blocks'; })) {
         modelSectionRef = renderModelSection(spec, values, body, scheduleRun);
+      }
+
+      // fase 3 del 3 (Task 2): Reference Levels-seksjonen, for spec'er med refLevels
+      // (linReg/logRegBin/logRegMulti/logRegOrd, og logLinear fra Task 3).
+      if (spec.options.some(function (o) { return o.name === 'refLevels'; })) {
+        refLevelsSectionRef = renderRefLevelsSection(spec, values, body, scheduleRun, function () { return myGen !== jmvDialogGen; });
       }
 
       redraw(); scheduleRun();

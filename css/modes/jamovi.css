@@ -180,3 +180,13 @@
 .jmv-model-builder { margin: 0 0 4px; }
 .jmv-section-body > .jmv-model-builder:not(:only-child) { border-bottom: 1px solid #e3e6ec; padding-bottom: 8px; margin-bottom: 10px; }
 .jmv-posthoc { margin-top: 6px; border-top: 1px solid #e3e6ec; padding-top: 8px; }
+/* fase 3 del 3 (Task 2): Reference Levels-seksjon — én rad per faktor-variabel (dep/factors),
+   gjenbruker .jmv-term-row-rytmen. Select-en er disabled/«…» til nivåene er hentet fra Pyodide. */
+.jmv-reflevel-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 10px; font-size: 13px; border-bottom: 1px solid #eaeaea; }
+.jmv-reflevel-row:last-child { border-bottom: none; }
+.jmv-reflevel-var { font-weight: 500; }
+.jmv-reflevel-row select { min-width: 140px; }
+/* Flettet inn øverst i en eksisterende «Reference Levels»-seksjon (linReg sin Intercept-
+   coding-radio, fra u.yaml): luft mot innholdet under, samme mønster som .jmv-model-builder. */
+.jmv-reflevel-builder { margin: 0 0 4px; }
+.jmv-section-body > .jmv-reflevel-builder:not(:only-child) { border-bottom: 1px solid #e3e6ec; padding-bottom: 8px; margin-bottom: 10px; }
