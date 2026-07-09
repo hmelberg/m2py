@@ -57,7 +57,9 @@ test('classifyHash: legacy share defers', () => {
 test('classifyHash: non-matching returns null', () => {
   assert.equal(NL.classifyHash(''), null);
   assert.equal(NL.classifyHash('#'), null);
-  assert.equal(NL.classifyHash('#section-heading'), null);  // no extension / too few tokens
+  // '#section-heading' er nå et registernavn (dashboard-spec §4) — appen
+  // (index.html) har ingen egne side-ankre, så tokenet var ledig.
+  assert.equal(NL.classifyHash('#section-heading').action, 'name');
   assert.equal(NL.classifyHash('#only.two'), null);         // needs user.repo.path.ext
 });
 
