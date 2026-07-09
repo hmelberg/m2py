@@ -140,6 +140,62 @@
     return (mode === 'r') ? (name + ' <- ' + lit) : (name + ' = ' + lit);
   };
 
+  // ── Invalidering (spec §3.1): konservativ tekstanalyse ────────────────────
+  // Falske positiver koster bare en unødvendig kjøring; celler vi ikke kan
+  // analysere trygt («opake») trekker med seg alt etterfølgende.
+  var OPAQUE = {
+    python: /\b(exec|eval|globals|locals|__import__)\s*\(/,
+    r: /\b(assign|eval|get|source)\s*\(/
+  };
+  function assignedNames(code, mode) {
+    var names = {}, m;
+    if (mode === 'r') {
+      var rre = /(?:^|[\n;({])\s*([A-Za-z_.][\w.]*)\s*(?:<<?-|=(?!=))/g;
+      while ((m = rre.exec(code)) !== null) names[m[1]] = true;
+      var arrow = /(?:->>?)\s*([A-Za-z_.][\w.]*)/g;
+      while ((m = arrow.exec(code)) !== null) names[m[1]] = true;
+    } else {
+      var pre = /^[ \t]*([A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*)\s*(?:=(?!=)|\+=|-=|\*=|\/=)/gm;
+      while ((m = pre.exec(code)) !== null) {
+        m[1].split(',').forEach(function (n) { names[n.trim()] = true; });
+      }
+      var dre = /^[ \t]*(?:def|class)\s+([A-Za-z_]\w*)/gm;
+      while ((m = dre.exec(code)) !== null) names[m[1]] = true;
+      var fre = /^[ \t]*for\s+([A-Za-z_]\w*)/gm;
+      while ((m = fre.exec(code)) !== null) names[m[1]] = true;
+    }
+    return Object.keys(names);
+  }
+  function mentionsAny(code, vars) {
+    for (var i = 0; i < vars.length; i++) {
+      var esc = vars[i].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (new RegExp('\\b' + esc + '\\b').test(code)) return true;
+    }
+    return false;
+  }
+  // Hvilke celler må re-kjøres når changedVars er endret? Rekkefølge bevart.
+  D.planReruns = function (cells, changedVars, mode) {
+    var m = (mode === 'r') ? 'r' : 'python';
+    var dirty = {}, out = [], anyRerun = false, opaqueRan = false;
+    changedVars.forEach(function (v) { dirty[v] = true; });
+    for (var i = 0; i < cells.length; i++) {
+      var c = cells[i], rerun;
+      var dirtyList = Object.keys(dirty);
+      var opaque = !c.deps && OPAQUE[m].test(c.code || '');
+      if (c.deps) rerun = c.deps.some(function (d) { return dirty[d]; });
+      else if (opaqueRan) rerun = true;
+      else if (opaque) rerun = anyRerun || mentionsAny(c.code || '', dirtyList);
+      else rerun = mentionsAny(c.code || '', dirtyList);
+      if (rerun) {
+        out.push(i);
+        anyRerun = true;
+        assignedNames(c.code || '', m).forEach(function (n) { dirty[n] = true; });
+        if (opaque) opaqueRan = true;
+      }
+    }
+    return out;
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = D;
   global.Dashboard = D;
 })(typeof window !== 'undefined' ? window : globalThis);

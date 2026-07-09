@@ -87,3 +87,37 @@ test('assignStatement: python and r serialization', () => {
   assert.equal(D.assignStatement('r', 'ok', false), 'ok <- FALSE');
   assert.equal(D.assignStatement('r', 'c', 'Kreft'), 'c <- "Kreft"');
 });
+
+test('planReruns: mention, transitive, deps override', () => {
+  const cells = [
+    { name: 'a', deps: null, code: 'sub = df[df.cause == cause]\nprint(sub)' },
+    { name: 'b', deps: null, code: 'print(sub)' },                  // transitiv via sub
+    { name: 'c', deps: null, code: 'print(year)' },
+    { name: 'd', deps: ['year'], code: 'print("whatever cause")' }, // deps overstyrer tekst
+  ];
+  assert.deepEqual(D.planReruns(cells, ['cause'], 'python'), [0, 1]);
+  assert.deepEqual(D.planReruns(cells, ['year'], 'python'), [2, 3]);
+});
+
+test('planReruns: opaque cell → it and everything after re-runs', () => {
+  const op = [
+    { name: 'a', deps: null, code: 'x = year' },
+    { name: 'b', deps: null, code: 'globals()["y"] = 1' },
+    { name: 'c', deps: null, code: 'print(1)' },
+  ];
+  assert.deepEqual(D.planReruns(op, ['year'], 'python'), [0, 1, 2]);
+});
+
+test('planReruns: r assignment forms', () => {
+  const rc = [
+    { name: 'a', deps: null, code: 'sub <- df[df$cause == cause,]' },
+    { name: 'b', deps: null, code: 'plot(sub)' },
+    { name: 'c', deps: null, code: 'plot(annet)' },
+  ];
+  assert.deepEqual(D.planReruns(rc, ['cause'], 'r'), [0, 1]);
+});
+
+test('planReruns: nothing affected → empty', () => {
+  const cells = [{ name: 'a', deps: null, code: 'print(1)' }];
+  assert.deepEqual(D.planReruns(cells, ['year'], 'python'), []);
+});
