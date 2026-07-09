@@ -5213,11 +5213,21 @@
           metaLine +
           '<div class="sidebar-vars">' + varsHtml + '</div></div>';
       }).join('');
+      // R-datasett (runtime:'r' fra refreshDatasetSidebarFromR): detalj- og
+      // individata-visningene er Pyodide-bundne og ville lastet/feilet mot
+      // et datasett som bare finnes i webR — vis en ærlig status i stedet.
+      function isRDataset(ds) {
+        return !!(window.lastDatasetInfo && window.lastDatasetInfo[ds] && window.lastDatasetInfo[ds].runtime === 'r');
+      }
+      function rDatasetNotice() {
+        setStatus(rightStatus, t('Detaljvisning for R-datasett støttes ikke ennå — bruk str()/summary() i R.'), true);
+      }
       datasetsEl.querySelectorAll('.sidebar-var-row').forEach(function(el) {
         el.addEventListener('click', function(e) {
           if (e.target.closest('.sidebar-var-view-btn')) return; // handled separately below
           var ds = this.getAttribute('data-ds');
           var v = this.getAttribute('data-var');
+          if (isRDataset(ds)) return rDatasetNotice();
           showVariableDetail(ds, v);
         });
       });
@@ -5227,12 +5237,14 @@
           var row = this.closest('.sidebar-var-row');
           var ds = row && row.getAttribute('data-ds');
           var v = row && row.getAttribute('data-var');
+          if (ds && isRDataset(ds)) return rDatasetNotice();
           if (ds && v && window.__isDatasetViewable(ds)) showIndividataModal(ds, v);
         });
       });
       datasetsEl.querySelectorAll('.sidebar-dataset-name').forEach(function(el) {
         el.addEventListener('click', function() {
           var ds = this.getAttribute('data-ds');
+          if (ds && isRDataset(ds)) return rDatasetNotice();
           if (ds && window.__isDatasetViewable(ds)) showIndividataModal(ds);
         });
       });
@@ -7643,6 +7655,50 @@ async def _run_duck_sql(_sql):
 `;
     }
 
+    // R-motstykket til refreshDatasetSidebarFromPy: sidepanelet var før et
+    // rent Python-vindu (R-datasett vistes aldri). Leser alle data.frames i
+    // globalenv via evalR/toJs — ingen jsonlite-avhengighet. dtypes mappes
+    // til pandas-navn så eksisterende art-inferens (inferKindFromDtype)
+    // virker. runtime:'r' gater de py-bundne klikkene i sidepanelet.
+    async function refreshDatasetSidebarFromR() {
+      if (!webRReady || !webR) return;
+      var robj = null;
+      try {
+        robj = await webR.evalR(
+          'local({\n' +
+          '  nms <- ls(envir = .GlobalEnv)\n' +
+          '  keep <- nms[vapply(nms, function(n) is.data.frame(get(n, envir = .GlobalEnv)), logical(1))]\n' +
+          '  info <- lapply(keep, function(n) {\n' +
+          '    v <- get(n, envir = .GlobalEnv)\n' +
+          '    dt <- vapply(v, function(col) {\n' +
+          '      k <- class(col)[1]\n' +
+          '      switch(k, numeric = "float64", integer = "int64", character = "object",\n' +
+          '             logical = "bool", factor = "category", Date = "object", k)\n' +
+          '    }, character(1))\n' +
+          '    list(columns = as.character(names(v)), dtypes = dt, nrows = nrow(v))\n' +
+          '  })\n' +
+          '  names(info) <- keep\n' +
+          '  info\n' +
+          '})');
+        var js = await robj.toJs();
+        var info = {};
+        (js.names || []).forEach(function (dsName, i) {
+          var v = js.values[i], m = {};
+          (v.names || []).forEach(function (k, j) { m[k] = v.values[j]; });
+          var dtypes = {};
+          ((m.dtypes && m.dtypes.names) || []).forEach(function (c, j) { dtypes[c] = m.dtypes.values[j]; });
+          info[dsName] = { columns: (m.columns && m.columns.values) || [], dtypes: dtypes,
+                           nrows: (m.nrows && m.nrows.values && m.nrows.values[0]) || 0, runtime: 'r' };
+        });
+        window.lastDatasetInfo = info;
+        updateSidebarDatasets(info, 'R');
+      } catch (e) {
+        console.warn('R-sidepanel:', e);
+      } finally {
+        if (robj) { try { await webR.destroy(robj); } catch (e2) {} }
+      }
+    }
+
     async function refreshDatasetSidebarFromPy(py) {
       try {
         const infoJson = await py.runPythonAsync(`
@@ -8425,6 +8481,7 @@ json.dumps(out)
       // Frigjør R-objektene captureR allokerte i denne kjøringen — uten purge
       // vokser WebR-minnet monotont for hver kjøring i økten.
       if (webRShelter) { try { await webRShelter.purge(); } catch (e) {} }
+      await refreshDatasetSidebarFromR();
       setRunButtonsUi('idle');
       scriptRunInProgress = false;
     }
