@@ -538,6 +538,25 @@
       frequencies: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx=".5"/><rect x="9" y="1.5" width="5.5" height="5.5" rx=".5"/><rect x="1.5" y="9" width="5.5" height="5.5" rx=".5"/><rect x="9" y="9" width="5.5" height="5.5" rx=".5"/></svg>'
     };
 
+    // Jamovi ANALYSIS icons (16×16 line SVGs), keyed by jmv spec name.
+    // Copied (not referenced) from the frozen js/modes/jamovi_v1.js JAMOVI_ICONS set.
+    var JMV_AN_ICONS = {
+      descriptives: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><rect x="2" y="9" width="3" height="5" rx=".5"/><rect x="6.5" y="6" width="3" height="8" rx=".5"/><rect x="11" y="3" width="3" height="11" rx=".5"/></svg>',
+      ttestIS: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><path d="M2 3h6M5 3v10M10 5h4M12 5v6" stroke-linecap="round"/></svg>',
+      ttestPS: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><path d="M2 3h6M5 3v10M10 5h4M12 5v6" stroke-linecap="round"/><path d="M9 13.5c.8 0 1.4-.3 1.4-.3" stroke-linecap="round"/></svg>',
+      ttestOneS: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><path d="M2 3h6M5 3v10" stroke-linecap="round"/><circle cx="12" cy="8" r="3" stroke-width="1.3"/></svg>',
+      anovaOneW: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><rect x="2" y="7" width="3" height="7" rx=".5"/><rect x="6.5" y="4" width="3" height="10" rx=".5"/><rect x="11" y="9" width="3" height="5" rx=".5"/></svg>',
+      anova: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><rect x="2" y="7" width="3" height="7" rx=".5"/><rect x="6.5" y="4" width="3" height="10" rx=".5"/><rect x="11" y="9" width="3" height="5" rx=".5"/></svg>',
+      anovaNP: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><rect x="2" y="7" width="3" height="7" rx=".5"/><rect x="6.5" y="4" width="3" height="10" rx=".5"/><rect x="11" y="9" width="3" height="5" rx=".5"/><path d="M2 6.5h3M6.5 3.5h3M11 8.5h3" stroke-linecap="round"/></svg>',
+      corrMatrix: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><circle cx="4" cy="11" r="1.2" fill="#2b3a55" stroke="none"/><circle cx="7" cy="7" r="1.2" fill="#2b3a55" stroke="none"/><circle cx="10" cy="5" r="1.2" fill="#2b3a55" stroke="none"/><circle cx="13" cy="3" r="1.2" fill="#2b3a55" stroke="none"/><path d="M3 12.5l10-10" stroke-linecap="round"/></svg>',
+      linReg: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><circle cx="4" cy="10" r="1.2" fill="#2b3a55" stroke="none"/><circle cx="7" cy="8" r="1.2" fill="#2b3a55" stroke="none"/><circle cx="10" cy="6" r="1.2" fill="#2b3a55" stroke="none"/><circle cx="13" cy="4" r="1.2" fill="#2b3a55" stroke="none"/><path d="M2.5 11.5l11-9" stroke-linecap="round"/></svg>',
+      logRegBin: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><path d="M2 13c1-1 1.5-4 3-5.5S8.5 5 10 4s2.5-1.5 4-1" stroke-linecap="round"/></svg>',
+      propTestN: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><rect x="2" y="2" width="12" height="12" rx=".5"/><path d="M8 2v12M2 8h12"/><path d="M5 5l2 2M11 5l-2 2" stroke-linecap="round"/></svg>',
+      contTables: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><rect x="2" y="2" width="12" height="12" rx=".5"/><path d="M8 2v12M2 8h12"/></svg>',
+      scat: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="#2b3a55" stroke-width="1.3"><circle cx="4" cy="11" r="1.2" fill="#2b3a55" stroke="none"/><circle cx="7" cy="7" r="1.2" fill="#2b3a55" stroke="none"/><circle cx="10" cy="5" r="1.2" fill="#2b3a55" stroke="none"/><circle cx="13" cy="3" r="1.2" fill="#2b3a55" stroke="none"/><path d="M3 12.5l10-10" stroke-linecap="round"/></svg>'
+    };
+    JMV_AN_ICONS._default = JMV_AN_ICONS.descriptives;
+
     // ── jamovi 2.0-motor: ekte jmv/scatr i webR ─────────────────────────────
     var jmvReady = false, jmvLoadingP = null;
     async function ensureJmvLoaded() {
@@ -1008,7 +1027,8 @@
           var row = document.createElement('div'); row.className = 'jmv-role-row';
           var arrow = document.createElement('button'); arrow.className = 'jmv-arrow'; arrow.textContent = '→';
           arrow.addEventListener('click', function () { assignTo(o, srcSel); });
-          var box = document.createElement('ul'); box.className = 'jmv-rolebox';
+          var isSingle = (o.__max === 1) || (o.type === 'Variable' && o.__max === undefined);
+          var box = document.createElement('ul'); box.className = 'jmv-rolebox' + (isSingle ? ' jmv-rolebox-single' : '');
           box.style.cssText = 'list-style:none;';
           o.__ul = box;
           row.appendChild(arrow); row.appendChild(box);
@@ -1111,7 +1131,8 @@
             var sub = '';
             if (s.menuSubgroup && s.menuSubgroup !== lastSub) sub = '<span class="jmv-menu-sub">' + M.escapeHtml(s.menuSubgroup) + '</span>';
             lastSub = s.menuSubgroup || '';
-            return sub + '<button type="button" data-an="' + s.name + '">' + M.escapeHtml(label) + '</button>';
+            var icon = JMV_AN_ICONS[s.name] || JMV_AN_ICONS._default || '';
+            return sub + '<button type="button" data-an="' + s.name + '">' + icon + '<span>' + M.escapeHtml(label) + '</span></button>';
           }).join('');
         return '<div class="jmv-group"><button type="button" class="jmv-cat" data-cat="' + CAT_KEYS[g] + '">' + g + '</button><div class="jmv-menu">' + items + '</div></div>';
       }).join('');

@@ -656,6 +656,7 @@ window.M2PY_I18N.en = {
   "Kjører analyse…": "Running analysis…",
   "Analysefeil: {msg}": "Analysis error: {msg}",
   "Åpne eksempeldatasett…": "Open example datasets…",
+  "Vis/skjul toppmenyen": "Show/hide the top menu",
   "Tøm resultater": "Clear results",
   "Om jamovi-modus": "About jamovi mode",
   "Vis variabler": "Show variables",

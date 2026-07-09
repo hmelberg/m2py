@@ -56,7 +56,7 @@
 .jmv-menu-sub:first-child { border-top: none; }
 /* ── jamovi 2.0: dokket opsjonspanel + resultat-arbeidsflate ────────────── */
 #jamoviWorkspace { display:flex; align-items:flex-start; gap:0; }
-#jamoviOptions { flex:0 0 440px; max-width:48%; position:sticky; top:0; background:#fff; border:1px solid var(--jmv-line); border-radius:8px; margin:6px 8px 6px 4px; max-height:calc(100vh - 160px); overflow-y:auto; }
+#jamoviOptions { flex:0 0 480px; max-width:50%; position:sticky; top:0; background:#fff; border:1px solid var(--jmv-line); border-radius:8px; margin:6px 8px 6px 4px; max-height:calc(100vh - 160px); overflow-y:auto; }
 #jamoviOptions .jmv-dialog-head { display:flex; justify-content:space-between; align-items:center; }
 #jamoviOptions[hidden] { display:none; }
 #jamoviResultsPane { flex:1; min-width:0; }
@@ -100,6 +100,11 @@
 .jmv-rolebox li:hover .jmv-remove { color:#c15050; }
 .jmv-rolebox { border:1px solid #828282; min-height:48px; margin:4px 0 12px; padding:2px; background:#fff; }
 .jmv-rolebox.active { border-color:#2e8ac7; box-shadow:0 0 0 1px #2e8ac7; }
+/* Single-variable roles (maxItemCount 1 / type Variable) take one row of height, not a
+   multi-row drop zone — matches real jamovi's compact single-target boxes. */
+.jmv-rolebox-single { min-height:0; height:29px; overflow:hidden; }
+/* Empty-state: a lighter, dashed inner border reads as "drop here" without shouting. */
+.jmv-rolebox:empty { border-style:dashed; border-color:#c8c8c8; background:#fafbfc; }
 .jmv-rolebox li { border-bottom:1px solid #eaeaea; }
 .jmv-role-label { font:600 12px/1.2 inherit; color:#555; margin:6px 0 2px; }
 .jmv-role-row { display:flex; align-items:flex-start; gap:8px; margin:0 0 12px; }
@@ -119,16 +124,18 @@
 .jmv-section-title { border-left:1px solid #828282; padding-left:10px; margin-left:6px; }
 .jmv-section.collapsed .jmv-section-caret { transform:rotate(-90deg); }
 .jmv-section.collapsed .jmv-section-body { display:none; }
-.jmv-section-body { padding:8px 12px 10px; border:1px solid #B0B0B0; border-top:none; background:#fff; }
+.jmv-section-body { padding:10px 14px 12px; border:1px solid #B0B0B0; border-top:none; background:#fff; }
 .jmv-var-search { width:100%; box-sizing:border-box; padding:5px 8px; margin:0 0 4px; border:1px solid #828282; font:13px inherit; outline:none; }
 .jmv-var-search:focus { border-color:#2e8ac7; box-shadow:0 0 0 1px #2e8ac7; }
 .jmv-opt-group { margin:0 0 8px; }
 .jmv-opt-grouphdr { font:700 12px inherit; color:#555; margin:8px 0 3px; }
 .jmv-syntax { font: 12px/1.5 ui-monospace, monospace; color: #555; background: #f6f7f9; border: 1px solid var(--jmv-line); border-radius: 4px; padding: 6px 10px; margin: 4px 0 10px; white-space: pre-wrap; }
 /* fase 3: u.yaml-drevet layout */
-.jmv-grid { display: grid; grid-template-columns: repeat(var(--jmv-grid-cols, 2), minmax(0, 1fr)); gap: 2px 22px; margin: 2px 0 8px; }
+/* Same vertical rhythm whether a group sits inside a grid cell or flows on its own:
+   both .jmv-grid and .jmv-optgroup use the same outer margin. */
+.jmv-grid { display: grid; grid-template-columns: repeat(var(--jmv-grid-cols, 2), minmax(0, 1fr)); gap: 4px 22px; margin: 6px 0 10px; }
 .jmv-optgroup { margin: 6px 0 10px; }
-.jmv-optgroup > .jmv-optgroup-label { font: 600 12px/1.4 inherit; color: #444; margin: 4px 0 3px; }
+.jmv-optgroup > .jmv-optgroup-label { font: 500 12px/1.4 inherit; color: #333; margin: 4px 0 3px; }
 .jmv-suboptions { margin: 1px 0 3px 20px; padding-left: 10px; border-left: 2px solid #e3e6ec; }
 .jmv-opt-item input[type="radio"], .jmv-opt-item input[type="checkbox"] { margin: 0 2px 0 0; }
 .jmv-opt-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; font: 13px/1.4 inherit; flex-wrap: wrap; }
