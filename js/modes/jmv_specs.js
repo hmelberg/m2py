@@ -2802,6 +2802,104 @@ window.JMV_SPECS = {
    ]
   }
  },
+ "anovaRMNP": {
+  "name": "anovaRMNP",
+  "ns": "jmv",
+  "title": "Repeated Measures ANOVA (Non-parametric)",
+  "menuGroup": "ANOVA",
+  "menuSubgroup": "Non-Parametric",
+  "menuTitle": "Repeated Measures ANOVA",
+  "menuSubtitle": "Friedman",
+  "options": [
+   {
+    "name": "measures",
+    "type": "Variables",
+    "title": "Measures",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "pairs",
+    "type": "Bool",
+    "title": "Pairwise comparisons (Durbin-Conover)",
+    "default": false
+   },
+   {
+    "name": "desc",
+    "type": "Bool",
+    "title": "Descriptives",
+    "default": false
+   },
+   {
+    "name": "plots",
+    "type": "Bool",
+    "title": "Descriptive plot",
+    "default": false
+   },
+   {
+    "name": "plotType",
+    "type": "List",
+    "title": "Plot Type",
+    "default": "means",
+    "choices": [
+     {
+      "value": "means",
+      "title": "Means"
+     },
+     {
+      "value": "medians",
+      "title": "Medians"
+     }
+    ]
+   }
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "measures"
+      }
+     ]
+    },
+    {
+     "t": "check",
+     "name": "pairs"
+    },
+    {
+     "t": "check",
+     "name": "desc"
+    },
+    {
+     "t": "check",
+     "name": "plots",
+     "children": [
+      {
+       "t": "radio",
+       "option": "plotType",
+       "part": "means",
+       "label": "means",
+       "enable": "plots"
+      },
+      {
+       "t": "radio",
+       "option": "plotType",
+       "part": "medians",
+       "label": "medians",
+       "enable": "plots"
+      }
+     ]
+    }
+   ]
+  }
+ },
  "corrMatrix": {
   "name": "corrMatrix",
   "ns": "jmv",
@@ -6079,6 +6177,369 @@ window.JMV_SPECS = {
           {
            "t": "check",
            "name": "pcCol"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "logLinear": {
+  "name": "logLinear",
+  "ns": "jmv",
+  "title": "Log-Linear Regression",
+  "menuGroup": "Frequencies",
+  "menuSubgroup": "",
+  "menuTitle": "Log-Linear Regression",
+  "menuSubtitle": "",
+  "options": [
+   {
+    "name": "factors",
+    "type": "Variables",
+    "title": "Factors",
+    "default": null,
+    "suggested": [
+     "nominal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "counts",
+    "type": "Variable",
+    "title": "Counts (optional)",
+    "default": null,
+    "suggested": [],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "blocks",
+    "type": "Array",
+    "title": "Blocks",
+    "default": [
+     []
+    ]
+   },
+   {
+    "name": "refLevels",
+    "type": "Array",
+    "title": "Reference Levels",
+    "default": null
+   },
+   {
+    "name": "modelTest",
+    "type": "Bool",
+    "title": "Overall model test",
+    "default": false
+   },
+   {
+    "name": "dev",
+    "type": "Bool",
+    "title": "Deviance",
+    "default": true
+   },
+   {
+    "name": "aic",
+    "type": "Bool",
+    "title": "AIC",
+    "default": true
+   },
+   {
+    "name": "bic",
+    "type": "Bool",
+    "title": "BIC",
+    "default": false
+   },
+   {
+    "name": "pseudoR2",
+    "type": "NMXList",
+    "title": "Pseudo R²",
+    "default": [
+     "r2mf"
+    ]
+   },
+   {
+    "name": "omni",
+    "type": "Bool",
+    "title": "Likelihood ratio tests",
+    "default": false
+   },
+   {
+    "name": "ci",
+    "type": "Bool",
+    "title": "Confidence interval",
+    "default": false
+   },
+   {
+    "name": "ciWidth",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "RR",
+    "type": "Bool",
+    "title": "Rate ratio",
+    "default": false
+   },
+   {
+    "name": "ciRR",
+    "type": "Bool",
+    "title": "Confidence interval",
+    "default": false
+   },
+   {
+    "name": "ciWidthRR",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "emMeans",
+    "type": "Array",
+    "title": "Marginal Means",
+    "default": [
+     []
+    ]
+   },
+   {
+    "name": "ciEmm",
+    "type": "Bool",
+    "title": "Confidence interval",
+    "default": true
+   },
+   {
+    "name": "ciWidthEmm",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "emmPlots",
+    "type": "Bool",
+    "title": "Marginal means plots",
+    "default": true
+   },
+   {
+    "name": "emmTables",
+    "type": "Bool",
+    "title": "Marginal means tables",
+    "default": false
+   },
+   {
+    "name": "emmWeights",
+    "type": "Bool",
+    "title": "Equal cell weights",
+    "default": true
+   }
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "factors"
+      },
+      {
+       "name": "counts",
+       "max": 1
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Model Fit",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Fit Measures",
+           "children": [
+            {
+             "t": "check",
+             "name": "dev"
+            },
+            {
+             "t": "check",
+             "name": "aic"
+            },
+            {
+             "t": "check",
+             "name": "bic"
+            },
+            {
+             "t": "check",
+             "name": "modelTest"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": []
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Model Coefficients",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Omnibus Tests",
+           "children": [
+            {
+             "t": "check",
+             "name": "omni"
+            }
+           ]
+          },
+          {
+           "t": "label",
+           "label": "Estimate (Log Rate Ratio)",
+           "children": [
+            {
+             "t": "check",
+             "name": "ci",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidth",
+               "label": "Interval",
+               "format": "number",
+               "enable": "ci"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Rate Ratio",
+           "children": [
+            {
+             "t": "check",
+             "name": "RR"
+            },
+            {
+             "t": "check",
+             "name": "ciRR",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidthRR",
+               "label": "Interval",
+               "format": "number",
+               "enable": "ciRR"
+              }
+             ],
+             "enable": "RR"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Estimated Marginal Means",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "supplier",
+       "targets": []
+      },
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "General Options",
+           "children": [
+            {
+             "t": "check",
+             "name": "emmWeights"
+            },
+            {
+             "t": "check",
+             "name": "ciEmm",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidthEmm",
+               "label": "Interval",
+               "format": "number",
+               "enable": "ciEmm"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Output",
+           "children": [
+            {
+             "t": "check",
+             "name": "emmPlots"
+            },
+            {
+             "t": "check",
+             "name": "emmTables"
+            }
+           ]
           }
          ]
         }

@@ -1,0 +1,44 @@
+name:  anovaRMNP
+title: Repeated Measures ANOVA (Non-parametric)
+jus:   '2.0'
+compilerMode: tame
+children:
+  - type: VariableSupplier
+    name: variablesupplier
+    suggested:
+      - continuous
+    permitted:
+      - numeric
+    persistentItems: false
+    stretchFactor: 1
+    children:
+      - type: TargetLayoutBox
+        children:
+          - type: VariablesListBox
+            name: measures
+            isTarget: true
+
+  - type: LayoutBox
+    stretchFactor: 1
+    margin: large
+    children:
+      - type: CheckBox
+        name: pairs
+
+      - type: CheckBox
+        name: desc
+
+      - type: CheckBox
+        name: plots
+        children:
+          - type: RadioButton
+            name: plotType_means
+            optionName: plotType
+            optionPart: means
+            enable: (plots)
+
+          - type: RadioButton
+            name: plotType_medians
+            optionName: plotType
+            optionPart: medians
+            enable: (plots)

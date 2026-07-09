@@ -15,7 +15,7 @@ def test_alle_fase1_analyser_er_med():
     for n in ['descriptives', 'ttestIS', 'ttestPS', 'ttestOneS', 'anovaOneW', 'anova',
               'anovaNP', 'corrMatrix', 'linReg', 'logRegBin', 'propTestN', 'contTables',
               'scat', 'ancova', 'corrPart', 'logRegMulti', 'logRegOrd', 'contTablesPaired',
-              'reliability', 'pca', 'efa']:
+              'reliability', 'pca', 'efa', 'anovaRMNP', 'logLinear']:
         assert n in s, n
         assert len(s[n]['options']) > 0, f'{n} har ingen opsjoner'
 
