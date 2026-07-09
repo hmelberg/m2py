@@ -8085,7 +8085,10 @@ json.dumps(out)
       var presolve = await window.DataLoader.resolveSourcesOnly(script, deps);
       if (window.AssemblyDuckdb && Object.keys(presolve.descriptors).length &&
           window.AssemblyDuckdb.canPushdown(presolve.spec, presolve.descriptors)) {
-        var py = await loadPyodideAndM2py();
+        // Trinn A (plan 2026-07-09 fase 2): pushdown-resultatet returneres som
+        // parquet-BYTES, ikke skrevet til py.FS her — hver modus binder selv
+        // (python: generisk bytes-gren i materialiseringsløkka; R: rett i
+        // webR via nanoparquet). Dermed trenger ikke DuckDB-montering Pyodide.
         var compiled = window.AssemblyDuckdb.compile(presolve.spec, presolve.descriptors);
         var pdb = await __ensureDuckDB();
         var pconn = await pdb.connect();
@@ -8099,10 +8102,7 @@ json.dumps(out)
             var outName = 'ds_' + stmt.name + '_' + Math.random().toString(36).slice(2) + '.parquet';
             await pconn.query("COPY (" + stmt.sql + ") TO '" + outName + "' (FORMAT PARQUET)");
             var dsBytes = await pdb.copyFileToBuffer(outName);
-            py.FS.mkdirTree('/home/pyodide/_webdata');
-            var dsPath = '/home/pyodide/_webdata/' + stmt.name + '.parquet';
-            py.FS.writeFile(dsPath, dsBytes);
-            pushdownLoads.push({ alias: stmt.name, format: 'parquet', path: dsPath });
+            pushdownLoads.push({ alias: stmt.name, format: 'parquet', bytes: dsBytes });
             try { await pdb.dropFile(outName); } catch (e) { /* best-effort cleanup */ }
           }
           for (var di = 0; di < compiled.attachStatements.length; di++) {
@@ -8196,7 +8196,29 @@ json.dumps(out)
         scriptRunInProgress = false;
         return;
       }
-      if (_asmSpecR) {
+      // Trinn A (plan 2026-07-09 fase 2): rene load-datasett (typisk pushdown-
+      // resultater — DuckDB har allerede montert og levert parquet-bytes)
+      // trenger ingen safepy/pandas-tur: bind bytene rett i webR under
+      // datasettnavnet via den vanlige binding-løkka under. Alt med steps,
+      // manglende bytes eller formater løkka ikke kan binde (duckdb/sqlite)
+      // faller tilbake til Pyodide-gluen som før.
+      var _pureLoadsR = false;
+      if (_asmSpecR && (_asmSpecR.datasets || []).length) {
+        var _byAliasR = {};
+        _loadsR.forEach(function (l) { _byAliasR[l.alias] = l; });
+        _pureLoadsR = _asmSpecR.datasets.every(function (d) {
+          var srcL = d.load && _byAliasR[d.load];
+          return srcL && !(d.steps || []).length && srcL.bytes
+            && (srcL.format === 'parquet' || srcL.format === 'csv' || srcL.format === 'json');
+        });
+        if (_pureLoadsR) {
+          _loadsR = _asmSpecR.datasets.map(function (d) {
+            var srcL = _byAliasR[d.load];
+            return { alias: d.name, format: srcL.format, bytes: srcL.bytes };
+          });
+        }
+      }
+      if (_asmSpecR && !_pureLoadsR) {
         var _pyR2 = await loadPyodideAndM2py();
         await ensureSafepyLoaded(_pyR2);
         await ensurePyarrowFor(_pyR2);
@@ -9881,12 +9903,8 @@ options(width = 200)
           }
           if (_rawLoads.some(function (l) { return l.bytes; })) py.FS.mkdirTree('/home/pyodide/_webdata');
           _pyLoads = await Promise.all(_rawLoads.map(async function (l) {
-            if (l.path && !l.bytes) {
-              // Phase 2: pushdown already wrote this dataset's Parquet bytes
-              // to FS (see the AssemblyDuckdb branch above) — nothing left
-              // to fetch/materialize here.
-              return { alias: l.alias, format: l.format, path: l.path, strict: !!l.strict };
-            }
+            // (Pushdown-resultater kommer nå som bytes — trinn A — og tar
+            // den generiske bytes-grenen nederst, samme sti som før.)
             if (l.envelope) {
               // V4: strict-kryptert — klartekst finnes ALDRI på FS; konvolutten
               // dekrypteres inne i strict-kjøringen og slippes etterpå.
