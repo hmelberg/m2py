@@ -4,7 +4,14 @@
     /* --- Tema: lys (default), mørk, auto --- */
     body[data-theme="light"] { --bg: #f5f2eb; --bg-panel: #fff; --bg-code: #faf8f5; --text: #1a1b26; --text-muted: #565f89; --accent: #2563eb; --border: #e4e2dd; --topbar-bg: #e8e6e1; --sidebar-bg: #ebe8e2; --scrollbar-track: #f5f2eb; --scrollbar-thumb: #e4e2dd; --table-grid: #e0ddd6; --table-header-bg: #eeece6; --forklar-overlay-fill: color-mix(in srgb, var(--accent) 6%, transparent); --forklar-overlay-ring: color-mix(in srgb, var(--accent) 22%, transparent); }
     body[data-theme="dark"] { --bg: #1a1b26; --bg-panel: #24283b; --bg-code: #16161e; --text: #c0caf5; --text-muted: #737aa2; --accent: #7aa2f7; --border: #334155; --topbar-bg: #24283b; --sidebar-bg: #1e2030; --scrollbar-track: #16161e; --scrollbar-thumb: #334155; --table-grid: #2a2d3a; --table-header-bg: #1e2030; --forklar-overlay-fill: color-mix(in srgb, var(--accent) 8%, transparent); --forklar-overlay-ring: color-mix(in srgb, var(--accent) 26%, transparent); }
-    body { background: var(--bg); color: var(--text); }
+    body { background: var(--bg); color: var(--text); --topbar-h: 44px; }
+    /* jamovi/jamovilight hide the topbar (Task 1, fase 3 del 2); every rule that
+       offsets content below the fixed topbar reads --topbar-h instead of a
+       hardcoded 44px, so it collapses to 0 here in one place. See switchEditorMode
+       (index.html) for where the class is toggled, and the localStorage override
+       m2py_topbar_visible. */
+    body.topbar-hidden { --topbar-h: 0px; }
+    body.topbar-hidden .topbar { display: none; }
     .topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; align-items: center; padding: 0 12px; height: 44px; background: var(--topbar-bg); border-bottom: 1px solid var(--border); }
     .topbar .hamburger { background: none; border: none; color: var(--text); cursor: pointer; padding: 8px; font-size: 20px; line-height: 1; }
     .topbar .hamburger:hover { color: var(--accent); }
@@ -38,7 +45,7 @@
     .examples-dropdown-title { font-size: 11px; text-transform: uppercase; color: var(--text-muted); padding: 4px 14px 6px 14px; }
     .examples-dropdown button { display: block; width: 100%; padding: 8px 14px; border: none; background: none; color: var(--text); cursor: pointer; font-size: 14px; text-align: left; }
     .examples-dropdown button:hover { background: var(--border); }
-    .app-body { flex: 1; min-height: 0; display: flex; flex-direction: row; margin-top: 44px; margin-bottom: 36px; overflow: hidden; }
+    .app-body { flex: 1; min-height: 0; display: flex; flex-direction: row; margin-top: var(--topbar-h); margin-bottom: 36px; overflow: hidden; }
     .container { display: flex; flex: 1; min-width: 0; min-height: 0; margin-right: 0; transition: margin-right 0.2s; overflow: hidden; }
     .container.sidebar-open { margin-right: 260px; }
     .container.layout-columns { flex-direction: row; }
@@ -570,7 +577,7 @@
     .bottombar-icon-btn svg .icon-solid { fill: currentColor; stroke: none; }
     .bottombar-icon-btn svg .icon-outline { fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
     .panel-left .toolbar { display: none; }
-    .sidebar-right { position: fixed; right: 0; top: 44px; bottom: 36px; z-index: 85; width: 260px; background: var(--sidebar-bg); border-left: 1px solid var(--border); display: flex; flex-direction: column; transition: width 0.2s, opacity 0.2s; overflow: hidden; box-sizing: border-box; }
+    .sidebar-right { position: fixed; right: 0; top: var(--topbar-h); bottom: 36px; z-index: 85; width: 260px; background: var(--sidebar-bg); border-left: 1px solid var(--border); display: flex; flex-direction: column; transition: width 0.2s, opacity 0.2s; overflow: hidden; box-sizing: border-box; }
     .sidebar-right.collapsed { width: 0; opacity: 0; pointer-events: none; }
     .sidebar-right .sidebar-header { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; padding: 8px 10px; border-bottom: 1px solid var(--border); background: var(--sidebar-bg); }
     .sidebar-right .sidebar-header h3 { margin: 0; font-size: 12px; color: var(--text-muted); text-transform: uppercase; }
@@ -858,7 +865,7 @@
     .topbar .ai-icon.active { background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 6px; }
 
     .ai-sidebar {
-      position: fixed; right: 0; top: 44px; bottom: 36px; z-index: 86;
+      position: fixed; right: 0; top: var(--topbar-h); bottom: 36px; z-index: 86;
       width: 520px; background: var(--sidebar-bg);
       border-left: 1px solid var(--border);
       display: flex; flex-direction: column;
@@ -1098,6 +1105,6 @@
     body[data-theme="dark"] .ai-modal-btn.primary { color: #1a1b26; }
     .ai-modal-help { font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
     /* ── mode GUI bar (full-width, sits under topbar) ───────────────────────── */
-    .mode-gui-bar { position:fixed; top:44px; left:0; right:0; z-index:99; background:#f3f4f6; border-bottom:1px solid #d8dbe0; }
+    .mode-gui-bar { position:fixed; top:var(--topbar-h); left:0; right:0; z-index:99; background:#f3f4f6; border-bottom:1px solid #d8dbe0; }
     .bottombar-center { flex:1; display:flex; justify-content:center; align-items:center; min-width:0; padding:0 8px; }
     .bottombar-ask { width:min(420px,100%); padding:5px 10px; border:1px solid var(--border); border-radius:6px; font:13px/1.2 inherit; background:var(--bg-input,#fff); color:inherit; }

@@ -1123,7 +1123,7 @@
         + '<button type="button" class="jmv-tab active" data-jtab="analyses">Analyser</button>'
         + '<button type="button" class="jmv-tab" data-jtab="figures">Figurer</button>'
         + '<button type="button" class="jmv-tab" data-jtab="edit">Rediger</button>'
-        + '<div class="jmv-app-menu" hidden><button type="button" data-jaction="examples">' + T('Åpne eksempeldatasett…') + '</button><button type="button" data-jaction="clear">' + T('Tøm resultater') + '</button><button type="button" data-jaction="about">' + T('Om jamovi-modus') + '</button></div>'
+        + '<div class="jmv-app-menu" hidden><button type="button" data-jaction="examples">' + T('Åpne eksempeldatasett…') + '</button><button type="button" data-jaction="toggle-topbar">' + T('Vis/skjul toppmenyen') + '</button><button type="button" data-jaction="clear">' + T('Tøm resultater') + '</button><button type="button" data-jaction="about">' + T('Om jamovi-modus') + '</button></div>'
         + '<div class="jmv-dataset-picker"><label for="jamoviDatasetSelect">Aktivt datasett:</label><select id="jamoviDatasetSelect"></select></div>'
         + '</div>'
         + '<div class="jmv-ribbon-area">'
@@ -1188,6 +1188,7 @@
           var act = b.getAttribute('data-jaction');
           if (act === 'clear') { var c = M.outputArea.querySelector('#jamoviResults'); if (c) c.innerHTML = ''; }
           else if (act === 'examples') { openJamoviExamplePicker(); }
+          else if (act === 'toggle-topbar') { M.toggleTopbarVisible(); }
           else if (act === 'about') { alert(T('jamovi-modus: pek-og-klikk-analyser som genererer R og kjører det via webR på det aktive datasettet.')); }
         });
       });

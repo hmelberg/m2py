@@ -3814,6 +3814,17 @@
     window.mdOnInputToggle = function(h){ if (activeEditorMode !== 'jamovi' && activeEditorMode !== 'jamovilight') _inputHiddenPref = !!h; };
     function applyInputForMode(mode){ if (window.mdSetInputHidden) window.mdSetInputHidden((mode === 'jamovi' || mode === 'jamovilight') ? true : _inputHiddenPref); }
 
+    // Topbar visibility: jamovi/jamovilight hide the fixed app topbar by default
+    // (Task 1, fase 3 del 2 — see --topbar-h in app.css for the offset rules this
+    // drives). localStorage m2py_topbar_visible === '1' means the user overrode
+    // it back on via the jamovi hamburger's «Vis/skjul toppmenyen» toggle
+    // (M2PY.toggleTopbarVisible below). Re-applied on every mode switch.
+    function applyTopbarVisibility(mode) {
+      var wantHidden = (mode === 'jamovi' || mode === 'jamovilight')
+        && localStorage.getItem('m2py_topbar_visible') !== '1';
+      document.body.classList.toggle('topbar-hidden', wantHidden);
+    }
+
     // ── Editor mode switching ────────────────────────────────────────────────
     function switchEditorMode(newMode) {
       // Save departing mode's content and breakpoints
@@ -3831,6 +3842,9 @@
       // Hide autocomplete
       const ac = document.getElementById('autocompleteList');
       if (ac) ac.style.display = 'none';
+      // Must run before updateModeButtonsUi() (→ updateModeGuiBar()), which
+      // reads --topbar-h off body to size the mode GUI bar / app body offset.
+      applyTopbarVisibility(newMode);
       updateModeButtonsUi();
       // jamovi defaults to output-only (input hidden); other modes restore the user pref.
       applyInputForMode(newMode);
@@ -3976,11 +3990,15 @@
       bar.querySelectorAll('[data-mode-gui]').forEach(function(p){
         p.style.display = (p.getAttribute('data-mode-gui') === gui) ? '' : 'none';
       });
-      // The topbar is position:fixed (44px) and the bar is fixed right below it.
-      // Push the (margin-top:44) app body down by the bar's height when shown so
-      // nothing is hidden under the bar; restore the CSS default when hidden.
+      // The topbar is position:fixed and the bar is fixed right below it, at
+      // top: var(--topbar-h) (app.css) — 44px normally, 0 when body has
+      // topbar-hidden (jamovi/jamovilight with the topbar toggled off).
+      // Push the (margin-top: var(--topbar-h)) app body down by the bar's
+      // height when shown so nothing is hidden under the bar; restore the
+      // CSS default when hidden.
       var appBody = document.querySelector('.app-body');
-      if (appBody) appBody.style.marginTop = gui ? (44 + bar.offsetHeight) + 'px' : '';
+      var topbarH = parseFloat(getComputedStyle(document.body).getPropertyValue('--topbar-h')) || 0;
+      if (appBody) appBody.style.marginTop = gui ? (topbarH + bar.offsetHeight) + 'px' : '';
     }
     window.M2PY = {
       registerMode: function(p){ modeRegistry[p.id] = p;
@@ -3989,6 +4007,18 @@
       currentMode: function(){ return currentMode(); },
       updateModeGuiBar: function(){ return updateModeGuiBar(); },
       getModeGuiBar: function(){ return document.getElementById('modeGuiBar'); },
+      // «Vis/skjul toppmenyen» (jamovi hamburger, Task 1 fase 3 del 2): flips the
+      // m2py_topbar_visible override and re-applies immediately. Returns the new
+      // visible state (true = topbar now shown).
+      isTopbarVisible: function(){ return localStorage.getItem('m2py_topbar_visible') === '1'; },
+      toggleTopbarVisible: function(){
+        var visible = localStorage.getItem('m2py_topbar_visible') === '1';
+        visible = !visible;
+        try { localStorage.setItem('m2py_topbar_visible', visible ? '1' : '0'); } catch(e) {}
+        applyTopbarVisibility(activeEditorMode);
+        updateModeGuiBar();
+        return visible;
+      },
       // Append generated syntax to the (hidden) input panel, so it acts as a command log.
       appendToEditor: function(text){ var si = document.getElementById('scriptInput'); if (!si) return; si.value = (si.value ? si.value.replace(/\s*$/, '') + '\n\n' : '') + text; if (window.updateLineNumbers) window.updateLineNumbers(); if (typeof editorContent !== 'undefined') editorContent[activeEditorMode] = si.value; },
       get outputArea(){ return outputArea; },
