@@ -3999,6 +3999,10 @@
       var appBody = document.querySelector('.app-body');
       var topbarH = parseFloat(getComputedStyle(document.body).getPropertyValue('--topbar-h')) || 0;
       if (appBody) appBody.style.marginTop = gui ? (topbarH + bar.offsetHeight) + 'px' : '';
+      // Same offset, exposed as a CSS var so fixed-position right-hand sidebars
+      // (.sidebar-right, .ai-sidebar in app.css) can drop below the ribbon too —
+      // they aren't inside .app-body so the marginTop above doesn't reach them.
+      document.body.style.setProperty('--modegui-h', gui ? bar.offsetHeight + 'px' : '0px');
     }
     window.M2PY = {
       registerMode: function(p){ modeRegistry[p.id] = p;
@@ -7591,7 +7595,20 @@ json.dumps(out)
 `);
         const parsed = typeof infoJson === 'string' ? JSON.parse(infoJson) : JSON.parse(infoJson.toJs ? infoJson.toJs() : '{}');
         window.lastDatasetInfo = parsed.datasets || {};
-        window.activeDatasetName = parsed.active || null;
+        // Pre-existing bug (fix 3a): this used to unconditionally do
+        // `window.activeDatasetName = parsed.active || null`, which nulled out a
+        // perfectly valid active dataset (e.g. one jamovi had just set) whenever the
+        // Python engine's own e.active_name happened to be None — engine state and UI
+        // state disagree at that point, but the UI's tracked active dataset is still
+        // correct. Only overwrite when the engine reports a real active name, or when
+        // the currently-tracked one no longer exists among the known datasets.
+        const activeFromPy = parsed.active || null;
+        if (activeFromPy) {
+          window.activeDatasetName = activeFromPy;
+        } else if (!window.activeDatasetName || !(window.activeDatasetName in window.lastDatasetInfo)) {
+          const names = Object.keys(window.lastDatasetInfo);
+          window.activeDatasetName = names.length ? names[0] : null;
+        }
         updateSidebarDatasets(window.lastDatasetInfo);
       } catch (err) {
         window.lastDatasetInfo = {};
