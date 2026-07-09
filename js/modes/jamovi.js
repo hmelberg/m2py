@@ -715,33 +715,130 @@
       }
     }
 
-    // Kuratert opsjons-seksjonering for de viktigste analysene (Task 4). Andre analyser
-    // faller tilbake til én samlet "Valg"-seksjon (YAML-rekkefølge). Navn som ikke finnes
-    // i den genererte spec'en ignoreres stille av addSection.
-    var JMV_SECTIONS = {
-      descriptives: [
-        { title: 'Statistics', opts: ['splitBy','n','missing','mean','median','mode','sum','sd','variance','range','min','max','se','ci','ciWidth','iqr','skew','kurt','sw','pc','pcValues'] },
-        { title: 'Plots', opts: ['hist','dens','box','violin','dot','boxMean','boxLabelOutliers','qq','bar'] },
-        { title: 'Tables', opts: ['freq','desc','extreme','extremeN'] }
-      ],
-      ttestIS: [
-        { title: 'Tests', opts: ['students','welchs','mann','hypothesis'] },
-        { title: 'Additional Statistics', opts: ['meanDiff','ci','ciWidth','effectSize','ciES','ciWidthES','desc'] },
-        { title: 'Assumption Checks', opts: ['norm','eqv','qq'] },
-        { title: 'Plots', opts: ['plots'] }
-      ],
-      anovaOneW: [
-        { title: 'Variances', opts: ['welchs','fishers'] },
-        { title: 'Additional Statistics', opts: ['desc','descPlot'] },
-        { title: 'Assumption Checks', opts: ['norm','qq','eqv'] },
-        { title: 'Post Hoc Tests', opts: ['phMethod','phMeanDif','phSig','phTest','phFlag'] }
-      ],
-      contTables: [
-        { title: 'Statistics', opts: ['chiSq','chiSqCorr','likeRat','fisher','contCoef','phiCra','odds','logOdds','relRisk','ci','ciWidth','gamma','taub'] },
-        { title: 'Cells', opts: ['obs','exp','pcRow','pcCol','pcTot'] },
-        { title: 'Plots', opts: ['barplot','yaxis','yaxisPc','xaxis','bartype'] }
-      ]
-    };
+    // fase 3: Tegner spec.layout (u.yaml-avledet) inn i body. Kontroll-tilstand leses/skrives
+    // i values; hver endring kaller onChange() (=> scheduleRun). Deaktivering:
+    //  - barn av en check disables når checken er false
+    //  - noder med {enable:'navn'} disables når values[navn] er falsy
+    // Task 2-tillegg (fra Task 1s review): (1) tomme grid-celler (children:[]) tegnes ikke, og
+    // en grid uten noen ikke-tomme celler droppes helt (logRegBin (1,0), scat sin eneste grid).
+    // (2) suppliers med targets:[] (nøstet emMeansSupplier i anova/linReg/logRegBin) hopper over
+    // roleBoxBuilder helt; kun FØRSTE ikke-tomme supplier sin variabelliste tegnes (roleBoxBuilder
+    // avgjør dette selv, ikke denne funksjonen — se openJmvAnalysis).
+    function renderJmvLayout(root, ctx) {
+      var body = ctx.body, values = ctx.values, onChange = ctx.onChange;
+      var enableDeps = {};   // opsjonsnavn -> [DOM-elementer som skal ha disabled-stil]
+      function dep(name, el) { (enableDeps[name] = enableDeps[name] || []).push(el); }
+      function refreshDisabled() {
+        Object.keys(enableDeps).forEach(function (name) {
+          var off = !values[name];
+          enableDeps[name].forEach(function (el) {
+            el.classList.toggle('jmv-disabled', off);
+            el.querySelectorAll('input,select').forEach(function (i) { i.disabled = off; });
+          });
+        });
+      }
+      function optByName(n) { return ctx.spec.options.filter(function (o) { return o.name === n; })[0]; }
+      function draw(node, parent) {
+        if (!node) return;
+        if (node.t === 'supplier') {
+          if (!node.targets || !node.targets.length) return; // tillegg 2: emMeansSupplier uten mål
+          ctx.roleBoxBuilder(node.targets, parent); return;
+        }
+        if (node.t === 'grid') {
+          // tillegg 1: hopp over tomme celler; dropp hele griden hvis <1 celle blir igjen
+          var nonEmptyCells = (node.cells || []).filter(function (c) { return (c.children || []).length > 0; });
+          if (nonEmptyCells.length < 1) return;
+          var g = document.createElement('div'); g.className = 'jmv-grid';
+          var maxCol = nonEmptyCells.reduce(function (m, c) { return Math.max(m, c.col); }, 0);
+          g.style.setProperty('--jmv-grid-cols', String(maxCol + 1));
+          nonEmptyCells.forEach(function (cell) {
+            var cd = document.createElement('div');
+            cd.style.gridColumn = String(cell.col + 1); cd.style.gridRow = String(cell.row + 1);
+            (cell.children || []).forEach(function (k) { draw(k, cd); });
+            g.appendChild(cd);
+          });
+          parent.appendChild(g); return;
+        }
+        if (node.t === 'label') {
+          var grp = document.createElement('div'); grp.className = 'jmv-optgroup';
+          var lb = document.createElement('div'); lb.className = 'jmv-optgroup-label';
+          lb.textContent = node.label; grp.appendChild(lb);
+          (node.children || []).forEach(function (k) { draw(k, grp); });
+          if (node.enable) dep(node.enable, grp);
+          parent.appendChild(grp); return;
+        }
+        if (node.t === 'collapse') {
+          var sec = document.createElement('div'); sec.className = 'jmv-section' + (node.collapsed ? ' collapsed' : '');
+          var hdr = document.createElement('div'); hdr.className = 'jmv-section-hdr';
+          hdr.innerHTML = '<span class="jmv-section-caret">▾</span><span class="jmv-section-title">' + M.escapeHtml(node.label) + '</span>';
+          hdr.addEventListener('click', function () { sec.classList.toggle('collapsed'); });
+          var sb = document.createElement('div'); sb.className = 'jmv-section-body';
+          (node.children || []).forEach(function (k) { draw(k, sb); });
+          sec.appendChild(hdr); sec.appendChild(sb); parent.appendChild(sec); return;
+        }
+        if (node.t === 'check') {
+          var o = optByName(node.name); if (!o) return;
+          var row = document.createElement('label'); row.className = 'jmv-opt-row';
+          var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!values[node.name];
+          row.appendChild(cb); row.appendChild(document.createTextNode(node.label || o.title));
+          parent.appendChild(row);
+          var subWrap = null;
+          if (node.children && node.children.length) {
+            subWrap = document.createElement('div'); subWrap.className = 'jmv-suboptions';
+            node.children.forEach(function (k) { draw(k, subWrap); });
+            parent.appendChild(subWrap);
+            dep(node.name, subWrap);
+          }
+          cb.addEventListener('change', function () { values[node.name] = cb.checked; refreshDisabled(); onChange(); });
+          if (node.enable) { dep(node.enable, row); if (subWrap) dep(node.enable, subWrap); }
+          return;
+        }
+        if (node.t === 'radio') {
+          var row2 = document.createElement('label'); row2.className = 'jmv-opt-row';
+          var rb = document.createElement('input'); rb.type = 'radio';
+          rb.name = 'jmvopt_' + ctx.uid + '_' + node.option;
+          rb.checked = (values[node.option] === node.part);
+          rb.addEventListener('change', function () { if (rb.checked) { values[node.option] = node.part; refreshDisabled(); onChange(); } });
+          row2.appendChild(rb); row2.appendChild(document.createTextNode(node.label));
+          if (node.enable) dep(node.enable, row2);
+          parent.appendChild(row2); return;
+        }
+        if (node.t === 'combo') {
+          var oc = optByName(node.name); if (!oc) return;
+          var rowc = document.createElement('label'); rowc.className = 'jmv-opt-row';
+          if (node.label || oc.title) rowc.appendChild(document.createTextNode((node.label || oc.title) + ' '));
+          var sel = document.createElement('select'); sel.className = 'jmv-opt-select';
+          (oc.choices || []).forEach(function (c) {
+            var op = document.createElement('option'); op.value = c.value; op.textContent = c.title;
+            if (c.value === values[node.name]) op.selected = true; sel.appendChild(op);
+          });
+          sel.addEventListener('change', function () { values[node.name] = sel.value; refreshDisabled(); onChange(); });
+          rowc.appendChild(sel); if (node.enable) dep(node.enable, rowc);
+          parent.appendChild(rowc); return;
+        }
+        if (node.t === 'text') {
+          var ot = optByName(node.name); if (!ot) return;
+          var rowt = document.createElement('label'); rowt.className = 'jmv-opt-row';
+          rowt.appendChild(document.createTextNode((node.label || ot.title) + ' '));
+          var inp = document.createElement('input');
+          var numeric = (node.format === 'number' || ot.type === 'Number' || ot.type === 'Integer');
+          inp.type = numeric ? 'number' : 'text';
+          inp.className = numeric ? 'jmv-opt-num' : 'jmv-opt-txt';
+          inp.value = (values[node.name] === null || values[node.name] === undefined) ? '' : values[node.name];
+          if (ot.min !== undefined) inp.min = ot.min;
+          if (ot.max !== undefined) inp.max = ot.max;
+          inp.addEventListener('change', function () {
+            values[node.name] = (inp.value === '') ? ot.default
+              : (numeric ? Number(inp.value) : inp.value);
+            refreshDisabled(); onChange();
+          });
+          rowt.appendChild(inp); if (node.enable) dep(node.enable, rowt);
+          parent.appendChild(rowt); return;
+        }
+      }
+      (root.children || []).forEach(function (k) { draw(k, body); });
+      refreshDisabled();
+    }
 
     // Åpne en jamovi 2.0-analyse: dialog generert fra spec'en, dokket til venstre for
     // resultatene, med live-kjøring (debounce) hver gang en rolle/opsjon endres.
@@ -816,11 +913,13 @@
       var body = document.createElement('div'); body.className = 'jmv-dialog-body';
       body.style.display = 'block'; panel.appendChild(body);
 
-      // ── Roller: variabel-liste + rollebokser (gjenbruker v1-markup/CSS) ──
+      // ── Roller: variabel-liste + rollebokser (gjenbruker v1-markup/CSS). DOM-plassering
+      // styres nå av spec.layout (via roleBoxBuilder) i stedet for å alltid ligge øverst. ──
       var roleOpts = spec.options.filter(function (o) { return o.type === 'Variables' || o.type === 'Variable' || o.type === 'Pairs'; });
       var assigned = function () { return roleOpts.reduce(function (a, o) { return a.concat(values[o.name] || []); }, []); };
       var srcSel = null;
       var srcList = document.createElement('ul');
+      srcList.style.cssText = 'list-style:none;margin:0;padding:0;border:1px solid #828282;max-height:220px;overflow:auto;background:#fff;';
       function typeAllowed(o, v) {
         // suggested/permitted fra YAML: 'continuous'~numeric, ellers nominal/ordinal/factor
         var p = (o.permitted || []).concat(o.suggested || []);
@@ -841,7 +940,8 @@
           srcList.appendChild(li);
         });
         roleOpts.forEach(function (o) {
-          var ul = o.__ul; ul.innerHTML = '';
+          var ul = o.__ul; if (!ul) return; // defensiv: opsjon uten rolleboks (bør ikke skje, se rapport)
+          ul.innerHTML = '';
           (values[o.name] || []).forEach(function (n) {
             var v = vars.filter(function (x) { return x.name === n; })[0] || { type: 'numeric' };
             var li = document.createElement('li');
@@ -858,30 +958,44 @@
         if (!o || !name) return;
         var v = vars.filter(function (x) { return x.name === name; })[0];
         if (v && !typeAllowed(o, v)) return;
-        var max = (o.type === 'Variable') ? 1 : (o.type === 'Pairs' ? 2 : Infinity);
+        // fase 3: maks fra layout-målet (t.max, satt av roleBoxBuilder som o.__max) hvis oppgitt,
+        // ellers fra opsjonstypen som før (Pairs beholder sin faste to-slots-oppførsel).
+        var max = (o.__max !== undefined) ? o.__max : ((o.type === 'Variable') ? 1 : (o.type === 'Pairs' ? 2 : Infinity));
         if ((values[o.name] || []).length >= max) { if (max === 1) values[o.name] = []; else return; }
         values[o.name].push(name); srcSel = null;
         redraw(); scheduleRun();
       }
-      var varlistDiv = document.createElement('div'); varlistDiv.className = 'jmv-varlist';
-      var vl = document.createElement('div'); vl.className = 'jmv-role-label'; vl.textContent = T('Variabler');
-      varlistDiv.appendChild(vl); varlistDiv.appendChild(srcList);
-      srcList.style.cssText = 'list-style:none;margin:0;padding:0;border:1px solid #828282;max-height:220px;overflow:auto;background:#fff;';
-      body.appendChild(varlistDiv);
-      roleOpts.forEach(function (o) {
-        var lab = document.createElement('div'); lab.className = 'jmv-role-label'; lab.textContent = o.title;
-        var row = document.createElement('div'); row.className = 'jmv-role-row';
-        var arrow = document.createElement('button'); arrow.className = 'jmv-arrow'; arrow.textContent = '→';
-        arrow.addEventListener('click', function () { assignTo(o, srcSel); });
-        var box = document.createElement('ul'); box.className = 'jmv-rolebox';
-        box.style.cssText = 'list-style:none;';
-        o.__ul = box;
-        row.appendChild(arrow); row.appendChild(box);
-        body.appendChild(lab); body.appendChild(row);
-      });
+      function optByName(n) { return spec.options.filter(function (o) { return o.name === n; })[0]; }
+      // Bygger rollebokser for ett supplier-nodes targets (u.yaml-rekkefølge). Kun FØRSTE gang
+      // (over alle suppliers i layout'et) tegnes den delte variabellisten — en evt. senere
+      // ikke-tom supplier (finnes ikke i dagens 13 spec'er, men holdes robust) gjenbruker den
+      // samme srcList/assignTo og tegner bare sine egne mål-bokser.
+      var firstSupplierRendered = false;
+      function roleBoxBuilder(targets, parent) {
+        if (!firstSupplierRendered) {
+          firstSupplierRendered = true;
+          var varlistDiv = document.createElement('div'); varlistDiv.className = 'jmv-varlist';
+          var vl = document.createElement('div'); vl.className = 'jmv-role-label'; vl.textContent = T('Variabler');
+          varlistDiv.appendChild(vl); varlistDiv.appendChild(srcList);
+          parent.appendChild(varlistDiv);
+        }
+        (targets || []).forEach(function (t) {
+          var o = optByName(t.name); if (!o) return;
+          if (t.max !== undefined) o.__max = t.max;
+          var lab = document.createElement('div'); lab.className = 'jmv-role-label'; lab.textContent = o.title;
+          var row = document.createElement('div'); row.className = 'jmv-role-row';
+          var arrow = document.createElement('button'); arrow.className = 'jmv-arrow'; arrow.textContent = '→';
+          arrow.addEventListener('click', function () { assignTo(o, srcSel); });
+          var box = document.createElement('ul'); box.className = 'jmv-rolebox';
+          box.style.cssText = 'list-style:none;';
+          o.__ul = box;
+          row.appendChild(arrow); row.appendChild(box);
+          parent.appendChild(lab); parent.appendChild(row);
+        });
+      }
 
-      // ── Øvrige opsjoner i sammenleggbare seksjoner ──
-      var sections = JMV_SECTIONS[spec.name] || null;
+      // ── Øvrige opsjoner: control(o)-bygger, gjenbrukt av layout-stien («Flere valg») og
+      // den flate fallback-stien (analyser uten generert layout). ──
       var nonRole = spec.options.filter(function (o) { return roleOpts.indexOf(o) === -1; });
       function control(o) {
         var wrap = document.createElement('label'); wrap.className = 'jmv-opt-item';
@@ -926,12 +1040,31 @@
         found.forEach(function (o) { var c = control(o); if (c) sb.appendChild(c); });
         sec.appendChild(hdr); sec.appendChild(sb); body.appendChild(sec);
       }
-      if (sections) {
-        sections.forEach(function (s, i) { addSection(s.title, s.opts, i === 0); });
-        var covered = sections.reduce(function (a, s) { return a.concat(s.opts); }, []);
-        addSection(T('Flere valg'), nonRole.map(function (o) { return o.name; })
-          .filter(function (n) { return covered.indexOf(n) === -1; }), false);
+      if (spec.layout) {
+        renderJmvLayout(spec.layout, {
+          spec: spec, values: values, body: body, onChange: scheduleRun, uid: myGen,
+          roleBoxBuilder: roleBoxBuilder
+        });
+        // «Flere valg»-sikkerhetsnett (tillegg 3): skalar-opsjoner (Bool/List/Number/Integer/
+        // String) som ingen check/radio/combo/text-node i layout'et peker på — typisk
+        // 2.7.7-drift mellom u.yaml og den kuraterte layout-genereringen i Task 1 — havner
+        // likevel i en sammenleggbar seksjon, i stedet for å bli utilgjengelige.
+        var SCALAR_LAYOUT_TYPES = { Bool: true, List: true, Number: true, Integer: true, String: true };
+        var coveredByLayout = {};
+        (function collectRefs(node) {
+          if (!node) return;
+          if (node.t === 'check' || node.t === 'combo' || node.t === 'text') coveredByLayout[node.name] = true;
+          else if (node.t === 'radio') coveredByLayout[node.option] = true;
+          (node.children || []).forEach(collectRefs);
+          (node.cells || []).forEach(function (c) { (c.children || []).forEach(collectRefs); });
+        })(spec.layout);
+        var uncovered = nonRole
+          .filter(function (o) { return SCALAR_LAYOUT_TYPES[o.type] && !coveredByLayout[o.name]; })
+          .map(function (o) { return o.name; });
+        addSection(T('Flere valg'), uncovered, false);
       } else {
+        // Dagens flate fallback for analyser uten generert layout (holdes for robusthet).
+        roleBoxBuilder(roleOpts.map(function (o) { return { name: o.name }; }), body);
         addSection(T('Valg'), nonRole.map(function (o) { return o.name; }), true);
       }
 

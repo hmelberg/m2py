@@ -125,3 +125,20 @@
 .jmv-opt-group { margin:0 0 8px; }
 .jmv-opt-grouphdr { font:700 12px inherit; color:#555; margin:8px 0 3px; }
 .jmv-syntax { font: 12px/1.5 ui-monospace, monospace; color: #555; background: #f6f7f9; border: 1px solid var(--jmv-line); border-radius: 4px; padding: 6px 10px; margin: 4px 0 10px; white-space: pre-wrap; }
+/* fase 3: u.yaml-drevet layout */
+.jmv-grid { display: grid; grid-template-columns: repeat(var(--jmv-grid-cols, 2), minmax(0, 1fr)); gap: 2px 22px; margin: 2px 0 8px; }
+.jmv-optgroup { margin: 6px 0 10px; }
+.jmv-optgroup > .jmv-optgroup-label { font: 600 12px/1.4 inherit; color: #444; margin: 4px 0 3px; }
+.jmv-suboptions { margin: 1px 0 3px 20px; padding-left: 10px; border-left: 2px solid #e3e6ec; }
+.jmv-opt-item input[type="radio"], .jmv-opt-item input[type="checkbox"] { margin: 0 2px 0 0; }
+.jmv-opt-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; font: 13px/1.4 inherit; flex-wrap: wrap; }
+.jmv-opt-row.jmv-disabled, .jmv-opt-item.jmv-disabled { opacity: .45; pointer-events: none; }
+.jmv-opt-num { width: 64px; padding: 2px 5px; border: 1px solid #828282; border-radius: 3px; font: 13px inherit; }
+.jmv-opt-txt { width: 140px; padding: 2px 5px; border: 1px solid #828282; border-radius: 3px; font: 13px inherit; }
+/* .output-area (app.css) sets white-space:pre-wrap + word-break:break-word and inherits into
+   #jamoviOptions; in a narrow .jmv-grid column that lets a long <select> squeeze a row's label
+   text down to a couple of px, so the browser breaks it one character per line. Reset the
+   inherited wrapping behaviour inside the layout tree; flex-wrap above lets a genuinely tight
+   row fall to two lines (label, then control) instead of collapsing vertically char-by-char. */
+.jmv-grid, .jmv-optgroup, .jmv-suboptions { white-space: normal; word-break: normal; overflow-wrap: normal; }
+.jmv-opt-select { min-width: 0; }
