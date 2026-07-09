@@ -13,10 +13,10 @@ prioritert idéliste. Kilder: designdok/reviews fra jamovi 2.0 fase 1
 - [ ] Pareto Plot tilbake i menyen (røk ut av fase 1 — finnes ikke i CRAN/wasm-scatr 1.0.1)
 
 **Flere analyser (resten av jamovi-menyen):**
-- [ ] ANOVA: Repeated Measures, ANCOVA, MANCOVA, Friedman
-- [ ] Regresjon: Partial Correlation, multinomisk og ordinal logistisk
-- [ ] Factor: Reliability, PCA, EFA, CFA (CFA krever at lavaan-kjeden fungerer i webR)
-- [ ] Frequencies: McNemar (paired), Log-Linear
+- [x] ANCOVA, Partial Correlation, logRegMulti/Ord, McNemar, Reliability, PCA, EFA (implementert 2026-07-09)
+- [ ] ANOVA: Repeated Measures, MANCOVA, Friedman
+- [ ] Factor: CFA (CFA krever at lavaan-kjeden fungerer i webR)
+- [ ] Frequencies: Log-Linear
 
 **UI/layout (fase 3 — prioritet 1 per Hans 9/7: dialogene skal se bra ut og ha god struktur):**
 - [x] **Dialog-layout fra jamovi sine u.yaml-kildefiler** (verifisert tilgjengelig på
@@ -26,10 +26,10 @@ prioritert idéliste. Kilder: designdok/reviews fra jamovi 2.0 fase 1
       nøstede/innrykkede under-opsjoner (CheckBox children, f.eks. CI-bredde under
       CI-checkbox), enable-avhengigheter. Erstatter dagens håndkuraterte
       JMV_SECTIONS som oppleves rotete. (implementert 2026-07-09, branch jamovi-fase3-dialoger)
-- [ ] Visuell polish av panelet: luft, justering, konsistent typografi, rolleboks-høyder
-- [ ] Ikoner i analysemenyen (jamovi-lignende SVG-er)
-- [ ] Skjult toppmeny i jamovi-modus (datasettvelger ligger alt i jamovi-linjen;
-      modusbytte/fil-handlinger må inn i jamovi-hamburgeren)
+- [x] Visuell polish av panelet: luft, justering, konsistent typografi, rolleboks-høyder (implementert 2026-07-09)
+- [x] Ikoner i analysemenyen (jamovi-lignende SVG-er) (implementert 2026-07-09)
+- [x] Skjult toppmeny i jamovi-modus (datasettvelger ligger alt i jamovi-linjen;
+      modusbytte/fil-handlinger må inn i jamovi-hamburgeren) (implementert 2026-07-09)
 - [ ] `Level`-opsjonstype i dialogene (f.eks. referansenivå i logistisk regresjon)
 
 **Teknisk gjeld fra fase 1-reviewene:**
