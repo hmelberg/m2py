@@ -571,7 +571,7 @@ test('pick: string values, object values, miss', () => {
 (function (global) {
   'use strict';
   var N = {};
-  N.REGISTRY_URL = 'https://raw.githubusercontent.com/hansmelberg/stat-navn/main/names.json';
+  N.REGISTRY_URL = 'https://raw.githubusercontent.com/hmelberg/dashstatlink/main/names.json';
   var LS_KEY = 'm2py_names_cache';
 
   N.pick = function (registry, name) {
@@ -922,5 +922,5 @@ print(sub.Year.max())
 ## Self-review checklist (run after Task 9)
 
 1. Spec coverage: §1 syntax → Task 1; §2 contract → Tasks 6–8; §3 execution/debounce/errors → Tasks 3, 7, 8; §3.1 invalidation → Task 2; §4 names → Tasks 4, 5, 9; §5 security (serialization, textContent, no free-text) → Tasks 1, 6; §6 testing/isolation → every task + Task 9; §7 exclusions respected.
-2. The `stat-navn` GitHub repo does not exist yet — creating it is Hans's manual step (documented in the final summary, not automated).
+2. The `dashstatlink` registry repo was created and published (hmelberg/dashstatlink).
 3. OpenStat port is a separate follow-up (copy the same files + integration lines).

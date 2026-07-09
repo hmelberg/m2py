@@ -194,7 +194,7 @@ transparency is half the point.
 ## 4. Names registry
 
 One file, `names.json`, in a dedicated small GitHub repo (e.g.
-`hansmelberg/stat-navn`), fetched by **both** apps — one registry, not one per
+`hmelberg/dashstatlink`), fetched by **both** apps — one registry, not one per
 app. Deliberately dumb format:
 
 ```json
