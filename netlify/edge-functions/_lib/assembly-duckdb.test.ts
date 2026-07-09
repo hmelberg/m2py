@@ -11,11 +11,43 @@ Deno.test("canPushdown: true when every source is parquet/duckdb/sqlite", () => 
   assertEquals(AD.canPushdown(spec, descriptors), true);
 });
 
-Deno.test("canPushdown: false when any source is csv/json", () => {
+Deno.test("canPushdown: csv qualifies (trinn B); json/other still do not", () => {
   const spec = { sources: ["p", "c"], datasets: [] };
   const descriptors = { p: { url: "https://x/p.parquet", format: "parquet" },
     c: { url: "https://x/c.csv", format: "csv" } };
-  assertEquals(AD.canPushdown(spec, descriptors), false);
+  assertEquals(AD.canPushdown(spec, descriptors), true);
+  const specJ = { sources: ["j"], datasets: [] };
+  assertEquals(AD.canPushdown(specJ, { j: { url: "https://x/d.json", format: "json" } }), false);
+  assertEquals(AD.canPushdown(specJ, { j: { url: "https://x/d.bin", format: "other" } }), false);
+});
+
+Deno.test("compile: csv source uses pandas-mimicking read_csv options", () => {
+  // Trinn B: ingen dato/tid-autodeteksjon (pandas lar dem stå som strenger),
+  // pandas-lignende NA-tokens, header=true. Skilletegn autodetekteres.
+  const spec = { sources: ["c"], datasets: [{ name: "df", load: "c" }] };
+  const descriptors = { c: { url: "https://x.example/data.csv", format: "csv" } };
+  const { datasetStatements, attachStatements } = AD.compile(spec, descriptors);
+  assertEquals(attachStatements.length, 0);
+  const sql = datasetStatements[0].sql;
+  if (!sql.includes("read_csv('https://x.example/data.csv'")) throw new Error("forventet read_csv(url): " + sql);
+  if (!sql.includes("header = true")) throw new Error("forventet header=true: " + sql);
+  if (!sql.includes("auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR', 'BOOLEAN']"))
+    throw new Error("forventet begrensede typekandidater: " + sql);
+  if (!sql.includes("nullstr = ['', 'NA', 'N/A', 'NaN', 'nan', 'NULL', 'null']"))
+    throw new Error("forventet pandas-NA-tokens: " + sql);
+});
+
+Deno.test("compile: import from csv + join with parquet mixes relation refs", () => {
+  const spec = { sources: ["c", "p"], datasets: [
+    { name: "d", key: "id", steps: [
+      { op: "import", source: "c", columns: ["a"], how: "left" },
+      { op: "import", source: "p", columns: ["b"], how: "left" }] }] };
+  const descriptors = { c: { url: "https://x/c.csv", format: "csv" },
+    p: { url: "https://x/p.parquet", format: "parquet" } };
+  const sql = AD.compile(spec, descriptors).datasetStatements[0].sql;
+  if (!sql.includes("read_csv(") || !sql.includes("read_parquet(")) {
+    throw new Error("forventet begge lesefunksjonene: " + sql);
+  }
 });
 
 Deno.test("compile: single import produces a column-projected SELECT", () => {

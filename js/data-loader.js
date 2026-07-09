@@ -289,7 +289,11 @@
     var descriptors = {};
     resolved.forEach(function (r) {
       if (r.error || r.anvil) return; // protected/anvil/error sources are never pushdown-eligible
-      descriptors[r.alias] = { url: r.url, format: r.kind || (/\.parquet(\?|$)/.test(r.url) ? 'parquet' : 'other'), table: r.table };
+      // .csv-sniff siden trinn B: bare .parquet/.csv-endelser gjenkjennes uten
+      // eksplisitt kind() — alt annet er 'other' og aldri pushdown-kandidat.
+      descriptors[r.alias] = { url: r.url,
+        format: r.kind || (/\.parquet(\?|$)/.test(r.url) ? 'parquet' : /\.csv(\?|$)/.test(r.url) ? 'csv' : 'other'),
+        table: r.table };
     });
     return { spec: spec, descriptors: descriptors };
   }

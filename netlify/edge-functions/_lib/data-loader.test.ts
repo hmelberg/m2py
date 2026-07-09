@@ -476,3 +476,13 @@ Deno.test("resolveAndAssemble: table-qualified sources re-fetch via alias/table,
   assertEquals(out.sources[0].table, "patients");
   assertEquals(seen, ["https://x.example/panel.duckdb"]);
 });
+
+Deno.test("resolveSourcesOnly: .csv extension sniffs format csv (trinn B)", async () => {
+  const script = [
+    "# connect https://x.example/tall.csv as c",
+    "# create-dataset d, key(id)",
+    "# import c/x into d",
+  ].join("\n");
+  const out = await DL.resolveSourcesOnly(script, { registry: [] });
+  assertEquals(out.descriptors["c"].format, "csv");
+});

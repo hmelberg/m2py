@@ -1,0 +1,5 @@
+id,navn,verdi,dato,flagg,tom
+1,Ola,3.14,2020-01-01,True,
+2,Kari,NA,2021-06-15,False,x
+3,"Per, jr.",2.5,,True,y
+4,Åse,N/A,2022-12-31,False,NULL

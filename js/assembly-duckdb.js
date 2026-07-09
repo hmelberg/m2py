@@ -8,7 +8,20 @@
 (function (global) {
   'use strict';
 
-  var PUSHDOWN_FORMATS = { parquet: true, duckdb: true, sqlite: true };
+  // csv siden trinn B (plan 2026-07-09 fase 2). json bevisst utelatt:
+  // pandas-veien (safepy.assembly) leser i dag json-kilder som csv, så
+  // pushdown ville gitt NY oppførsel, ikke ekvivalent oppførsel.
+  var PUSHDOWN_FORMATS = { parquet: true, duckdb: true, sqlite: true, csv: true };
+
+  // Pandas-etterlignende CSV-lesing (trinn B): pandas' read_csv autodetekterer
+  // IKKE dato/tid (de forblir strenger) og har et fast sett NA-tokens —
+  // DuckDBs defaults ville gitt DATE-kolonner og andre NULL-regler, altså
+  // subtilt andre datasett enn safepy.assembly-veien gir. Skilletegn
+  // autodetekteres (bevisst avvik: pandas antar komma; DuckDB leser da
+  // ;-filer riktig der pandas-veien ga én kolonne).
+  var CSV_OPTS = "header = true"
+    + ", auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR', 'BOOLEAN']"
+    + ", nullstr = ['', 'NA', 'N/A', 'NaN', 'nan', 'NULL', 'null']";
 
   function canPushdown(spec, descriptors) {
     return (spec.sources || []).every(function (s) {
@@ -49,6 +62,7 @@
     var d = descriptors[sourceKey];
     if (!d) throw new Error('ukjent kilde «' + sourceKey + '» i AssemblyDuckdb.compile');
     if (d.format === 'parquet') return "read_parquet(" + quoteLit(d.url) + ")";
+    if (d.format === 'csv') return "read_csv(" + quoteLit(d.url) + ", " + CSV_OPTS + ")";
     var attAlias = aliasByUrl[d.url];
     return attAlias + '.' + quoteIdent(d.table);
   }

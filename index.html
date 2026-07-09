@@ -8208,8 +8208,11 @@ json.dumps(out)
         _loadsR.forEach(function (l) { _byAliasR[l.alias] = l; });
         _pureLoadsR = _asmSpecR.datasets.every(function (d) {
           var srcL = d.load && _byAliasR[d.load];
-          return srcL && !(d.steps || []).length && srcL.bytes
-            && (srcL.format === 'parquet' || srcL.format === 'csv' || srcL.format === 'json');
+          // KUN parquet: pushdown-output er alltid parquet, og nanoparquet-
+          // binding er typemessig ekvivalent med pandas-gluen. csv/json-bytes
+          // (ikke-pushdown-kvalifiserte kilder) må fortsatt gjennom safepy —
+          // read.csv har andre NA-/typeregler enn pd.read_csv.
+          return srcL && !(d.steps || []).length && srcL.bytes && srcL.format === 'parquet';
         });
         if (_pureLoadsR) {
           _loadsR = _asmSpecR.datasets.map(function (d) {
