@@ -726,15 +726,31 @@
     // avgjør dette selv, ikke denne funksjonen — se openJmvAnalysis).
     function renderJmvLayout(root, ctx) {
       var body = ctx.body, values = ctx.values, onChange = ctx.onChange;
-      var enableDeps = {};   // opsjonsnavn -> [DOM-elementer som skal ha disabled-stil]
-      function dep(name, el) { (enableDeps[name] = enableDeps[name] || []).push(el); }
+      // flat registry: samme DOM-element kan registreres under FLERE navn (f.eks. en
+      // ciWidth-rad som både ligger i 'ci'-subWrap og har sin egen node.enable-ref til
+      // 'meanDiff'); elementet skal disables hvis NOEN av dets navn er falsy (ELLER-logikk
+      // over "av"-tilstandene — tilsvarer AND-semantikken i u.yaml sin enable: (a && b)).
+      var enableRegs = [];
+      function dep(name, el) { enableRegs.push({ name: name, el: el }); }
       function refreshDisabled() {
-        Object.keys(enableDeps).forEach(function (name) {
-          var off = !values[name];
-          enableDeps[name].forEach(function (el) {
-            el.classList.toggle('jmv-disabled', off);
-            el.querySelectorAll('input,select').forEach(function (i) { i.disabled = off; });
-          });
+        var disabledFor = new Map(); // registrert element -> disabled (ELLER over dets navn)
+        enableRegs.forEach(function (r) {
+          var off = !values[r.name];
+          disabledFor.set(r.el, (disabledFor.get(r.el) || false) || off);
+        });
+        disabledFor.forEach(function (off, el) { el.classList.toggle('jmv-disabled', off); });
+        // Inputs/selects kan ligge under FLERE registrerte elementer på ulikt nivå (f.eks.
+        // ciWidth-inputen ligger inni ci-subWrap OG, via DOM-nesting, inni meanDiff-subWrap).
+        // querySelectorAll fra hvert registrert element treffer da samme input flere ganger —
+        // en "av"-container (disabled) må ALDRI overstyres tilbake til enabled av en ytre "på"-
+        // container. Derfor: samle input-sett per (disabled=true)-container først, og la det
+        // vinne uansett iterasjonsrekkefølge.
+        var disabledInputs = new Set();
+        disabledFor.forEach(function (off, el) {
+          if (off) el.querySelectorAll('input,select').forEach(function (i) { disabledInputs.add(i); });
+        });
+        disabledFor.forEach(function (off, el) {
+          el.querySelectorAll('input,select').forEach(function (i) { i.disabled = disabledInputs.has(i); });
         });
       }
       function optByName(n) { return ctx.spec.options.filter(function (o) { return o.name === n; })[0]; }
@@ -749,11 +765,17 @@
           var nonEmptyCells = (node.cells || []).filter(function (c) { return (c.children || []).length > 0; });
           if (nonEmptyCells.length < 1) return;
           var g = document.createElement('div'); g.className = 'jmv-grid';
-          var maxCol = nonEmptyCells.reduce(function (m, c) { return Math.max(m, c.col); }, 0);
-          g.style.setProperty('--jmv-grid-cols', String(maxCol + 1));
+          // tillegg 3: reindekser kolonner etter filtrering, ellers står gjenlevende celler
+          // igjen med sin opprinnelige col (f.eks. col:1) og gir en blank ledende kolonne.
+          var distinctCols = nonEmptyCells.map(function (c) { return c.col; })
+            .filter(function (v, i, a) { return a.indexOf(v) === i; })
+            .sort(function (a, b) { return a - b; });
+          var colRank = {};
+          distinctCols.forEach(function (col, i) { colRank[col] = i; });
+          g.style.setProperty('--jmv-grid-cols', String(distinctCols.length));
           nonEmptyCells.forEach(function (cell) {
             var cd = document.createElement('div');
-            cd.style.gridColumn = String(cell.col + 1); cd.style.gridRow = String(cell.row + 1);
+            cd.style.gridColumn = String(colRank[cell.col] + 1); cd.style.gridRow = String(cell.row + 1);
             (cell.children || []).forEach(function (k) { draw(k, cd); });
             g.appendChild(cd);
           });
