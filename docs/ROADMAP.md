@@ -15,7 +15,8 @@ prioritert idéliste. Kilder: designdok/reviews fra jamovi 2.0 fase 1
 **Flere analyser (resten av jamovi-menyen):**
 - [x] ANCOVA, Partial Correlation, logRegMulti/Ord, McNemar, Reliability, PCA, EFA (implementert 2026-07-09)
 - [x] ANOVA: Friedman (implementert 2026-07-09)
-- [ ] ANOVA: Repeated Measures, MANCOVA
+- [x] MANCOVA (implementert 2026-07-09, med NMXList-kontroller i hele dialogsystemet)
+- [ ] ANOVA: Repeated Measures
 - [ ] Factor: CFA (CFA krever at lavaan-kjeden fungerer i webR)
 - [x] Frequencies: Log-Linear (implementert 2026-07-09)
 
