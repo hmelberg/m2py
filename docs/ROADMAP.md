@@ -14,9 +14,10 @@ prioritert idéliste. Kilder: designdok/reviews fra jamovi 2.0 fase 1
 
 **Flere analyser (resten av jamovi-menyen):**
 - [x] ANCOVA, Partial Correlation, logRegMulti/Ord, McNemar, Reliability, PCA, EFA (implementert 2026-07-09)
-- [ ] ANOVA: Repeated Measures, MANCOVA, Friedman
+- [x] ANOVA: Friedman (implementert 2026-07-09)
+- [ ] ANOVA: Repeated Measures, MANCOVA
 - [ ] Factor: CFA (CFA krever at lavaan-kjeden fungerer i webR)
-- [ ] Frequencies: Log-Linear
+- [x] Frequencies: Log-Linear (implementert 2026-07-09)
 
 **UI/layout (fase 3 — prioritet 1 per Hans 9/7: dialogene skal se bra ut og ha god struktur):**
 - [x] **Dialog-layout fra jamovi sine u.yaml-kildefiler** (verifisert tilgjengelig på
@@ -30,11 +31,11 @@ prioritert idéliste. Kilder: designdok/reviews fra jamovi 2.0 fase 1
 - [x] Ikoner i analysemenyen (jamovi-lignende SVG-er) (implementert 2026-07-09)
 - [x] Skjult toppmeny i jamovi-modus (datasettvelger ligger alt i jamovi-linjen;
       modusbytte/fil-handlinger må inn i jamovi-hamburgeren) (implementert 2026-07-09)
-- [ ] `Level`-opsjonstype i dialogene (f.eks. referansenivå i logistisk regresjon)
+- [x] `Level`-opsjonstype i dialogene (f.eks. referansenivå i logistisk regresjon) (implementert 2026-07-09 som refLevels-velger med nivåer fra data)
 
 **Teknisk gjeld fra fase 1-reviewene:**
-- [ ] Model Builder-UI for `blocks`/`modelTerms` (i dag syntetiseres én blokk av
-      alle kovariater i linReg/logRegBin; ingen blokk-inndeling/interaksjonsledd)
+- [x] Model Builder-UI for `blocks`/`modelTerms` (i dag syntetiseres én blokk av
+      alle kovariater i linReg/logRegBin; ingen blokk-inndeling/interaksjonsledd) (implementert 2026-07-09: term-bygger med interaksjoner, post hoc-ledd og blokk-kall)
 - [ ] Skille pliktige/valgfrie roller i «Velg variabler»-hintet (i dag kan hintet
       maskere reelle R-feil når en valgfri rolle står tom)
 - [ ] Bilde-rekkefølgenøkler i `.jmv_serialize` (i dag ordre-basert matching mot
