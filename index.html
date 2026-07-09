@@ -9711,7 +9711,10 @@ options(width = 200)
         // #options.view = output-only | split  → toggle the input-panel visibility from a script
         if (_scriptOpts.view !== undefined && window.mdSetInputHidden) {
           var _vw = String(_scriptOpts.view).toLowerCase().replace(/[\s_]+/g, '-');
-          var _hide = (_vw === 'output-only' || _vw === 'output' || _vw === 'results-only');
+          // dashboard er implisitt output-only — uten denne satte view-
+          // håndtereren hidden=false igjen ETTER at dashboard-grenen skjulte
+          // editoren (mottakere så både dashboard og kode).
+          var _hide = (_vw === 'output-only' || _vw === 'output' || _vw === 'results-only' || _vw === 'dashboard');
           window.mdSetInputHidden(_hide);
           if (window.mdOnInputToggle) window.mdOnInputToggle(_hide);
         }
