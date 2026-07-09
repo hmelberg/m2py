@@ -327,8 +327,42 @@
       canvas.height = bitmap.height;
       canvas.className = 'jmv-plot-canvas';
       canvas.getContext('2d').drawImage(bitmap, 0, 0);
-      block.appendChild(canvas);
+      // Kopier-til-utklippstavle ved hover — samme mønster/utseende som tabellene
+      // (.result-copy-wrap + .output-copy-btn i app.css). PNG via ClipboardItem;
+      // faller tilbake til nedlasting der API-et mangler (eldre Safari/http).
+      var wrap = document.createElement('div');
+      wrap.className = 'result-copy-wrap';
+      wrap.style.display = 'inline-block';
+      var copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'output-copy-btn';
+      copyBtn.textContent = '⧉';
+      copyBtn.title = T('Kopier figur til utklippstavle');
+      copyBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        canvas.toBlob(function (blob) {
+          if (!blob) return;
+          var done = function () {
+            copyBtn.classList.add('copied'); copyBtn.textContent = '✓';
+            setTimeout(function () { copyBtn.classList.remove('copied'); copyBtn.textContent = '⧉'; }, 1200);
+          };
+          if (navigator.clipboard && window.ClipboardItem) {
+            navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(done)
+              .catch(function () { jamoviDownloadBlob(blob, title); done(); });
+          } else { jamoviDownloadBlob(blob, title); done(); }
+        }, 'image/png');
+      });
+      wrap.appendChild(copyBtn);
+      wrap.appendChild(canvas);
+      block.appendChild(wrap);
       (target || M.outputArea).appendChild(block);
+    }
+    function jamoviDownloadBlob(blob, title) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = ((title || 'figur').replace(/[^\wæøåÆØÅ -]+/g, '').trim() || 'figur') + '.png';
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
     }
 
     // The stacked-results container (jamovi keeps every analysis until removed).
