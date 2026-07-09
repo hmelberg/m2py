@@ -18,7 +18,7 @@ UI_DIR = ROOT / 'tools/jmv_yaml/ui'
 PHASE1 = ['descriptives', 'ttestIS', 'ttestPS', 'ttestOneS', 'anovaOneW', 'anova',
           'anovaNP', 'corrMatrix', 'linReg', 'logRegBin', 'propTestN', 'contTables',
           'scat', 'ancova', 'corrPart', 'logRegMulti', 'logRegOrd', 'contTablesPaired',
-          'reliability', 'pca', 'efa', 'anovaRMNP', 'logLinear']
+          'reliability', 'pca', 'efa', 'anovaRMNP', 'logLinear', 'mancova']
 # pareto finnes ikke i CRAN/wasm-scatr 1.0.1 — fase 2 når nyere scatr bygges som wasm.
 ROLE_TYPES = {'Variable', 'Variables', 'Pairs'}
 SKIP_TYPES = {'Data', 'Output'}
@@ -33,7 +33,7 @@ def convert_option(o):
     if t in ROLE_TYPES:
         out['suggested'] = o.get('suggested') or []
         out['permitted'] = o.get('permitted') or []
-    if t == 'List':
+    if t in ('List', 'NMXList'):
         out['choices'] = [
             {'value': c.get('name'), 'title': c.get('title', c.get('name'))}
             if isinstance(c, dict) else {'value': c, 'title': c}
@@ -140,6 +140,22 @@ def _layout_node_inner(el, valid, warns):
         return parsed_children() or None
 
     if t == 'CheckBox':
+        opt = el.get('optionName')
+        if opt is not None:
+            # NMXList-del (flervalgs-checkboks): analog til RadioButton, men noden
+            # representerer ETT element i en array-verdi (multivar/effectSize/postHocCorr/
+            # postHocES o.l.) i stedet for en enkeltverdi. Nøstede barn (sett hos
+            # postHocES_d i anova/ancova) disables når DENNE delen ikke er valgt —
+            # se checkpart-håndteringen i js/modes/jamovi.js renderJmvLayout.
+            if opt not in valid:
+                return hoisted(opt)
+            part = el.get('optionPart')
+            node = {'t': 'checkpart', 'option': opt, 'part': part,
+                    'label': el.get('label') or part}
+            ch = parsed_children()
+            if ch:
+                node['children'] = ch
+            return gated(node)
         nm = el.get('name')
         if nm not in valid:
             return hoisted(nm)

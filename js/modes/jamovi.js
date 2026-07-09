@@ -619,6 +619,18 @@
           if (v.length >= 2) args.push(o.name + ' = list(list(i1 = ' + rQuote(v[0]) + ', i2 = ' + rQuote(v[1]) + '))');
           return;
         }
+        if (o.type === 'NMXList') {
+          // Flervalgs-opsjon (multivar/effectSize/postHocCorr/postHocES/pseudoR2 o.l.):
+          // R-kallet forventer en character-vektor, IKKE en enkelt-quotet streng — hopp
+          // over den generiske rQuote(v)-fallthrough-en nedenfor (som ville gitt f.eks.
+          // `multivar = 'pillai,wilks'`). Tomt utvalg -> character(0) (live-testet mot
+          // jmv::mancova/anova i webR — jmv aksepterer en tom character-vektor og tegner
+          // da bare tabellen uten noen av de radene, akkurat som å skru av alt i skrivebord-
+          // jamovi). Se rapporten for verifiseringen.
+          if (JSON.stringify(v) === JSON.stringify(o.default)) return;
+          args.push(o.name + ' = ' + (v.length ? 'c(' + v.map(rQuote).join(', ') + ')' : 'character(0)'));
+          return;
+        }
         if (JSON.stringify(v) === JSON.stringify(o.default)) return;
         if (o.type === 'Bool') { args.push(o.name + ' = ' + (v ? 'TRUE' : 'FALSE')); return; }
         if (o.type === 'Number' || o.type === 'Integer') {
@@ -780,12 +792,18 @@
       // ciWidth-rad som både ligger i 'ci'-subWrap og har sin egen node.enable-ref til
       // 'meanDiff'); elementet skal disables hvis NOEN av dets navn er falsy (ELLER-logikk
       // over "av"-tilstandene — tilsvarer AND-semantikken i u.yaml sin enable: (a && b)).
+      // `ref` er enten et opsjonsnavn (streng, truthy-sjekk) eller et checkpart-avhengighet
+      // {option, part} (sant hvis part er valgt i multi-verdi-arrayen) — sistnevnte dekker
+      // barn nøstet under en NMXList-checkpart (f.eks. postHocEsCi under postHocES_d i
+      // anova/ancova sin u.yaml).
       var enableRegs = [];
-      function dep(name, el) { enableRegs.push({ name: name, el: el }); }
+      function dep(ref, el) { enableRegs.push({ ref: ref, el: el }); }
       function refreshDisabled() {
         var disabledFor = new Map(); // registrert element -> disabled (ELLER over dets navn)
         enableRegs.forEach(function (r) {
-          var off = !values[r.name];
+          var off = (typeof r.ref === 'string')
+            ? !values[r.ref]
+            : (values[r.ref.option] || []).indexOf(r.ref.part) === -1;
           disabledFor.set(r.el, (disabledFor.get(r.el) || false) || off);
         });
         disabledFor.forEach(function (off, el) { el.classList.toggle('jmv-disabled', off); });
@@ -874,6 +892,35 @@
           row2.appendChild(rb); row2.appendChild(document.createTextNode(node.label));
           if (node.enable) dep(node.enable, row2);
           parent.appendChild(row2); return;
+        }
+        if (node.t === 'checkpart') {
+          // NMXList-del: values[node.option] er en array av valgte part-navn (eller
+          // null/undefined = ingen valgt). Toggling bygges alltid opp igjen fra
+          // spec'ens choices-rekkefølge, slik at R-kallet blir stabilt/deterministisk
+          // uavhengig av i hvilken rekkefølge brukeren klikket.
+          var op = optByName(node.option); if (!op) return;
+          var rowp = document.createElement('label'); rowp.className = 'jmv-opt-row';
+          var cbp = document.createElement('input'); cbp.type = 'checkbox';
+          cbp.checked = (values[node.option] || []).indexOf(node.part) !== -1;
+          rowp.appendChild(cbp); rowp.appendChild(document.createTextNode(node.label));
+          parent.appendChild(rowp);
+          var subWrapP = null;
+          if (node.children && node.children.length) {
+            subWrapP = document.createElement('div'); subWrapP.className = 'jmv-suboptions';
+            node.children.forEach(function (k) { draw(k, subWrapP); });
+            parent.appendChild(subWrapP);
+            dep({ option: node.option, part: node.part }, subWrapP);
+          }
+          cbp.addEventListener('change', function () {
+            var chosen = new Set(values[node.option] || []);
+            if (cbp.checked) chosen.add(node.part); else chosen.delete(node.part);
+            values[node.option] = (op.choices || [])
+              .map(function (c) { return c.value; })
+              .filter(function (v) { return chosen.has(v); });
+            refreshDisabled(); onChange();
+          });
+          if (node.enable) { dep(node.enable, rowp); if (subWrapP) dep(node.enable, subWrapP); }
+          return;
         }
         if (node.t === 'combo') {
           var oc = optByName(node.name); if (!oc) return;
@@ -1502,7 +1549,7 @@
         (function collectRefs(node) {
           if (!node) return;
           if (node.t === 'check' || node.t === 'combo' || node.t === 'text') coveredByLayout[node.name] = true;
-          else if (node.t === 'radio') coveredByLayout[node.option] = true;
+          else if (node.t === 'radio' || node.t === 'checkpart') coveredByLayout[node.option] = true;
           (node.children || []).forEach(collectRefs);
           (node.cells || []).forEach(function (c) { (c.children || []).forEach(collectRefs); });
         })(spec.layout);

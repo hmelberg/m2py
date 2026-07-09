@@ -15,7 +15,7 @@ def test_alle_fase1_analyser_er_med():
     for n in ['descriptives', 'ttestIS', 'ttestPS', 'ttestOneS', 'anovaOneW', 'anova',
               'anovaNP', 'corrMatrix', 'linReg', 'logRegBin', 'propTestN', 'contTables',
               'scat', 'ancova', 'corrPart', 'logRegMulti', 'logRegOrd', 'contTablesPaired',
-              'reliability', 'pca', 'efa', 'anovaRMNP', 'logLinear']:
+              'reliability', 'pca', 'efa', 'anovaRMNP', 'logLinear', 'mancova']:
         assert n in s, n
         assert len(s[n]['options']) > 0, f'{n} har ingen opsjoner'
 
@@ -140,10 +140,46 @@ def test_layout_ancova_struktur():
 
 
 def test_layout_anova_hoister_gyldige_barn():
-    # Regresjonsvakt: postHocES_d er et ugyldig (2.7.7-drift) navn, men dets gyldige
-    # etterkommere postHocEsCi/postHocEsCiWidth skal hoistes opp, ikke forsvinne.
+    # Regresjonsvakt: postHocES_d er en NMXList-checkpart (optionName: postHocES,
+    # optionPart: d) — den skal IKKE hoistes/droppes lenger (det gjorde den før
+    # checkpart-støtten kom inn), og dens gyldige etterkommer postHocEsCi skal
+    # fortsatt finnes i treet (nøstet under checkpart-noden).
     s = load_specs()
     lay = s['anova'].get('layout')
     assert lay is not None
-    assert _find(lay, lambda n: n.get('name') == 'postHocEsCi'), \
-        'postHocEsCi skal overleve selv om forelderen postHocES_d droppes'
+    d = _find(lay, lambda n: n.get('t') == 'checkpart' and n.get('option') == 'postHocES'
+              and n.get('part') == 'd')
+    assert d is not None, 'postHocES_d skal bli en checkpart-node, ikke hoistes bort'
+    assert _find(d, lambda n: n.get('name') == 'postHocEsCi'), \
+        'postHocEsCi skal overleve nøstet under postHocES-checkparten'
+
+
+def test_layout_mancova_checkpart_og_nmxlist_choices():
+    # Task: MANCOVA i menyen + NMXList-checkparts. multivar_pillai i mancova.u.yaml
+    # skal bli en checkpart-node {option: multivar, part: pillai}, og selve
+    # multivar-opsjonen skal ha choices (samme normalisering som List).
+    s = load_specs()
+    assert s['mancova']['menuGroup'] == 'ANOVA'
+    lay = s['mancova'].get('layout')
+    assert lay is not None
+    pillai = _find(lay, lambda n: n.get('t') == 'checkpart' and n.get('option') == 'multivar'
+                    and n.get('part') == 'pillai')
+    assert pillai is not None, 'multivar_pillai skal bli en checkpart-node'
+    opts = {o['name']: o for o in s['mancova']['options']}
+    assert opts['multivar']['type'] == 'NMXList'
+    assert {c['value'] for c in opts['multivar']['choices']} == {'pillai', 'wilks', 'hotel', 'roy'}
+    assert opts['multivar']['default'] == ['pillai', 'wilks', 'hotel', 'roy']
+
+
+def test_layout_checkpart_dekket_av_flere_valg_sikkerhetsnett_ikke_duplisert():
+    # NMXList er ikke en av SCALAR_LAYOUT_TYPES i js/modes/jamovi.js (Bool/List/Number/
+    # Integer/String) — det skalar-baserte "Flere valg"-sikkerhetsnettet skal derfor
+    # aldri prøve å tegne en NMXList-opsjon på nytt utenfor layoutet. Denne testen er en
+    # regresjonsvakt for at ingen tidligere gjenstridige checkpart-drift-advarsler dukker
+    # opp igjen for anova/ancova sine tre NMXList-opsjoner.
+    s = load_specs()
+    for n in ('anova', 'ancova'):
+        lay = s[n]['layout']
+        for opt in ('effectSize', 'postHocCorr', 'postHocES'):
+            assert _find(lay, lambda node, opt=opt: node.get('t') == 'checkpart'
+                         and node.get('option') == opt), f'{n}: {opt} mangler checkpart-noder'

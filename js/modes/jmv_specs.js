@@ -1971,7 +1971,21 @@ window.JMV_SPECS = {
     "name": "effectSize",
     "type": "NMXList",
     "title": "Effect Size",
-    "default": null
+    "default": null,
+    "choices": [
+     {
+      "value": "eta",
+      "title": "η²"
+     },
+     {
+      "value": "partEta",
+      "title": "partial η²"
+     },
+     {
+      "value": "omega",
+      "title": "ω²"
+     }
+    ]
    },
    {
     "name": "modelTest",
@@ -2041,13 +2055,41 @@ window.JMV_SPECS = {
     "title": "Correction",
     "default": [
      "tukey"
+    ],
+    "choices": [
+     {
+      "value": "none",
+      "title": "No correction"
+     },
+     {
+      "value": "tukey",
+      "title": "Tukey"
+     },
+     {
+      "value": "scheffe",
+      "title": "Scheffe"
+     },
+     {
+      "value": "bonf",
+      "title": "Bonferroni"
+     },
+     {
+      "value": "holm",
+      "title": "Holm"
+     }
     ]
    },
    {
     "name": "postHocES",
     "type": "NMXList",
     "title": "Effect size",
-    "default": []
+    "default": [],
+    "choices": [
+     {
+      "value": "d",
+      "title": "Cohen's d"
+     }
+    ]
    },
    {
     "name": "postHocEsCi",
@@ -2157,6 +2199,36 @@ window.JMV_SPECS = {
          ]
         }
        ]
+      },
+      {
+       "col": 1,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Effect Size",
+         "children": [
+          {
+           "t": "checkpart",
+           "option": "effectSize",
+           "part": "eta",
+           "label": "eta"
+          },
+          {
+           "t": "checkpart",
+           "option": "effectSize",
+           "part": "partEta",
+           "label": "partEta"
+          },
+          {
+           "t": "checkpart",
+           "option": "effectSize",
+           "part": "omega",
+           "label": "omega"
+          }
+         ]
+        }
+       ]
       }
      ]
     },
@@ -2200,6 +2272,48 @@ window.JMV_SPECS = {
        "t": "grid",
        "cells": [
         {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Correction",
+           "children": [
+            {
+             "t": "checkpart",
+             "option": "postHocCorr",
+             "part": "none",
+             "label": "none"
+            },
+            {
+             "t": "checkpart",
+             "option": "postHocCorr",
+             "part": "tukey",
+             "label": "tukey"
+            },
+            {
+             "t": "checkpart",
+             "option": "postHocCorr",
+             "part": "scheffe",
+             "label": "scheffe"
+            },
+            {
+             "t": "checkpart",
+             "option": "postHocCorr",
+             "part": "bonf",
+             "label": "bonf"
+            },
+            {
+             "t": "checkpart",
+             "option": "postHocCorr",
+             "part": "holm",
+             "label": "holm"
+            }
+           ]
+          }
+         ]
+        },
+        {
          "col": 1,
          "row": 0,
          "children": [
@@ -2208,15 +2322,23 @@ window.JMV_SPECS = {
            "label": "Effect Size",
            "children": [
             {
-             "t": "check",
-             "name": "postHocEsCi",
-             "label": "Confidence interval",
+             "t": "checkpart",
+             "option": "postHocES",
+             "part": "d",
+             "label": "d",
              "children": [
               {
-               "t": "text",
-               "name": "postHocEsCiWidth",
-               "label": "",
-               "format": "number"
+               "t": "check",
+               "name": "postHocEsCi",
+               "label": "Confidence interval",
+               "children": [
+                {
+                 "t": "text",
+                 "name": "postHocEsCiWidth",
+                 "label": "",
+                 "format": "number"
+                }
+               ]
               }
              ]
             }
@@ -2355,7 +2477,21 @@ window.JMV_SPECS = {
     "name": "effectSize",
     "type": "NMXList",
     "title": "Effect Size",
-    "default": null
+    "default": null,
+    "choices": [
+     {
+      "value": "eta",
+      "title": "η²"
+     },
+     {
+      "value": "partEta",
+      "title": "partial η²"
+     },
+     {
+      "value": "omega",
+      "title": "ω²"
+     }
+    ]
    },
    {
     "name": "modelTest",
@@ -2425,13 +2561,41 @@ window.JMV_SPECS = {
     "title": "Correction",
     "default": [
      "tukey"
+    ],
+    "choices": [
+     {
+      "value": "none",
+      "title": "No correction"
+     },
+     {
+      "value": "tukey",
+      "title": "Tukey"
+     },
+     {
+      "value": "scheffe",
+      "title": "Scheffe"
+     },
+     {
+      "value": "bonf",
+      "title": "Bonferroni"
+     },
+     {
+      "value": "holm",
+      "title": "Holm"
+     }
     ]
    },
    {
     "name": "postHocES",
     "type": "NMXList",
     "title": "Effect size",
-    "default": []
+    "default": [],
+    "choices": [
+     {
+      "value": "d",
+      "title": "Cohen's d"
+     }
+    ]
    },
    {
     "name": "postHocEsCi",
@@ -2544,6 +2708,36 @@ window.JMV_SPECS = {
          ]
         }
        ]
+      },
+      {
+       "col": 1,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Effect Size",
+         "children": [
+          {
+           "t": "checkpart",
+           "option": "effectSize",
+           "part": "eta",
+           "label": "eta"
+          },
+          {
+           "t": "checkpart",
+           "option": "effectSize",
+           "part": "partEta",
+           "label": "partEta"
+          },
+          {
+           "t": "checkpart",
+           "option": "effectSize",
+           "part": "omega",
+           "label": "omega"
+          }
+         ]
+        }
+       ]
       }
      ]
     },
@@ -2587,6 +2781,48 @@ window.JMV_SPECS = {
        "t": "grid",
        "cells": [
         {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Correction",
+           "children": [
+            {
+             "t": "checkpart",
+             "option": "postHocCorr",
+             "part": "none",
+             "label": "none"
+            },
+            {
+             "t": "checkpart",
+             "option": "postHocCorr",
+             "part": "tukey",
+             "label": "tukey"
+            },
+            {
+             "t": "checkpart",
+             "option": "postHocCorr",
+             "part": "scheffe",
+             "label": "scheffe"
+            },
+            {
+             "t": "checkpart",
+             "option": "postHocCorr",
+             "part": "bonf",
+             "label": "bonf"
+            },
+            {
+             "t": "checkpart",
+             "option": "postHocCorr",
+             "part": "holm",
+             "label": "holm"
+            }
+           ]
+          }
+         ]
+        },
+        {
          "col": 1,
          "row": 0,
          "children": [
@@ -2595,15 +2831,23 @@ window.JMV_SPECS = {
            "label": "Effect Size",
            "children": [
             {
-             "t": "check",
-             "name": "postHocEsCi",
-             "label": "Confidence interval",
+             "t": "checkpart",
+             "option": "postHocES",
+             "part": "d",
+             "label": "d",
              "children": [
               {
-               "t": "text",
-               "name": "postHocEsCiWidth",
-               "label": "",
-               "format": "number"
+               "t": "check",
+               "name": "postHocEsCi",
+               "label": "Confidence interval",
+               "children": [
+                {
+                 "t": "text",
+                 "name": "postHocEsCiWidth",
+                 "label": "",
+                 "format": "number"
+                }
+               ]
               }
              ]
             }
@@ -2681,6 +2925,187 @@ window.JMV_SPECS = {
              "name": "emmPlotData"
             }
            ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "mancova": {
+  "name": "mancova",
+  "ns": "jmv",
+  "title": "MANCOVA",
+  "menuGroup": "ANOVA",
+  "menuSubgroup": "",
+  "menuTitle": "MANCOVA",
+  "menuSubtitle": "",
+  "options": [
+   {
+    "name": "deps",
+    "type": "Variables",
+    "title": "Dependent Variables",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "factors",
+    "type": "Variables",
+    "title": "Factors",
+    "default": null,
+    "suggested": [
+     "nominal",
+     "ordinal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "covs",
+    "type": "Variables",
+    "title": "Covariates",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "multivar",
+    "type": "NMXList",
+    "title": "Multivariate Statistics",
+    "default": [
+     "pillai",
+     "wilks",
+     "hotel",
+     "roy"
+    ],
+    "choices": [
+     {
+      "value": "pillai",
+      "title": "Pillai's Trace"
+     },
+     {
+      "value": "wilks",
+      "title": "Wilks' Lambda"
+     },
+     {
+      "value": "hotel",
+      "title": "Hotelling's Trace"
+     },
+     {
+      "value": "roy",
+      "title": "Roy's Largest Root"
+     }
+    ]
+   },
+   {
+    "name": "boxM",
+    "type": "Bool",
+    "title": "Box's M test for homogeneity of covariance matrices",
+    "default": false
+   },
+   {
+    "name": "shapiro",
+    "type": "Bool",
+    "title": "Shapiro-Wilk test for multivariate normality",
+    "default": false
+   },
+   {
+    "name": "qqPlot",
+    "type": "Bool",
+    "title": "Q-Q plot of multivariate normality",
+    "default": false
+   }
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "deps"
+      },
+      {
+       "name": "factors"
+      },
+      {
+       "name": "covs"
+      }
+     ]
+    },
+    {
+     "t": "grid",
+     "cells": [
+      {
+       "col": 0,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Multivariate Statistics",
+         "children": [
+          {
+           "t": "checkpart",
+           "option": "multivar",
+           "part": "pillai",
+           "label": "pillai"
+          },
+          {
+           "t": "checkpart",
+           "option": "multivar",
+           "part": "wilks",
+           "label": "wilks"
+          },
+          {
+           "t": "checkpart",
+           "option": "multivar",
+           "part": "hotel",
+           "label": "hotel"
+          },
+          {
+           "t": "checkpart",
+           "option": "multivar",
+           "part": "roy",
+           "label": "roy"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "col": 1,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Assumption Checks",
+         "children": [
+          {
+           "t": "check",
+           "name": "boxM",
+           "label": "Box's M test"
+          },
+          {
+           "t": "check",
+           "name": "shapiro",
+           "label": "Shapiro-Wilk test"
+          },
+          {
+           "t": "check",
+           "name": "qqPlot"
           }
          ]
         }
@@ -4077,6 +4502,24 @@ window.JMV_SPECS = {
     "title": "Pseudo R²",
     "default": [
      "r2mf"
+    ],
+    "choices": [
+     {
+      "value": "r2mf",
+      "title": "McFadden's R²"
+     },
+     {
+      "value": "r2cs",
+      "title": "Cox & Snell's R²"
+     },
+     {
+      "value": "r2n",
+      "title": "Nagelkerke's R²"
+     },
+     {
+      "value": "r2t",
+      "title": "Tjur's R²"
+     }
     ]
    },
    {
@@ -4284,7 +4727,38 @@ window.JMV_SPECS = {
         {
          "col": 1,
          "row": 0,
-         "children": []
+         "children": [
+          {
+           "t": "label",
+           "label": "Pseudo R²",
+           "children": [
+            {
+             "t": "checkpart",
+             "option": "pseudoR2",
+             "part": "r2mf",
+             "label": "r2mf"
+            },
+            {
+             "t": "checkpart",
+             "option": "pseudoR2",
+             "part": "r2cs",
+             "label": "r2cs"
+            },
+            {
+             "t": "checkpart",
+             "option": "pseudoR2",
+             "part": "r2n",
+             "label": "r2n"
+            },
+            {
+             "t": "checkpart",
+             "option": "pseudoR2",
+             "part": "r2t",
+             "label": "r2t"
+            }
+           ]
+          }
+         ]
         }
        ]
       }
@@ -4606,6 +5080,20 @@ window.JMV_SPECS = {
     "title": "Pseudo R²",
     "default": [
      "r2mf"
+    ],
+    "choices": [
+     {
+      "value": "r2mf",
+      "title": "McFadden's R²"
+     },
+     {
+      "value": "r2cs",
+      "title": "Cox & Snell's R²"
+     },
+     {
+      "value": "r2n",
+      "title": "Nagelkerke's R²"
+     }
     ]
    },
    {
@@ -4746,7 +5234,32 @@ window.JMV_SPECS = {
         {
          "col": 1,
          "row": 0,
-         "children": []
+         "children": [
+          {
+           "t": "label",
+           "label": "Pseudo R²",
+           "children": [
+            {
+             "t": "checkpart",
+             "option": "pseudoR2",
+             "part": "r2mf",
+             "label": "r2mf"
+            },
+            {
+             "t": "checkpart",
+             "option": "pseudoR2",
+             "part": "r2cs",
+             "label": "r2cs"
+            },
+            {
+             "t": "checkpart",
+             "option": "pseudoR2",
+             "part": "r2n",
+             "label": "r2n"
+            }
+           ]
+          }
+         ]
         }
        ]
       }
@@ -4986,6 +5499,20 @@ window.JMV_SPECS = {
     "title": "Pseudo R²",
     "default": [
      "r2mf"
+    ],
+    "choices": [
+     {
+      "value": "r2mf",
+      "title": "McFadden's R²"
+     },
+     {
+      "value": "r2cs",
+      "title": "Cox & Snell's R²"
+     },
+     {
+      "value": "r2n",
+      "title": "Nagelkerke's R²"
+     }
     ]
    },
    {
@@ -5092,7 +5619,32 @@ window.JMV_SPECS = {
         {
          "col": 1,
          "row": 0,
-         "children": []
+         "children": [
+          {
+           "t": "label",
+           "label": "Pseudo R²",
+           "children": [
+            {
+             "t": "checkpart",
+             "option": "pseudoR2",
+             "part": "r2mf",
+             "label": "r2mf"
+            },
+            {
+             "t": "checkpart",
+             "option": "pseudoR2",
+             "part": "r2cs",
+             "label": "r2cs"
+            },
+            {
+             "t": "checkpart",
+             "option": "pseudoR2",
+             "part": "r2n",
+             "label": "r2n"
+            }
+           ]
+          }
+         ]
         }
        ]
       }
@@ -6262,6 +6814,20 @@ window.JMV_SPECS = {
     "title": "Pseudo R²",
     "default": [
      "r2mf"
+    ],
+    "choices": [
+     {
+      "value": "r2mf",
+      "title": "McFadden's R²"
+     },
+     {
+      "value": "r2cs",
+      "title": "Cox & Snell's R²"
+     },
+     {
+      "value": "r2n",
+      "title": "Nagelkerke's R²"
+     }
     ]
    },
    {
@@ -6399,7 +6965,32 @@ window.JMV_SPECS = {
         {
          "col": 1,
          "row": 0,
-         "children": []
+         "children": [
+          {
+           "t": "label",
+           "label": "Pseudo R²",
+           "children": [
+            {
+             "t": "checkpart",
+             "option": "pseudoR2",
+             "part": "r2mf",
+             "label": "r2mf"
+            },
+            {
+             "t": "checkpart",
+             "option": "pseudoR2",
+             "part": "r2cs",
+             "label": "r2cs"
+            },
+            {
+             "t": "checkpart",
+             "option": "pseudoR2",
+             "part": "r2n",
+             "label": "r2n"
+            }
+           ]
+          }
+         ]
         }
        ]
       }
