@@ -1628,13 +1628,16 @@
         // (search data → script in the active mode's language → run → revise).
         function sendCurrent() {
           if (window.NotebookLinks && window.NotebookLinks.urlHasMicro(location.href)) {
-            sendMessage(true);
+            // v2-flyten (2-stegs variabelvalg + auto-retting) gir best svar;
+            // enstegsflyten nås ikke lenger fra UI.
+            sendMessage(true, true);
           } else {
             sendWebMessage();
           }
         }
         if (dom.aiSendFastBtn) dom.aiSendFastBtn.addEventListener('click', sendCurrent);
-        if (dom.aiSendV2Btn) dom.aiSendV2Btn.addEventListener('click', () => sendMessage(true, true));
+        // Send⚗︎ er nå bakt inn i Send (micro-URL → v2); knappen holdes skjult.
+        if (dom.aiSendV2Btn) { dom.aiSendV2Btn.style.display = 'none'; dom.aiSendV2Btn.addEventListener('click', () => sendMessage(true, true)); }
         // The old Web button is subsumed by the URL-routed Send (non-micro uses
         // data-svar); keep it permanently hidden.
         if (dom.aiSendWebBtn) { dom.aiSendWebBtn.style.display = 'none'; dom.aiSendWebBtn.addEventListener('click', () => { sendWebMessage(); }); }
