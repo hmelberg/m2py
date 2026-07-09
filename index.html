@@ -5024,7 +5024,12 @@
       bodyEl.innerHTML = '<div class="individata-status">' + t('Henter data …') + '</div>';
       overlay.classList.add('open');
       overlay.setAttribute('aria-hidden', 'false');
-      if (!pyodide) {
+      // R-datasett (runtime:'r' i sidepanel-infoen): hent radene fra webR i
+      // NØYAKTIG samme JSON-form som python-veien — Tabulator-renderingen
+      // under er felles og uendret.
+      var _idIsR = !!(window.lastDatasetInfo && window.lastDatasetInfo[datasetName]
+        && window.lastDatasetInfo[datasetName].runtime === 'r');
+      if (!_idIsR && !pyodide) {
         bodyEl.innerHTML = '<div class="individata-status error">' + t('Kjør et skript først så datasettet er lastet inn.') + '</div>';
         return;
       }
@@ -5033,6 +5038,32 @@
         return;
       }
       try {
+        var info;
+        if (_idIsR) {
+          try { await webR.installPackages(['jsonlite'], { quiet: true }); } catch (e) {}
+          var _rj = await webR.evalR(
+            'local({\n' +
+            '  v <- get(' + JSON.stringify(datasetName) + ', envir = .GlobalEnv)\n' +
+            (columnName ? '  v <- v[, ' + JSON.stringify(columnName) + ', drop = FALSE]\n' : '') +
+            '  total <- nrow(v)\n' +
+            '  shown <- if (total > 5000) utils::head(v, 5000) else v\n' +
+            '  dt <- vapply(shown, function(col) {\n' +
+            '    k <- class(col)[1]\n' +
+            '    switch(k, numeric = "float64", integer = "int64", character = "object",\n' +
+            '           logical = "bool", factor = "category", Date = "object", k)\n' +
+            '  }, character(1))\n' +
+            '  as.character(jsonlite::toJSON(list(\n' +
+            '    columns = as.character(names(shown)), dtypes = as.list(dt),\n' +
+            '    total_rows = total, shown_rows = nrow(shown),\n' +
+            '    rows_json = as.character(jsonlite::toJSON(shown, dataframe = "rows", na = "null", digits = NA))\n' +
+            '  ), auto_unbox = TRUE))\n' +
+            '})');
+          try {
+            info = JSON.parse(((await _rj.toJs()).values || [])[0]);
+          } finally {
+            try { await webR.destroy(_rj); } catch (e) {}
+          }
+        } else {
         pyodide.globals.set('_individata_name', datasetName);
         pyodide.globals.set('_individata_col', columnName || null);
         var raw = await pyodide.runPythonAsync(
@@ -5053,7 +5084,8 @@
           '})'
         );
         var raw2 = typeof raw === 'string' ? raw : (raw && raw.toJs ? raw.toJs() : String(raw));
-        var info = JSON.parse(raw2);
+        info = JSON.parse(raw2);
+        }
         var rows = JSON.parse(info.rows_json || '[]');
         var total = info.total_rows;
         var shown = info.shown_rows;
@@ -5231,20 +5263,20 @@
           showVariableDetail(ds, v);
         });
       });
+      // (Individata-modalen har egen R-vei — bare distribusjonsvisningen
+      // showVariableDetail over er fortsatt py-bundet og gates.)
       datasetsEl.querySelectorAll('.sidebar-var-view-btn').forEach(function(btn) {
         btn.addEventListener('click', function(e) {
           e.stopPropagation();
           var row = this.closest('.sidebar-var-row');
           var ds = row && row.getAttribute('data-ds');
           var v = row && row.getAttribute('data-var');
-          if (ds && isRDataset(ds)) return rDatasetNotice();
           if (ds && v && window.__isDatasetViewable(ds)) showIndividataModal(ds, v);
         });
       });
       datasetsEl.querySelectorAll('.sidebar-dataset-name').forEach(function(el) {
         el.addEventListener('click', function() {
           var ds = this.getAttribute('data-ds');
-          if (ds && isRDataset(ds)) return rDatasetNotice();
           if (ds && window.__isDatasetViewable(ds)) showIndividataModal(ds);
         });
       });
@@ -8313,6 +8345,40 @@ json.dumps(out)
         (_asmRes.notes || []).forEach(function (n) { console.log('[montering]', n); });
         _loadsR = [];   // datasettene er allerede montert og bundet i webR
       }
+      // "# use <navn> from python": kopiér pandas-rammer inn som parquet-
+      // loads i webR (speilbildet av python-sidens use from r). Krever en
+      // EKSISTERENDE python-økt — vi tvinger aldri frem Pyodide-lasting i
+      // R-modus (fase 1); uten økt finnes det uansett ingen data å hente.
+      var _useR = window.DataDirectives.parseUse(src);
+      if (_useR.errors.length) throw new Error(_useR.errors.join('; '));
+      for (var _uri = 0; _uri < _useR.uses.length; _uri++) {
+        var _ur = _useR.uses[_uri];
+        if (_ur.from !== 'python') throw new Error(t('use «{name}» from r: du er allerede i R — mente du from python?', { name: _ur.name }));
+        if (!__pyodidePromise) throw new Error(t('use «{name}» from python: ingen python-økt i denne fanen — kjør python-scriptet først', { name: _ur.name }));
+        var _upy = await loadPyodideAndM2py();
+        await ensurePyarrowFor(_upy);          // to_parquet trenger pyarrow-motoren
+        var _urPath = '/tmp/_use_' + _ur.name + '.parquet';
+        var _urGlue = [
+          'import __main__ as _m_u',
+          '_df_u = None',
+          'try:',
+          '    _df_u = _m_u.micro_interpreter.datasets.get(' + JSON.stringify(_ur.name) + ')',
+          'except Exception:',
+          '    pass',
+          'if _df_u is None:',
+          '    _df_u = getattr(_m_u, ' + JSON.stringify(_ur.name) + ', None)',
+          'if _df_u is None:',
+          '    _g_u = getattr(_m_u, "_g", None)',
+          '    if isinstance(_g_u, dict):',
+          '        _df_u = _g_u.get(' + JSON.stringify(_ur.name) + ')',
+          'if _df_u is None:',
+          '    raise NameError(' + JSON.stringify('use «' + _ur.name + '» from python: fant ingen dataframe «' + _ur.name + '» i python-økten') + ')',
+          '_df_u.to_parquet(' + JSON.stringify(_urPath) + ', index=False)',
+        ].join('\n');
+        await _upy.runPythonAsync(_urGlue);
+        _loadsR.push({ alias: _ur.name, format: 'parquet', bytes: _upy.FS.readFile(_urPath) });
+        try { _upy.FS.unlink(_urPath); } catch (e) {}
+      }
       if (_loadsR.length && _loadsR.some(function (l) { return l.format === 'json'; })) {
         try { await webR.installPackages(['jsonlite'], { quiet: true }); } catch (e) {
           console.warn('R jsonlite install error:', e);
@@ -9960,6 +10026,23 @@ options(width = 200)
           if (activeEditorMode === 'duckdb') {
             var _htmlLoad = _rawLoads.find(function (l) { return l.format === 'html'; });
             if (_htmlLoad) throw new Error(t('html-kilder støttes ikke i duckdb-modus ({alias}) — bruk python/r', { alias: _htmlLoad.alias }));
+          }
+          // "# use <navn> from r": kopiér R-rammer inn som parquet-loads —
+          // rir hele den eksisterende materialiserings-pipelinen (kopi-
+          // semantikk; endringer i én runtime smitter ikke).
+          var _useP = window.DataDirectives.parseUse(effectiveScript);
+          if (_useP.errors.length) throw new Error(_useP.errors.join('; '));
+          for (var _ui = 0; _ui < _useP.uses.length; _ui++) {
+            var _u = _useP.uses[_ui];
+            if (_u.from !== 'r') throw new Error(t('use «{name}» from python: du er allerede i python — mente du from r?', { name: _u.name }));
+            if (!webRReady || !webR) throw new Error(t('use «{name}» from r: ingen R-økt i denne fanen — kjør R-scriptet først', { name: _u.name }));
+            var _uchk = await webR.evalR('exists(' + JSON.stringify(_u.name) + ', envir = .GlobalEnv) && is.data.frame(get(' + JSON.stringify(_u.name) + ', envir = .GlobalEnv))');
+            var _uok = false;
+            try { _uok = !!((await _uchk.toJs()).values || [])[0]; } finally { try { await webR.destroy(_uchk); } catch (e) {} }
+            if (!_uok) throw new Error(t('use «{name}» from r: fant ingen data.frame «{name}» i R-økten', { name: _u.name }));
+            var _upath = '/tmp/_use_' + _u.name + '.parquet';
+            await webR.evalRVoid('nanoparquet::write_parquet(get(' + JSON.stringify(_u.name) + ', envir = .GlobalEnv), ' + JSON.stringify(_upath) + ')');
+            _rawLoads.push({ alias: _u.name, format: 'parquet', bytes: await webR.FS.readFile(_upath) });
           }
           if (_rawLoads.some(function (l) { return l.bytes; })) py.FS.mkdirTree('/home/pyodide/_webdata');
           _pyLoads = await Promise.all(_rawLoads.map(async function (l) {

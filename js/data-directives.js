@@ -172,5 +172,21 @@
     return { spec: { sources: Object.keys(sources), datasets: datasets, sourceTables: sourceTables }, errors: errors };
   }
 
-  global.DataDirectives = { parse: parse, resolve: resolve, scrubKeys: scrubKeys, parseAssembly: parseAssembly, parseOptions: parseOptions };
+  // "# use <navn> from r|python" — kryssruntime-kopi av et datasett (parquet-
+  // bro, kopisemantikk: endringer smitter ikke). Ren parsing; overføringen
+  // gjøres av index.html i materialiseringsfasen for hver modus.
+  var USE_RE = /^[ \t]*(?:#|--|\/\/)[ \t]*use[ \t]+(\S+)[ \t]+from[ \t]+(\S+)[ \t]*$/gim;
+  function parseUse(script) {
+    var uses = [], errors = [], m;
+    USE_RE.lastIndex = 0;
+    while ((m = USE_RE.exec(script || '')) !== null) {
+      var name = m[1], from = m[2].toLowerCase();
+      if (!/^[A-Za-z_]\w*$/.test(name)) { errors.push('ugyldig datasettnavn i use: «' + name + '»'); continue; }
+      if (from !== 'r' && from !== 'python') { errors.push('use «' + name + '»: kilde må være r eller python, fikk «' + m[2] + '»'); continue; }
+      uses.push({ name: name, from: from });
+    }
+    return { uses: uses, errors: errors };
+  }
+
+  global.DataDirectives = { parse: parse, resolve: resolve, scrubKeys: scrubKeys, parseAssembly: parseAssembly, parseOptions: parseOptions, parseUse: parseUse };
 })(typeof window !== 'undefined' ? window : globalThis);

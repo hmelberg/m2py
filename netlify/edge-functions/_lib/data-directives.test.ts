@@ -240,3 +240,26 @@ Deno.test("parseAssembly: existing plain load-as (no slash) is unaffected", () =
   const ploaded = spec.datasets.find((d: { name: string }) => d.name === "ploaded");
   assertEquals(ploaded.load, "p");
 });
+
+Deno.test("parseUse: use <navn> from r|python, alle markørtripler", () => {
+  const script = [
+    "# use df from r",
+    "// use tall from python",
+    "-- use x  from  R",
+    "x = 1  # use ikke from r",       // ikke på linjestart → ignoreres
+    "# use 9bad from r",              // ugyldig navn → error
+    "# use y from julia",             // ukjent kilde → error
+  ].join("\n");
+  const u = DD.parseUse(script);
+  assertEquals(u.uses, [
+    { name: "df", from: "r" },
+    { name: "tall", from: "python" },
+    { name: "x", from: "r" },
+  ]);
+  assertEquals(u.errors.length, 2);
+});
+
+Deno.test("parseUse: tom/ingen direktiver", () => {
+  assertEquals(DD.parseUse("print(1)").uses, []);
+  assertEquals(DD.parseUse("").errors, []);
+});
