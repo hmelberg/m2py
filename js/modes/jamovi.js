@@ -627,7 +627,11 @@
           // jmv::mancova/anova i webR — jmv aksepterer en tom character-vektor og tegner
           // da bare tabellen uten noen av de radene, akkurat som å skru av alt i skrivebord-
           // jamovi). Se rapporten for verifiseringen.
-          if (JSON.stringify(v) === JSON.stringify(o.default)) return;
+          // Default-sammenligningen er rekkefølge-uavhengig (sortert kopi): dagens
+          // defaults deler tilfeldigvis options-rekkefølgen med checkpart-togglingens
+          // choices-rebuild, men det er en invariant vi ikke vil lene oss på. Selve
+          // emisjonen bruker fortsatt v som den er (choices-rekkefølge).
+          if (JSON.stringify(v.slice().sort()) === JSON.stringify((o.default || []).slice().sort())) return;
           args.push(o.name + ' = ' + (v.length ? 'c(' + v.map(rQuote).join(', ') + ')' : 'character(0)'));
           return;
         }
@@ -902,7 +906,14 @@
           var rowp = document.createElement('label'); rowp.className = 'jmv-opt-row';
           var cbp = document.createElement('input'); cbp.type = 'checkbox';
           cbp.checked = (values[node.option] || []).indexOf(node.part) !== -1;
-          rowp.appendChild(cbp); rowp.appendChild(document.createTextNode(node.label));
+          // Etikett: u.yaml-label hvis satt; ellers choice-tittelen fra a.yaml
+          // (f.eks. "Pillai's Trace" i stedet for råkoden 'pillai'); ellers part-koden.
+          var partLabel = node.label;
+          if (!partLabel || partLabel === node.part) {
+            var choice = (op.choices || []).filter(function (c) { return c.value === node.part; })[0];
+            partLabel = (choice && choice.title) || node.part;
+          }
+          rowp.appendChild(cbp); rowp.appendChild(document.createTextNode(partLabel));
           parent.appendChild(rowp);
           var subWrapP = null;
           if (node.children && node.children.length) {
