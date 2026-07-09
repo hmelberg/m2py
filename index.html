@@ -3859,6 +3859,15 @@
     }
 
     // ── Editor mode switching ────────────────────────────────────────────────
+    // Hvilken runtime en modus trenger ved kjøring/oppstart. Nye lette
+    // moduser (f.eks. brython) er én ny rad + en loader — guardene i
+    // btnRun/bootstrap/modusbytte ruter alle gjennom runtimeForMode()
+    // (plan 2026-07-09: R uten Pyodide, fremtidig brython/subdomene-boot).
+    var RUNTIME_FOR_MODE = { python: 'pyodide', microdata: 'pyodide', duckdb: 'pyodide',
+                             jamovi: 'pyodide', jamovilight: 'pyodide', statx: 'pyodide',
+                             safestat: 'pyodide', r: 'webr' };
+    function runtimeForMode(id) { return RUNTIME_FOR_MODE[id] || 'pyodide'; }  // ukjent → trygt valg
+
     function switchEditorMode(newMode) {
       // Save departing mode's content and breakpoints
       const si = document.getElementById('scriptInput');
@@ -3883,6 +3892,18 @@
       applyInputForMode(newMode);
       // Lazy-load this mode's runtime if it needs one (e.g. R → webR).
       var _ma = currentMode(); if (_ma.onActivate) _ma.onActivate();
+      // Varmlast Pyodide ved bytte TIL en pyodide-modus (siden fase 1 booter
+      // r-oppstart uten den). setTimeout(0) er påkrevd: switchEditorMode
+      // kalles synkront fra restoreEditorMode() før `let __pyodidePromise`
+      // er initialisert (TDZ) — utsettelsen lar init-blokken fullføre først.
+      if (runtimeForMode(newMode) === 'pyodide') {
+        setTimeout(function () {
+          loadPyodideAndM2py().then(function (py) {
+            if (!scriptRunInProgress) setRunButtonsUi('idle');
+            schedulePrefetchLazyPackages(py);
+          }).catch(function () {});
+        }, 0);
+      }
       // Refresh the GitHub save indicator: hide the floppy when the bound file's
       // extension no longer matches the active mode (cross-IIFE via window).
       if (window.mdGithubRefreshIndicator) window.mdGithubRefreshIndicator();
@@ -4330,6 +4351,7 @@
     // onActivate → loadWebR() synkront, og let-bindingene må være
     // initialisert da (TDZ-krasj ved reload i r-modus før denne flyttingen).
     let webR = null, webRReady = false, webRLoading = false, webRShelter = null;
+    let webRPromise = null;   // memoisert loadWebR (samme mønster som __pyodidePromise)
     (function restoreEditorMode() {
       var saved = null;
       try { saved = localStorage.getItem('md_editor_mode'); } catch (e) {}
@@ -8248,6 +8270,9 @@ json.dumps(out)
       if (microdataSegs.length > 0) {
         try {
           setStatus(rightStatus, t('Setter opp data…'));
+          // R-modus kjører uten Pyodide siden fase 1 (btnRun sender py=null) —
+          // microdata-segmenter er unntaket som lazy-laster den her.
+          if (!py) py = await loadPyodideAndM2py();
           // Build catalog JSON to pass to Python for label application
           var _catJson = (microdataCatalog && microdataCatalog.variables)
             ? JSON.stringify(microdataCatalog.variables) : '{}';
@@ -9420,8 +9445,22 @@ _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
       if (q) q.addEventListener('click', function() { showOfflineTranslation('polars'); });
     })();
 
-    async function loadWebR() {
-      if (webRReady || webRLoading) return;
+    // Memoisert etter mønster av __pyodidePromise: FØR denne wrapperen
+    // returnerte et nr. 2-kall umiddelbart mens lastingen fortsatt pågikk
+    // (webRLoading-tidligreturen), så "await loadWebR()" i bootstrap/autorun
+    // kunne fortsette før R var klar. Resolver alltid (aldri reject) —
+    // callere sjekker webRReady; promisen nullstilles ved feil så nytt
+    // forsøk er mulig.
+    function loadWebR() {
+      // Promise.resolve().then(): impl-en må ALDRI kjøre synkront — første
+      // kall kommer via restoreEditorMode() → onActivate under init, før
+      // let/const lenger ned i blokken (BTN_RUN_GEARS_HTML, explainRunActive
+      // m.fl. brukt av setRunButtonsUi) er initialisert (TDZ).
+      if (!webRPromise) webRPromise = Promise.resolve().then(_loadWebRImpl);
+      return webRPromise;
+    }
+    async function _loadWebRImpl() {
+      if (webRReady) return;
       webRLoading = true;
       setRunButtonsUi('loading');
       setStatus(leftStatus, t('Laster WebR…'));
@@ -9492,6 +9531,7 @@ options(width = 200)
       } catch(e) {
         webRLoading = false;
         webR = null;
+        webRPromise = null;                      // nytt loadWebR()-kall pr\u00f8ver p\u00e5 nytt
         setRunButtonsUi('idle');
         setStatus(leftStatus, t('WebR feilet: {msg}', { msg: e.message || e }), true);
         if (activeEditorMode === 'r') {
@@ -9505,6 +9545,9 @@ options(width = 200)
     // installerer pakkene i Pyodide før brukeren trenger dem. Feiler stille —
     // eksisterende auto-install i run-handleren håndterer ev. utelatte pakker.
     function schedulePrefetchLazyPackages(py) {
+      // Idempotent: kan nå kalles både fra bootstrap og modusbytte-varmlasting.
+      if (schedulePrefetchLazyPackages._done) return;
+      schedulePrefetchLazyPackages._done = true;
       var pkgs = ['statsmodels', 'matplotlib', 'linearmodels'];
       var go = function () {
         py.runPythonAsync(
@@ -9538,29 +9581,42 @@ options(width = 200)
       }
     }
 
-    // Start loading Pyodide and dependencies in the background as soon as possible
-    loadPyodideAndM2py()
-      .then(function(py) {
-        // B2 (docs/REVIEW_2026-07-07.md §3): if the user already started a run
-        // while Pyodide was still loading, don't reset the run buttons to idle
-        // or auto-click Kjør — that click would be read as performRunInterrupt()
-        // on the user's in-flight run (see the click handler below).
-        var _nbCls = window.NotebookLinks ? window.NotebookLinks.classifyHash(location.hash) : null;
-        var _nbFrag = !!(_nbCls && _nbCls.kind !== 'share');
-        if (!scriptRunInProgress && !_nbFrag) {
-          setRunButtonsUi('idle');
-          // Auto-kjør starteksempelet hvis brukeren ikke har endret teksten
-          if (STARTUP_EXAMPLES[activeEditorMode] && scriptInput.value.trim() === STARTUP_EXAMPLES[activeEditorMode].trim()) {
-            document.getElementById('btnRun').click();
-          }
-        } else if (!scriptRunInProgress) {
-          setRunButtonsUi('idle');
+    // Felles etterarbeid når aktiv modus' runtime er klar (py er null for
+    // ikke-Pyodide-runtimes som webR).
+    function runtimeReadyBootstrap(py) {
+      // B2 (docs/REVIEW_2026-07-07.md §3): if the user already started a run
+      // while Pyodide was still loading, don't reset the run buttons to idle
+      // or auto-click Kjør — that click would be read as performRunInterrupt()
+      // on the user's in-flight run (see the click handler below).
+      var _nbCls = window.NotebookLinks ? window.NotebookLinks.classifyHash(location.hash) : null;
+      var _nbFrag = !!(_nbCls && _nbCls.kind !== 'share');
+      if (!scriptRunInProgress && !_nbFrag) {
+        setRunButtonsUi('idle');
+        // Auto-kjør starteksempelet hvis brukeren ikke har endret teksten
+        if (STARTUP_EXAMPLES[activeEditorMode] && scriptInput.value.trim() === STARTUP_EXAMPLES[activeEditorMode].trim()) {
+          document.getElementById('btnRun').click();
         }
-        schedulePrefetchLazyPackages(py);
-      })
-      .catch(function(e) {
-        setStatus(leftStatus, 'Load failed: ' + (e && e.message ? e.message : String(e)), true);
+      } else if (!scriptRunInProgress) {
+        setRunButtonsUi('idle');
+      }
+      if (py) schedulePrefetchLazyPackages(py);
+    }
+
+    // Ivrig lasting av AKTIV modus' runtime — ikke alltid Pyodide (plan
+    // 2026-07-09 fase 1: r-modus/r.-subdomene booter kun webR; senere
+    // brython → egen gren her).
+    if (runtimeForMode(activeEditorMode) === 'webr') {
+      loadWebR().then(function () {
+        if (webRReady) runtimeReadyBootstrap(null);
+        // lastefeil: loadWebR har alt vist feilmelding; knappene står idle.
       });
+    } else {
+      loadPyodideAndM2py()
+        .then(runtimeReadyBootstrap)
+        .catch(function(e) {
+          setStatus(leftStatus, 'Load failed: ' + (e && e.message ? e.message : String(e)), true);
+        });
+    }
 
     // Web AI mode (Task 13, js/ai-chat.js runScriptAndCaptureError): the Kjør
     // click handler below has no return value of its own, so the auto-run/
@@ -9683,10 +9739,13 @@ options(width = 200)
       let py = null;
       let incrementalStarted = false;
       try {
-        py = await loadPyodideAndM2py();
+        // Moduser med lett runtime (webr, senere brython) skal ikke betale
+        // Pyodide-lastingen (10-30 s kaldt) — de py-avhengige blokkene i
+        // runHybridR henter sin egen ved behov (plan 2026-07-09 fase 1).
+        py = (runtimeForMode(activeEditorMode) !== 'pyodide') ? null : await loadPyodideAndM2py();
         let stdout = '';
         let stderr = '';
-        if (typeof py.setStdout === 'function') {
+        if (py && typeof py.setStdout === 'function') {
           py.setStdout({ batched: s => {
             // Filtrer bort Pyodide/micropip pakke-lastemeldinger (bakgrunns-prefetch)
             // som ellers lekker inn i output ved første kjøring.
@@ -9700,7 +9759,7 @@ options(width = 200)
             stdout += f + '\n';
           } });
         }
-        if (typeof py.setStderr === 'function') {
+        if (py && typeof py.setStderr === 'function') {
           py.setStderr({ batched: s => { stderr += s + '\n'; } });
         }
         // ── Parse inline-direktiver fra scriptet (f.eks.
