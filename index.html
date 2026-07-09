@@ -504,7 +504,7 @@
       </button>
       <div style="width:1px;height:20px;background:var(--border);margin:0 6px;flex-shrink:0"></div>
       <div class="mode-dropdown-wrap">
-        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg språk (Microdata, Python, R, Statx, jamovi, DuckDB, SafeStat)">
+        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg språk (Microdata, Python, R, Statx, Jamovi, Jamovi light, DuckDB, SafeStat)">
           <span id="editorModeLabel">Microdata</span>
           <span class="chevron">▲</span>
         </button>
@@ -513,7 +513,8 @@
           <button type="button" data-mode="python">Python</button>
           <button type="button" data-mode="r">R</button>
           <button type="button" data-mode="statx">Statx</button>
-          <button type="button" data-mode="jamovi">jamovi</button>
+          <button type="button" data-mode="jamovi">Jamovi</button>
+          <button type="button" data-mode="jamovilight">Jamovi light</button>
           <button type="button" data-mode="duckdb">DuckDB</button>
           <button type="button" data-mode="safestat">SafeStat</button>
         </div>
@@ -3808,10 +3809,10 @@
       return modeRegistry[activeEditorMode] || modeRegistry.microdata;
     }
 
-    // Input-panel visibility: jamovi hides it by default; other modes use the user pref.
+    // Input-panel visibility: jamovi/jamovilight hide it by default; other modes use the user pref.
     var _inputHiddenPref = false;
-    window.mdOnInputToggle = function(h){ if (activeEditorMode !== 'jamovi') _inputHiddenPref = !!h; };
-    function applyInputForMode(mode){ if (window.mdSetInputHidden) window.mdSetInputHidden(mode === 'jamovi' ? true : _inputHiddenPref); }
+    window.mdOnInputToggle = function(h){ if (activeEditorMode !== 'jamovi' && activeEditorMode !== 'jamovilight') _inputHiddenPref = !!h; };
+    function applyInputForMode(mode){ if (window.mdSetInputHidden) window.mdSetInputHidden((mode === 'jamovi' || mode === 'jamovilight') ? true : _inputHiddenPref); }
 
     // ── Editor mode switching ────────────────────────────────────────────────
     function switchEditorMode(newMode) {
@@ -4003,7 +4004,7 @@
       getWebR: function(){ return webR; },
       ensureWebRShelter: async function(){ if (!webRReady) await loadWebR(); if (!webRShelter) webRShelter = await new webR.Shelter(); return webRShelter; }
     };
-    var MODE_MODULES = { jamovi: { js: ['js/modes/jmv_specs.js', 'js/modes/jamovi.js'], css: 'css/modes/jamovi.css' } };
+    var MODE_MODULES = { jamovi: { js: ['js/modes/jmv_specs.js', 'js/modes/jamovi.js'], css: 'css/modes/jamovi.css' }, jamovilight: { js: 'js/modes/jamovi_light.js', css: 'css/modes/jamovi_light.css' } };
     var _modeModuleP = {};
     function loadModeModule(id){
       if (_modeModuleP[id]) return _modeModuleP[id];
