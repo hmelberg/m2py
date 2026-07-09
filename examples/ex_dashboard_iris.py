@@ -1,4 +1,5 @@
 #options.view = dashboard
+#options.mode = python
 #options.title = "Iris-dashboard"
 #options.description = "Interaktiv demo av dashboard-visningen (#input, #%%, row=, wide)"
 # load https://raw.githubusercontent.com/hmelberg/safestat/master/data/iris.csv as iris

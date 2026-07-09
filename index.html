@@ -1459,7 +1459,9 @@
 
       function show() {
         var _nlCls = window.NotebookLinks ? window.NotebookLinks.classifyHash(location.hash) : null;
-        var isOutputOnly = !!(_nlCls && _nlCls.action === 'output');
+        // Navnelenker (#demo) er også autorun-mottakere — ingen velkomst/tips
+        // (dashboard-spec §4; navn oppfører seg som #output.-formen).
+        var isOutputOnly = !!(_nlCls && (_nlCls.action === 'output' || _nlCls.action === 'name'));
         var variant = window.NotebookLinks
           ? window.NotebookLinks.welcomeVariant(location.hostname, window.M2PY_APP || 'safestat', isOutputOnly)
           : 'safestat_general';
@@ -2615,7 +2617,35 @@
         if (window.mdSetInputHidden) window.mdSetInputHidden(true);   // output-only
         window.mdShowCodeAffordance && window.mdShowCodeAffordance();
         if (scriptRunInProgress) return;
-        document.getElementById('btnRun').click();
+        // "#options.mode = python|r|duckdb|microdata" i scriptet overstyrer
+        // filendelsen — .txt-scripts kan dermed si hvor de skal kjøre.
+        var _si = document.getElementById('scriptInput');
+        var _mm = _si && _si.value.match(/^\s*(?:#|\/\/|--)\s*options\.mode\s*=\s*["']?([a-z]+)["']?\s*$/mi);
+        if (_mm && window.switchEditorMode) {
+          var _wanted = _mm[1].toLowerCase();
+          if (_wanted === 'py') _wanted = 'python';
+          var _cur = window.M2PY && window.M2PY.currentMode && window.M2PY.currentMode();
+          if (['python', 'r', 'duckdb', 'microdata', 'jamovi'].indexOf(_wanted) < 0) _wanted = _cur && _cur.id;
+          if (_wanted && (!_cur || _cur.id !== _wanted)) {
+            var _txt = _si.value;
+            window.switchEditorMode(_wanted);
+            _si.value = _txt;                     // modusbyttet bytter innhold — behold scriptet
+            if (typeof editorContent !== 'undefined') editorContent[_wanted] = _txt;
+            if (window.updateLineNumbers) window.updateLineNumbers();
+          }
+        }
+        // Kjør-knappen er disabled til runtime er lastet; et klikk på en
+        // disabled knapp forsvinner og autorun-forespørselen er da brukt opp.
+        // Vent til den er klar (kald last = 10-30 s), og vent på webR i R-modus.
+        var _btn = document.getElementById('btnRun');
+        var _curMode = window.M2PY && window.M2PY.currentMode && window.M2PY.currentMode();
+        if (_curMode && _curMode.id === 'r' && window.M2PY.loadWebR) {
+          try { await window.M2PY.loadWebR(); } catch (_) {}
+        }
+        for (var _w = 0; _w < 600 && _btn.disabled; _w++) {
+          await new Promise(function (r) { setTimeout(r, 100); });
+        }
+        if (!_btn.disabled && !scriptRunInProgress) _btn.click();
       };
 
       const _menuClearOutput = document.getElementById('menuClearOutput');
@@ -4296,6 +4326,10 @@
     // mode via NotebookLinks.hostnameMode() (js/notebook-links.js, loaded
     // synchronously in <head> before this script, so window.NotebookLinks
     // is already defined here).
+    // Deklarert FØR restoreEditorMode(): gjenoppretting av r-modus kaller
+    // onActivate → loadWebR() synkront, og let-bindingene må være
+    // initialisert da (TDZ-krasj ved reload i r-modus før denne flyttingen).
+    let webR = null, webRReady = false, webRLoading = false, webRShelter = null;
     (function restoreEditorMode() {
       var saved = null;
       try { saved = localStorage.getItem('md_editor_mode'); } catch (e) {}
@@ -4329,7 +4363,6 @@
     scriptInput.selectionStart = scriptInput.selectionEnd = 0;
     scriptInput.focus();
 
-    let webR = null, webRReady = false, webRLoading = false, webRShelter = null;
     let py2mReady = false;
     let pdexplorerReady = false, pdexplorerLoading = false;
     let explainAbortRef = null;
