@@ -49,6 +49,40 @@ prioritert idéliste. Kilder: designdok/reviews fra jamovi 2.0 fase 1
         kopi av aktivt datasett med timeout; send runtime-feilen til
         reparasjonsrunden. Utfordringer: bivirkninger, nettkall, kjøretid.
 
+## Pakkeinstallasjon (python/r)
+
+*Status i dag: autoinstallasjon er PÅ i begge språk — Python: `loadPackagesFromImports`
++ micropip-fallback per import (index.html preRun); R: `library()`-overstyring som
+kjører `webr::install()`. Service workeren cacher pakke-hostene (offline etter første gang).*
+
+Mål: brukeren skal kunne installere alt fra Pyodide-wheels til ting man kan
+prøve fra PyPI eller GitHub. Nivåene:
+
+- [ ] **`# requires:`-direktiv** (husets direktiv-stil à la `# load`) med:
+      - versjonspinning (`plotnine==0.13`)
+      - alias-kart for navne-mismatch (`sklearn`→scikit-learn, `PIL`→pillow, `cv2`→opencv)
+      - eksplisitte kilder, se nivåene under
+- [ ] **Python-kilder**, i økende dristighet:
+      1. Pyodide-bundlede pakker (auto, virker i dag)
+      2. PyPI rene Python-wheels via micropip (auto, virker i dag)
+      3. Wheel-URL: `micropip.install('https://…/pakke.whl')` — inkl. wheels fra
+         GitHub-releases (raw/objects.githubusercontent har CORS)
+      4. GitHub-repo uten wheel (kun ren Python): hent zip → `pyodide.unpackArchive`
+         → sys.path; direktivsyntaks f.eks. `# requires: github:bruker/repo`
+      (Grense: pakker med ubygget C/Fortran kan ikke installeres i nettleseren.)
+- [ ] **R-kilder**:
+      1. repo.r-wasm.org-binærer (auto, virker i dag)
+      2. **r-universe**: nesten alle CRAN- og GitHub-R-pakker finnes som wasm-binærer
+         der — `webr::install(pkg, repos='https://<bruker>.r-universe.dev')`;
+         direktivet kan ta `bruker/repo` og utlede universe-URL-en
+      3. Egenbygde wasm-pakker med rwasm (som planlagt for nyere scatr i jamovi fase 2)
+      4. `require()`/`pkg::` trigges ikke av dagens `library()`-overstyring — dekkes
+         av direktivet
+- [ ] **`!pip install X`-høflighet**: preprosesser Jupyter-vane-linjer til
+      micropip-kall (eller vis vennlig melding om at import auto-installerer)
+- [ ] Tydelig feilmelding når en pakke ikke finnes som wasm (med peker til
+      hva som faktisk støttes)
+
 ## Diverse / uavklart
 
 - [ ] Pandas-basert GUI som egen modus (Hans' idé — holdes adskilt fra
