@@ -81,6 +81,18 @@ def _group_cells(nodes):
 
 
 def _layout_node(el, valid, warns):
+    """Parser ett u.yaml-element. `cell: {column,row}` er et generelt idiom som
+    kan stå på ALLE nodetyper (Label, LayoutBox, ...) — parse noden normalt og
+    pakk resultatet i en _cell-markør, så plukker grid-grupperingen den opp."""
+    node = _layout_node_inner(el, valid, warns)
+    cell = el.get('cell')
+    if isinstance(cell, dict) and node is not None:
+        return {'t': '_cell', 'col': cell.get('column', 0), 'row': cell.get('row', 0),
+                'children': node if isinstance(node, list) else [node]}
+    return node
+
+
+def _layout_node_inner(el, valid, warns):
     t = el.get('type')
     kids = el.get('children') or []
 
@@ -114,20 +126,22 @@ def _layout_node(el, valid, warns):
         return {'t': 'supplier', 'targets': targets}
 
     if t == 'LayoutBox':
-        if isinstance(el.get('cell'), dict):
-            # celle håndteres av forelderen (grid-assemblering) — returner marker
-            return {'t': '_cell', 'col': el['cell'].get('column', 0),
-                    'row': el['cell'].get('row', 0), 'children': parsed_children()}
-        return parsed_children()   # transparent container -> flat
+        return parsed_children()   # transparent container -> flat (evt. cell pakkes av _layout_node)
 
     if t == 'Label':
         ch = parsed_children()
         return gated({'t': 'label', 'label': el.get('label', ''), 'children': ch}) if ch else None
 
+    def hoisted(nm):
+        # Ugyldig (2.7.7-drift) navn: dropp selve noden, men behold gyldige
+        # etterkommere ved å hoiste dem opp som en flat liste.
+        warns.append(f'ukjent opsjon {nm}')
+        return parsed_children() or None
+
     if t == 'CheckBox':
         nm = el.get('name')
         if nm not in valid:
-            warns.append(f'ukjent opsjon {nm}'); return None
+            return hoisted(nm)
         node = {'t': 'check', 'name': nm}
         if el.get('label'):
             node['label'] = el['label']
@@ -139,20 +153,20 @@ def _layout_node(el, valid, warns):
     if t == 'RadioButton':
         opt = el.get('optionName')
         if opt not in valid:
-            warns.append(f'ukjent opsjon {opt}'); return None
+            return hoisted(opt)
         return gated({'t': 'radio', 'option': opt, 'part': el.get('optionPart'),
                       'label': el.get('label', el.get('optionPart', ''))})
 
     if t == 'ComboBox':
         nm = el.get('name')
         if nm not in valid:
-            warns.append(f'ukjent opsjon {nm}'); return None
+            return hoisted(nm)
         return gated({'t': 'combo', 'name': nm, 'label': el.get('label', '')})
 
     if t == 'TextBox':
         nm = el.get('name')
         if nm not in valid:
-            warns.append(f'ukjent opsjon {nm}'); return None
+            return hoisted(nm)
         node = {'t': 'text', 'name': nm, 'label': el.get('label', '')}
         if el.get('format'):
             node['format'] = str(el['format'])

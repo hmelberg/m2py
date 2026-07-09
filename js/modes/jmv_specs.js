@@ -2140,12 +2140,23 @@ window.JMV_SPECS = {
      ]
     },
     {
-     "t": "label",
-     "label": "Model Fit",
-     "children": [
+     "t": "grid",
+     "cells": [
       {
-       "t": "check",
-       "name": "modelTest"
+       "col": 0,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Model Fit",
+         "children": [
+          {
+           "t": "check",
+           "name": "modelTest"
+          }
+         ]
+        }
+       ]
       }
      ]
     },
@@ -2177,6 +2188,43 @@ window.JMV_SPECS = {
       {
        "t": "check",
        "name": "qq"
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Post Hoc Tests",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Effect Size",
+           "children": [
+            {
+             "t": "check",
+             "name": "postHocEsCi",
+             "label": "Confidence interval",
+             "children": [
+              {
+               "t": "text",
+               "name": "postHocEsCiWidth",
+               "label": "",
+               "format": "number"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
       }
      ]
     },
@@ -2324,26 +2372,43 @@ window.JMV_SPECS = {
      ]
     },
     {
-     "t": "label",
-     "label": "Effect Size",
-     "children": [
+     "t": "grid",
+     "cells": [
       {
-       "t": "check",
-       "name": "es"
-      }
-     ]
-    },
-    {
-     "t": "label",
-     "label": "Post Hoc Tests",
-     "children": [
-      {
-       "t": "check",
-       "name": "pairs"
+       "col": 0,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Effect Size",
+         "children": [
+          {
+           "t": "check",
+           "name": "es"
+          }
+         ]
+        }
+       ]
       },
       {
-       "t": "check",
-       "name": "pairsDunn"
+       "col": 1,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Post Hoc Tests",
+         "children": [
+          {
+           "t": "check",
+           "name": "pairs"
+          },
+          {
+           "t": "check",
+           "name": "pairsDunn"
+          }
+         ]
+        }
+       ]
       }
      ]
     }
@@ -2474,99 +2539,128 @@ window.JMV_SPECS = {
      ]
     },
     {
-     "t": "label",
-     "label": "Correlation Coefficients",
-     "children": [
+     "t": "grid",
+     "cells": [
       {
-       "t": "check",
-       "name": "pearson",
-       "label": "Pearson"
-      },
-      {
-       "t": "check",
-       "name": "spearman",
-       "label": "Spearman"
-      },
-      {
-       "t": "check",
-       "name": "kendall"
-      }
-     ]
-    },
-    {
-     "t": "label",
-     "label": "Additional Options",
-     "children": [
-      {
-       "t": "check",
-       "name": "sig"
-      },
-      {
-       "t": "check",
-       "name": "flag"
-      },
-      {
-       "t": "check",
-       "name": "n"
-      },
-      {
-       "t": "check",
-       "name": "ci",
-       "label": "Confidence intervals",
+       "col": 0,
+       "row": 0,
        "children": [
         {
-         "t": "text",
-         "name": "ciWidth",
-         "label": "Interval",
-         "format": "number",
-         "enable": "ci"
+         "t": "label",
+         "label": "Correlation Coefficients",
+         "children": [
+          {
+           "t": "check",
+           "name": "pearson",
+           "label": "Pearson"
+          },
+          {
+           "t": "check",
+           "name": "spearman",
+           "label": "Spearman"
+          },
+          {
+           "t": "check",
+           "name": "kendall"
+          }
+         ]
         }
        ]
-      }
-     ]
-    },
-    {
-     "t": "label",
-     "label": "Hypothesis",
-     "children": [
-      {
-       "t": "radio",
-       "option": "hypothesis",
-       "part": "corr",
-       "label": "corr"
       },
       {
-       "t": "radio",
-       "option": "hypothesis",
-       "part": "pos",
-       "label": "pos"
-      },
-      {
-       "t": "radio",
-       "option": "hypothesis",
-       "part": "neg",
-       "label": "neg"
-      }
-     ]
-    },
-    {
-     "t": "label",
-     "label": "Plot",
-     "children": [
-      {
-       "t": "check",
-       "name": "plots",
-       "label": "Correlation matrix",
+       "col": 1,
+       "row": 0,
        "children": [
         {
-         "t": "check",
-         "name": "plotDens",
-         "enable": "plots"
-        },
+         "t": "label",
+         "label": "Additional Options",
+         "children": [
+          {
+           "t": "check",
+           "name": "sig"
+          },
+          {
+           "t": "check",
+           "name": "flag"
+          },
+          {
+           "t": "check",
+           "name": "n"
+          },
+          {
+           "t": "check",
+           "name": "ci",
+           "label": "Confidence intervals",
+           "children": [
+            {
+             "t": "text",
+             "name": "ciWidth",
+             "label": "Interval",
+             "format": "number",
+             "enable": "ci"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "col": 0,
+       "row": 1,
+       "children": [
         {
-         "t": "check",
-         "name": "plotStats",
-         "enable": "plots"
+         "t": "label",
+         "label": "Hypothesis",
+         "children": [
+          {
+           "t": "radio",
+           "option": "hypothesis",
+           "part": "corr",
+           "label": "corr"
+          },
+          {
+           "t": "radio",
+           "option": "hypothesis",
+           "part": "pos",
+           "label": "pos"
+          },
+          {
+           "t": "radio",
+           "option": "hypothesis",
+           "part": "neg",
+           "label": "neg"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "col": 1,
+       "row": 1,
+       "children": [
+        {
+         "t": "label",
+         "label": "Plot",
+         "children": [
+          {
+           "t": "check",
+           "name": "plots",
+           "label": "Correlation matrix",
+           "children": [
+            {
+             "t": "check",
+             "name": "plotDens",
+             "enable": "plots"
+            },
+            {
+             "t": "check",
+             "name": "plotStats",
+             "enable": "plots"
+            }
+           ]
+          }
+         ]
         }
        ]
       }
@@ -4146,28 +4240,39 @@ window.JMV_SPECS = {
          "row": 0,
          "children": [
           {
-           "t": "label",
-           "label": "Tests",
-           "children": [
+           "t": "grid",
+           "cells": [
             {
-             "t": "check",
-             "name": "chiSq"
-            },
-            {
-             "t": "check",
-             "name": "chiSqCorr"
-            },
-            {
-             "t": "check",
-             "name": "likeRat"
-            },
-            {
-             "t": "check",
-             "name": "fisher"
-            },
-            {
-             "t": "check",
-             "name": "zProp"
+             "col": 0,
+             "row": 0,
+             "children": [
+              {
+               "t": "label",
+               "label": "Tests",
+               "children": [
+                {
+                 "t": "check",
+                 "name": "chiSq"
+                },
+                {
+                 "t": "check",
+                 "name": "chiSqCorr"
+                },
+                {
+                 "t": "check",
+                 "name": "likeRat"
+                },
+                {
+                 "t": "check",
+                 "name": "fisher"
+                },
+                {
+                 "t": "check",
+                 "name": "zProp"
+                }
+               ]
+              }
+             ]
             }
            ]
           },
@@ -4253,16 +4358,27 @@ window.JMV_SPECS = {
          "row": 0,
          "children": [
           {
-           "t": "label",
-           "label": "Nominal",
-           "children": [
+           "t": "grid",
+           "cells": [
             {
-             "t": "check",
-             "name": "contCoef"
-            },
-            {
-             "t": "check",
-             "name": "phiCra"
+             "col": 0,
+             "row": 1,
+             "children": [
+              {
+               "t": "label",
+               "label": "Nominal",
+               "children": [
+                {
+                 "t": "check",
+                 "name": "contCoef"
+                },
+                {
+                 "t": "check",
+                 "name": "phiCra"
+                }
+               ]
+              }
+             ]
             }
            ]
           }
@@ -4273,20 +4389,31 @@ window.JMV_SPECS = {
          "row": 0,
          "children": [
           {
-           "t": "label",
-           "label": "Ordinal",
-           "children": [
+           "t": "grid",
+           "cells": [
             {
-             "t": "check",
-             "name": "gamma"
-            },
-            {
-             "t": "check",
-             "name": "taub"
-            },
-            {
-             "t": "check",
-             "name": "mh"
+             "col": 1,
+             "row": 1,
+             "children": [
+              {
+               "t": "label",
+               "label": "Ordinal",
+               "children": [
+                {
+                 "t": "check",
+                 "name": "gamma"
+                },
+                {
+                 "t": "check",
+                 "name": "taub"
+                },
+                {
+                 "t": "check",
+                 "name": "mh"
+                }
+               ]
+              }
+             ]
             }
            ]
           }
@@ -4329,20 +4456,31 @@ window.JMV_SPECS = {
          "row": 0,
          "children": [
           {
-           "t": "label",
-           "label": "Percentages",
-           "children": [
+           "t": "grid",
+           "cells": [
             {
-             "t": "check",
-             "name": "pcRow"
-            },
-            {
-             "t": "check",
-             "name": "pcCol"
-            },
-            {
-             "t": "check",
-             "name": "pcTot"
+             "col": 1,
+             "row": 0,
+             "children": [
+              {
+               "t": "label",
+               "label": "Percentages",
+               "children": [
+                {
+                 "t": "check",
+                 "name": "pcRow"
+                },
+                {
+                 "t": "check",
+                 "name": "pcCol"
+                },
+                {
+                 "t": "check",
+                 "name": "pcTot"
+                }
+               ]
+              }
+             ]
             }
            ]
           }
@@ -4365,49 +4503,60 @@ window.JMV_SPECS = {
          "row": 0,
          "children": [
           {
-           "t": "label",
-           "label": "Post Hoc Tests",
-           "children": [
+           "t": "grid",
+           "cells": [
             {
-             "t": "check",
-             "name": "resU"
-            },
-            {
-             "t": "check",
-             "name": "resP",
+             "col": 0,
+             "row": 0,
              "children": [
               {
-               "t": "text",
-               "name": "hlresP",
-               "label": "",
-               "format": "number",
-               "enable": "resP"
-              }
-             ]
-            },
-            {
-             "t": "check",
-             "name": "resS",
-             "children": [
-              {
-               "t": "text",
-               "name": "hlresS",
-               "label": "",
-               "format": "number",
-               "enable": "resS"
-              }
-             ]
-            },
-            {
-             "t": "check",
-             "name": "resA",
-             "children": [
-              {
-               "t": "text",
-               "name": "hlresA",
-               "label": "",
-               "format": "number",
-               "enable": "resA"
+               "t": "label",
+               "label": "Post Hoc Tests",
+               "children": [
+                {
+                 "t": "check",
+                 "name": "resU"
+                },
+                {
+                 "t": "check",
+                 "name": "resP",
+                 "children": [
+                  {
+                   "t": "text",
+                   "name": "hlresP",
+                   "label": "",
+                   "format": "number",
+                   "enable": "resP"
+                  }
+                 ]
+                },
+                {
+                 "t": "check",
+                 "name": "resS",
+                 "children": [
+                  {
+                   "t": "text",
+                   "name": "hlresS",
+                   "label": "",
+                   "format": "number",
+                   "enable": "resS"
+                  }
+                 ]
+                },
+                {
+                 "t": "check",
+                 "name": "resA",
+                 "children": [
+                  {
+                   "t": "text",
+                   "name": "hlresA",
+                   "label": "",
+                   "format": "number",
+                   "enable": "resA"
+                  }
+                 ]
+                }
+               ]
               }
              ]
             }

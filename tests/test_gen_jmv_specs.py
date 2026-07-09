@@ -94,6 +94,8 @@ def test_layout_gyldige_navn_og_dekning():
             nm = node.get('name') or node.get('option')
             if nm is not None:
                 assert nm in gyldige, f'{n}: layout refererer ukjent opsjon {nm}'
+            for t in (node.get('targets') or []):
+                assert t['name'] in gyldige, f"{n}: ukjent rolle {t['name']} (nøstet supplier)"
             for c in (node.get('children') or []):
                 sjekk(c)
             for cell in (node.get('cells') or []):
@@ -112,3 +114,23 @@ def test_layout_descriptives_har_seksjoner():
     lay = s['descriptives'].get('layout')
     assert lay is not None
     assert _find(lay, lambda n: n.get('t') == 'collapse'), 'descriptives skal ha CollapseBox'
+
+
+def test_layout_corrMatrix_har_grid():
+    # Regresjonsvakt: cell:-idiomet ligger direkte på Label-noder i corrmatrix.u.yaml,
+    # ikke bare på LayoutBox — de fire seksjonene skal bli et 2x2-grid.
+    s = load_specs()
+    lay = s['corrMatrix'].get('layout')
+    assert lay is not None
+    grid = _find(lay, lambda n: n.get('t') == 'grid' and len(n.get('cells') or []) >= 2)
+    assert grid is not None, 'corrMatrix skal ha minst ett grid med >= 2 celler'
+
+
+def test_layout_anova_hoister_gyldige_barn():
+    # Regresjonsvakt: postHocES_d er et ugyldig (2.7.7-drift) navn, men dets gyldige
+    # etterkommere postHocEsCi/postHocEsCiWidth skal hoistes opp, ikke forsvinne.
+    s = load_specs()
+    lay = s['anova'].get('layout')
+    assert lay is not None
+    assert _find(lay, lambda n: n.get('name') == 'postHocEsCi'), \
+        'postHocEsCi skal overleve selv om forelderen postHocES_d droppes'
