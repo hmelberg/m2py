@@ -2304,6 +2304,393 @@ window.JMV_SPECS = {
    ]
   }
  },
+ "ancova": {
+  "name": "ancova",
+  "ns": "jmv",
+  "title": "ANCOVA",
+  "menuGroup": "ANOVA",
+  "menuSubgroup": "",
+  "menuTitle": "ANCOVA",
+  "menuSubtitle": "",
+  "options": [
+   {
+    "name": "dep",
+    "type": "Variable",
+    "title": "Dependent Variable",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "factors",
+    "type": "Variables",
+    "title": "Fixed Factors",
+    "default": null,
+    "suggested": [
+     "nominal",
+     "ordinal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "covs",
+    "type": "Variables",
+    "title": "Covariates",
+    "default": null,
+    "suggested": [
+     "continuous",
+     "ordinal"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "effectSize",
+    "type": "NMXList",
+    "title": "Effect Size",
+    "default": null
+   },
+   {
+    "name": "modelTest",
+    "type": "Bool",
+    "title": "Overall model test",
+    "default": false
+   },
+   {
+    "name": "modelTerms",
+    "type": "Terms",
+    "title": "Model Terms",
+    "default": null
+   },
+   {
+    "name": "ss",
+    "type": "List",
+    "title": "Sum of squares",
+    "default": "3",
+    "choices": [
+     {
+      "value": "1",
+      "title": "Type 1"
+     },
+     {
+      "value": "2",
+      "title": "Type 2"
+     },
+     {
+      "value": "3",
+      "title": "Type 3"
+     }
+    ]
+   },
+   {
+    "name": "homo",
+    "type": "Bool",
+    "title": "Homogeneity test",
+    "default": false
+   },
+   {
+    "name": "norm",
+    "type": "Bool",
+    "title": "Normality test",
+    "default": false
+   },
+   {
+    "name": "qq",
+    "type": "Bool",
+    "title": "Q-Q Plot",
+    "default": false
+   },
+   {
+    "name": "contrasts",
+    "type": "Array",
+    "title": "Contrasts",
+    "default": null
+   },
+   {
+    "name": "postHoc",
+    "type": "Terms",
+    "title": "Post Hoc Tests",
+    "default": null
+   },
+   {
+    "name": "postHocCorr",
+    "type": "NMXList",
+    "title": "Correction",
+    "default": [
+     "tukey"
+    ]
+   },
+   {
+    "name": "postHocES",
+    "type": "NMXList",
+    "title": "Effect size",
+    "default": []
+   },
+   {
+    "name": "postHocEsCi",
+    "type": "Bool",
+    "title": "Confidence Interval",
+    "default": false
+   },
+   {
+    "name": "postHocEsCiWidth",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "emMeans",
+    "type": "Array",
+    "title": "Marginal Means",
+    "default": [
+     []
+    ]
+   },
+   {
+    "name": "emmPlots",
+    "type": "Bool",
+    "title": "Marginal means plots",
+    "default": true
+   },
+   {
+    "name": "emmPlotData",
+    "type": "Bool",
+    "title": "Observed scores",
+    "default": false
+   },
+   {
+    "name": "emmPlotError",
+    "type": "List",
+    "title": "Error bars",
+    "default": "ci",
+    "choices": [
+     {
+      "value": "none",
+      "title": "None"
+     },
+     {
+      "value": "ci",
+      "title": "Confidence interval"
+     },
+     {
+      "value": "se",
+      "title": "Standard error"
+     }
+    ]
+   },
+   {
+    "name": "emmTables",
+    "type": "Bool",
+    "title": "Marginal means tables",
+    "default": false
+   },
+   {
+    "name": "emmWeights",
+    "type": "Bool",
+    "title": "Equal cell weights",
+    "default": true
+   },
+   {
+    "name": "ciWidthEmm",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   }
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "dep",
+       "max": 1
+      },
+      {
+       "name": "factors"
+      },
+      {
+       "name": "covs"
+      }
+     ]
+    },
+    {
+     "t": "grid",
+     "cells": [
+      {
+       "col": 0,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Model Fit",
+         "children": [
+          {
+           "t": "check",
+           "name": "modelTest"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Model",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "combo",
+       "name": "ss",
+       "label": ""
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Assumption Checks",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "check",
+       "name": "homo"
+      },
+      {
+       "t": "check",
+       "name": "norm"
+      },
+      {
+       "t": "check",
+       "name": "qq"
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Post Hoc Tests",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Effect Size",
+           "children": [
+            {
+             "t": "check",
+             "name": "postHocEsCi",
+             "label": "Confidence interval",
+             "children": [
+              {
+               "t": "text",
+               "name": "postHocEsCiWidth",
+               "label": "",
+               "format": "number"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Estimated Marginal Means",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "supplier",
+       "targets": []
+      },
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Output",
+           "children": [
+            {
+             "t": "check",
+             "name": "emmPlots"
+            },
+            {
+             "t": "check",
+             "name": "emmTables"
+            }
+           ]
+          },
+          {
+           "t": "label",
+           "label": "General Options",
+           "children": [
+            {
+             "t": "check",
+             "name": "emmWeights"
+            },
+            {
+             "t": "text",
+             "name": "ciWidthEmm",
+             "label": "Confidence interval",
+             "format": "number"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Plot",
+           "children": [
+            {
+             "t": "combo",
+             "name": "emmPlotError",
+             "label": ""
+            },
+            {
+             "t": "check",
+             "name": "emmPlotData"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ },
  "anovaNP": {
   "name": "anovaNP",
   "ns": "jmv",
@@ -2659,6 +3046,240 @@ window.JMV_SPECS = {
              "enable": "plots"
             }
            ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "corrPart": {
+  "name": "corrPart",
+  "ns": "jmv",
+  "title": "Partial Correlation",
+  "menuGroup": "Regression",
+  "menuSubgroup": "",
+  "menuTitle": "Partial Correlation",
+  "menuSubtitle": "",
+  "options": [
+   {
+    "name": "vars",
+    "type": "Variables",
+    "title": "Variables",
+    "default": null,
+    "suggested": [
+     "continuous",
+     "ordinal"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "controls",
+    "type": "Variables",
+    "title": "Control variables",
+    "default": null,
+    "suggested": [
+     "continuous",
+     "ordinal"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "pearson",
+    "type": "Bool",
+    "title": "Pearson",
+    "default": true
+   },
+   {
+    "name": "spearman",
+    "type": "Bool",
+    "title": "Spearman",
+    "default": false
+   },
+   {
+    "name": "kendall",
+    "type": "Bool",
+    "title": "Kendall's tau-b",
+    "default": false
+   },
+   {
+    "name": "type",
+    "type": "List",
+    "title": "Correlation type",
+    "default": "part",
+    "choices": [
+     {
+      "value": "part",
+      "title": "Partial"
+     },
+     {
+      "value": "semi",
+      "title": "Semipartial"
+     }
+    ]
+   },
+   {
+    "name": "sig",
+    "type": "Bool",
+    "title": "Report significance",
+    "default": true
+   },
+   {
+    "name": "flag",
+    "type": "Bool",
+    "title": "Flag significant correlations",
+    "default": false
+   },
+   {
+    "name": "n",
+    "type": "Bool",
+    "title": "N",
+    "default": false
+   },
+   {
+    "name": "hypothesis",
+    "type": "List",
+    "title": "Hypothesis",
+    "default": "corr",
+    "choices": [
+     {
+      "value": "corr",
+      "title": "Correlated"
+     },
+     {
+      "value": "pos",
+      "title": "Correlated positively"
+     },
+     {
+      "value": "neg",
+      "title": "Correlated negatively"
+     }
+    ]
+   }
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "vars"
+      },
+      {
+       "name": "controls"
+      }
+     ]
+    },
+    {
+     "t": "grid",
+     "cells": [
+      {
+       "col": 0,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Correlation Coefficients",
+         "children": [
+          {
+           "t": "check",
+           "name": "pearson",
+           "label": "Pearson"
+          },
+          {
+           "t": "check",
+           "name": "spearman",
+           "label": "Spearman"
+          },
+          {
+           "t": "check",
+           "name": "kendall"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "col": 1,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Correlation Type",
+         "children": [
+          {
+           "t": "radio",
+           "option": "type",
+           "part": "part",
+           "label": "part"
+          },
+          {
+           "t": "radio",
+           "option": "type",
+           "part": "semi",
+           "label": "semi"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "col": 0,
+       "row": 1,
+       "children": [
+        {
+         "t": "label",
+         "label": "Hypothesis",
+         "children": [
+          {
+           "t": "radio",
+           "option": "hypothesis",
+           "part": "corr",
+           "label": "corr"
+          },
+          {
+           "t": "radio",
+           "option": "hypothesis",
+           "part": "pos",
+           "label": "pos"
+          },
+          {
+           "t": "radio",
+           "option": "hypothesis",
+           "part": "neg",
+           "label": "neg"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "col": 1,
+       "row": 1,
+       "children": [
+        {
+         "t": "label",
+         "label": "Additional Options",
+         "children": [
+          {
+           "t": "check",
+           "name": "sig"
+          },
+          {
+           "t": "check",
+           "name": "flag"
+          },
+          {
+           "t": "check",
+           "name": "n"
           }
          ]
         }
@@ -3798,6 +4419,677 @@ window.JMV_SPECS = {
    ]
   }
  },
+ "logRegMulti": {
+  "name": "logRegMulti",
+  "ns": "jmv",
+  "title": "Multinomial Logistic Regression",
+  "menuGroup": "Regression",
+  "menuSubgroup": "Logistic Regression",
+  "menuTitle": "N Outcomes",
+  "menuSubtitle": "Multinomial",
+  "options": [
+   {
+    "name": "dep",
+    "type": "Variable",
+    "title": "Dependent Variable",
+    "default": null,
+    "suggested": [
+     "nominal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "covs",
+    "type": "Variables",
+    "title": "Covariates",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "factors",
+    "type": "Variables",
+    "title": "Factors",
+    "default": null,
+    "suggested": [
+     "nominal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "blocks",
+    "type": "Array",
+    "title": "Blocks",
+    "default": [
+     []
+    ]
+   },
+   {
+    "name": "refLevels",
+    "type": "Array",
+    "title": "Reference Levels",
+    "default": null
+   },
+   {
+    "name": "modelTest",
+    "type": "Bool",
+    "title": "Overall model test",
+    "default": false
+   },
+   {
+    "name": "dev",
+    "type": "Bool",
+    "title": "Deviance",
+    "default": true
+   },
+   {
+    "name": "aic",
+    "type": "Bool",
+    "title": "AIC",
+    "default": true
+   },
+   {
+    "name": "bic",
+    "type": "Bool",
+    "title": "BIC",
+    "default": false
+   },
+   {
+    "name": "pseudoR2",
+    "type": "NMXList",
+    "title": "Pseudo R²",
+    "default": [
+     "r2mf"
+    ]
+   },
+   {
+    "name": "omni",
+    "type": "Bool",
+    "title": "Likelihood ratio tests",
+    "default": false
+   },
+   {
+    "name": "ci",
+    "type": "Bool",
+    "title": "Confidence interval",
+    "default": false
+   },
+   {
+    "name": "ciWidth",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "OR",
+    "type": "Bool",
+    "title": "Odds ratio",
+    "default": false
+   },
+   {
+    "name": "ciOR",
+    "type": "Bool",
+    "title": "Confidence interval",
+    "default": false
+   },
+   {
+    "name": "ciWidthOR",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "emMeans",
+    "type": "Array",
+    "title": "Marginal Means",
+    "default": [
+     []
+    ]
+   },
+   {
+    "name": "ciEmm",
+    "type": "Bool",
+    "title": "Confidence interval",
+    "default": true
+   },
+   {
+    "name": "ciWidthEmm",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "emmPlots",
+    "type": "Bool",
+    "title": "Marginal means plots",
+    "default": true
+   },
+   {
+    "name": "emmTables",
+    "type": "Bool",
+    "title": "Marginal means tables",
+    "default": false
+   },
+   {
+    "name": "emmWeights",
+    "type": "Bool",
+    "title": "Equal cell weights",
+    "default": true
+   }
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "dep",
+       "max": 1
+      },
+      {
+       "name": "covs"
+      },
+      {
+       "name": "factors"
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Model Fit",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Fit Measures",
+           "children": [
+            {
+             "t": "check",
+             "name": "dev"
+            },
+            {
+             "t": "check",
+             "name": "aic"
+            },
+            {
+             "t": "check",
+             "name": "bic"
+            },
+            {
+             "t": "check",
+             "name": "modelTest"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": []
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Model Coefficients",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Omnibus Tests",
+           "children": [
+            {
+             "t": "check",
+             "name": "omni"
+            }
+           ]
+          },
+          {
+           "t": "label",
+           "label": "Estimate (Log Odds Ratio)",
+           "children": [
+            {
+             "t": "check",
+             "name": "ci",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidth",
+               "label": "Interval",
+               "format": "number",
+               "enable": "ci"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Odds Ratio",
+           "children": [
+            {
+             "t": "check",
+             "name": "OR"
+            },
+            {
+             "t": "check",
+             "name": "ciOR",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidthOR",
+               "label": "Interval",
+               "format": "number",
+               "enable": "ciOR"
+              }
+             ],
+             "enable": "OR"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Estimated Marginal Means",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "supplier",
+       "targets": []
+      },
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "General Options",
+           "children": [
+            {
+             "t": "check",
+             "name": "emmWeights"
+            },
+            {
+             "t": "check",
+             "name": "ciEmm",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidthEmm",
+               "label": "Interval",
+               "format": "number",
+               "enable": "ciEmm"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Output",
+           "children": [
+            {
+             "t": "check",
+             "name": "emmPlots"
+            },
+            {
+             "t": "check",
+             "name": "emmTables"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "logRegOrd": {
+  "name": "logRegOrd",
+  "ns": "jmv",
+  "title": "Ordinal Logistic Regression",
+  "menuGroup": "Regression",
+  "menuSubgroup": "Logistic Regression",
+  "menuTitle": "Ordinal Outcomes",
+  "menuSubtitle": "",
+  "options": [
+   {
+    "name": "dep",
+    "type": "Variable",
+    "title": "Dependent Variable",
+    "default": null,
+    "suggested": [
+     "ordinal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "covs",
+    "type": "Variables",
+    "title": "Covariates",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "factors",
+    "type": "Variables",
+    "title": "Factors",
+    "default": null,
+    "suggested": [
+     "nominal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "blocks",
+    "type": "Array",
+    "title": "Blocks",
+    "default": [
+     []
+    ]
+   },
+   {
+    "name": "refLevels",
+    "type": "Array",
+    "title": "Reference Levels",
+    "default": null
+   },
+   {
+    "name": "modelTest",
+    "type": "Bool",
+    "title": "Overall model test",
+    "default": false
+   },
+   {
+    "name": "dev",
+    "type": "Bool",
+    "title": "Deviance",
+    "default": true
+   },
+   {
+    "name": "aic",
+    "type": "Bool",
+    "title": "AIC",
+    "default": true
+   },
+   {
+    "name": "bic",
+    "type": "Bool",
+    "title": "BIC",
+    "default": false
+   },
+   {
+    "name": "pseudoR2",
+    "type": "NMXList",
+    "title": "Pseudo R²",
+    "default": [
+     "r2mf"
+    ]
+   },
+   {
+    "name": "omni",
+    "type": "Bool",
+    "title": "Likelihood ratio tests",
+    "default": false
+   },
+   {
+    "name": "thres",
+    "type": "Bool",
+    "title": "Model thresholds",
+    "default": false
+   },
+   {
+    "name": "ci",
+    "type": "Bool",
+    "title": "Confidence interval",
+    "default": false
+   },
+   {
+    "name": "ciWidth",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   },
+   {
+    "name": "OR",
+    "type": "Bool",
+    "title": "Odds ratio",
+    "default": false
+   },
+   {
+    "name": "ciOR",
+    "type": "Bool",
+    "title": "Confidence interval",
+    "default": false
+   },
+   {
+    "name": "ciWidthOR",
+    "type": "Number",
+    "title": "Confidence level",
+    "default": 95,
+    "min": 50,
+    "max": 99.9
+   }
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "dep",
+       "max": 1
+      },
+      {
+       "name": "covs"
+      },
+      {
+       "name": "factors"
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Model Fit",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Fit Measures",
+           "children": [
+            {
+             "t": "check",
+             "name": "dev"
+            },
+            {
+             "t": "check",
+             "name": "aic"
+            },
+            {
+             "t": "check",
+             "name": "bic"
+            },
+            {
+             "t": "check",
+             "name": "modelTest"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": []
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Model Coefficients",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "grid",
+       "cells": [
+        {
+         "col": 0,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Omnibus Tests",
+           "children": [
+            {
+             "t": "check",
+             "name": "omni"
+            }
+           ]
+          },
+          {
+           "t": "label",
+           "label": "Thresholds",
+           "children": [
+            {
+             "t": "check",
+             "name": "thres"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "col": 1,
+         "row": 0,
+         "children": [
+          {
+           "t": "label",
+           "label": "Estimate (Log Odds Ratio)",
+           "children": [
+            {
+             "t": "check",
+             "name": "ci",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidth",
+               "label": "Interval",
+               "format": "number",
+               "enable": "ci"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "t": "label",
+           "label": "Odds Ratio",
+           "children": [
+            {
+             "t": "check",
+             "name": "OR"
+            },
+            {
+             "t": "check",
+             "name": "ciOR",
+             "children": [
+              {
+               "t": "text",
+               "name": "ciWidthOR",
+               "label": "Interval",
+               "format": "number",
+               "enable": "ciOR"
+              }
+             ],
+             "enable": "OR"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ },
  "propTestN": {
   "name": "propTestN",
   "ns": "jmv",
@@ -4653,6 +5945,908 @@ window.JMV_SPECS = {
          ]
         }
        ]
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "contTablesPaired": {
+  "name": "contTablesPaired",
+  "ns": "jmv",
+  "title": "Paired Samples Contingency Tables",
+  "menuGroup": "Frequencies",
+  "menuSubgroup": "Contingency Tables",
+  "menuTitle": "Paired Samples",
+  "menuSubtitle": "McNemar test",
+  "options": [
+   {
+    "name": "rows",
+    "type": "Variable",
+    "title": "Rows",
+    "default": null,
+    "suggested": [
+     "nominal",
+     "ordinal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "cols",
+    "type": "Variable",
+    "title": "Columns",
+    "default": null,
+    "suggested": [
+     "nominal",
+     "ordinal"
+    ],
+    "permitted": [
+     "factor"
+    ]
+   },
+   {
+    "name": "counts",
+    "type": "Variable",
+    "title": "Counts (optional)",
+    "default": null,
+    "suggested": [
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "chiSq",
+    "type": "Bool",
+    "title": "χ²",
+    "default": true
+   },
+   {
+    "name": "chiSqCorr",
+    "type": "Bool",
+    "title": "χ² continuity correction",
+    "default": false
+   },
+   {
+    "name": "exact",
+    "type": "Bool",
+    "title": "Log odds ratio exact",
+    "default": false
+   },
+   {
+    "name": "pcRow",
+    "type": "Bool",
+    "title": "Row",
+    "default": false
+   },
+   {
+    "name": "pcCol",
+    "type": "Bool",
+    "title": "Column",
+    "default": false
+   }
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "rows",
+       "max": 1
+      },
+      {
+       "name": "cols",
+       "max": 1
+      },
+      {
+       "name": "counts",
+       "max": 1
+      }
+     ]
+    },
+    {
+     "t": "check",
+     "name": "chiSq"
+    },
+    {
+     "t": "check",
+     "name": "chiSqCorr"
+    },
+    {
+     "t": "check",
+     "name": "exact"
+    },
+    {
+     "t": "grid",
+     "cells": [
+      {
+       "col": 1,
+       "row": 1,
+       "children": [
+        {
+         "t": "label",
+         "label": "Percentages",
+         "children": [
+          {
+           "t": "check",
+           "name": "pcRow"
+          },
+          {
+           "t": "check",
+           "name": "pcCol"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "reliability": {
+  "name": "reliability",
+  "ns": "jmv",
+  "title": "Reliability Analysis",
+  "menuGroup": "Factor",
+  "menuSubgroup": "Scale Analysis",
+  "menuTitle": "Reliability Analysis",
+  "menuSubtitle": "",
+  "options": [
+   {
+    "name": "vars",
+    "type": "Variables",
+    "title": "Items",
+    "default": null,
+    "suggested": [
+     "ordinal",
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "alphaScale",
+    "type": "Bool",
+    "title": "Cronbach's α",
+    "default": true
+   },
+   {
+    "name": "omegaScale",
+    "type": "Bool",
+    "title": "McDonald's ω",
+    "default": false
+   },
+   {
+    "name": "meanScale",
+    "type": "Bool",
+    "title": "Mean",
+    "default": false
+   },
+   {
+    "name": "sdScale",
+    "type": "Bool",
+    "title": "Standard deviation",
+    "default": false
+   },
+   {
+    "name": "corPlot",
+    "type": "Bool",
+    "title": "Correlation Heatmap",
+    "default": false
+   },
+   {
+    "name": "alphaItems",
+    "type": "Bool",
+    "title": "Cronbach's α (if item is dropped)",
+    "default": false
+   },
+   {
+    "name": "omegaItems",
+    "type": "Bool",
+    "title": "McDonald's ω (if item is dropped)",
+    "default": false
+   },
+   {
+    "name": "meanItems",
+    "type": "Bool",
+    "title": "Mean",
+    "default": false
+   },
+   {
+    "name": "sdItems",
+    "type": "Bool",
+    "title": "Standard deviation",
+    "default": false
+   },
+   {
+    "name": "itemRestCor",
+    "type": "Bool",
+    "title": "Item-rest correlation",
+    "default": false
+   },
+   {
+    "name": "revItems",
+    "type": "Variables",
+    "title": "Reverse Scaled Items",
+    "default": null,
+    "suggested": [],
+    "permitted": []
+   }
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "vars"
+      }
+     ]
+    },
+    {
+     "t": "grid",
+     "cells": [
+      {
+       "col": 0,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Scale Statistics",
+         "children": [
+          {
+           "t": "check",
+           "name": "alphaScale"
+          },
+          {
+           "t": "check",
+           "name": "omegaScale"
+          },
+          {
+           "t": "check",
+           "name": "meanScale"
+          },
+          {
+           "t": "check",
+           "name": "sdScale"
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Additional Options",
+         "children": [
+          {
+           "t": "check",
+           "name": "corPlot",
+           "label": "Correlation heatmap"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "col": 1,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Item Statistics",
+         "children": [
+          {
+           "t": "check",
+           "name": "alphaItems"
+          },
+          {
+           "t": "check",
+           "name": "omegaItems"
+          },
+          {
+           "t": "check",
+           "name": "meanItems"
+          },
+          {
+           "t": "check",
+           "name": "sdItems"
+          },
+          {
+           "t": "check",
+           "name": "itemRestCor"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "pca": {
+  "name": "pca",
+  "ns": "jmv",
+  "title": "Principal Component Analysis",
+  "menuGroup": "Factor",
+  "menuSubgroup": "Data Reduction",
+  "menuTitle": "Principal Component Analysis",
+  "menuSubtitle": "",
+  "options": [
+   {
+    "name": "vars",
+    "type": "Variables",
+    "title": "Variables",
+    "default": null,
+    "suggested": [
+     "ordinal",
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "nFactorMethod",
+    "type": "List",
+    "title": "Number of components",
+    "default": "parallel",
+    "choices": [
+     {
+      "value": "parallel",
+      "title": "parallel"
+     },
+     {
+      "value": "eigen",
+      "title": "eigen"
+     },
+     {
+      "value": "fixed",
+      "title": "fixed"
+     }
+    ]
+   },
+   {
+    "name": "nFactors",
+    "type": "Integer",
+    "title": "nFactors",
+    "default": 1,
+    "min": 1
+   },
+   {
+    "name": "minEigen",
+    "type": "Number",
+    "title": "Minimum value",
+    "default": 1
+   },
+   {
+    "name": "rotation",
+    "type": "List",
+    "title": "Rotation",
+    "default": "varimax",
+    "choices": [
+     {
+      "value": "none",
+      "title": "None"
+     },
+     {
+      "value": "varimax",
+      "title": "Varimax"
+     },
+     {
+      "value": "quartimax",
+      "title": "Quartimax"
+     },
+     {
+      "value": "promax",
+      "title": "Promax"
+     },
+     {
+      "value": "oblimin",
+      "title": "Oblimin"
+     },
+     {
+      "value": "simplimax",
+      "title": "Simplimax"
+     }
+    ]
+   },
+   {
+    "name": "hideLoadings",
+    "type": "Number",
+    "title": "Hide loadings below",
+    "default": 0.3
+   },
+   {
+    "name": "sortLoadings",
+    "type": "Bool",
+    "title": "Sort loadings by size",
+    "default": false
+   },
+   {
+    "name": "screePlot",
+    "type": "Bool",
+    "title": "Scree plot",
+    "default": false
+   },
+   {
+    "name": "eigen",
+    "type": "Bool",
+    "title": "Initial eigenvalues",
+    "default": false
+   },
+   {
+    "name": "factorCor",
+    "type": "Bool",
+    "title": "Component correlations",
+    "default": false
+   },
+   {
+    "name": "factorSummary",
+    "type": "Bool",
+    "title": "Component summary",
+    "default": false
+   },
+   {
+    "name": "kmo",
+    "type": "Bool",
+    "title": "KMO measure of sampling adequacy",
+    "default": false
+   },
+   {
+    "name": "bartlett",
+    "type": "Bool",
+    "title": "Bartlett's test of sphericity",
+    "default": false
+   }
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "vars"
+      }
+     ]
+    },
+    {
+     "t": "grid",
+     "cells": [
+      {
+       "col": 0,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Method",
+         "children": [
+          {
+           "t": "combo",
+           "name": "rotation",
+           "label": ""
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Number of Components",
+         "children": [
+          {
+           "t": "radio",
+           "option": "nFactorMethod",
+           "part": "parallel",
+           "label": "Based on parallel analysis"
+          },
+          {
+           "t": "radio",
+           "option": "nFactorMethod",
+           "part": "eigen",
+           "label": "Based on eigenvalue"
+          },
+          {
+           "t": "radio",
+           "option": "nFactorMethod",
+           "part": "fixed",
+           "label": "Fixed number"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "col": 1,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Assumption Checks",
+         "children": [
+          {
+           "t": "check",
+           "name": "bartlett"
+          },
+          {
+           "t": "check",
+           "name": "kmo"
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Factor Loadings",
+         "children": [
+          {
+           "t": "text",
+           "name": "hideLoadings",
+           "label": "",
+           "format": "number"
+          },
+          {
+           "t": "check",
+           "name": "sortLoadings"
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Additional Output",
+         "children": [
+          {
+           "t": "check",
+           "name": "factorSummary"
+          },
+          {
+           "t": "check",
+           "name": "factorCor"
+          },
+          {
+           "t": "check",
+           "name": "eigen"
+          },
+          {
+           "t": "check",
+           "name": "screePlot"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "efa": {
+  "name": "efa",
+  "ns": "jmv",
+  "title": "Exploratory Factor Analysis",
+  "menuGroup": "Factor",
+  "menuSubgroup": "Data Reduction",
+  "menuTitle": "Exploratory Factor Analysis",
+  "menuSubtitle": "",
+  "options": [
+   {
+    "name": "vars",
+    "type": "Variables",
+    "title": "Variables",
+    "default": null,
+    "suggested": [
+     "ordinal",
+     "continuous"
+    ],
+    "permitted": [
+     "numeric"
+    ]
+   },
+   {
+    "name": "nFactorMethod",
+    "type": "List",
+    "title": "Number of factors",
+    "default": "parallel",
+    "choices": [
+     {
+      "value": "parallel",
+      "title": "Based on parallel analysis"
+     },
+     {
+      "value": "eigen",
+      "title": "Based on eigenvalue"
+     },
+     {
+      "value": "fixed",
+      "title": "Fixed number"
+     }
+    ]
+   },
+   {
+    "name": "nFactors",
+    "type": "Integer",
+    "title": "nFactors",
+    "default": 1,
+    "min": 1
+   },
+   {
+    "name": "minEigen",
+    "type": "Number",
+    "title": "Minimum value",
+    "default": 0
+   },
+   {
+    "name": "extraction",
+    "type": "List",
+    "title": "Extraction",
+    "default": "minres",
+    "choices": [
+     {
+      "value": "minres",
+      "title": "Minimum residuals"
+     },
+     {
+      "value": "ml",
+      "title": "Maximum likelihood"
+     },
+     {
+      "value": "pa",
+      "title": "Principal axis"
+     }
+    ]
+   },
+   {
+    "name": "rotation",
+    "type": "List",
+    "title": "Rotation",
+    "default": "oblimin",
+    "choices": [
+     {
+      "value": "none",
+      "title": "None"
+     },
+     {
+      "value": "varimax",
+      "title": "Varimax"
+     },
+     {
+      "value": "quartimax",
+      "title": "Quartimax"
+     },
+     {
+      "value": "promax",
+      "title": "Promax"
+     },
+     {
+      "value": "oblimin",
+      "title": "Oblimin"
+     },
+     {
+      "value": "simplimax",
+      "title": "Simplimax"
+     }
+    ]
+   },
+   {
+    "name": "hideLoadings",
+    "type": "Number",
+    "title": "Hide loadings below",
+    "default": 0.3
+   },
+   {
+    "name": "sortLoadings",
+    "type": "Bool",
+    "title": "Sort loadings by size",
+    "default": false
+   },
+   {
+    "name": "screePlot",
+    "type": "Bool",
+    "title": "Scree plot",
+    "default": false
+   },
+   {
+    "name": "eigen",
+    "type": "Bool",
+    "title": "Initial eigenvalues",
+    "default": false
+   },
+   {
+    "name": "factorCor",
+    "type": "Bool",
+    "title": "Factor correlations",
+    "default": false
+   },
+   {
+    "name": "factorSummary",
+    "type": "Bool",
+    "title": "Factor summary",
+    "default": false
+   },
+   {
+    "name": "modelFit",
+    "type": "Bool",
+    "title": "Model fit measures",
+    "default": false
+   },
+   {
+    "name": "kmo",
+    "type": "Bool",
+    "title": "KMO measure of sampling adequacy",
+    "default": false
+   },
+   {
+    "name": "bartlett",
+    "type": "Bool",
+    "title": "Bartlett's test of sphericity",
+    "default": false
+   },
+   {
+    "name": "factorScoreMethod",
+    "type": "List",
+    "title": "Estimation method",
+    "default": "Thurstone",
+    "choices": [
+     {
+      "value": "Thurstone",
+      "title": "Thurstone"
+     },
+     {
+      "value": "Bartlett",
+      "title": "Bartlett"
+     },
+     {
+      "value": "tenBerge",
+      "title": "ten Berge"
+     },
+     {
+      "value": "Anderson",
+      "title": "Anderson & Rubin"
+     },
+     {
+      "value": "Harman",
+      "title": "Harman"
+     }
+    ]
+   }
+  ],
+  "layout": {
+   "t": "root",
+   "children": [
+    {
+     "t": "supplier",
+     "targets": [
+      {
+       "name": "vars"
+      }
+     ]
+    },
+    {
+     "t": "grid",
+     "cells": [
+      {
+       "col": 0,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Method",
+         "children": [
+          {
+           "t": "combo",
+           "name": "extraction",
+           "label": ""
+          },
+          {
+           "t": "combo",
+           "name": "rotation",
+           "label": ""
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Number of Factors",
+         "children": [
+          {
+           "t": "radio",
+           "option": "nFactorMethod",
+           "part": "parallel",
+           "label": "parallel"
+          },
+          {
+           "t": "radio",
+           "option": "nFactorMethod",
+           "part": "eigen",
+           "label": "eigen"
+          },
+          {
+           "t": "radio",
+           "option": "nFactorMethod",
+           "part": "fixed",
+           "label": "fixed"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "col": 1,
+       "row": 0,
+       "children": [
+        {
+         "t": "label",
+         "label": "Assumption Checks",
+         "children": [
+          {
+           "t": "check",
+           "name": "bartlett"
+          },
+          {
+           "t": "check",
+           "name": "kmo"
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Factor Loadings",
+         "children": [
+          {
+           "t": "text",
+           "name": "hideLoadings",
+           "label": "",
+           "format": "number"
+          },
+          {
+           "t": "check",
+           "name": "sortLoadings"
+          }
+         ]
+        },
+        {
+         "t": "label",
+         "label": "Additional Output",
+         "children": [
+          {
+           "t": "check",
+           "name": "factorSummary"
+          },
+          {
+           "t": "check",
+           "name": "factorCor"
+          },
+          {
+           "t": "check",
+           "name": "modelFit"
+          },
+          {
+           "t": "check",
+           "name": "eigen"
+          },
+          {
+           "t": "check",
+           "name": "screePlot"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "t": "collapse",
+     "label": "Save",
+     "collapsed": true,
+     "children": [
+      {
+       "t": "combo",
+       "name": "factorScoreMethod",
+       "label": ""
       }
      ]
     }

@@ -1,0 +1,116 @@
+title: Exploratory Factor Analysis
+name: efa
+jus: '2.0'
+stage: 0
+compilerMode: tame
+children:
+  - type: VariableSupplier
+    suggested:
+      - continuous
+      - ordinal
+    permitted:
+      - numeric
+    persistentItems: false
+    stretchFactor: 1
+    children:
+      - type: TargetLayoutBox
+        children:
+          - type: VariablesListBox
+            name: vars
+            isTarget: true
+  - type: LayoutBox
+    margin: large
+    stretchFactor: 1
+    children:
+      - type: LayoutBox
+        margin: large
+        cell:
+          column: 0
+          row: 0
+        stretchFactor: 1
+        children:
+          - type: Label
+            label: Method
+            children:
+              - name: extraction
+                type: ComboBox
+              - name: rotation
+                type: ComboBox
+          - type: Label
+            label: Number of Factors
+            children:
+              - type: RadioButton
+                name: nFactorMethod_parallel
+                optionName: nFactorMethod
+                optionPart: parallel
+              - type: RadioButton
+                name: nFactorMethod_eigen
+                optionName: nFactorMethod
+                optionPart: eigen
+                children:
+                  - name: minEigen
+                    type: TextBox
+                    label: Eigenvalues greater than
+                    format: number
+                    enable: (nFactorMethod_eigen)
+              - type: RadioButton
+                name: nFactorMethod_fixed
+                optionName: nFactorMethod
+                optionPart: fixed
+                children:
+                  - name: nFactors
+                    type: TextBox
+                    label: ''
+                    suffix: factor(s)
+                    format: number
+                    enable: (nFactorMethod_fixed)
+      - type: LayoutBox
+        margin: large
+        cell:
+          column: 1
+          row: 0
+        stretchFactor: 1
+        children:
+          - type: Label
+            label: Assumption Checks
+            children:
+              - name: bartlett
+                type: CheckBox
+              - name: kmo
+                type: CheckBox
+          - type: Label
+            label: Factor Loadings
+            children:
+              - name: hideLoadings
+                type: TextBox
+                format: number
+              - type: CheckBox
+                name: sortLoadings
+          - type: Label
+            label: Additional Output
+            children:
+              - name: factorSummary
+                type: CheckBox
+              - name: factorCor
+                type: CheckBox
+              - type: CheckBox
+                name: modelFit
+              - name: eigen
+                type: CheckBox
+              - name: screePlot
+                type: CheckBox
+  - type: CollapseBox
+    label: Save
+    collapsed: true
+    stretchFactor: 1
+    children:
+      - type: LayoutBox
+        margin: large
+        stretchFactor: 1
+        children:
+          - type: Output
+            name: factorScoresOV
+            children:
+              - type: ComboBox
+                name: factorScoreMethod
+                enable: (factorScoresOV)

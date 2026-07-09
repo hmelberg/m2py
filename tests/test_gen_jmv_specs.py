@@ -14,7 +14,8 @@ def test_alle_fase1_analyser_er_med():
     s = load_specs()
     for n in ['descriptives', 'ttestIS', 'ttestPS', 'ttestOneS', 'anovaOneW', 'anova',
               'anovaNP', 'corrMatrix', 'linReg', 'logRegBin', 'propTestN', 'contTables',
-              'scat']:
+              'scat', 'ancova', 'corrPart', 'logRegMulti', 'logRegOrd', 'contTablesPaired',
+              'reliability', 'pca', 'efa']:
         assert n in s, n
         assert len(s[n]['options']) > 0, f'{n} har ingen opsjoner'
 
@@ -124,6 +125,18 @@ def test_layout_corrMatrix_har_grid():
     assert lay is not None
     grid = _find(lay, lambda n: n.get('t') == 'grid' and len(n.get('cells') or []) >= 2)
     assert grid is not None, 'corrMatrix skal ha minst ett grid med >= 2 celler'
+
+
+def test_layout_ancova_struktur():
+    # Task 3: ancova skal ha en supplier med dep/factors/covs-roller (samme
+    # mønster som anova, men med kovariater i tillegg).
+    s = load_specs()
+    lay = s['ancova'].get('layout')
+    assert lay and lay['t'] == 'root'
+    sup = _find(lay, lambda n: n.get('t') == 'supplier' and n.get('targets'))
+    assert sup is not None
+    names = {t['name'] for t in sup['targets']}
+    assert {'dep', 'factors', 'covs'} <= names, f'ancova supplier mangler roller: {names}'
 
 
 def test_layout_anova_hoister_gyldige_barn():

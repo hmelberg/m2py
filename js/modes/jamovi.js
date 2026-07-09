@@ -1119,8 +1119,8 @@
       var rib = document.createElement('div');
       rib.id = 'jamoviRibbon'; rib.className = 'jamovi-ribbon'; rib.setAttribute('data-mode-gui','jamovi'); rib.setAttribute('aria-label','jamovi');
       // Meny bygget fra window.JMV_SPECS (jamovi 2.0, Task 5) — ikke lenger hardkodet.
-      var GROUP_ORDER = ['Exploration', 'T-Tests', 'ANOVA', 'Regression', 'Frequencies'];
-      var CAT_KEYS = { 'Exploration': 'exploration', 'T-Tests': 'ttests', 'ANOVA': 'anova', 'Regression': 'regression', 'Frequencies': 'frequencies' };
+      var GROUP_ORDER = ['Exploration', 'T-Tests', 'ANOVA', 'Regression', 'Frequencies', 'Factor'];
+      var CAT_KEYS = { 'Exploration': 'exploration', 'T-Tests': 'ttests', 'ANOVA': 'anova', 'Regression': 'regression', 'Frequencies': 'frequencies', 'Factor': 'factor' };
       var catGroups = GROUP_ORDER.map(function (g) {
         var lastSub = '';
         var items = Object.keys(window.JMV_SPECS || {})

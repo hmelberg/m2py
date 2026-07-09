@@ -17,7 +17,8 @@ SOURCES = {'jmv': ROOT / 'tools/jmv_yaml/jmv.yaml',
 UI_DIR = ROOT / 'tools/jmv_yaml/ui'
 PHASE1 = ['descriptives', 'ttestIS', 'ttestPS', 'ttestOneS', 'anovaOneW', 'anova',
           'anovaNP', 'corrMatrix', 'linReg', 'logRegBin', 'propTestN', 'contTables',
-          'scat']
+          'scat', 'ancova', 'corrPart', 'logRegMulti', 'logRegOrd', 'contTablesPaired',
+          'reliability', 'pca', 'efa']
 # pareto finnes ikke i CRAN/wasm-scatr 1.0.1 — fase 2 når nyere scatr bygges som wasm.
 ROLE_TYPES = {'Variable', 'Variables', 'Pairs'}
 SKIP_TYPES = {'Data', 'Output'}

@@ -4,6 +4,17 @@
 # selve grafikken fanges av captureGraphics når print(results) tegner dem,
 # i samme rekkefølge som traverseringen her.
 
+# jmv::pca()/jmv::efa() sin standardmetode for antall faktorer ('parallel', Horns
+# parallellanalyse via psych::fa.parallel) kaller parallel::mclapply() UTEN eksplisitt
+# mc.cores - som da faller til getOption('mc.cores', 2L) og prøver ekte fork() (mcfork()).
+# webR/wasm har ingen fork()-systemkall ("unable to fork, possible reason: Function not
+# implemented"), selv om plattformen rapporterer seg som unix-lignende (så mclapply sin
+# vanlige Windows-fallback til lapply ikke slår inn). mclapply(mc.cores=1) er R sin egen,
+# dokumenterte seriell-fallback (samme kode-sti som brukes på Windows) - null endring i
+# beregnet resultat, bare ingen forking. Sett globalt her, ufarlig for analyser som ikke
+# bruker mclapply.
+options(mc.cores = 1)
+
 `%||%` <- function(a, b) if (is.null(a)) b else a
 
 .jmv_serialize <- function(x) {
@@ -35,7 +46,14 @@
       return(list(type = 'table', title = it$title, colNames = as.list(names(df)),
                   columns = cols, rows = rows, notes = notes))
     }
-    kids <- tryCatch(it$items, error = function(e) NULL)
+    # `it$items` er jmvcore sin "gi alle barn"-aksessor for Group-objekter, MEN jmvcore
+    # gir også hvert barn en oppslags-snarvei under sitt eget navn - kolliderer det navnet
+    # med selve aksessor-navnet 'items' (f.eks. jmv::reliability sin item-nivå-tabell heter
+    # bokstavelig talt 'items'), returnerer it$items DET ENE barnet i stedet for hele lista
+    # (bekreftet mot jmvcore-kilden: Group$add() gjør private$.items[[barn$name]] <- barn,
+    # en helt normal navngitt liste - kollisjonen ligger i selve $-oppslaget, ikke i lista).
+    # Gå derfor rett på det private feltet, som alltid er den ekte barnelisten.
+    kids <- tryCatch(it$.__enclos_env__$private$.items, error = function(e) NULL)
     if (!is.null(kids)) {
       out <- unname(Filter(Negate(is.null), lapply(kids, walk)))
       if (!length(out)) return(NULL)
