@@ -196,6 +196,51 @@
     return out;
   };
 
+  // ── Layout-gruppering (spec §1.3/§3): celler → kort/rader/fanesett ───────
+  // row= samler naboer med samme radnavn; sammenhengende tab=-celler danner
+  // ett fanesett (celle uten tab bryter settet).
+  D.groupLayout = function (cells) {
+    var out = [], i = 0;
+    while (i < cells.length) {
+      var c = cells[i];
+      if (c.row) {
+        var idx = [i], name = c.row;
+        while (i + 1 < cells.length && cells[i + 1].row === name) idx.push(++i);
+        out.push({ kind: 'row', name: name, indexes: idx });
+      } else if (c.tab) {
+        var tabs = [], curLabel = null;
+        while (i < cells.length && cells[i].tab) {
+          if (cells[i].tab !== curLabel) { curLabel = cells[i].tab; tabs.push({ label: curLabel, indexes: [] }); }
+          tabs[tabs.length - 1].indexes.push(i); i++;
+        }
+        i--; out.push({ kind: 'tabs', tabs: tabs });
+      } else out.push({ kind: 'card', index: i });
+      i++;
+    }
+    return out;
+  };
+
+  // ── Debounce + maks én ventende batch (spec §3) ──────────────────────────
+  // Siste verdier vinner; kjøringer er strengt sekvensielle (én runtime).
+  D.createQueue = function (execute, delayMs) {
+    var pending = null, timer = null, running = false;
+    function flush() {
+      timer = null;
+      if (running || !pending) return;
+      var batch = pending; pending = null; running = true;
+      Promise.resolve(execute(batch))['catch'](function () {}).then(function () {
+        running = false;
+        if (pending && !timer) flush();
+      });
+    }
+    return { change: function (name, value) {
+      pending = pending || {};
+      pending[name] = value;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(flush, delayMs);
+    } };
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = D;
   global.Dashboard = D;
 })(typeof window !== 'undefined' ? window : globalThis);

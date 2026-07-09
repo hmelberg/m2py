@@ -121,3 +121,34 @@ test('planReruns: nothing affected → empty', () => {
   const cells = [{ name: 'a', deps: null, code: 'print(1)' }];
   assert.deepEqual(D.planReruns(cells, ['year'], 'python'), []);
 });
+
+test('groupLayout: cards, rows, tab sets, tab break', () => {
+  const cells = [
+    { name: 'a', row: null, tab: null }, { name: 'b', row: 'kpi', tab: null },
+    { name: 'c', row: 'kpi', tab: null }, { name: 'd', row: null, tab: 'X' },
+    { name: 'e', row: null, tab: 'Y' }, { name: 'f', row: null, tab: null },
+    { name: 'g', row: null, tab: 'Z' },
+  ];
+  const g = D.groupLayout(cells);
+  assert.deepEqual(g.map(x => x.kind), ['card', 'row', 'tabs', 'card', 'tabs']);
+  assert.deepEqual(g[1].indexes, [1, 2]);
+  assert.deepEqual(g[2].tabs.map(t => t.label), ['X', 'Y']);
+  assert.deepEqual(g[2].tabs[0].indexes, [3]);
+  assert.equal(g[0].index, 0);
+});
+
+test('createQueue: coalesces, one pending batch, sequential', async () => {
+  const runs = [];
+  let resolveRun;
+  const q = D.createQueue(batch => new Promise(res => { runs.push(batch); resolveRun = res; }), 1);
+  q.change('year', 2000); q.change('year', 2001);
+  await new Promise(r => setTimeout(r, 15));
+  assert.deepEqual(runs, [{ year: 2001 }]);            // koalesert før kjøring
+  q.change('year', 2005); q.change('cause', 'K');      // kommer mens run 1 pågår
+  await new Promise(r => setTimeout(r, 15));
+  assert.equal(runs.length, 1);                        // venter fortsatt på run 1
+  resolveRun();
+  await new Promise(r => setTimeout(r, 15));
+  assert.deepEqual(runs[1], { year: 2005, cause: 'K' });
+  resolveRun();
+});
