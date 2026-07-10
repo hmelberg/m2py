@@ -3,7 +3,7 @@
 // duplicated across this file (PRECACHE_URLS below), index.html, and
 // py2m/py2m_runner.html — update all of them together when upgrading Pyodide.
 const PYODIDE_VERSION = 'v314.0.2';
-const CACHE = 'm2py-v7';
+const CACHE = 'm2py-v8';
 const CDN_HOSTS = new Set([
   'cdn.jsdelivr.net',
   'cdn.plot.ly',
@@ -17,7 +17,10 @@ const LOCAL_SWR_SUFFIXES = [
   '/functions.py',
   '/variable_metadata.json',
   '/mockdata_core.py',
-  '/mockdata_realism.py'
+  '/mockdata_realism.py',
+  '/brython/pandas_brython.py',
+  '/brython/plotly_express_brython.py',
+  '/brython/brython_runner.py'
 ];
 
 const PRECACHE_URLS = [
@@ -27,7 +30,9 @@ const PRECACHE_URLS = [
   'https://cdn.jsdelivr.net/pyodide/' + PYODIDE_VERSION + '/full/pyodide-lock.json',
   'https://cdn.jsdelivr.net/pyodide/' + PYODIDE_VERSION + '/full/python_stdlib.zip',
   'https://cdn.plot.ly/plotly-2.32.0.min.js',
-  'https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js'
+  'https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js',
+  'https://cdn.jsdelivr.net/npm/brython@3.12.0/brython.min.js',
+  'https://cdn.jsdelivr.net/npm/brython@3.12.0/brython_stdlib.js'
 ];
 
 self.addEventListener('install', e => {
