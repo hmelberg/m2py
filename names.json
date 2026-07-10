@@ -1,3 +1,4 @@
 {
-  "demo": "hmelberg.safestat.examples.ex_dashboard_iris.py"
+  "demo": "hmelberg.safestat.examples.ex_dashboard_iris.py",
+  "jobb": "hmelberg.safestat.examples.ex_dashboard_jobb.r"
 }
