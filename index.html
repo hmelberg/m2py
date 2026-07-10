@@ -506,7 +506,7 @@
       </div>
       <div style="width:1px;height:20px;background:var(--border);margin:0 6px;flex-shrink:0"></div>
       <div class="mode-dropdown-wrap">
-        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg språk (Microdata, Python, R, Statx, Jamovi, Jamovi light, DuckDB, Brython, SafeStat)">
+        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg språk (Microdata, Python, R, Statx, Jamovi, Jamovi light, SQL - DuckDB, Brython, SafeStat)">
           <span id="editorModeLabel">Microdata</span>
           <span class="chevron">▲</span>
         </button>
@@ -517,7 +517,7 @@
           <button type="button" data-mode="statx">Statx</button>
           <button type="button" data-mode="jamovi">Jamovi</button>
           <button type="button" data-mode="jamovilight">Jamovi light</button>
-          <button type="button" data-mode="duckdb">DuckDB</button>
+          <button type="button" data-mode="duckdb">SQL - DuckDB</button>
           <button type="button" data-mode="brython">Brython</button>
           <button type="button" data-mode="safestat">SafeStat</button>
         </div>
@@ -3582,7 +3582,7 @@
         handleTab: microdataHandleTab,
         onActivate: function () { if (!pdexplorerReady && !pdexplorerLoading) loadPyodideAndM2py().then(loadPdexplorer); },
         runSelf: async function (script, ctx) { await runStatxScript(script, ctx); } },
-      duckdb: { id: 'duckdb', label: 'DuckDB', hlConfig: SQL_HL_CFG, handleTab: microdataHandleTab,
+      duckdb: { id: 'duckdb', label: 'SQL - DuckDB', hlConfig: SQL_HL_CFG, handleTab: microdataHandleTab,
         runDefault: 'duckdb' },
       brython: { id: 'brython', label: 'Brython', hlConfig: PY_HL_CFG, handleTab: handlePythonTab,
         onActivate: function () { if (window.BrythonEngine) window.BrythonEngine.load().catch(function () {}); },
