@@ -21,12 +21,116 @@ def data2dict(data):
     return data
 
 def remove_none(d):
-    return {k: v for k, v in d.items() if v is not None}
+    # Rekursiv (2026-07-10): traces/layout fikk null-støy som
+    # {"marker": {"color": null}} fordi nestede dicts ikke ble renset.
+    out = {}
+    for k, v in d.items():
+        if v is None:
+            continue
+        if isinstance(v, dict):
+            v = remove_none(v)
+        out[k] = v
+    return out
+
+def _is_nan(v):
+    """True for None, float-nan og pandas_brython's NaN-sentinel
+    (duck-typet på klassenavn for å unngå sirkulær import)."""
+    if v is None:
+        return True
+    if type(v).__name__ == 'NaN':
+        return True
+    return isinstance(v, float) and v != v
+
+def _unique_ordered(values, sort=True):
+    """Unike verdier med nan utelatt — nan-trygg erstatning for set()-
+    baserte grupperinger (NaN-sentinelen er unhashable, så set(values)
+    krasjet på ethvert datasett med manglende verdier). Sortert som px;
+    blandede typer faller tilbake til opptredensrekkefølge."""
+    uniq = []
+    seen = set()
+    for v in values:
+        if _is_nan(v):
+            continue
+        key = v if isinstance(v, (int, float, str, bool)) else str(v)
+        if key not in seen:
+            seen.add(key)
+            uniq.append(v)
+    if sort:
+        try:
+            uniq = sorted(uniq)
+        except TypeError:
+            pass
+    return uniq
+
+def _apply_category_order(categories, category_orders, key):
+    """px' category_orders={kolonne: [rekkefølge]}: nevnte kategorier først
+    i angitt rekkefølge, unevnte etterpå i opprinnelig rekkefølge."""
+    if not category_orders or not key or key not in category_orders:
+        return categories
+    wanted = [c for c in category_orders[key] if c in categories]
+    rest = [c for c in categories if c not in wanted]
+    return wanted + rest
+
+def _series_xy(data, x, y):
+    """Series-input (to_dict gir {'index': ..., 'values': ...}): bruk
+    indeksen som x og verdiene som y når x/y ikke er oppgitt — gjør
+    df.groupby('g')['v'].mean() direkte plottbar (før: søppel-akser)."""
+    if (isinstance(data, dict) and x is None and y is None
+            and set(data.keys()) == {'index', 'values'}):
+        return 'index', 'values'
+    return x, y
+
+def _hover_fields(hover_name_vals, hover_data_map, indices=None):
+    """px-lik hover: hovertext = hover_name-kolonnen (fet tittel i tooltip),
+    customdata = per-punkt-rader av hover_data-kolonnene, og hovertemplate
+    som viser x/y + kolonnene. (Før: hoverinfo='name' SKJULTE x/y, og
+    customdata var {kolonne: liste} — et format plotly.js ikke forstår.)"""
+    out = {}
+    extra = []
+    if hover_name_vals:
+        vals = hover_name_vals if indices is None else [hover_name_vals[i] for i in indices]
+        out['hovertext'] = vals
+    if hover_data_map:
+        cols = [c for c in hover_data_map.keys() if hover_data_map[c] is not None]
+        if cols:
+            src = [hover_data_map[c] for c in cols]
+            n = len(src[0])
+            idxs = list(range(n)) if indices is None else indices
+            out['customdata'] = [[s[i] for s in src] for i in idxs]
+            for _ci, c in enumerate(cols):
+                extra.append(str(c) + '=%{customdata[' + str(_ci) + ']}')
+    if hover_name_vals or extra:
+        tmpl = ('<b>%{hovertext}</b><br>' if hover_name_vals else '')
+        tmpl += 'x=%{x}<br>y=%{y}'
+        if extra:
+            tmpl += '<br>' + '<br>'.join(extra)
+        out['hovertemplate'] = tmpl + '<extra></extra>'
+    return out
+
+def _apply_axis_options(layout, log_x=False, log_y=False, range_x=None, range_y=None):
+    """px-aliasene log_x/log_y/range_x/range_y → layout.(x|y)axis."""
+    if log_x or range_x is not None:
+        ax = layout.setdefault('xaxis', {})
+        if log_x:
+            ax['type'] = 'log'
+        if range_x is not None:
+            ax['range'] = list(range_x)
+    if log_y or range_y is not None:
+        ay = layout.setdefault('yaxis', {})
+        if log_y:
+            ay['type'] = 'log'
+        if range_y is not None:
+            ay['range'] = list(range_y)
+    return layout
 
 # Ensure all objects are JSON serializable (notably convert tuples to lists)
 def json_safe(obj):
     import math
     import datetime
+    # pandas_brython's NaN-sentinel -> null (før: TypeError ved serialisering,
+    # som knakk plotting av ethvert datasett med manglende verdier)
+    if type(obj).__name__ == 'NaN':
+        return None
     # Tuples -> lists
     if isinstance(obj, tuple):
         return [json_safe(x) for x in obj]
@@ -78,15 +182,47 @@ class PlotlyFigure:
         self.config = plot_data.get('config', {})
         self.type = plot_data.get('type', 'plotly')
     
+    @staticmethod
+    def _expand_underscores(kwargs):
+        """Plotly's underscore-magi: xaxis_title=... → {'xaxis': {'title': ...}}.
+        (Før ble 'xaxis_title' lagt inn som ugyldig toppnivå-nøkkel.)"""
+        out = {}
+        for k, v in kwargs.items():
+            parts = k.split('_')
+            # Bare kjente containere ekspanderes; resten beholdes som-de-er
+            if len(parts) > 1 and parts[0] in (
+                    'xaxis', 'yaxis', 'legend', 'title', 'font', 'margin',
+                    'coloraxis', 'hoverlabel', 'grid'):
+                node = out.setdefault(parts[0], {})
+                node['_'.join(parts[1:])] = v
+            else:
+                out[k] = v
+        return out
+
     def update_layout(self, **kwargs):
         """Update layout properties"""
-        self.layout.update(kwargs)
+        for k, v in self._expand_underscores(kwargs).items():
+            if isinstance(v, dict) and isinstance(self.layout.get(k), dict):
+                self.layout[k].update(v)
+            else:
+                self.layout[k] = v
         return self
-    
+
     def update_traces(self, **kwargs):
         """Update trace properties for all traces"""
+        expanded = {}
+        for k, v in kwargs.items():
+            parts = k.split('_')
+            if len(parts) > 1 and parts[0] in ('marker', 'line', 'error'):
+                expanded.setdefault(parts[0], {})['_'.join(parts[1:])] = v
+            else:
+                expanded[k] = v
         for trace in self.data:
-            trace.update(kwargs)
+            for k, v in expanded.items():
+                if isinstance(v, dict) and isinstance(trace.get(k), dict):
+                    trace[k].update(v)
+                else:
+                    trace[k] = v
         return self
     
     def add_trace(self, trace):
@@ -132,6 +268,10 @@ class PlotlyFigure:
     
     def _build_plot_data(self):
         """Assemble the JSON-safe plot data dict (data/layout/config)."""
+        # Norsk tallformat (pe.defaults.norsk): desimalkomma + hardt
+        # mellomrom som tusenskiller, via plotly.js' layout.separators.
+        if defaults.norsk and 'separators' not in self.layout:
+            self.layout['separators'] = ', '
         # Add data attributes for CSS styling
         plot_data = {
             "type": self.type,
@@ -172,12 +312,17 @@ class PlotlyFigure:
 
 # Module-wide sizing defaults (user-overridable)
 class _Defaults:
-    def __init__(self, height: int | None = 520, width: int | None = None, static: bool = False):
+    def __init__(self, height: int | None = 520, width: int | None = None, static: bool = False,
+                 norsk: bool = False):
         # Global defaults used when function args are None
         self.height = height
         self.width = width
         # If True, plots render as non-interactive by default
         self.static = static
+        # Norsk tallformat (desimalkomma, mellomrom som tusenskiller) —
+        # `pe.defaults.norsk = True` gjelder alle figurer. Utover px, men
+        # billig siden vi eier oversettelsen til plotly.js.
+        self.norsk = norsk
 
 defaults = _Defaults()
 # Convenience alias to match suggested API (px.default.static)
@@ -235,17 +380,33 @@ TEMPLATES = {
     }
 }
 
-def get_color_for_category(category, color_discrete_sequence=None, color_discrete_map=None):
-    """Get color for a category based on sequence or map"""
+def build_category_colors(categories, color_discrete_sequence=None, color_discrete_map=None):
+    """Deterministisk {kategori: farge}: tildeling i kategorienes rekkefølge,
+    som px. (Erstattet hash-basert tildeling 2026-07-10 — den ga kollisjoner,
+    ignorerte sekvens-rekkefølgen og var ikke-deterministisk på tvers av
+    CPython-økter pga. hash-randomisering.)"""
+    seq = color_discrete_sequence or DEFAULT_COLORS
+    colors = {}
+    _next = 0
+    for cat in categories:
+        if color_discrete_map and cat in color_discrete_map:
+            colors[cat] = color_discrete_map[cat]
+        else:
+            colors[cat] = seq[_next % len(seq)]
+            _next += 1
+    return colors
+
+def get_color_for_category(category, color_discrete_sequence=None, color_discrete_map=None,
+                           _colors=None):
+    """Bakoverkompatibel wrapper: bruk build_category_colors() der hele
+    kategorilisten er kjent; denne slår opp i et ferdig map når gitt,
+    ellers faller den tilbake til første farge (aldri hash)."""
+    if _colors and category in _colors:
+        return _colors[category]
     if color_discrete_map and category in color_discrete_map:
         return color_discrete_map[category]
-    
-    if color_discrete_sequence:
-        # Use modulo to cycle through colors
-        return color_discrete_sequence[hash(str(category)) % len(color_discrete_sequence)]
-    
-    # Fall back to default colors
-    return DEFAULT_COLORS[hash(str(category)) % len(DEFAULT_COLORS)]
+    seq = color_discrete_sequence or DEFAULT_COLORS
+    return seq[0]
 
 def is_continuous_color(color_data):
     """Check if color data is continuous (numeric)"""
@@ -277,18 +438,25 @@ def create_faceted_layout(facet_row=None, facet_col=None, facet_col_wrap=None, t
     """Create layout for faceted plots"""
     layout = {}
     
+    _wrapped = False
     if facet_row or facet_col:
         # Get unique values for faceting
         if facet_row:
-            row_values = sorted(set(data.get(facet_row) if data else []))
+            row_values = _unique_ordered(data.get(facet_row) if data else [], sort=False)
             n_rows = len(row_values)
         else:
             n_rows = 1
-            
+
         if facet_col:
-            col_values = sorted(set(data.get(facet_col) if data else []))
+            col_values = _unique_ordered(data.get(facet_col) if data else [], sort=False)
             if facet_col_wrap:
                 n_cols = min(facet_col_wrap, len(col_values))
+                if not facet_row and len(col_values) > n_cols:
+                    # facet_col_wrap: panelene fordeles på flere rader
+                    # (før: alle paneler i én rad med akser plotly.js ikke
+                    # fant → paneler oppå hverandre).
+                    n_rows = -(-len(col_values) // n_cols)
+                    _wrapped = True
             else:
                 n_cols = len(col_values)
         else:
@@ -337,52 +505,67 @@ def create_faceted_layout(facet_row=None, facet_col=None, facet_col_wrap=None, t
             'columns': n_cols,
             'pattern': 'independent'
         }
-        
-        # Create subplot axes for each facet
-        subplot_idx = 1
-        for row_idx in range(n_rows):
-            for col_idx in range(n_cols):
-                if n_rows > 1 or n_cols > 1:
-                    # Create subplot axis
-                    if n_rows > 1 and n_cols > 1:
-                        # Both row and column faceting
-                        layout[f'xaxis{subplot_idx}'] = {
-                            'domain': [col_idx/n_cols + 0.05, (col_idx+1)/n_cols - 0.05],
-                            'anchor': f'y{subplot_idx}',
-                            'title': labels.get(x_col, '') if labels and x_col else None,
-                            'showgrid': True,
-                            'zeroline': False,
-                            'range': x_range
-                        }
-                        layout[f'yaxis{subplot_idx}'] = {
-                            'domain': [1-(row_idx+1)/n_rows + 0.05, 1-row_idx/n_rows - 0.05],
-                            'anchor': f'x{subplot_idx}',
-                            'title': labels.get(y_col, '') if labels and y_col else None,
-                            'showgrid': True,
-                            'zeroline': False,
-                            'range': y_range
-                        }
-                    elif n_rows > 1:
-                        # Only row faceting
-                        layout[f'yaxis{subplot_idx}'] = {
-                            'domain': [1-(row_idx+1)/n_rows + 0.05, 1-row_idx/n_rows - 0.05],
-                            'anchor': 'x',
-                            'title': labels.get(y_col, '') if labels and y_col else None,
-                            'showgrid': True,
-                            'zeroline': False,
-                            'range': y_range
-                        }
-                    elif n_cols > 1:
-                        # Only column faceting
-                        layout[f'xaxis{subplot_idx}'] = {
-                            'domain': [col_idx/n_cols + 0.05, (col_idx+1)/n_cols - 0.05],
-                            'anchor': 'y',
-                            'title': labels.get(x_col, '') if labels and y_col else None,
-                            'showgrid': True,
-                            'zeroline': False,
-                            'range': x_range
-                        }
-                    subplot_idx += 1
+
+        # Proporsjonal padding: fast 0.05 ga inverterte domener
+        # ([0.05, 0.033]) når panelbredden ble mindre enn 0.1 (≥10 paneler).
+        pad_c = min(0.05, 0.35 / n_cols)
+        pad_r = min(0.05, 0.35 / n_rows)
+
+        def _col_domain(col_idx):
+            return [col_idx / n_cols + pad_c, (col_idx + 1) / n_cols - pad_c]
+
+        def _row_domain(row_idx):
+            return [1 - (row_idx + 1) / n_rows + pad_r, 1 - row_idx / n_rows - pad_r]
+
+        # Create subplot axes for each facet. Ved wrap får hvert panel både
+        # x- og y-akse (flere rader trenger egne y-akser).
+        both_axes = (n_rows > 1 and n_cols > 1)
+        n_panels = (len(col_values) if _wrapped
+                    else n_rows * n_cols if both_axes
+                    else max(n_rows, n_cols))
+        for panel in range(1, n_panels + 1):
+            if n_rows <= 1 and n_cols <= 1:
+                break
+            row_idx = (panel - 1) // n_cols if (both_axes or _wrapped) else 0
+            col_idx = (panel - 1) % n_cols if (both_axes or _wrapped or n_cols > 1) else 0
+            if both_axes or _wrapped:
+                layout[f'xaxis{panel}'] = {
+                    'domain': _col_domain(col_idx),
+                    'anchor': f'y{panel}',
+                    'title': labels.get(x_col, '') if labels and x_col else None,
+                    'showgrid': True,
+                    'zeroline': False,
+                    'range': x_range
+                }
+                layout[f'yaxis{panel}'] = {
+                    'domain': _row_domain(row_idx),
+                    'anchor': f'x{panel}',
+                    'title': labels.get(y_col, '') if labels and y_col else None,
+                    'showgrid': True,
+                    'zeroline': False,
+                    'range': y_range
+                }
+            elif n_rows > 1:
+                # Only row faceting
+                layout[f'yaxis{panel}'] = {
+                    'domain': _row_domain(panel - 1),
+                    'anchor': 'x',
+                    'title': labels.get(y_col, '') if labels and y_col else None,
+                    'showgrid': True,
+                    'zeroline': False,
+                    'range': y_range
+                }
+            else:
+                # Only column faceting (typo-fiks 2026-07-10: betingelsen
+                # sjekket y_col for x-aksens tittel)
+                layout[f'xaxis{panel}'] = {
+                    'domain': _col_domain(panel - 1),
+                    'anchor': 'y',
+                    'title': labels.get(x_col, '') if labels and x_col else None,
+                    'showgrid': True,
+                    'zeroline': False,
+                    'range': x_range
+                }
         
         # Let CSS handle all sizing - no dimension calculations needed
         # CSS will set appropriate heights based on data-faceted attribute
@@ -485,45 +668,6 @@ def create_faceted_layout(facet_row=None, facet_col=None, facet_col_wrap=None, t
     })
     
     return layout
-
-def get_facet_indices(data, facet_row=None, facet_col=None):
-    """Get indices for faceted data"""
-    if not facet_row and not facet_col:
-        return [([], "main")]  # Single plot
-    
-    facet_combinations = []
-    
-    if facet_row and facet_col:
-        # Both row and column faceting
-        row_values = data.get(facet_row)
-        col_values = data.get(facet_col)
-        unique_combinations = set(zip(row_values, col_values))
-        
-        for row_val, col_val in unique_combinations:
-            # Find indices where both row and column match
-            indices = [i for i, (r, c) in enumerate(zip(row_values, col_values)) if r == row_val and c == col_val]
-            if indices:
-                facet_combinations.append((indices, f"{row_val}-{col_val}"))
-    
-    elif facet_row:
-        # Only row faceting
-        row_values = data.get(facet_row)
-        unique_rows = sorted(set(row_values))
-        for row_val in unique_rows:
-            indices = [i for i, v in enumerate(row_values) if v == row_val]
-            if indices:
-                facet_combinations.append((indices, str(row_val)))
-    
-    elif facet_col:
-        # Only column faceting
-        col_values = data.get(facet_col)
-        unique_cols = sorted(set(col_values))
-        for col_val in unique_cols:
-            indices = [i for i, v in enumerate(col_values) if v == col_val]
-            if indices:
-                facet_combinations.append((indices, str(col_val)))
-    
-    return facet_combinations
 
 def create_marginal_traces(data, x, y, marginal_x=None, marginal_y=None, color=None, 
                           color_discrete_sequence=None, color_discrete_map=None):
@@ -678,14 +822,11 @@ def generate_traces(data, chart_type, x, y, color, text, hover_name, hover_data,
     layout = {}
     if data is not None:
         data = ensure_data_dict(data)
-    if data is not None:
-        data = ensure_data_dict(data)
-    data = ensure_data_dict(data)
-    data = ensure_data_dict(data)
-    
+
     x_data = data.get(x)
     y_data = data.get(y)
     color_data = data.get(color)
+    _cat_colors = build_category_colors(_unique_ordered(color_data or [], sort=False), color_discrete_sequence, color_discrete_map)
     text_data = data.get(text)
     hover_name_data = data.get(hover_name)
     hover_data_dict = {k: data.get(k) for k in hover_data or []}
@@ -697,12 +838,11 @@ def generate_traces(data, chart_type, x, y, color, text, hover_name, hover_data,
             "y": y_data,
             "marker": {"color": color_data} if color_data else None,
             "text": text_data,
-            "hoverinfo": "name" if hover_name_data else None,
-            "customdata": hover_data_dict
+            **_hover_fields(hover_name_data, hover_data_dict)
         })
         traces.append(trace)
     else:
-        color_categories = list(set(color_data))
+        color_categories = _unique_ordered(color_data, sort=False)
         for color_val in color_categories:
             filtered_indices = [i for i, c in enumerate(color_data) if c == color_val]
             filtered_x = [x_data[i] for i in filtered_indices]
@@ -712,7 +852,7 @@ def generate_traces(data, chart_type, x, y, color, text, hover_name, hover_data,
             filtered_hover_data = {k: [v[i] for i in filtered_indices] for k, v in hover_data_dict.items()} if hover_data_dict else None
 
             # Get color for this category
-            category_color = get_color_for_category(color_val, color_discrete_sequence, color_discrete_map)
+            category_color = _cat_colors.get(color_val, DEFAULT_COLORS[0])
 
             trace = remove_none({
                 "type": chart_type,
@@ -721,8 +861,7 @@ def generate_traces(data, chart_type, x, y, color, text, hover_name, hover_data,
                 "name": str(color_val),
                 "marker": {"color": category_color},
                 "text": filtered_text,
-                "hoverinfo": "name" if filtered_hover_name else None,
-                "customdata": filtered_hover_data
+                **_hover_fields(filtered_hover_name, filtered_hover_data)
             })
             traces.append(trace)
 
@@ -763,6 +902,7 @@ def area(data, x=None, y=None, color=None, text=None, hover_name=None, hover_dat
     traces = []
     layout = {}
     data = ensure_data_dict(data)
+    x, y = _series_xy(data, x, y)
     
     x_data = data.get(x)
 
@@ -836,12 +976,15 @@ def bar(data, x=None, y=None, color=None, text=None, hover_name=None, hover_data
         color_continuous_scale=None, color_continuous_midpoint=None,
         facet_row=None, facet_col=None, facet_col_wrap=None, labels=None, template=None, config=None, static=None,
         orientation=None,
+        text_auto=False, opacity=None, log_x=False, log_y=False,
+        range_x=None, range_y=None, category_orders=None,
         # Enhanced axis customization
         xaxis_title=None, yaxis_title=None, xaxis_range=None, yaxis_range=None):
-    
+
     traces = []
     layout = {}
     data = ensure_data_dict(data)
+    x, y = _series_xy(data, x, y)
     if x is None and isinstance(data, dict):
         x_data=list(data.keys())
         # For wide-form detection, y may be a list; don't fetch here to avoid unhashable errors
@@ -859,28 +1002,36 @@ def bar(data, x=None, y=None, color=None, text=None, hover_name=None, hover_data
         if isinstance(y, list):
             y_data = None
         else:
-            y_data = data.get(y, data)
-        
+            # (Før: data.get(y, data) — manglende y ga hele data-dicten som
+            # y-verdier. Nå None, som gir tydelig tom trace i stedet.)
+            y_data = data.get(y)
+
     color_data = data.get(color)
+    _cat_colors = build_category_colors(
+        _apply_category_order(_unique_ordered(color_data or [], sort=False), category_orders, color),
+        color_discrete_sequence, color_discrete_map)
     text_data = data.get(text)
     hover_name_data = data.get(hover_name)
     hover_data_dict = {k: data.get(k) for k in hover_data or []}
-    
+
     # Handle faceting with proper subplot assignment
     if facet_row or facet_col:
         # Get unique values for faceting
         if facet_row:
             row_values = data.get(facet_row)
-            unique_rows = sorted(set(row_values))
+            unique_rows = _unique_ordered(row_values, sort=False)
             n_rows = len(unique_rows)
         else:
             n_rows = 1
             
         if facet_col:
             col_values = data.get(facet_col)
-            unique_cols = sorted(set(col_values))
+            unique_cols = _unique_ordered(col_values, sort=False)
             if facet_col_wrap:
                 n_cols = min(facet_col_wrap, len(unique_cols))
+                if not facet_row and len(unique_cols) > n_cols:
+                    # wrap: paneler over flere rader (matcher layouten)
+                    n_rows = -(-len(unique_cols) // n_cols)
             else:
                 n_cols = len(unique_cols)
         else:
@@ -931,8 +1082,7 @@ def bar(data, x=None, y=None, color=None, text=None, hover_name=None, hover_data
                             "name": facet_name,
                             "marker": marker_config if marker_config else None,
                             "text": [text_data[i] for i in indices] if text_data else None,
-                            "hoverinfo": "name" if hover_name_data else None,
-                            "customdata": {k: [v[i] for i in indices] for k, v in hover_data_dict.items()} if hover_data_dict else None
+                            **_hover_fields(hover_name_data, hover_data_dict, indices)
                         })
                         
                         # Assign to subplot if faceting
@@ -946,16 +1096,15 @@ def bar(data, x=None, y=None, color=None, text=None, hover_name=None, hover_data
                                 trace["xaxis"] = f"x{subplot_idx}"
                         
                         traces.append(trace)
-                        subplot_idx += 1  # Increment subplot index for next facet
                     else:
                         # Handle color within facet
-                        color_categories = list(set(facet_color))
+                        color_categories = _unique_ordered(facet_color, sort=False)
                         for color_val in color_categories:
                             color_indices = [i for i, c in enumerate(facet_color) if c == color_val]
                             color_x = [facet_x[i] for i in color_indices]
                             color_y = [facet_y[i] for i in color_indices]
                             
-                            category_color = get_color_for_category(color_val, color_discrete_sequence, color_discrete_map)
+                            category_color = _cat_colors.get(color_val, DEFAULT_COLORS[0])
                             
                             trace = remove_none({
                                 "type": "bar",
@@ -981,7 +1130,10 @@ def bar(data, x=None, y=None, color=None, text=None, hover_name=None, hover_data
                             
                             traces.append(trace)
                             # Don't increment subplot_idx here - all colors within a facet use the same subplot
-                        subplot_idx += 1  # Increment subplot index for next facet
+                # Panel-telleren følger rutenett-cellen, ikke om cellen
+                # har data (fikset 2026-07-10 — manglende kombinasjoner
+                # forskjøv alle etterfølgende paneler).
+                subplot_idx += 1
     else:
         # No faceting - original logic
         multiple_traces = False
@@ -1016,12 +1168,11 @@ def bar(data, x=None, y=None, color=None, text=None, hover_name=None, hover_data
                 "orientation": orientation,
                 "marker": marker_config if marker_config else None,
                 "text": text_data,
-                "hoverinfo": "name" if hover_name_data else None,
-                "customdata": hover_data_dict
+                **_hover_fields(hover_name_data, hover_data_dict)
             })
             traces.append(trace)
         else:
-            color_categories = list(set(color_data))
+            color_categories = _unique_ordered(color_data, sort=False)
             for color_val in color_categories:
                 filtered_indices = [i for i, c in enumerate(color_data) if c == color_val]
                 filtered_x = [x_data[i] for i in filtered_indices]
@@ -1031,7 +1182,7 @@ def bar(data, x=None, y=None, color=None, text=None, hover_name=None, hover_data
                 filtered_hover_data = {k: [v[i] for i in filtered_indices] for k, v in hover_data_dict.items()} if hover_data_dict else None
 
                 # Get color for this category
-                category_color = get_color_for_category(color_val, color_discrete_sequence, color_discrete_map)
+                category_color = _cat_colors.get(color_val, DEFAULT_COLORS[0])
 
                 trace = remove_none({
                     "type": "bar",
@@ -1041,14 +1192,22 @@ def bar(data, x=None, y=None, color=None, text=None, hover_name=None, hover_data
                     "name": str(color_val),
                     "marker": {"color": category_color},
                     "text": filtered_text,
-                    "hoverinfo": "name" if filtered_hover_name else None,
-                    "customdata": filtered_hover_data
+                    **_hover_fields(filtered_hover_name, filtered_hover_data)
                 })
                 traces.append(trace)
             multiple_traces = len(color_categories) > 1
 
     # Create layout with faceting support
     layout = create_faceted_layout(facet_row, facet_col, facet_col_wrap, title, height, width, labels, template, data, x, y)
+    layout = _apply_axis_options(layout, log_x, log_y, range_x, range_y)
+    # px-argumenter som gjelder alle bar-traces (2026-07-10)
+    if opacity is not None:
+        for _tr in traces:
+            _tr['opacity'] = opacity
+    if text_auto:
+        for _tr in traces:
+            _tr['texttemplate'] = '%{x}' if orientation == 'h' else '%{y}'
+            _tr['textposition'] = 'auto'
     
     # Enhanced axis customization
     if xaxis_title or yaxis_title or xaxis_range or yaxis_range:
@@ -1092,15 +1251,24 @@ def bar(data, x=None, y=None, color=None, text=None, hover_name=None, hover_data
     
 def box(data, x=None, y=None, color=None, text=None, hover_name=None, hover_data=None,
         title=None, height=None, width=None, color_discrete_sequence=None, color_discrete_map=None, config=None, static=None,
+        points=None, log_x=False, log_y=False, range_x=None, range_y=None,
         # Enhanced axis customization
         xaxis_title=None, yaxis_title=None, xaxis_range=None, yaxis_range=None):
-    
+
     data = ensure_data_dict(data)
     traces, layout = generate_traces(
         data, "box", x, y, color, text, hover_name, hover_data, title, height, width,
         color_discrete_sequence, color_discrete_map,
         xaxis_title, yaxis_title, xaxis_range, yaxis_range)
-    
+    # px setter boxmode='group' ved x+color — plotly.js-defaulten gir
+    # overlappende bokser (fikset 2026-07-10).
+    if x is not None and color is not None and len(traces) > 1:
+        layout['boxmode'] = 'group'
+    if points is not None:
+        for _tr in traces:
+            _tr['boxpoints'] = points if points is not False else False
+    layout = _apply_axis_options(layout, log_x, log_y, range_x, range_y)
+
     # Return JSON string with special prefix for JavaScript detection
     import json
     clean_layout = remove_none(layout)
@@ -1205,6 +1373,7 @@ def histogram(data, x=None, y=None, color=None, text=None, hover_name=None, hove
     x_data = data.get(x)
     y_data = data.get(y) if y else None  # Make sure to handle y=None case
     color_data = data.get(color)
+    _cat_colors = build_category_colors(_unique_ordered(color_data or [], sort=False), color_discrete_sequence, color_discrete_map)
     text_data = data.get(text)
     hover_name_data = data.get(hover_name)
     hover_data_dict = {k: data.get(k) for k in hover_data or []}
@@ -1214,16 +1383,19 @@ def histogram(data, x=None, y=None, color=None, text=None, hover_name=None, hove
         # Get unique values for faceting
         if facet_row:
             row_values = data.get(facet_row)
-            unique_rows = sorted(set(row_values))
+            unique_rows = _unique_ordered(row_values, sort=False)
             n_rows = len(unique_rows)
         else:
             n_rows = 1
             
         if facet_col:
             col_values = data.get(facet_col)
-            unique_cols = sorted(set(col_values))
+            unique_cols = _unique_ordered(col_values, sort=False)
             if facet_col_wrap:
                 n_cols = min(facet_col_wrap, len(unique_cols))
+                if not facet_row and len(unique_cols) > n_cols:
+                    # wrap: paneler over flere rader (matcher layouten)
+                    n_rows = -(-len(unique_cols) // n_cols)
             else:
                 n_cols = len(unique_cols)
         else:
@@ -1256,19 +1428,21 @@ def histogram(data, x=None, y=None, color=None, text=None, hover_name=None, hove
                     facet_color = [color_data[i] for i in indices] if color_data else None
                     
                     if facet_color is None or isinstance(facet_color, str):
+                        bins_param = nbins if nbins is not None else n_bins
                         trace = remove_none({
                             "type": "histogram",
                             "x": facet_x if (orientation is None or orientation == 'v') else facet_y,
                             "y": facet_y if (orientation is None or orientation == 'v') else facet_x,
                             "orientation": orientation,
                             "histnorm": histnorm,
+                            "nbinsx": bins_param if (orientation is None or orientation == 'v') else None,
+                            "nbinsy": bins_param if orientation == 'h' else None,
                             "name": facet_name,
                             "marker": {"color": facet_color if facet_color else None},
                             "text": [text_data[i] for i in indices] if text_data else None,
-                            "hoverinfo": "name" if hover_name_data else None,
-                            "customdata": {k: [v[i] for i in indices] for k, v in hover_data_dict.items()} if hover_data_dict else None
+                            **_hover_fields(hover_name_data, hover_data_dict, indices)
                         })
-                        
+
                         # Assign to subplot if faceting
                         if n_rows > 1 or n_cols > 1:
                             if n_rows > 1 and n_cols > 1:
@@ -1278,18 +1452,17 @@ def histogram(data, x=None, y=None, color=None, text=None, hover_name=None, hove
                                 trace["yaxis"] = f"y{subplot_idx}"
                             elif n_cols > 1:
                                 trace["xaxis"] = f"x{subplot_idx}"
-                        
+
                         traces.append(trace)
-                        subplot_idx += 1  # Increment subplot index for next facet
                     else:
                         # Handle color within facet
-                        color_categories = list(set(facet_color))
+                        color_categories = _unique_ordered(facet_color, sort=False)
                         for color_val in color_categories:
                             color_indices = [i for i, c in enumerate(facet_color) if c == color_val]
                             color_x = [facet_x[i] for i in color_indices]
                             color_y = [facet_y[i] for i in color_indices] if facet_y else None
                             
-                            category_color = get_color_for_category(color_val, color_discrete_sequence, color_discrete_map)
+                            category_color = _cat_colors.get(color_val, DEFAULT_COLORS[0])
                             
                             # Handle nbins parameter (use n_bins if nbins is provided)
                             bins_param = nbins if nbins is not None else n_bins
@@ -1321,14 +1494,17 @@ def histogram(data, x=None, y=None, color=None, text=None, hover_name=None, hove
                             
                             traces.append(trace)
                             # Don't increment subplot_idx here - all colors within a facet use the same subplot
-                        subplot_idx += 1  # Increment subplot index for next facet
+                # Panel-telleren følger rutenett-cellen, ikke om cellen har
+                # data (fikset 2026-07-10 — manglende kombinasjoner forskjøv
+                # alle etterfølgende paneler).
+                subplot_idx += 1
     else:
         # No faceting - original logic
         if color_data is None or isinstance(color_data, str):
             # Single color case
             # Handle nbins parameter (use n_bins if nbins is provided)
             bins_param = nbins if nbins is not None else n_bins
-            
+
             trace = remove_none({
                 "type": "histogram",
                 "x": x_data if (orientation is None or orientation == 'v') else y_data,
@@ -1339,13 +1515,12 @@ def histogram(data, x=None, y=None, color=None, text=None, hover_name=None, hove
                 "nbinsy": bins_param if orientation == 'h' else None,
                 "marker": {"color": color_data} if color_data else None,
                 "text": text_data,
-                "hoverinfo": "name" if hover_name_data else None,
-                "customdata": hover_data_dict
+                **_hover_fields(hover_name_data, hover_data_dict)
             })
             traces.append(trace)
         else:
             # Multiple colors case - split data by color categories
-            color_categories = list(set(color_data))
+            color_categories = _unique_ordered(color_data, sort=False)
             for color_val in color_categories:
                 filtered_indices = [i for i, c in enumerate(color_data) if c == color_val]
                 filtered_x = [x_data[i] for i in filtered_indices]
@@ -1355,7 +1530,7 @@ def histogram(data, x=None, y=None, color=None, text=None, hover_name=None, hove
                 filtered_hover_data = {k: [v[i] for i in filtered_indices] for k, v in hover_data_dict.items()} if hover_data_dict else None
 
                 # Get color for this category
-                category_color = get_color_for_category(color_val, color_discrete_sequence, color_discrete_map)
+                category_color = _cat_colors.get(color_val, DEFAULT_COLORS[0])
 
                 # Handle nbins parameter (use n_bins if nbins is provided)
                 bins_param = nbins if nbins is not None else n_bins
@@ -1371,13 +1546,16 @@ def histogram(data, x=None, y=None, color=None, text=None, hover_name=None, hove
                     "name": str(color_val),
                     "marker": {"color": category_color},
                     "text": filtered_text,
-                    "hoverinfo": "name" if filtered_hover_name else None,
-                    "customdata": filtered_hover_data
+                    **_hover_fields(filtered_hover_name, filtered_hover_data)
                 })
                 traces.append(trace)
 
     # Create layout with faceting support
     layout = create_faceted_layout(facet_row, facet_col, facet_col_wrap, title, height, width, labels, template, data, x, y)
+    # px stabler fargegrupper i histogram (barmode='relative'); plotly.js-
+    # defaulten er 'group' (fikset 2026-07-10).
+    if color is not None and len(traces) > 1 and 'barmode' not in layout:
+        layout['barmode'] = 'relative'
     
     # Enhanced axis customization
     if xaxis_title or yaxis_title or xaxis_range or yaxis_range:
@@ -1404,14 +1582,10 @@ def histogram(data, x=None, y=None, color=None, text=None, hover_name=None, hove
     plot_data = {
         "type": "plotly",
         "data": traces,
-        "layout": layout,
+        "layout": remove_none(layout),
         "config": clean_config
     }
     return PlotlyFigure(plot_data)
-
-def to_camel_case(snake_str):
-    components = snake_str.split('_')
-    return components[0] + ''.join(x.title() for x in components[1:])
 
 def clean_dict(d):
     return {k: clean_dict(v) if isinstance(v, dict) else v for k, v in d.items() if v is not None}
@@ -1425,141 +1599,6 @@ def to_camel_case(d):
         return d
     return {to_camel(k): to_camel_case(v) for k, v in d.items() if v is not None}
 
-def indicator_detailed(mode='number', value=None, 
-              number_value_format=None, number_prefix=None, number_suffix=None,
-              number_font_size=None, number_font_family=None, number_font_color=None, 
-              delta_reference=None, delta_value_format=None, delta_relative=None, 
-              delta_increasing_color=None, delta_decreasing_color=None, 
-              gauge_axis_range=None, gauge_bar_thickness=None, gauge_bar_color=None, 
-              gauge_shape="angular", gauge_background_color=None, 
-              gauge_border_color=None, gauge_border_width=None, 
-              gauge_axis_show_ticklabels=None, gauge_axis_tickmode=None, 
-              gauge_axis_tickvals=None, gauge_axis_ticktext=None, gauge_steps=None, 
-              gauge_threshold_value=None, domain_x=None, domain_y=None, 
-              title=None, title_font_size=None, title_font_family=None, 
-              title_font_color=None, title_align=None, 
-              margin=None, 
-              margin_left=None, margin_right=None, margin_top=None, margin_bottom=None, 
-              layout_title=None, width=None, height=None, 
-              paper_background_color=None, plot_background_color=None, 
-              font_family=None, font_size=None, config=None, static=None):
-
-    number = to_camel_case({
-        'valueFormat': number_value_format, 'prefix': number_prefix, 'suffix': number_suffix,
-        'font': {'size': number_font_size, 'family': number_font_family, 'color': number_font_color}
-    })
-
-    delta = to_camel_case({
-        'reference': delta_reference, 'valueFormat': delta_value_format, 'relative': delta_relative,
-        'increasing': {'color': delta_increasing_color}, 'decreasing': {'color': delta_decreasing_color}
-    })
-
-    gauge = to_camel_case({
-        'shape': gauge_shape, 'axis': {'range': gauge_axis_range},
-        'bar': {'thickness': gauge_bar_thickness, 'color': gauge_bar_color},
-        'backgroundColor': gauge_background_color, 'borderColor': gauge_border_color,
-        'borderWidth': gauge_border_width,
-        'axis': {
-            'showticklabels': gauge_axis_show_ticklabels, 'tickmode': gauge_axis_tickmode,
-            'tickvals': gauge_axis_tickvals, 'ticktext': gauge_axis_ticktext
-        },
-        'steps': gauge_steps, 'threshold': {'value': gauge_threshold_value}
-    })
-
-    title_dict = to_camel_case({
-        'text': title, 'font': {'size': title_font_size, 'family': title_font_family, 'color': title_font_color},
-        'align': title_align
-    })
-    
-    if margin is not None:
-        margin=margin
-    else:
-        margin = to_camel_case({
-            'l': margin_left, 'r': margin_right, 't': margin_top, 'b': margin_bottom
-        })
-
-    trace = {
-        'type': 'indicator', 'mode': mode, 'value': value,
-        'number': number, 'delta': delta, 'gauge': gauge,
-        'domain': {'x': domain_x, 'y': domain_y},
-        'title': title_dict
-    }
-
-    layout = {
-        'title': layout_title, 'margin': margin, 'width': width, 'height': height,
-        'paper_bgcolor': paper_background_color, 'plot_bgcolor': plot_background_color,
-        'font': {'family': font_family, 'size': font_size}
-    }
-
-    trace = {k: v for k, v in trace.items() if v is not None}
-    layout = {k: v for k, v in layout.items() if v is not None}
-
-    # Return JSON string with special prefix for JavaScript detection
-    import json
-    clean_config = config or {}
-    if resolve_static(static):
-        clean_config = dict(clean_config)
-        clean_config["staticPlot"] = True
-    plot_data = {
-        "type": "plotly",
-        "data": [trace],
-        "layout": layout,
-        "config": clean_config
-    }
-    return PlotlyFigure(plot_data)
-
-def indicator_js(mode=None, value=None, number=None, delta=None, gauge=None, 
-    domain_x=None, domain_y=None, title=None,
-    margin=None, layout_title=None, width=None, height=None, config=None, static=None):
-
-    # Convert Pythonic 'underscore_case' to JavaScript 'camelCase'
-    number = to_camel_case(number)
-    delta = to_camel_case(delta)
-    gauge = to_camel_case(gauge)
-    domain_x = to_camel_case(domain_x)
-    domain_y = to_camel_case(domain_y)
-    title = to_camel_case(title)
-    margin = to_camel_case(margin)
-
-    # Create the trace
-    trace = {
-        'type': 'indicator',
-        'mode': mode,
-        'value': value,
-        'number': number,
-        'delta': delta,
-        'gauge': gauge,
-        'domain': {'x': domain_x, 'y': domain_y},
-        'title': title
-    }
-
-    # Create the layout
-    layout = {
-        'title': layout_title,
-        'margin': margin,
-        'width': width,
-        'height': height
-    }
-    
-    # Remove None values from trace and layout
-    trace = {k: v for k, v in trace.items() if v is not None}
-    layout = {k: v for k, v in layout.items() if v is not None}
-
-    # Return JSON string with special prefix for JavaScript detection
-    import json
-    clean_config = config or {}
-    if resolve_static(static):
-        clean_config = dict(clean_config)
-        clean_config["staticPlot"] = True
-    plot_data = {
-        "type": "plotly",
-        "data": [trace],
-        "layout": layout,
-        "config": clean_config
-    }
-    return PlotlyFigure(plot_data)
-
-# Helper functions for indicator configuration
 def create_gauge_config(range=None, steps=None, threshold=None, shape='angular', 
                        bar_color=None, bar_thickness=None, background_color=None, 
                        border_color=None, border_width=None, **kwargs):
@@ -2169,7 +2208,7 @@ def indicator(data=None, value=None, mode='number', title=None,
     plot_data = {
         "type": "plotly",
         "data": traces,
-        "layout": layout,
+        "layout": remove_none(layout),
         "config": clean_config
     }
     return PlotlyFigure(plot_data)
@@ -2179,11 +2218,14 @@ def line(data=None, x=None, y=None, color=None, text=None, hover_name=None, hove
          color_discrete_sequence=None, color_discrete_map=None,
          color_continuous_scale=None, color_continuous_midpoint=None,
          facet_row=None, facet_col=None, facet_col_wrap=None, labels=None, template=None,
+         markers=False, line_dash=None,
          # Enhanced axis customization
-         xaxis_title=None, yaxis_title=None, xaxis_range=None, yaxis_range=None):
+         xaxis_title=None, yaxis_title=None, xaxis_range=None, yaxis_range=None,
+         log_x=False, log_y=False, range_x=None, range_y=None, category_orders=None):
     traces = []
     layout = {}
     data = ensure_data_dict(data)
+    x, y = _series_xy(data, x, y)
     
     if isinstance(data, list):
         data_dict, x_col, y_col = data2dict(data)
@@ -2225,21 +2267,52 @@ def line(data=None, x=None, y=None, color=None, text=None, hover_name=None, hove
     default_color_array = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
     color_array = line_color if line_color is not None else default_color_array
 
+    # color= som KOLONNE grupperer i én trace per kategori (px-semantikk,
+    # gjeninnført 2026-07-10 — grupperingen forsvant i en tidligere
+    # omskriving og color ble tolket som literal CSS-farge). En verdi som
+    # ikke er kolonnenavn behandles fortsatt som literal farge.
+    color_is_column = bool(color is not None and isinstance(data, dict) and color in data)
+    if color_is_column:
+        _line_cvals = list(data.get(color))
+        _line_cats = _apply_category_order(_unique_ordered(_line_cvals, sort=False),
+                                           category_orders, color)
+        _line_cmap = build_category_colors(_line_cats, color_discrete_sequence, color_discrete_map)
+    _line_mode = "lines+markers" if markers else "lines"
+
+    def _line_opts(idx, cat=None):
+        opts = {}
+        if cat is not None:
+            opts['color'] = _line_cmap.get(cat, DEFAULT_COLORS[0])
+        elif color is not None and not color_is_column:
+            opts['color'] = color
+        else:
+            opts['color'] = color_array[idx % len(color_array)]
+        if isinstance(line_shape, list):
+            opts['shape'] = line_shape[idx]
+        elif line_shape is not None:
+            opts['shape'] = line_shape
+        if line_dash is not None and not (isinstance(data, dict) and line_dash in data):
+            opts['dash'] = line_dash
+        return opts
+
     # Handle faceting with proper subplot assignment
     if facet_row or facet_col:
         # Get unique values for faceting
         if facet_row:
             row_values = data.get(facet_row)
-            unique_rows = sorted(set(row_values))
+            unique_rows = _unique_ordered(row_values, sort=False)
             n_rows = len(unique_rows)
         else:
             n_rows = 1
             
         if facet_col:
             col_values = data.get(facet_col)
-            unique_cols = sorted(set(col_values))
+            unique_cols = _unique_ordered(col_values, sort=False)
             if facet_col_wrap:
                 n_cols = min(facet_col_wrap, len(unique_cols))
+                if not facet_row and len(unique_cols) > n_cols:
+                    # wrap: paneler over flere rader (matcher layouten)
+                    n_rows = -(-len(unique_cols) // n_cols)
             else:
                 n_cols = len(unique_cols)
         else:
@@ -2268,80 +2341,78 @@ def line(data=None, x=None, y=None, color=None, text=None, hover_name=None, hove
                 
                 if indices:
                     facet_x = [x_data[i] for i in indices]
-                    
+
                     # Create traces for each y column within this facet
                     for idx, y_key in enumerate(y_keys):
                         facet_y = [data.get(y_key)[i] for i in indices] if data is not None else y_key
 
-                        # Construct line options
-                        line_options = {}
-                        if color is None:
-                            line_options['color'] = color_array[idx % len(color_array)]
+                        if color_is_column:
+                            facet_c = [_line_cvals[i] for i in indices]
+                            groups = [(cat, [j for j, cv in enumerate(facet_c) if cv == cat])
+                                      for cat in _line_cats]
+                            groups = [(cat, idxs) for cat, idxs in groups if idxs]
                         else:
-                            line_options['color'] = color
+                            groups = [(None, list(range(len(facet_x))))]
 
-                        if isinstance(line_shape, list):
-                            line_options['shape'] = line_shape[idx]
-                        elif line_shape is not None:
-                            line_options['shape'] = line_shape
+                        for cat, idxs in groups:
+                            trace = {
+                                "type": "scatter",
+                                "mode": _line_mode,
+                                "x": [facet_x[j] for j in idxs],
+                                "y": [facet_y[j] for j in idxs],
+                                "name": str(cat) if cat is not None else f"{facet_name}-{y_key}",
+                                "line": _line_opts(idx, cat),
+                            }
+                            if cat is not None:
+                                # Én legendeoppføring per kategori, ikke per panel
+                                trace["legendgroup"] = str(cat)
+                                trace["showlegend"] = (subplot_idx == 1)
+                            if hover_name_data is not None:
+                                trace["hoverinfo"] = "name"
 
-                        # Construct trace
-                        trace = {
-                            "type": "scatter", 
-                            "mode": "lines", 
-                            "x": facet_x, 
-                            "y": facet_y, 
-                            "name": f"{facet_name}-{y_key}"
-                        }
-                        
-                        if line_options:
-                            trace["line"] = line_options
+                            # Assign to subplot if faceting
+                            if n_rows > 1 or n_cols > 1:
+                                if n_rows > 1 and n_cols > 1:
+                                    trace["xaxis"] = f"x{subplot_idx}"
+                                    trace["yaxis"] = f"y{subplot_idx}"
+                                elif n_rows > 1:
+                                    trace["yaxis"] = f"y{subplot_idx}"
+                                elif n_cols > 1:
+                                    trace["xaxis"] = f"x{subplot_idx}"
 
-                        if hover_name_data is not None:
-                            trace["hoverinfo"] = "name"
-                        
-                        if hover_data_dict:
-                            trace["customdata"] = hover_data_dict
+                            traces.append(trace)
 
-                        # Assign to subplot if faceting
-                        if n_rows > 1 or n_cols > 1:
-                            if n_rows > 1 and n_cols > 1:
-                                trace["xaxis"] = f"x{subplot_idx}"
-                                trace["yaxis"] = f"y{subplot_idx}"
-                            elif n_rows > 1:
-                                trace["yaxis"] = f"y{subplot_idx}"
-                            elif n_cols > 1:
-                                trace["xaxis"] = f"x{subplot_idx}"
-                        
-                        traces.append(trace)
-                    
-                    subplot_idx += 1  # Increment subplot index for next facet
+                # Panel-telleren følger rutenett-cellen, ikke om cellen har
+                # data — inne i `if indices:` forskjøv manglende
+                # kombinasjoner alle etterfølgende paneler (fikset 2026-07-10).
+                subplot_idx += 1
     else:
-        # No faceting - original logic
+        # No faceting
         for idx, y_key in enumerate(y_keys):
             y_data = data.get(y_key) if data is not None else y_key
 
-            # Construct line options
-            line_options = {}
-            if color is None:
-                line_options['color'] = color_array[idx % len(color_array)]
-            else:
-                line_options['color'] = color
-
-            if isinstance(line_shape, list):
-                line_options['shape'] = line_shape[idx]
-            elif line_shape is not None:
-                line_options['shape'] = line_shape
+            if color_is_column:
+                for cat in _line_cats:
+                    idxs = [j for j, cv in enumerate(_line_cvals) if cv == cat]
+                    if not idxs:
+                        continue
+                    trace = {"type": "scatter", "mode": _line_mode,
+                             "x": [x_data[j] for j in idxs],
+                             "y": [y_data[j] for j in idxs],
+                             "name": str(cat),
+                             "line": _line_opts(idx, cat)}
+                    if hover_name_data is not None:
+                        trace["hoverinfo"] = "name"
+                    traces.append(trace)
+                continue
 
             # Construct trace
-            trace = {"type": "scatter", "mode": "lines", "x": x_data, "y": y_data, "name": str(y_key)}
-            
-            if line_options:
-                trace["line"] = line_options
+            trace = {"type": "scatter", "mode": _line_mode, "x": x_data, "y": y_data, "name": str(y_key)}
+            trace["line"] = _line_opts(idx)
 
             if hover_name_data is not None:
                 trace["hoverinfo"] = "name"
-            
+
             if hover_data_dict:
                 trace["customdata"] = hover_data_dict
 
@@ -2349,6 +2420,7 @@ def line(data=None, x=None, y=None, color=None, text=None, hover_name=None, hove
 
     # Create layout with faceting support
     layout = create_faceted_layout(facet_row, facet_col, facet_col_wrap, title, height, width, labels, template, data, x, y)
+    layout = _apply_axis_options(layout, log_x, log_y, range_x, range_y)
 
     # Enhanced axis customization
     if xaxis_title or yaxis_title or xaxis_range or yaxis_range:
@@ -2356,7 +2428,7 @@ def line(data=None, x=None, y=None, color=None, text=None, hover_name=None, hove
             layout['xaxis'] = {}
         if 'yaxis' not in layout:
             layout['yaxis'] = {}
-            
+
         if xaxis_title:
             layout['xaxis']['title'] = xaxis_title
         if yaxis_title:
@@ -2375,92 +2447,21 @@ def line(data=None, x=None, y=None, color=None, text=None, hover_name=None, hove
     plot_data = {
         "type": "plotly",
         "data": traces,
-        "layout": layout,
+        "layout": remove_none(layout),
         "config": clean_config
     }
     return PlotlyFigure(plot_data)
 
-def line_old(data, x=None, y=None, color=None, text=None, hover_name=None, hover_data=None,
-         title=None, height=None, width=None, line_shape=None, config=None, static=None):
-    
-    traces = []
-    layout = {}
-    data = ensure_data_dict(data)
-
-    x_data = data.get(x)
-    y_data = data.get(y)
-
-    if isinstance(y, list):
-        y_keys = y
-    else:
-        y_keys = [y]
-    
-    color_data = data.get(color)
-    text_data = data.get(text)
-    hover_name_data = data.get(hover_name)
-    hover_data_dict = {k: data.get(k) for k in hover_data or []}
-
-    if color_data is None or isinstance(color_data, str):
-        trace = remove_none({
-            "type": "scatter",
-            "mode": "lines",
-            "x": x_data,
-            "y": y_data,
-            "line": {"color": color_data, "shape": line_shape} if color_data else None,
-            "text": text_data,
-            "hoverinfo": "name" if hover_name_data else None,
-            "customdata": hover_data_dict
-        })
-        traces.append(trace)
-    else:
-        color_categories = list(set(color_data))
-        for color in color_categories:
-            filtered_indices = [i for i, c in enumerate(color_data) if c == color]
-            filtered_x = [x_data[i] for i in filtered_indices]
-            filtered_y = [y_data[i] for i in filtered_indices]
-            filtered_text = [text_data[i] for i in filtered_indices] if text_data else None
-            filtered_hover_name = [hover_name_data[i] for i in filtered_indices] if hover_name_data else None
-            filtered_hover_data = {k: [v[i] for i in filtered_indices] for k, v in hover_data_dict.items()} if hover_data_dict else None
-
-            trace = remove_none({
-                "type": "scatter",
-                "mode": "lines",
-                "x": filtered_x,
-                "y": filtered_y,
-                "name": str(color),
-                "line": {"shape": line_shape},
-                "text": filtered_text,
-                "hoverinfo": "name" if filtered_hover_name else None,
-                "customdata": filtered_hover_data
-            })
-            traces.append(trace)
-
-    # Let CSS handle all sizing - no dimension calculations needed
-    layout = remove_none({
-        "title": title,
-    })
-    
-    # Return JSON string with special prefix for JavaScript detection
-    import json
-    clean_config = config or {}
-    if resolve_static(static):
-        clean_config = dict(clean_config)
-        clean_config["staticPlot"] = True
-    plot_data = {
-        "type": "plotly",
-        "data": traces,
-        "layout": layout,
-        "config": clean_config
-    }
-    return PlotlyFigure(plot_data)
-    
 def scatter(data=None, x=None, y=None, color=None, size=None,
                                    text=None, hover_name=None, hover_data=None,
-                                   title=None, height=None, width=None, marker_symbol=None, 
+                                   title=None, height=None, width=None, marker_symbol=None,
                                    color_discrete_sequence=None, color_discrete_map=None,
                                    color_continuous_scale=None, color_continuous_midpoint=None,
                                    facet_row=None, facet_col=None, facet_col_wrap=None, labels=None, template=None,
                                    marginal_x=None, marginal_y=None, config=None, static=None,
+                                   trendline=None, opacity=None,
+                                   log_x=False, log_y=False, range_x=None, range_y=None,
+                                   category_orders=None, error_y=None, error_x=None,
                                    # Enhanced axis customization
                                    xaxis_title=None, yaxis_title=None, xaxis_range=None, yaxis_range=None,
                                    # Enhanced size and symbol mapping
@@ -2469,6 +2470,7 @@ def scatter(data=None, x=None, y=None, color=None, size=None,
     traces = []
     layout = {}
     data = ensure_data_dict(data)
+    x, y = _series_xy(data, x, y)
 
     if (x is None) & (y is None) & (isinstance(data, dict)):
         #data = {1999:55, 2000:33, 2001:44, 2002:22}
@@ -2485,6 +2487,9 @@ def scatter(data=None, x=None, y=None, color=None, size=None,
         y_data = data.get(y)
     
     color_data = data.get(color)
+    _cat_colors = build_category_colors(
+        _apply_category_order(_unique_ordered(color_data or [], sort=False), category_orders, color),
+        color_discrete_sequence, color_discrete_map)
     size_data = data.get(size)
     text_data = data.get(text)
     hover_name_data = data.get(hover_name)
@@ -2495,16 +2500,19 @@ def scatter(data=None, x=None, y=None, color=None, size=None,
         # Get unique values for faceting
         if facet_row:
             row_values = data.get(facet_row)
-            unique_rows = sorted(set(row_values))
+            unique_rows = _unique_ordered(row_values, sort=False)
             n_rows = len(unique_rows)
         else:
             n_rows = 1
             
         if facet_col:
             col_values = data.get(facet_col)
-            unique_cols = sorted(set(col_values))
+            unique_cols = _unique_ordered(col_values, sort=False)
             if facet_col_wrap:
                 n_cols = min(facet_col_wrap, len(unique_cols))
+                if not facet_row and len(unique_cols) > n_cols:
+                    # wrap: paneler over flere rader (matcher layouten)
+                    n_rows = -(-len(unique_cols) // n_cols)
             else:
                 n_cols = len(unique_cols)
         else:
@@ -2571,7 +2579,7 @@ def scatter(data=None, x=None, y=None, color=None, size=None,
                                 # Auto-assign symbols
                                 default_symbols = ['circle', 'square', 'diamond', 'cross', 'x', 
                                                  'triangle-up', 'triangle-down']
-                                unique_symbols = list(set(symbol_data))
+                                unique_symbols = _unique_ordered(symbol_data, sort=False)
                                 symbol_assignments = {}
                                 for i, val in enumerate(unique_symbols):
                                     symbol_assignments[val] = default_symbols[i % len(default_symbols)]
@@ -2599,17 +2607,16 @@ def scatter(data=None, x=None, y=None, color=None, size=None,
                                 trace["xaxis"] = f"x{subplot_idx}"
                         
                         traces.append(trace)
-                        subplot_idx += 1  # Increment subplot index for next facet
                     else:
                         # Handle color within facet
-                        color_categories = list(set(facet_color))
+                        color_categories = _unique_ordered(facet_color, sort=False)
                         for color_val in color_categories:
                             color_indices = [i for i, c in enumerate(facet_color) if c == color_val]
                             color_x = [facet_x[i] for i in color_indices]
                             color_y = [facet_y[i] for i in color_indices]
                             color_size = [facet_size[i] for i in color_indices] if facet_size else None
                             
-                            category_color = get_color_for_category(color_val, color_discrete_sequence, color_discrete_map)
+                            category_color = _cat_colors.get(color_val, DEFAULT_COLORS[0])
                             
                             trace = remove_none({
                                 "type": "scatter",
@@ -2636,17 +2643,32 @@ def scatter(data=None, x=None, y=None, color=None, size=None,
                             
                             traces.append(trace)
                             # Don't increment subplot_idx here - all colors within a facet use the same subplot
-                        subplot_idx += 1  # Increment subplot index for next facet
+                # Panel-telleren følger rutenett-cellen, ikke om cellen
+                # har data (fikset 2026-07-10 — manglende kombinasjoner
+                # forskjøv alle etterfølgende paneler).
+                subplot_idx += 1
     else:
         # No faceting - original logic
-        if color_data is None or isinstance(color_data, str):
+        _continuous = (color_data is not None and not isinstance(color_data, str)
+                       and is_continuous_color(color_data))
+        if color_data is None or isinstance(color_data, str) or _continuous:
             # Enhanced marker creation with size and symbol mapping
             marker_dict = {}
-            
+
             # Handle color
-            if color_data:
+            if _continuous:
+                # Numerisk color-kolonne → én trace med kontinuerlig
+                # fargeskala + colorbar (px-semantikk; før: én trace per
+                # tallverdi med tilfeldige farger).
+                marker_dict["color"] = [None if _is_nan(v) else v for v in color_data]
+                marker_dict["colorscale"] = color_continuous_scale or "Viridis"
+                marker_dict["showscale"] = True
+                marker_dict["colorbar"] = {"title": {"text": (labels or {}).get(color) or format_column_name(color)}}
+                if color_continuous_midpoint is not None:
+                    marker_dict["cmid"] = color_continuous_midpoint
+            elif color_data:
                 marker_dict["color"] = color_data
-            
+
             # Handle size mapping
             if size_data:
                 if size_max is not None or size_min is not None:
@@ -2692,7 +2714,7 @@ def scatter(data=None, x=None, y=None, color=None, size=None,
                     # Auto-assign symbols
                     default_symbols = ['circle', 'square', 'diamond', 'cross', 'x', 
                                      'triangle-up', 'triangle-down']
-                    unique_symbols = list(set(symbol_data))
+                    unique_symbols = _unique_ordered(symbol_data, sort=False)
                     symbol_assignments = {}
                     for i, val in enumerate(unique_symbols):
                         symbol_assignments[val] = default_symbols[i % len(default_symbols)]
@@ -2707,12 +2729,11 @@ def scatter(data=None, x=None, y=None, color=None, size=None,
                 "y": y_data,
                 "marker": marker_dict,
                 "text": text_data,
-                "hoverinfo": "name" if hover_name_data else None,
-                "customdata": hover_data_dict
+                **_hover_fields(hover_name_data, hover_data_dict)
             })
             traces.append(trace)
         else:
-            color_categories = list(set(color_data))
+            color_categories = _apply_category_order(_unique_ordered(color_data, sort=False), category_orders, color)
             for color_val in color_categories:
                 filtered_indices = [i for i, c in enumerate(color_data) if c == color_val]
                 filtered_x = [x_data[i] for i in filtered_indices]
@@ -2723,7 +2744,7 @@ def scatter(data=None, x=None, y=None, color=None, size=None,
                 filtered_hover_data = {k: [v[i] for i in filtered_indices] for k, v in hover_data_dict.items()} if hover_data_dict else None
 
                 # Get color for this category
-                category_color = get_color_for_category(color_val, color_discrete_sequence, color_discrete_map)
+                category_color = _cat_colors.get(color_val, DEFAULT_COLORS[0])
 
                 # Enhanced marker creation with size and symbol mapping
                 marker_dict = {"color": category_color}
@@ -2773,7 +2794,7 @@ def scatter(data=None, x=None, y=None, color=None, size=None,
                         # Auto-assign symbols
                         default_symbols = ['circle', 'square', 'diamond', 'cross', 'x', 
                                          'triangle-up', 'triangle-down']
-                        unique_symbols = list(set(symbol_data))
+                        unique_symbols = _unique_ordered(symbol_data, sort=False)
                         symbol_assignments = {}
                         for i, val in enumerate(unique_symbols):
                             symbol_assignments[val] = default_symbols[i % len(default_symbols)]
@@ -2789,19 +2810,65 @@ def scatter(data=None, x=None, y=None, color=None, size=None,
                     "name": str(color_val),
                     "marker": marker_dict,
                     "text": filtered_text,
-                    "hoverinfo": "name" if filtered_hover_name else None,
-                    "customdata": filtered_hover_data
+                    **_hover_fields(filtered_hover_name, filtered_hover_data)
                 })
                 traces.append(trace)
 
+    # px-argumenter som gjelder alle datatraces (2026-07-10)
+    if opacity is not None:
+        for _tr in traces:
+            _tr['opacity'] = opacity
+    if error_y is not None and data.get(error_y) is not None and len(traces) == 1:
+        traces[0]['error_y'] = {'type': 'data', 'array': list(data.get(error_y))}
+    if error_x is not None and data.get(error_x) is not None and len(traces) == 1:
+        traces[0]['error_x'] = {'type': 'data', 'array': list(data.get(error_x))}
+
+    # trendline='ols' — enkel lineær regresjon i ren Python, én linje per
+    # farge-/panel-trace (px-navnet «OLS trendline» beholdes).
+    if trendline == 'ols':
+        _tl = []
+        for _tr in traces:
+            pairs = [(a, b) for a, b in zip(_tr.get('x') or [], _tr.get('y') or [])
+                     if not _is_nan(a) and not _is_nan(b)
+                     and isinstance(a, (int, float)) and isinstance(b, (int, float))]
+            n = len(pairs)
+            if n < 2:
+                continue
+            sx = sum(a for a, _b in pairs)
+            sy = sum(b for _a, b in pairs)
+            sxx = sum(a * a for a, _b in pairs)
+            sxy = sum(a * b for a, b in pairs)
+            den = n * sxx - sx * sx
+            if den == 0:
+                continue
+            slope = (n * sxy - sx * sy) / den
+            intercept = (sy - slope * sx) / n
+            xs_sorted = sorted(a for a, _b in pairs)
+            _mc = (_tr.get('marker') or {}).get('color')
+            line_tr = {
+                'type': 'scatter', 'mode': 'lines',
+                'x': xs_sorted,
+                'y': [slope * a + intercept for a in xs_sorted],
+                'name': ((str(_tr.get('name')) + ' ') if _tr.get('name') else '') + 'OLS trendline',
+                'showlegend': False,
+                'line': {'color': _mc if isinstance(_mc, str) else DEFAULT_COLORS[0]},
+            }
+            if _tr.get('xaxis'):
+                line_tr['xaxis'] = _tr['xaxis']
+            if _tr.get('yaxis'):
+                line_tr['yaxis'] = _tr['yaxis']
+            _tl.append(line_tr)
+        traces.extend(_tl)
+
     # Add marginal plots if requested
     if marginal_x or marginal_y:
-        marginal_traces = create_marginal_traces(data, x, y, marginal_x, marginal_y, color, 
+        marginal_traces = create_marginal_traces(data, x, y, marginal_x, marginal_y, color,
                                                color_discrete_sequence, color_discrete_map)
         traces.extend(marginal_traces)
 
     # Create layout with faceting support
     layout = create_faceted_layout(facet_row, facet_col, facet_col_wrap, title, height, width, labels, template, data, x, y)
+    layout = _apply_axis_options(layout, log_x, log_y, range_x, range_y)
     
     # Enhanced axis customization
     if xaxis_title or yaxis_title or xaxis_range or yaxis_range:
@@ -2835,7 +2902,7 @@ def scatter(data=None, x=None, y=None, color=None, size=None,
     plot_data = {
         "type": "plotly",
         "data": traces,
-        "layout": layout,
+        "layout": remove_none(layout),
         "config": clean_config
     }
     return PlotlyFigure(plot_data)
@@ -2852,6 +2919,7 @@ def violin(data, x=None, y=None, color=None, text=None, hover_name=None, hover_d
     x_data = data.get(x)
     y_data = data.get(y)
     color_data = data.get(color)
+    _cat_colors = build_category_colors(_unique_ordered(color_data or [], sort=False), color_discrete_sequence, color_discrete_map)
     text_data = data.get(text)
     hover_name_data = data.get(hover_name)
     hover_data_dict = {k: data.get(k) for k in hover_data or []}
@@ -2863,12 +2931,11 @@ def violin(data, x=None, y=None, color=None, text=None, hover_name=None, hover_d
             "y": y_data,
             "marker": {"color": color_data} if color_data else None,
             "text": text_data,
-            "hoverinfo": "name" if hover_name_data else None,
-            "customdata": hover_data_dict
+            **_hover_fields(hover_name_data, hover_data_dict)
         })
         traces.append(trace)
     else:
-        color_categories = list(set(color_data))
+        color_categories = _unique_ordered(color_data, sort=False)
         for color_val in color_categories:
             filtered_indices = [i for i, c in enumerate(color_data) if c == color_val]
             filtered_x = [x_data[i] for i in filtered_indices]
@@ -2878,7 +2945,7 @@ def violin(data, x=None, y=None, color=None, text=None, hover_name=None, hover_d
             filtered_hover_data = {k: [v[i] for i in filtered_indices] for k, v in hover_data_dict.items()} if hover_data_dict else None
 
             # Get color for this category
-            category_color = get_color_for_category(color_val, color_discrete_sequence, color_discrete_map)
+            category_color = _cat_colors.get(color_val, DEFAULT_COLORS[0])
 
             trace = remove_none({
                 "type": "violin",
@@ -2887,8 +2954,7 @@ def violin(data, x=None, y=None, color=None, text=None, hover_name=None, hover_d
                 "name": str(color_val),
                 "marker": {"color": category_color},
                 "text": filtered_text,
-                "hoverinfo": "name" if filtered_hover_name else None,
-                "customdata": filtered_hover_data
+                **_hover_fields(filtered_hover_name, filtered_hover_data)
             })
             traces.append(trace)
 
@@ -2896,6 +2962,9 @@ def violin(data, x=None, y=None, color=None, text=None, hover_name=None, hover_d
     layout = remove_none({
         "title": title,
     })
+    # px setter violinmode='group' ved x+color (fikset 2026-07-10).
+    if x is not None and color is not None and len(traces) > 1:
+        layout['violinmode'] = 'group'
 
     # Enhanced axis customization
     if xaxis_title or yaxis_title or xaxis_range or yaxis_range:
@@ -2922,13 +2991,14 @@ def violin(data, x=None, y=None, color=None, text=None, hover_name=None, hover_d
     plot_data = {
         "type": "plotly",
         "data": traces,
-        "layout": layout,
+        "layout": remove_none(layout),
         "config": clean_config
     }
     return PlotlyFigure(plot_data)
 
 def pie(data=None, values=None, names=None, color=None, title=None,
         height=None, width=None, config=None, static=None,
+        hole=None, opacity=None,
         # Enhanced axis customization
         xaxis_title=None, yaxis_title=None, xaxis_range=None, yaxis_range=None):
     
@@ -2962,8 +3032,10 @@ def pie(data=None, values=None, names=None, color=None, title=None,
         "values": values_data,
         "labels": names_data,
         "marker": {"colors": color_data} if color_data else None,
+        "hole": hole,          # px: hole=0.4 gir donut
+        "opacity": opacity,
     })
-    
+
     traces.append(trace)
     
     # Let CSS handle all sizing - no dimension calculations needed
@@ -2996,7 +3068,7 @@ def pie(data=None, values=None, names=None, color=None, title=None,
     plot_data = {
         "type": "plotly",
         "data": traces,
-        "layout": layout,
+        "layout": remove_none(layout),
         "config": clean_config
     }
     return PlotlyFigure(plot_data)
@@ -3069,8 +3141,7 @@ def scatter_3d(data=None, x=None, y=None, z=None, color=None, size=None,
                 "size": size_data if size_data else None
             },
             "text": text_data,
-            "hoverinfo": "name" if hover_name_data else None,
-            "customdata": hover_data_dict
+            **_hover_fields(hover_name_data, hover_data_dict)
         })
         traces.append(trace)
     else:
@@ -3078,7 +3149,7 @@ def scatter_3d(data=None, x=None, y=None, z=None, color=None, size=None,
         try:
             # Convert all color values to strings to make them hashable
             color_strings = [str(c) for c in color_data]
-            color_categories = list(set(color_strings))
+            color_categories = _unique_ordered(color_strings, sort=False)
         except (TypeError, AttributeError):
             # Fallback: treat as single color
             color_categories = [str(color_data)]
@@ -3105,8 +3176,7 @@ def scatter_3d(data=None, x=None, y=None, z=None, color=None, size=None,
                     "size": filtered_size
                 },
                 "text": filtered_text,
-                "hoverinfo": "name" if filtered_hover_name else None,
-                "customdata": filtered_hover_data
+                **_hover_fields(filtered_hover_name, filtered_hover_data)
             })
             traces.append(trace)
 
@@ -3139,7 +3209,7 @@ def scatter_3d(data=None, x=None, y=None, z=None, color=None, size=None,
     plot_data = {
         "type": "plotly",
         "data": traces,
-        "layout": layout,
+        "layout": remove_none(layout),
         "config": clean_config
     }
     return PlotlyFigure(plot_data)
@@ -3202,30 +3272,9 @@ def imshow(data, title=None, height=None, width=None, config=None, static=None,
     plot_data = {
         "type": "plotly",
         "data": traces,
-        "layout": layout,
+        "layout": remove_none(layout),
         "config": clean_config
     }
     return PlotlyFigure(plot_data)
 
 # Add a simple test function to verify the module works
-def test_module():
-    """Test function to verify the module is working"""
-    try:
-        # Test basic functionality
-        test_data = [1, 2, 3, 4, 5]
-        result = bar(test_data)
-        
-        # Test faceting
-        test_facet_data = {
-            'x': [1, 2, 3, 4, 5, 6, 7, 8],
-            'y': [2, 4, 1, 5, 3, 6, 2, 7],
-            'group': ['A', 'A', 'B', 'B', 'A', 'B', 'A', 'B']
-        }
-        facet_result = scatter(test_facet_data, x='x', y='y', facet_row='group')
-        
-        return f"Module test successful! Created bar chart with {len(test_data)} values and faceted scatter plot."
-    except Exception as e:
-        return f"Module test failed: {str(e)}"
-
-
-
