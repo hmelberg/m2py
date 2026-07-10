@@ -50,6 +50,17 @@ def test_groupby_mean_with_missing_values():
     html = out.to_html()
     assert '<table' in html
 
+def test_float_display_formatting():
+    df = pd.DataFrame({'g': ['a', 'b'], 'v': [5.005999999999999, 620000.0]})
+    html = df.to_html()
+    assert '5.006' in html and '5.005999' not in html, 'float noise rounded in to_html'
+    assert '620000.0' in html, 'integral float keeps .0'
+    txt = str(df)
+    assert '5.006' in txt and '5.005999' not in txt, 'float noise rounded in str()'
+    # data itself is untouched
+    assert list(df['v'])[0] == 5.005999999999999
+
+
 if __name__ == '__main__':
     for name, fn in sorted(globals().items()):
         if name.startswith('test_'):

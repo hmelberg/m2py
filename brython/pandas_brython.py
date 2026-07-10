@@ -32,8 +32,20 @@ DISPLAY_COL_WIDTH = None       # int or None; when set, cap column cell widths
 DISPLAY_INDEX_WIDTH = None     # int or None; when set, cap index cell width
 DISPLAY_TRUNC_MARK = "…"       # used when truncating cell text
 
+def _fmt_cell(val):
+    # Display formatting for cell values (like pandas): floats show at most
+    # 6 significant digits so accumulated float noise (5.005999999999999)
+    # renders as 5.006. Integral floats keep a trailing .0 (620000.0), and
+    # data is never mutated — this is display only.
+    if isinstance(val, float):
+        if val == val and abs(val) != float('inf') and val == int(val) and abs(val) < 1e15:
+            return f"{val:.1f}"
+        return f"{val:.6g}"
+    return str(val)
+
+
 def _truncate_cell(text, width):
-    s = str(text)
+    s = _fmt_cell(text)
     if width is None:
         return s
     if width <= 0:
@@ -975,7 +987,7 @@ class Series:
             rows = []
             for idx, val in zip(self.index or [], self.values or []):
                 idx_html = html.escape(str(idx))
-                val_html = html.escape(str(val))
+                val_html = html.escape(_fmt_cell(val))
                 rows.append(f"<tr><th>{idx_html}</th><td>{val_html}</td></tr>")
             title = f"<caption>Series{name if (name:=('' if self.name is None else ' ' + html.escape(str(self.name)))) is not None else ''}</caption>"
             return "<table>" + title + "<thead>" + headers + "</thead><tbody>" + "".join(rows) + "</tbody></table>"
@@ -1677,7 +1689,7 @@ class DataFrame:
                     col_name = str(self.columns[j])
                     width = len(col_name)
                     for i in show_row_idx:
-                        width = max(width, len(str(vals[i][j])))
+                        width = max(width, len(_fmt_cell(vals[i][j])))
                 col_widths.append(width)
 
             # Header
@@ -1855,7 +1867,7 @@ class DataFrame:
                 idx_html = html.escape(str(self.index[i])) if i < len(self.index) else ""
                 cells = [f"<th>{idx_html}</th>"]
                 for val in row:
-                    cells.append(f"<td>{html.escape(str(val))}</td>")
+                    cells.append(f"<td>{html.escape(_fmt_cell(val))}</td>")
                 body_rows.append("<tr>" + "".join(cells) + "</tr>")
             caption = f"<caption>DataFrame ({self.shape[0]} x {self.shape[1]})</caption>"
             return "<table>" + caption + "<thead>" + thead + "</thead><tbody>" + "".join(body_rows) + "</tbody></table>"
@@ -2729,7 +2741,7 @@ class DataFrame:
                 if index:
                     cells.append(f"<th>{html.escape(str(self.index[i]))}</th>")
                 for val in row:
-                    cells.append(f"<td>{html.escape(str(val))}</td>")
+                    cells.append(f"<td>{html.escape(_fmt_cell(val))}</td>")
                 body_rows.append("<tr>" + "".join(cells) + "</tr>")
             return "<table><thead>" + thead + "</thead><tbody>" + "".join(body_rows) + "</tbody></table>"
         except Exception:
