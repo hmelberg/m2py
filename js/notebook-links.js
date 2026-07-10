@@ -11,13 +11,11 @@
     return 'python';
   };
 
-  // True iff "micro" appears in the URL before any fragment (#). Drives the
-  // microdata-specific UI gating (Oversett, Vurder personvern, Søk om data,
-  // offline Python, disclosure/data-source/label/import settings, AI routing).
-  NL.urlHasMicro = function (href) {
-    var s = String(href == null ? '' : href).split('#')[0].toLowerCase();
-    return s.indexOf('micro') !== -1;
-  };
+  // urlHasMicro er fjernet (2026-07-10): microdata-UI-et er nå modus-styrt
+  // (applyMicroGating i index.html leser activeEditorMode), ikke URL-styrt.
+  // Den dedikerte emulatoren bor i søsken-repoen `microdata`, der personaen
+  // er låst på. hostnameMode() over styrer fortsatt default-modus per
+  // subdomene (py./r./duck./micro…), med python som fallback.
 
   var RAW_BASE = 'https://raw.githubusercontent.com/';
 

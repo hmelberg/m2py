@@ -103,17 +103,9 @@ test('autorunNeedsGate: openstat gates only when a secret is present', () => {
   assert.equal(NL.autorunNeedsGate('openstat', true), true);
 });
 
-test('urlHasMicro: host or path before # containing micro', () => {
-  assert.equal(NL.urlHasMicro('https://micro.safestat.app/'), true);
-  assert.equal(NL.urlHasMicro('https://microdata.run/app'), true);
-  assert.equal(NL.urlHasMicro('https://x.app/micro/y'), true);
-});
-test('urlHasMicro: false when micro only after the fragment, or absent', () => {
-  assert.equal(NL.urlHasMicro('https://openstat.app/#micro-anchor'), false);
-  assert.equal(NL.urlHasMicro('https://safestat.app/'), false);
-  assert.equal(NL.urlHasMicro('http://localhost:8080/'), false);
-  assert.equal(NL.urlHasMicro(''), false);
-  assert.equal(NL.urlHasMicro(null), false);
+// urlHasMicro er fjernet: microdata-UI-et er modus-styrt, ikke URL-styrt.
+test('urlHasMicro: removed from the API', () => {
+  assert.equal(NL.urlHasMicro, undefined);
 });
 
 test('classifyHash: single lowercase token → name lookup', () => {

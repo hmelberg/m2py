@@ -1623,11 +1623,12 @@
           });
         }
 
-        // Send is routed by the URL (urlHasMicro): with "micro" in the URL the
-        // microdata AI (kode-svar) answers; otherwise the agentic data-svar flow
+        // Send is routed by the active mode: in microdata-modus the microdata
+        // AI (kode-svar) answers; otherwise the agentic data-svar flow
         // (search data → script in the active mode's language → run → revise).
         function sendCurrent() {
-          if (window.NotebookLinks && window.NotebookLinks.urlHasMicro(location.href)) {
+          var _m = window.M2PY && window.M2PY.currentMode && window.M2PY.currentMode();
+          if (_m && _m.id === 'microdata') {
             // v2-flyten (2-stegs variabelvalg + auto-retting) gir best svar;
             // enstegsflyten nås ikke lenger fra UI.
             sendMessage(true, true);
@@ -1636,13 +1637,13 @@
           }
         }
         if (dom.aiSendFastBtn) dom.aiSendFastBtn.addEventListener('click', sendCurrent);
-        // Send⚗︎ er nå bakt inn i Send (micro-URL → v2); knappen holdes skjult.
+        // Send⚗︎ er nå bakt inn i Send (microdata-modus → v2); knappen holdes skjult.
         if (dom.aiSendV2Btn) { dom.aiSendV2Btn.style.display = 'none'; dom.aiSendV2Btn.addEventListener('click', () => sendMessage(true, true)); }
-        // The old Web button is subsumed by the URL-routed Send (non-micro uses
-        // data-svar); keep it permanently hidden.
+        // The old Web button is subsumed by the mode-routed Send (non-micro
+        // modes use data-svar); keep it permanently hidden.
         if (dom.aiSendWebBtn) { dom.aiSendWebBtn.style.display = 'none'; dom.aiSendWebBtn.addEventListener('click', () => { sendWebMessage(); }); }
-        // Anvil full-vurdering: one button, shown only for admins on a micro URL
-        // in SafeStat (visibility gated by index.html applyMicroGating()).
+        // Anvil full-vurdering: one button, shown only for admins in microdata
+        // mode in SafeStat (visibility gated by index.html applyMicroGating()).
         if (dom.aiSendAnvilBtn) dom.aiSendAnvilBtn.addEventListener('click', () => { sendMessage(false); });
         if (dom.aiAbortBtn) dom.aiAbortBtn.addEventListener('click', () => { if (state.abortCtrl) state.abortCtrl.abort(); });
         dom.aiInput.addEventListener('input', autoresize);
@@ -1663,8 +1664,8 @@
         window.mdSyncWebBtnVisibility = syncWebBtnVisibility;
         syncWebBtnVisibility();
 
-        // The fast/anvil AI-svar setting was removed — AI now routes by URL
-        // (urlHasMicro): micro → kode-svar, non-micro → data-svar. No label to
+        // The fast/anvil AI-svar setting was removed — AI now routes by the
+        // active mode: microdata → kode-svar, ellers data-svar. No label to
         // refresh; keep the exposed hook as a no-op for any stale caller.
         window.mdRefreshAiModeLabel = function () {};
 

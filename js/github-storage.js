@@ -14,16 +14,17 @@
       };
 
       function currentLang() {
-        return (typeof activeEditorMode !== 'undefined') ? activeEditorMode : 'microdata';
+        return (typeof activeEditorMode !== 'undefined') ? activeEditorMode : 'python';
       }
       // Sett editor-innhold + språk slik at modus-buffrene holdes konsistente.
       function setEditor(text, lang) {
         if (window.mdClearOutput) window.mdClearOutput();
-        // Ukjent/utelatt språk: python med mindre URL-en sier micro — appen kan
-        // ikke vite modusen fra en .txt-fil; #options.mode i scriptet kan
-        // overstyre etterpå (autorun-flyten).
+        // Ukjent/utelatt språk: behold aktiv modus — appen kan ikke vite
+        // modusen fra en .txt-fil; #options.mode i scriptet kan overstyre
+        // etterpå (autorun-flyten). (Var URL-styrt via urlHasMicro før
+        // 2026-07-10; emulatoren bor nå i søsken-repoen `microdata`.)
         if (lang !== 'python' && lang !== 'r' && lang !== 'duckdb' && lang !== 'microdata' && lang !== 'brython') {
-          lang = (window.NotebookLinks && window.NotebookLinks.urlHasMicro(location.href)) ? 'microdata' : 'python';
+          lang = currentLang();
         }
         if (typeof editorContent !== 'undefined') editorContent[lang] = text;
         if (typeof switchEditorMode === 'function' && typeof activeEditorMode !== 'undefined' && lang !== activeEditorMode) {
@@ -39,9 +40,9 @@
         if (s.endsWith('.py')) return 'python';
         if (s.endsWith('.r')) return 'r';
         if (s.endsWith('.sql')) return 'duckdb';
-        // .txt m.m.: python med mindre URL-en sier micro (setEditor gjør
-        // samme vurdering; #options.mode i scriptet er autoritativ).
-        return (window.NotebookLinks && window.NotebookLinks.urlHasMicro(location.href)) ? 'microdata' : 'python';
+        // .txt m.m.: behold aktiv modus (setEditor gjør samme vurdering;
+        // #options.mode i scriptet er autoritativ).
+        return currentLang();
       }
 
       // --- base64url + gzip via innebygd CompressionStream ---

@@ -1,16 +1,26 @@
-# SafeStat — microdata.no emulator
+# SafeStat — browser statistics workbench (full build)
 
-> Sister project: [OpenStat](https://github.com/hmelberg/openstat) — the open,
+> Sister projects: [OpenStat](https://github.com/hmelberg/openstat) — the open,
 > simplified edition (no login, no protected/encrypted sources, no remote
-> execution, BYOK-only AI). The engine (`m2py.py`) is the source of truth here;
-> fixes land in SafeStat first and are ported to OpenStat.
+> execution, BYOK-only AI) — and
+> [Microdata](https://github.com/hmelberg/microdata) — the dedicated
+> microdata.no emulator (persona locked on, UI tracking microdata.no; cloned
+> from openstat 2026-07-10 with full git history, so `git cherry-pick` works
+> across the repos). The engine (`m2py.py`) is the source of truth here;
+> fixes land in SafeStat first and are ported to the siblings.
 
-A browser app that emulates [microdata.no](https://microdata.no): it translates
-microdata scripts to Python and runs them in the browser via Pyodide, generates
-synthetic register data from metadata, and adds tools around it — Python/R
-runners, Python/R → microdata translators, an editor that mimics microdata.no,
+A browser app for running statistics scripts in several languages — microdata,
+Python, R, DuckDB, Brython, jamovi, Statx, SafeStat (remote) — with the
+microdata language powered by an engine that emulates
+[microdata.no](https://microdata.no): it translates microdata scripts to Python
+and runs them in the browser via Pyodide, and generates synthetic register data
+from metadata. Around it: Python/R runners, Python/R → microdata translators,
 a step-by-step tutorial mode, and AI features (code generation, a
-data-minimization/privacy review, and result interpretation).
+data-minimization/privacy review, and result interpretation). Microdata is an
+ordinary mode here (its special UI shows only while microdata mode is active);
+the always-on emulator experience lives in the `microdata` sibling repo. The
+default mode is chosen per subdomain (`js/notebook-links.js` `hostnameMode()`),
+with **python** as the fallback.
 
 ## Layout
 

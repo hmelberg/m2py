@@ -210,7 +210,7 @@
     </div>
     <input type="text" class="script-name" id="scriptName" data-i18n-placeholder placeholder="Script navn" value="Script navn">
     <!-- Beskyttelsesnivå: diskret lås rett etter filnavnet (kun safestat,
-         skjult på micro-URLer). Tooltip forklarer; ingen farger. -->
+         skjult i microdata-modus). Tooltip forklarer; ingen farger. -->
     <span id="ctxLockIcon" style="display:none;opacity:.55;flex-shrink:0;cursor:default;line-height:1" aria-hidden="false"></span>
     <button type="button" class="help-icon" id="helpBtn" data-i18n-aria data-i18n-title aria-label="Hjelp" title="Hjelp" style="margin-left:auto">&#63;</button>
     <button type="button" class="help-icon" id="clearOutputTopBtn" data-i18n-aria data-i18n-title aria-label="Tøm output" title="Tøm output"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg></button>
@@ -4000,7 +4000,7 @@
           b.classList.toggle('active', b.dataset.mode === activeEditorMode);
         });
       }
-      // oversettBtn visibility is URL-gated (applyMicroGating), not mode-gated.
+      // oversettBtn m.m. visibility is mode-gated (applyMicroGating).
       if (window.mdApplyMicroGating) window.mdApplyMicroGating();
       if (typeof updateModeGuiBar==='function') updateModeGuiBar();
       if (window.mdUpdateSafestatToggle) window.mdUpdateSafestatToggle();
@@ -4036,13 +4036,13 @@
       }
     }
     // Nivå/sted vises nå diskret: lås etter filnavnet + sted-ikon i Kjør-
-    // knappen (kun safestat; usynlig på micro-URLer, der tannhjulene vises
+    // knappen (kun safestat; usynlig i microdata-modus, der tannhjulene vises
     // som før). Badgene i bunnmenyen er skjult — unntak: sted-badgen vises
     // når stedet faktisk KAN velges (klikket skriver exec() i skriptet, den
     // handlingen har ingen annen flate).
     function ctxIconsActive() {
       return (window.M2PY_APP || 'safestat') === 'safestat'
-        && !(window.NotebookLinks && window.NotebookLinks.urlHasMicro(location.href));
+        && activeEditorMode !== 'microdata';
     }
     var CTX_LOCK_OPEN_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg>';
     var CTX_LOCK_CLOSED_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>';
@@ -4132,12 +4132,15 @@
       setTimeout(updateSessionContextUi, 0);
     })();
 
-    // Microdata-specific UI is shown only when the URL (before any #) contains
-    // "micro" (js/notebook-links.js urlHasMicro). Fixed for the page lifetime;
-    // re-run on auth changes so the admin-gated Anvil button re-evaluates.
-    // (btnDmQuick is handled in updateVisible, which also depends on login.)
+    // Microdata-specific UI is shown only while the active mode is microdata
+    // (2026-07-10: was URL-gated via urlHasMicro; the dedicated emulator now
+    // lives in the sibling `microdata` repo). Runs on every mode switch via
+    // updateModeButtonsUi() and on auth changes (updateVisible) so the
+    // login-gated btnDmQuick and admin-gated Anvil button re-evaluate; plus
+    // once after restoreEditorMode() — it can't run earlier: activeEditorMode
+    // is a `let` declared further down (TDZ).
     function applyMicroGating() {
-      var micro = !!(window.NotebookLinks && window.NotebookLinks.urlHasMicro(location.href));
+      var micro = (activeEditorMode === 'microdata');
       ['oversettBtn', 'menuSokData', 'menuOfflineBtn'].forEach(function (id) {
         var el = document.getElementById(id);
         if (el) el.style.display = micro ? '' : 'none';
@@ -4147,12 +4150,18 @@
         var field = el && el.closest ? el.closest('.settings-field') : null;
         if (field) field.style.display = micro ? '' : 'none';
       });
+      // btnDmQuick: micro-modus + innlogget (flyttet hit fra updateVisible så
+      // den også oppdateres ved modusbytte, ikke bare ved auth-endringer).
+      var dm = document.getElementById('btnDmQuick');
+      var loggedIn = !!(window.mdAuth && window.mdAuth.isLoggedIn);
+      if (dm) dm.style.display = (micro && loggedIn) ? 'inline-flex' : 'none';
       var anvil = document.getElementById('aiSendAnvilBtn');
       var isAdmin = !!(window.mdAuth && window.mdAuth.user && window.mdAuth.user.is_admin);
       if (anvil) anvil.style.display = (micro && isAdmin && window.M2PY_APP === 'safestat') ? '' : 'none';
     }
     window.mdApplyMicroGating = applyMicroGating;
-    applyMicroGating();
+    // NB: ikke kall applyMicroGating() her — activeEditorMode er i TDZ til
+    // deklarasjonen lenger ned; boot-kallet skjer etter restoreEditorMode().
 
     function updateModeGuiBar() {
       var bar = document.getElementById('modeGuiBar');
@@ -4454,10 +4463,9 @@
         ask.style.display = loggedIn ? '' : 'none';
         const tolk = document.getElementById('btnTolkFooter');
         if (tolk) tolk.style.display = loggedIn ? '' : 'none';
-        const dm = document.getElementById('btnDmQuick');
-        const _micro = !!(window.NotebookLinks && window.NotebookLinks.urlHasMicro(location.href));
-        if (dm) dm.style.display = (loggedIn && _micro) ? 'inline-flex' : 'none';
-        // Re-evaluate the admin-gated Anvil AI button now that auth changed.
+        // btnDmQuick + the admin-gated Anvil AI button are handled by
+        // applyMicroGating() (micro-modus + login/admin); re-evaluate now
+        // that auth changed.
         if (window.mdApplyMicroGating) window.mdApplyMicroGating();
       }
       window.mdUpdateAskVisibility = updateVisible;
@@ -4549,6 +4557,10 @@
       if (mode && mode !== activeEditorMode && Object.prototype.hasOwnProperty.call(modeRegistry, mode)) {
         switchEditorMode(mode);
       }
+      // Boot-gating: switchEditorMode() over dekker bytte-tilfellet, men når
+      // lagret modus === init-verdien skjer ingen switch — kall eksplisitt så
+      // micro-UI-et (Oversett, Søk om data, …) matcher modusen fra start.
+      applyMicroGating();
     })();
 
     // ── Starteksempel og auto-fokus ─────────────────────────────────────────
