@@ -61,6 +61,9 @@ cd netlify/edge-functions && deno check *.ts _lib/*.ts && deno test --allow-all 
 
 # Propagate the engine to the microdata-api (Anvil) copy
 .venv/bin/python sync_to_api.py --apply   # copy; without --apply it only reports drift
+
+# Diff delte kjernefiler mot søsken-repoene (../openstat, ../microdata)
+sh scripts/sync_check.sh                  # exit 1 ved avvik; UI-filer er bevisst utelatt
 ```
 
 CI lives in `.github/workflows/` (pytest + manual scripts, py2m, r2m, edge).
