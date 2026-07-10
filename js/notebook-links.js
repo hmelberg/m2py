@@ -7,15 +7,15 @@
     var host = String(hostname || '').toLowerCase();
     var firstLabel = host.split('.')[0];
     if (Object.prototype.hasOwnProperty.call(LABEL_MODE, firstLabel)) return LABEL_MODE[firstLabel];
-    if (host.indexOf('micro') !== -1) return 'microdata';
     return 'python';
   };
 
-  // urlHasMicro er fjernet (2026-07-10): microdata-UI-et er nå modus-styrt
-  // (applyMicroGating i index.html leser activeEditorMode), ikke URL-styrt.
-  // Den dedikerte emulatoren bor i søsken-repoen `microdata`, der personaen
-  // er låst på. hostnameMode() over styrer fortsatt default-modus per
-  // subdomene (py./r./duck./micro…), med python som fallback.
+  // urlHasMicro og 'micro'-hostname-grenen er fjernet (2026-07-10):
+  // microdata er et vanlig språk her — modus-avhengige elementer styres av
+  // data-mode-only-attributter + registerfeltet translate.showsButton
+  // (applyModeVisibility i index.html). Den dedikerte emulatoren bor i
+  // søsken-repoen `microdata`. hostnameMode() styrer fortsatt default-modus
+  // per subdomene (py./r./duck.), med python som fallback.
 
   var RAW_BASE = 'https://raw.githubusercontent.com/';
 
@@ -75,7 +75,6 @@
 
   NL.welcomeVariant = function (hostname, app, isOutputOnly) {
     if (isOutputOnly) return null;
-    if (NL.hostnameMode(hostname) === 'microdata') return 'microdata';
     return app === 'safestat' ? 'safestat_general' : 'openstat_general';
   };
 

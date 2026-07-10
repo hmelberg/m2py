@@ -134,13 +134,6 @@
           </svg>
           <span data-i18n>Kj&#248;r skrittvis</span>
         </button>
-        <button type="button" id="menuSokData" data-i18n-title title="S&#248;k om tilgang til individdata" style="display:flex;align-items:center;gap:8px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
-            <circle cx="11" cy="11" r="7"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <span data-i18n>S&#248;k om data</span>
-        </button>
         <button type="button" id="menuRunnerMode" style="display:none">Kjøremodus: Microdata</button>
         <button type="button" id="menuToggleOutputMode" style="display:none">Output-modus: String</button>
         <button type="button" id="menuToggleSafestatOutput" style="display:none">SafeStat-output: Formatert</button>
@@ -175,7 +168,7 @@
           <hr style="margin:4px 0;border-color:#334155;">
           <div class="menu-section-label" style="padding: 6px 14px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding-top: 8px;">Admin</div>
           <div class="topbar-examples-wrap" id="offlineMenuWrap" style="position:relative">
-            <button type="button" id="menuOfflineBtn" data-i18n-title title="Oversett microdata-scriptet til frittst&#229;ende Python (pandas/polars) som kan kj&#248;res utenfor nettleseren, f.eks. p&#229; Anvil" style="display:flex;align-items:center;gap:8px;">
+            <button type="button" id="menuOfflineBtn" data-mode-only="microdata" data-mode-display="flex" data-i18n-title title="Oversett microdata-scriptet til frittst&#229;ende Python (pandas/polars) som kan kj&#248;res utenfor nettleseren, f.eks. p&#229; Anvil" style="display:flex;align-items:center;gap:8px;">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
                 <polyline points="16 18 22 12 16 6"/>
                 <polyline points="8 6 2 12 8 18"/>
@@ -209,8 +202,8 @@
       </div>
     </div>
     <input type="text" class="script-name" id="scriptName" data-i18n-placeholder placeholder="Script navn" value="Script navn">
-    <!-- Beskyttelsesnivå: diskret lås rett etter filnavnet (kun safestat,
-         skjult i microdata-modus). Tooltip forklarer; ingen farger. -->
+    <!-- Beskyttelsesnivå: diskret lås rett etter filnavnet (kun safestat).
+         Tooltip forklarer; ingen farger. -->
     <span id="ctxLockIcon" style="display:none;opacity:.55;flex-shrink:0;cursor:default;line-height:1" aria-hidden="false"></span>
     <button type="button" class="help-icon" id="helpBtn" data-i18n-aria data-i18n-title aria-label="Hjelp" title="Hjelp" style="margin-left:auto">&#63;</button>
     <button type="button" class="help-icon" id="clearOutputTopBtn" data-i18n-aria data-i18n-title aria-label="Tøm output" title="Tøm output"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg></button>
@@ -467,9 +460,6 @@
   <div class="ai-modal-backdrop" id="welcomeBackdrop">
     <div class="ai-modal" style="max-width:600px;">
       <h3 style="font-size:20px;" id="welcomeHeading" data-i18n>Velkommen til SafeStat!</h3>
-      <div id="welcomeBodyMicro" class="ai-modal-help" style="margin-bottom:14px; font-size:14px; line-height:1.5; display:none" data-i18n>
-        Øv på å kjøre analyser i microdata.no-stil. Inneholder ikke ekte tall; et hobbyprosjekt, ikke laget av microdata.no.
-      </div>
       <div id="welcomeBodyOpen" class="ai-modal-help" style="margin-bottom:14px; font-size:14px; line-height:1.5; display:none" data-i18n>
         OpenStat er en motor for å stille spørsmål som kan besvares med kode og statistikk — og for å se og endre koden som gir svaret. Skriv i Python, R, DuckDB eller microdata-stil; kjør i nettleseren.
       </div>
@@ -626,11 +616,6 @@
           </select>
         </div>
         <div class="settings-field">
-          <label for="settingImportLimit" data-i18n>Antall observasjoner ved import</label>
-          <input type="number" id="settingImportLimit" min="10" max="100000" step="100" value="10000">
-          <p class="settings-hint" data-i18n>Maks antall rader per import-kommando (10 – 100 000).</p>
-        </div>
-        <div class="settings-field">
           <label for="settingDecimals" data-i18n>Desimaler i tabeller</label>
           <select id="settingDecimals">
             <option value="0">0</option>
@@ -641,15 +626,6 @@
             <option value="5">5</option>
           </select>
           <p class="settings-hint" data-i18n>Antall desimaler i tabellutdata. Tall mindre enn 1 f&#229;r automatisk ekstra desimaler for &#229; vise signifikante siffer.</p>
-        </div>
-        <div class="settings-field">
-          <label for="settingLabelFormat" data-i18n>Etiketter i tabulate</label>
-          <select id="settingLabelFormat">
-            <option value="both" selected data-i18n>Kode og etikett (standard)</option>
-            <option value="label" data-i18n>Bare etikett</option>
-            <option value="code" data-i18n>Bare kode</option>
-          </select>
-          <p class="settings-hint" data-i18n-html>Standardvisning i <code>tabulate</code>. Kan overstyres per kommando med opsjonene <code>nolabels</code> / <code>novalues</code>, eller per script med <code>// m2py: label-format=both|label|code</code>.</p>
         </div>
         <div class="settings-field">
           <label for="settingShowCommands" data-i18n>Kommando-echo i output (Python/R)</label>
@@ -680,6 +656,25 @@
           <label for="settingBlockPause" data-i18n>Pause mellom kommentarl&#248;se blokker (sekunder)</label>
           <input type="number" id="settingBlockPause" min="0" max="10" step="0.1" value="1.0">
           <p class="settings-hint" data-i18n>Ventetid etter blokker uten kommentarer i Kj&#248;r skrittvis. 0 = ingen pause.</p>
+        </div>
+        <!-- Microdata-innstillinger: gjelder bare microdata-språket. Alltid
+             synlige (ingen modus-gating); planen er å fase dem ut av
+             openstat/safestat på sikt — emulatoren i microdata-repoen er
+             hjemmet deres. -->
+        <div class="settings-section" data-i18n>Microdata</div>
+        <div class="settings-field">
+          <label for="settingImportLimit" data-i18n>Antall observasjoner ved import</label>
+          <input type="number" id="settingImportLimit" min="10" max="100000" step="100" value="10000">
+          <p class="settings-hint" data-i18n>Maks antall rader per import-kommando (10 &ndash; 100 000).</p>
+        </div>
+        <div class="settings-field">
+          <label for="settingLabelFormat" data-i18n>Etiketter i tabulate</label>
+          <select id="settingLabelFormat">
+            <option value="both" selected data-i18n>Kode og etikett (standard)</option>
+            <option value="label" data-i18n>Bare etikett</option>
+            <option value="code" data-i18n>Bare kode</option>
+          </select>
+          <p class="settings-hint" data-i18n-html>Standardvisning i <code>tabulate</code>. Kan overstyres per kommando med opsjonene <code>nolabels</code> / <code>novalues</code>, eller per script med <code>// m2py: label-format=both|label|code</code>.</p>
         </div>
         <div class="settings-field">
           <label data-i18n>Avsl&#248;ringskontroll</label>
@@ -1485,14 +1480,13 @@
           ? window.NotebookLinks.welcomeVariant(location.hostname, window.M2PY_APP || 'safestat', isOutputOnly)
           : 'safestat_general';
         if (variant === null) return;                 // output-only: no welcome
-        var _bodies = { microdata: 'welcomeBodyMicro', openstat_general: 'welcomeBodyOpen', safestat_general: 'welcomeBodySafe' };
-        ['welcomeBodyMicro', 'welcomeBodyOpen', 'welcomeBodySafe'].forEach(function (id) {
+        var _bodies = { openstat_general: 'welcomeBodyOpen', safestat_general: 'welcomeBodySafe' };
+        ['welcomeBodyOpen', 'welcomeBodySafe'].forEach(function (id) {
           var el = document.getElementById(id); if (el) el.style.display = (id === _bodies[variant]) ? '' : 'none';
         });
         var _heading = document.getElementById('welcomeHeading');
-        if (_heading) _heading.textContent = (variant === 'microdata')
-          ? t('Velkommen!')
-          : t('Velkommen til {app}!', { app: (window.M2PY_APP === 'safestat' ? 'SafeStat' : 'OpenStat') });
+        if (_heading) _heading.textContent =
+          t('Velkommen til {app}!', { app: (window.M2PY_APP === 'safestat' ? 'SafeStat' : 'OpenStat') });
         if (localStorage.getItem(LS_KEY) === '1') return;
         var bd = document.getElementById('welcomeBackdrop');
         var tipEl = document.getElementById('welcomeTipText');
@@ -2886,41 +2880,14 @@
         var dd = document.getElementById('hamburgerDropdown');
         if (dd) dd.classList.remove('open');
       }
-      function showBackdrop(id, on) {
-        var el = document.getElementById(id);
-        if (el) el.style.display = on ? 'flex' : 'none';
-      }
       function on(id, handler) {
         var el = document.getElementById(id);
         if (el) el.addEventListener('click', handler);
       }
-      function grantDataAccess() {
-        // Demo-flyten («Søk om data» → godkjent) trengte tidligere å skru på
-        // en manuell «Vis data»-bryter. Klikkbarhet er nå automatisk per
-        // datasett (window.__isDatasetViewable) — ingenting å slå på her.
-      }
-      // Søk om data → modal med «Send forespørsel»
-      on('menuSokData', function() { closeDropdown(); showBackdrop('sokDataBackdrop', true); });
-      on('sokDataCancel', function() { showBackdrop('sokDataBackdrop', false); });
-      // Send forespørsel → godkjenn, skru på innstillingen, vis «godkjent»-modal
-      on('sokDataSend', function() {
-        showBackdrop('sokDataBackdrop', false);
-        grantDataAccess();
-        showBackdrop('sokDataApprovedBackdrop', true);
-      });
-      on('sokDataApprovedClose', function() { showBackdrop('sokDataApprovedBackdrop', false); });
-      // Vis data (i godkjent-modalen) → åpne sidemenyen
-      on('sokDataApprovedVis', function() {
-        showBackdrop('sokDataApprovedBackdrop', false);
-        setSidebarOpen(true);
-      });
-      // Vis data (hamburgermeny) → åpne sidemenyen direkte
+      // «Søk om data»-flyten (simulert microdata.no-søknad) er fjernet
+      // 2026-07-10 — den bor i søsken-repoen `microdata`.
+      // Se data (toppbar-ikonet) → åpne sidemenyen direkte
       on('menuVisData', function() { closeDropdown(); setSidebarOpen(true); });
-      // Klikk utenfor boksen lukker modalen
-      ['sokDataBackdrop', 'sokDataApprovedBackdrop'].forEach(function(id) {
-        var bd = document.getElementById(id);
-        if (bd) bd.addEventListener('click', function(e) { if (e.target === bd) bd.style.display = 'none'; });
-      });
     }
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', wireDataAccessMenu);
@@ -3843,7 +3810,7 @@
     // scattered as `activeEditorMode === '…'` branches.
     const modeRegistry = {
       microdata: { id: 'microdata', label: 'Microdata', handleTab: microdataHandleTab,
-        translate: { showsButton: false,
+        translate: { showsButton: true,
           toPython: async function (src, py) {
             var raw = await py.runPythonAsync(
               'from m2py import MicroInterpreter as _MI\n_e_ov = _MI()\n' +
@@ -4000,8 +3967,7 @@
           b.classList.toggle('active', b.dataset.mode === activeEditorMode);
         });
       }
-      // oversettBtn m.m. visibility is mode-gated (applyMicroGating).
-      if (window.mdApplyMicroGating) window.mdApplyMicroGating();
+      if (window.mdApplyModeVisibility) window.mdApplyModeVisibility();
       if (typeof updateModeGuiBar==='function') updateModeGuiBar();
       if (window.mdUpdateSafestatToggle) window.mdUpdateSafestatToggle();
       updateSessionContextUi();
@@ -4036,13 +4002,13 @@
       }
     }
     // Nivå/sted vises nå diskret: lås etter filnavnet + sted-ikon i Kjør-
-    // knappen (kun safestat; usynlig i microdata-modus, der tannhjulene vises
-    // som før). Badgene i bunnmenyen er skjult — unntak: sted-badgen vises
-    // når stedet faktisk KAN velges (klikket skriver exec() i skriptet, den
-    // handlingen har ingen annen flate).
+    // knappen (kun safestat). Badgene i bunnmenyen er skjult — unntak:
+    // sted-badgen vises når stedet faktisk KAN velges (klikket skriver
+    // exec() i skriptet, den handlingen har ingen annen flate).
+    // (Micro-unntaket fjernet 2026-07-10: sesjonsnivå/sted er ortogonalt
+    // til språket, så ikonene vises også i microdata-modus.)
     function ctxIconsActive() {
-      return (window.M2PY_APP || 'safestat') === 'safestat'
-        && activeEditorMode !== 'microdata';
+      return (window.M2PY_APP || 'safestat') === 'safestat';
     }
     var CTX_LOCK_OPEN_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg>';
     var CTX_LOCK_CLOSED_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>';
@@ -4132,26 +4098,27 @@
       setTimeout(updateSessionContextUi, 0);
     })();
 
-    // Microdata-specific UI is shown only while the active mode is microdata
-    // (2026-07-10: was URL-gated via urlHasMicro; the dedicated emulator now
-    // lives in the sibling `microdata` repo). Runs on every mode switch via
-    // updateModeButtonsUi() and on auth changes (updateVisible) so the
-    // login-gated btnDmQuick and admin-gated Anvil button re-evaluate; plus
-    // once after restoreEditorMode() — it can't run earlier: activeEditorMode
-    // is a `let` declared further down (TDZ).
-    function applyMicroGating() {
-      var micro = (activeEditorMode === 'microdata');
-      ['oversettBtn', 'menuSokData', 'menuOfflineBtn'].forEach(function (id) {
-        var el = document.getElementById(id);
-        if (el) el.style.display = micro ? '' : 'none';
+    // Generisk modus-synlighet (erstatter den microdata-spesifikke
+    // applyMicroGating 2026-07-10 — microdata er nå et vanlig språk):
+    // – Elementer med data-mode-only="<modus-id>" (mellomromseparert liste)
+    //   vises bare når aktiv modus matcher; data-mode-display kan angi
+    //   display-verdien ved visning (default '').
+    // – Oversett-knappen styres av registerfeltet translate.showsButton.
+    // – Safestat-tillegg: btnDmQuick (micro + innlogget) og Anvil-knappen
+    //   (micro + admin) har auth-vilkår oppå modus-vilkåret, derfor
+    //   imperative her; kjøres også på auth-endringer via updateVisible.
+    // Kjøres på hvert modusbytte via updateModeButtonsUi() + én gang etter
+    // restoreEditorMode() — ikke tidligere: activeEditorMode er en `let`
+    // deklarert lenger ned (TDZ).
+    function applyModeVisibility() {
+      var m = currentMode();
+      document.querySelectorAll('[data-mode-only]').forEach(function (el) {
+        var show = el.getAttribute('data-mode-only').split(/\s+/).indexOf(m.id) !== -1;
+        el.style.display = show ? (el.getAttribute('data-mode-display') || '') : 'none';
       });
-      ['menuDisclosureControl', 'menuDataSource', 'settingLabelFormat', 'settingImportLimit'].forEach(function (id) {
-        var el = document.getElementById(id);
-        var field = el && el.closest ? el.closest('.settings-field') : null;
-        if (field) field.style.display = micro ? '' : 'none';
-      });
-      // btnDmQuick: micro-modus + innlogget (flyttet hit fra updateVisible så
-      // den også oppdateres ved modusbytte, ikke bare ved auth-endringer).
+      var ob = document.getElementById('oversettBtn');
+      if (ob) ob.style.display = (m.translate && m.translate.showsButton) ? '' : 'none';
+      var micro = (m.id === 'microdata');
       var dm = document.getElementById('btnDmQuick');
       var loggedIn = !!(window.mdAuth && window.mdAuth.isLoggedIn);
       if (dm) dm.style.display = (micro && loggedIn) ? 'inline-flex' : 'none';
@@ -4159,9 +4126,7 @@
       var isAdmin = !!(window.mdAuth && window.mdAuth.user && window.mdAuth.user.is_admin);
       if (anvil) anvil.style.display = (micro && isAdmin && window.M2PY_APP === 'safestat') ? '' : 'none';
     }
-    window.mdApplyMicroGating = applyMicroGating;
-    // NB: ikke kall applyMicroGating() her — activeEditorMode er i TDZ til
-    // deklarasjonen lenger ned; boot-kallet skjer etter restoreEditorMode().
+    window.mdApplyModeVisibility = applyModeVisibility;
 
     function updateModeGuiBar() {
       var bar = document.getElementById('modeGuiBar');
@@ -4464,9 +4429,9 @@
         const tolk = document.getElementById('btnTolkFooter');
         if (tolk) tolk.style.display = loggedIn ? '' : 'none';
         // btnDmQuick + the admin-gated Anvil AI button are handled by
-        // applyMicroGating() (micro-modus + login/admin); re-evaluate now
+        // applyModeVisibility() (micro-modus + login/admin); re-evaluate now
         // that auth changed.
-        if (window.mdApplyMicroGating) window.mdApplyMicroGating();
+        if (window.mdApplyModeVisibility) window.mdApplyModeVisibility();
       }
       window.mdUpdateAskVisibility = updateVisible;
       setTimeout(updateVisible, 0);
@@ -4553,14 +4518,14 @@
       }
       var mode = (saved && Object.prototype.hasOwnProperty.call(modeRegistry, saved))
         ? saved
-        : (window.NotebookLinks ? window.NotebookLinks.hostnameMode(location.hostname) : 'microdata');
+        : (window.NotebookLinks ? window.NotebookLinks.hostnameMode(location.hostname) : 'python');
       if (mode && mode !== activeEditorMode && Object.prototype.hasOwnProperty.call(modeRegistry, mode)) {
         switchEditorMode(mode);
       }
-      // Boot-gating: switchEditorMode() over dekker bytte-tilfellet, men når
-      // lagret modus === init-verdien skjer ingen switch — kall eksplisitt så
-      // micro-UI-et (Oversett, Søk om data, …) matcher modusen fra start.
-      applyMicroGating();
+      // Boot: switchEditorMode() over dekker bytte-tilfellet, men når lagret
+      // modus === init-verdien skjer ingen switch — kall eksplisitt så
+      // modus-avhengige elementer matcher modusen fra start.
+      applyModeVisibility();
     })();
 
     // ── Starteksempel og auto-fokus ─────────────────────────────────────────
@@ -11391,34 +11356,6 @@ def _run_microdata_chunk(_code):
       <div class="ai-modal-actions" style="margin-top:16px;">
         <button type="button" id="openUrlCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
         <button type="button" id="openUrlGo" class="ai-modal-btn primary" data-i18n>&#197;pne</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Søk om data -->
-  <div id="sokDataBackdrop" class="ai-modal-backdrop" style="display:none;">
-    <div class="ai-modal" style="max-width: 480px;">
-      <h3 style="font-size: 1.25em;" data-i18n>S&#248;k om data</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n>
-        Send en foresp&#248;rsel om tilgang til individdata.
-      </p>
-      <div class="ai-modal-actions" style="margin-top:16px;">
-        <button type="button" id="sokDataCancel" class="ai-modal-btn" data-i18n>Avbryt</button>
-        <button type="button" id="sokDataSend" class="ai-modal-btn primary" data-i18n>Send foresp&#248;rsel</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Søknaden er godkjent -->
-  <div id="sokDataApprovedBackdrop" class="ai-modal-backdrop" style="display:none;">
-    <div class="ai-modal" style="max-width: 480px;">
-      <h3 style="font-size: 1.25em;" data-i18n>S&#248;knaden er godkjent.</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: -4px;" data-i18n>
-        Du har n&#229; tilgang p&#229; individdata. Du kan se data ved &#229; trykke p&#229; &laquo;Se data&raquo;.
-      </p>
-      <div class="ai-modal-actions" style="margin-top:16px;">
-        <button type="button" id="sokDataApprovedClose" class="ai-modal-btn" data-i18n>Lukk</button>
-        <button type="button" id="sokDataApprovedVis" class="ai-modal-btn primary" data-i18n>Se data</button>
       </div>
     </div>
   </div>

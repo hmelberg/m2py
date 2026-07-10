@@ -8,9 +8,9 @@ test('hostnameMode: exact first-label prefixes', () => {
   assert.equal(NL.hostnameMode('r.safestat.app'), 'r');
   assert.equal(NL.hostnameMode('duck.openstat.app'), 'duckdb');
 });
-test('hostnameMode: micro substring', () => {
-  assert.equal(NL.hostnameMode('micro.safestat.app'), 'microdata');
-  assert.equal(NL.hostnameMode('microdata.run'), 'microdata');
+test('hostnameMode: micro-hosts er ikke lenger spesielle (emulatoren bor i microdata-repoen)', () => {
+  assert.equal(NL.hostnameMode('micro.safestat.app'), 'python');
+  assert.equal(NL.hostnameMode('microdata.run'), 'python');
 });
 test('hostnameMode: bare/dev hosts default to python', () => {
   assert.equal(NL.hostnameMode('openstat.app'), 'python');
@@ -66,9 +66,9 @@ test('classifyHash: non-matching returns null', () => {
 test('welcomeVariant: output-only shows nothing', () => {
   assert.equal(NL.welcomeVariant('micro.safestat.app', 'safestat', true), null);
 });
-test('welcomeVariant: micro host → microdata framing (either app)', () => {
-  assert.equal(NL.welcomeVariant('microdata.run', 'openstat', false), 'microdata');
-  assert.equal(NL.welcomeVariant('micro.safestat.app', 'safestat', false), 'microdata');
+test('welcomeVariant: micro-hosts får generell velkomst (ingen micro-variant lenger)', () => {
+  assert.equal(NL.welcomeVariant('microdata.run', 'openstat', false), 'openstat_general');
+  assert.equal(NL.welcomeVariant('micro.safestat.app', 'safestat', false), 'safestat_general');
 });
 test('welcomeVariant: general framing per app', () => {
   assert.equal(NL.welcomeVariant('py.openstat.app', 'openstat', false), 'openstat_general');

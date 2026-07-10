@@ -1643,7 +1643,7 @@
         // modes use data-svar); keep it permanently hidden.
         if (dom.aiSendWebBtn) { dom.aiSendWebBtn.style.display = 'none'; dom.aiSendWebBtn.addEventListener('click', () => { sendWebMessage(); }); }
         // Anvil full-vurdering: one button, shown only for admins in microdata
-        // mode in SafeStat (visibility gated by index.html applyMicroGating()).
+        // mode in SafeStat (visibility gated by index.html applyModeVisibility()).
         if (dom.aiSendAnvilBtn) dom.aiSendAnvilBtn.addEventListener('click', () => { sendMessage(false); });
         if (dom.aiAbortBtn) dom.aiAbortBtn.addEventListener('click', () => { if (state.abortCtrl) state.abortCtrl.abort(); });
         dom.aiInput.addEventListener('input', autoresize);
