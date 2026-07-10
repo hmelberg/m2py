@@ -37,7 +37,12 @@
 .dash-card--stale { opacity: .55; }
 .dash-card--stale::after { content: attr(data-stale-label); display: block;
   font-size: .75rem; color: var(--text-muted); margin-top: 6px; }
-.dash-card img, .dash-card canvas { max-width: 100%; height: auto; }
+/* Figurer: behold sideforhold, men aldri høyere enn kortet tåler —
+   store R/matplotlib-bitmaps dominerte layouten uten taket. */
+.dash-card img, .dash-card canvas { max-width: 100%; max-height: 320px;
+  width: auto; height: auto; object-fit: contain; display: block; margin: 0 auto; }
+.dash-card--wide img, .dash-card--wide canvas { max-height: 420px; }
+.dash-card-body { max-height: 65vh; overflow: auto; }
 .dash-error-card { grid-column: 1 / -1; }
 .dash-footer { margin-top: 16px; display: flex; justify-content: space-between;
   gap: 12px; font-size: .85rem; color: var(--text-muted); }

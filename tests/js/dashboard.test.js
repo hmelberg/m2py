@@ -66,11 +66,13 @@ test('parse: errors on bad input line and duplicate name', () => {
   assert.ok(p.errors.length >= 2);
 });
 
-test('parse: no #input at all → everything is setup, no cells', () => {
+test('parse: no #input → direktiver i setup, hele scriptet som celle (dropdown-dashboard)', () => {
   const p = D.parse('# load https://x/y.csv as df\nprint(df)');
   assert.equal(p.inputs.length, 0);
-  assert.equal(p.cells.length, 0);
-  assert.ok(p.setupCode.includes('print(df)'));
+  assert.equal(p.cells.length, 1);                     // vanlig script → ett kort
+  assert.ok(p.cells[0].code.includes('print(df)'));
+  assert.ok(p.setupCode.includes('# load'));           // pipeline materialiserer loads
+  assert.ok(!p.setupCode.includes('print(df)'));       // kode kjøres i cellen, ikke to ganger
 });
 
 test('parse: %% inside code line is not a cell marker', () => {

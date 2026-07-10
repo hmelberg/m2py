@@ -96,10 +96,20 @@
       }
     }
     // Setup-sonen: alt over første #input (direktiver inkludert — pipelinen
-    // stripper selv #options.*-linjer). Uten #input er alt setup, ingen celler.
-    var setupCode = (firstInput < 0 ? lines : lines.slice(0, firstInput)).join('\n');
+    // stripper selv #options.*-linjer). UTEN #input (typisk et vanlig script
+    // vist som dashboard via visnings-dropdownen): direktivlinjene forblir
+    // setup (pipelinen materialiserer loads derfra), mens hele scriptet blir
+    // celler — ellers ble alt "setup" og dashboardet sto tomt.
+    var setupCode, cellStart;
+    if (firstInput < 0) {
+      setupCode = lines.filter(function (l) { return /^[ \t]*(?:#|\/\/|--|$)/.test(l); }).join('\n');
+      cellStart = 0;
+    } else {
+      setupCode = lines.slice(0, firstInput).join('\n');
+      cellStart = firstInput;
+    }
     var cur = null;
-    for (var j = (firstInput < 0 ? lines.length : firstInput); j < lines.length; j++) {
+    for (var j = cellStart; j < lines.length; j++) {
       var line = lines[j];
       var im = line.match(INPUT_RE);
       if (im) {

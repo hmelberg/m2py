@@ -195,6 +195,9 @@
       </div>
     </div>
     <input type="text" class="script-name" id="scriptName" data-i18n-placeholder placeholder="Script navn" value="Script navn">
+    <!-- Beskyttelsesnivå: diskret lås rett etter filnavnet (kun safestat,
+         skjult på micro-URLer). Tooltip forklarer; ingen farger. -->
+    <span id="ctxLockIcon" style="display:none;opacity:.55;flex-shrink:0;cursor:default;line-height:1" aria-hidden="false"></span>
     <button type="button" class="help-icon" id="helpBtn" data-i18n-aria data-i18n-title aria-label="Hjelp" title="Hjelp" style="margin-left:auto">&#63;</button>
     <button type="button" class="help-icon" id="clearOutputTopBtn" data-i18n-aria data-i18n-title aria-label="Tøm output" title="Tøm output"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg></button>
     <button type="button" class="help-icon" id="menuVisData" data-i18n-aria data-i18n-title aria-label="Se data" title="Åpne sidemenyen for å velge og se data">
@@ -264,10 +267,12 @@
     <div class="resizer" id="resizer" title="Drag to resize"></div>
     <div class="panel panel-right">
       <div class="panel-content panel-content-output">
-        <button type="button" id="notebookShowCode" class="ai-modal-btn" style="display:none" data-i18n>‹ Vis kode</button>
         <div class="output-scroll-wrap" id="outputScrollWrap">
           <div class="output-area" id="outputArea"></div>
         </div>
+        <!-- Flyttet fra toppen av panelet: tok fokus fra resultatene.
+             Diskret nederst; dashboard-visningen har sin egen fotlenke. -->
+        <button type="button" id="notebookShowCode" class="ai-modal-btn" style="display:none;align-self:flex-start;opacity:.7;font-size:12px;margin-top:4px" data-i18n>‹ Vis kode</button>
         <button type="button" class="output-jump-last-btn" id="outputJumpLastBtn" data-i18n-title data-i18n-aria title="Bla ned til resultat fra siste linje" aria-label="Bla ned til resultat fra siste linje"><span aria-hidden="true">&#8595;</span></button>
         <button type="button" class="copy-all-results-btn" id="copyAllResultsBtn" style="display:none" data-i18n-title data-i18n-aria title="Kopier alle resultater" aria-label="Kopier alle resultater"><span aria-hidden="true">&#10697;</span></button>
       </div>
@@ -480,23 +485,21 @@
   </div>
   <footer class="bottombar">
     <div class="bottombar-left">
-      <button type="button" class="bottombar-icon-btn" id="layoutStackedBtn" data-i18n-title data-i18n-aria title="Stablevisning (kode over, output under)" aria-label="Stablevisning" aria-pressed="false">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect class="icon-solid" x="4" y="4" width="16" height="7" rx="1"/>
-          <rect class="icon-outline" x="4" y="13" width="16" height="7" rx="1"/>
-        </svg>
-      </button>
-      <button type="button" class="bottombar-icon-btn" id="layoutColumnsBtn" data-i18n-title data-i18n-aria title="Kolonnevisning (kode og output side ved side)" aria-label="Kolonnevisning" aria-pressed="true">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect class="icon-solid" x="3" y="4" width="8" height="16" rx="1"/>
-          <rect class="icon-outline" x="13" y="4" width="8" height="16" rx="1"/>
-        </svg>
-      </button>
-      <button type="button" class="bottombar-icon-btn" id="layoutOutputBtn" data-i18n-title data-i18n-aria title="Skjul/vis inndatapanel (bare output)" aria-label="Skjul inndatapanel" aria-pressed="false">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect class="icon-solid" x="4" y="4" width="16" height="16" rx="1"/>
-        </svg>
-      </button>
+      <!-- Visningsmodus samlet i én dropdown (før: tre ikonknapper) —
+           kolonner/stablet/kun output/skrittvis/dashboard. -->
+      <div class="mode-dropdown-wrap">
+        <button type="button" class="mode-dropdown-btn" id="viewModeBtn" data-i18n-title title="Velg visning (kolonner, stablet, kun output, skrittvis, dashboard)">
+          <span id="viewModeLabel" data-i18n>Kolonner</span>
+          <span class="chevron">▲</span>
+        </button>
+        <div class="mode-dropdown-menu" id="viewModeMenu">
+          <button type="button" data-view="columns" class="active" data-i18n>Kolonner</button>
+          <button type="button" data-view="stacked" data-i18n>Stablet</button>
+          <button type="button" data-view="output" data-i18n>Kun output</button>
+          <button type="button" data-view="forklar" data-i18n>Skrittvis</button>
+          <button type="button" data-view="dashboard" data-i18n>Dashboard</button>
+        </div>
+      </div>
       <button type="button" class="bottombar-icon-btn" id="csvToolBtn" data-i18n-title data-i18n-aria title="CSV omkodingsverktøy" aria-label="CSV omkodingsverktøy">
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
           <path d="M4 8h12M13 5.5L16 8l-3 2.5"/>
@@ -1550,6 +1553,8 @@
         updateLayoutButtons();
         window.refreshPlotlyAfterLayout();
       }
+      window.mdSetLayoutMode = setLayoutMode;   // visnings-dropdownen i bunnmenyen
+      window.mdIsStackedLayout = isStacked;
 
       // Output-only: hide/show the input panel (works in both layouts).
       var layoutOutputBtn = document.getElementById('layoutOutputBtn');
@@ -2615,7 +2620,11 @@
           if (!ok) return;                               // declined: leave input/button untouched
         }
         if (window.mdSetInputHidden) window.mdSetInputHidden(true);   // output-only
-        window.mdShowCodeAffordance && window.mdShowCodeAffordance();
+        // Dashboard-scripts har egen «Vis koden»-fotlenke — toppknappen
+        // stjal fokus fra selve dashboardet.
+        var _siAff = document.getElementById('scriptInput');
+        var _isDashScript = _siAff && /^\s*(?:#|\/\/|--)\s*options\.view\s*=\s*["']?dashboard/mi.test(_siAff.value);
+        if (!_isDashScript && window.mdShowCodeAffordance) window.mdShowCodeAffordance();
         if (scriptRunInProgress) return;
         // "#options.mode = python|r|duckdb|microdata" i scriptet overstyrer
         // filendelsen — .txt-scripts kan dermed si hvor de skal kjøre.
@@ -3979,6 +3988,17 @@
         default: return t('kilden «{name}» er ukjent her — logg inn for å se nivå', { name: r.name });
       }
     }
+    // Nivå/sted vises nå diskret: lås etter filnavnet + sted-ikon i Kjør-
+    // knappen (kun safestat; usynlig på micro-URLer, der tannhjulene vises
+    // som før). Badgene i bunnmenyen er skjult — unntak: sted-badgen vises
+    // når stedet faktisk KAN velges (klikket skriver exec() i skriptet, den
+    // handlingen har ingen annen flate).
+    function ctxIconsActive() {
+      return (window.M2PY_APP || 'safestat') === 'safestat'
+        && !(window.NotebookLinks && window.NotebookLinks.urlHasMicro(location.href));
+    }
+    var CTX_LOCK_OPEN_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg>';
+    var CTX_LOCK_CLOSED_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>';
     function updateSessionContextUi() {
       var lv = document.getElementById('ctxLevelBadge');
       var pl = document.getElementById('ctxPlaceBadge');
@@ -3988,17 +4008,45 @@
       var ctx = window.SessionContext.derive(si.value, activeEditorMode, cached);
       window.__sessionCtx = ctx;
       var LV_LABEL = { open: t('Åpen'), unknown: t('Ukjent'), restricted: t('Begrenset'), he: t('Kryptert') };
+      var _icons = ctxIconsActive();
+      lv.style.display = 'none';
       lv.className = 'ctx-badge ctx-badge--' + ctx.level;
       lv.textContent = LV_LABEL[ctx.level];
-      lv.title = ctx.levelReasons.length
+      var _lvTitle = ctx.levelReasons.length
         ? ctx.levelReasons.map(_ctxLevelWhyText).join('\n')
         : t('Åpne data — ingen beskyttede kilder i skriptet');
+      lv.title = _lvTitle;
+      var lock = document.getElementById('ctxLockIcon');
+      if (lock) {
+        if (_icons) {
+          lock.style.display = '';
+          lock.innerHTML = ctx.level === 'open' ? CTX_LOCK_OPEN_SVG : CTX_LOCK_CLOSED_SVG;
+          lock.title = LV_LABEL[ctx.level] + ' — ' + _lvTitle;
+          lock.setAttribute('aria-label', lock.title);
+        } else {
+          lock.style.display = 'none';
+        }
+      }
+      pl.style.display = (_icons && ctx.placeChoosable) ? '' : 'none';
       pl.className = 'ctx-badge' + (ctx.placeChoosable ? ' ctx-badge--choosable' : '');
       pl.textContent = ctx.place === 'remote' ? '☁ ' + t('Server') : '⌂ ' + t('Lokalt');
       pl.title = ctx.placeChoosable
         ? t('Klikk for å bytte til {other} — valget skrives som exec() i skriptet', {
             other: ctx.place === 'remote' ? t('lokal kjøring') : t('server-kjøring') })
         : (ctx.place === 'remote' ? t('Kjøres på server (bestemt av kildene)') : t('Kjøres lokalt i nettleseren'));
+      // Sted-ikonet i Kjør-knappen (⌂ lokal / ☁ server): oppdater KUN ikon-
+      // slottene — aldri disabled-tilstanden (den styres av runtime-lasting).
+      // setTimeout(0): kalles synkront fra restoreEditorMode() ved init, før
+      // konstantene runIdleSlotHtml leser er initialisert (TDZ).
+      setTimeout(function () {
+        if (scriptRunInProgress) return;
+        ['btnRun', 'btnRunFooter'].forEach(function (id) {
+          var b = document.getElementById(id);
+          if (!b || b.classList.contains('btn-run--running')) return;
+          var slot = b.querySelector('.btn-run-icon-slot');
+          if (slot && !slot.querySelector('.btn-run-spinner')) slot.innerHTML = runIdleSlotHtml();
+        });
+      }, 0);
       // Asynkron beriking: hent metadata KUN for kilder som mangler i cachen,
       // og re-render når svaret kommer (cachede navn gir ingen ny runde —
       // det er det som terminerer rekursjonen her).
@@ -4154,6 +4202,57 @@
             try { await loadModeModule(target); } catch(e){ console.error(e); return; }
           }
           switchEditorMode(target);
+        });
+      });
+    })();
+
+    // ── Visningsmodus-dropdown i bunnmenyen (erstatter de tre layout-
+    //    ikonknappene): kolonner/stablet/kun output/skrittvis/dashboard.
+    (function initViewModeDropdown() {
+      var btn = document.getElementById('viewModeBtn');
+      var menu = document.getElementById('viewModeMenu');
+      var label = document.getElementById('viewModeLabel');
+      if (!btn || !menu) return;
+      var LABELS = { columns: t('Kolonner'), stacked: t('Stablet'), output: t('Kun output'),
+                     forklar: t('Skrittvis'), dashboard: t('Dashboard') };
+      function setActive(view) {
+        if (label) label.textContent = LABELS[view] || view;
+        menu.querySelectorAll('button[data-view]').forEach(function (b) {
+          b.classList.toggle('active', b.dataset.view === view);
+        });
+      }
+      window.mdSyncViewDropdown = setActive;
+      // Init-label fra lagret tilstand.
+      setActive(window.mdIsInputHidden && window.mdIsInputHidden() ? 'output'
+        : (window.mdIsStackedLayout && window.mdIsStackedLayout() ? 'stacked' : 'columns'));
+      btn.addEventListener('click', function (e) { e.stopPropagation(); menu.classList.toggle('open'); });
+      document.addEventListener('click', function () { menu.classList.remove('open'); });
+      menu.querySelectorAll('button[data-view]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          menu.classList.remove('open');
+          var v = b.dataset.view;
+          if (v === 'forklar') {
+            // Skrittvis er en KJØRING, ikke en tilstand — ikke endre label.
+            var fk = document.getElementById('btnForklar');
+            if (fk && !fk.disabled && !scriptRunInProgress) fk.click();
+            return;
+          }
+          if (v === 'dashboard') {
+            if (scriptRunInProgress) return;
+            setActive('dashboard');
+            window.__dashViewOverride = true;   // konsumeres av kjøre-grenen
+            document.getElementById('btnRun').click();
+            return;
+          }
+          if (window.Dashboard) window.Dashboard.unmount();
+          if (v === 'output') {
+            window.mdSetInputHidden(true);
+          } else {
+            window.mdSetInputHidden(false);
+            if (window.mdSetLayoutMode) window.mdSetLayoutMode(v);
+          }
+          if (window.mdOnInputToggle) window.mdOnInputToggle(v === 'output');
+          setActive(v);
         });
       });
     })();
@@ -4431,6 +4530,15 @@
     /** Settes ved Fortsett etter Forrige — avbryter nåværende blokk og hopper til indeks. */
     let forklarGotoBlockIdx = null;
     const BTN_RUN_GEARS_HTML = '<span class="btn-run-gears" aria-hidden="true">\u2699\u2699</span>';
+    // Sted-ikon i Kj\u00f8r-knappen (safestat, ikke micro): \u2302 = lokal kj\u00f8ring,
+    // \u2601 = server. Micro-URLer og openstat beholder tannhjulene.
+    function runIdleSlotHtml() {
+      if (typeof ctxIconsActive !== 'function' || !ctxIconsActive()) return BTN_RUN_GEARS_HTML;
+      var remote = window.__sessionCtx && window.__sessionCtx.place === 'remote';
+      return '<span class="btn-run-gears" aria-hidden="true" title="'
+        + (remote ? t('Kj\u00f8res p\u00e5 server') : t('Kj\u00f8res lokalt i nettleseren'))
+        + '">' + (remote ? '\u2601' : '\u2302') + '</span>';
+    }
     const BTN_FORKLAR_SPEAKER_HTML = '<span class="btn-forklar-icon" aria-hidden="true">\uD83D\uDD0A</span>';
     const BTN_FORKLAR_PAUSE_HTML = '<span class="btn-forklar-icon" aria-hidden="true">\u23F8</span>';
     const BTN_FORKLAR_CONTINUE_HTML = '<span class="btn-forklar-icon" aria-hidden="true">\u25B6</span>';
@@ -4488,8 +4596,8 @@
     }
     function setRunButtonsUi(mode) {
       var runBtns = [
-        { btn: btnRun, idleSlot: BTN_RUN_GEARS_HTML, idleLabel: t('Kjør') },
-        { btn: btnRunFooter, idleSlot: BTN_RUN_GEARS_HTML, idleLabel: t('Kjør') }
+        { btn: btnRun, idleSlot: runIdleSlotHtml(), idleLabel: t('Kjør') },
+        { btn: btnRunFooter, idleSlot: runIdleSlotHtml(), idleLabel: t('Kjør') }
       ];
       var forkBtns = [
         { btn: btnForklar, idleSlot: BTN_FORKLAR_SPEAKER_HTML, idleLabel: t('Kjør skrittvis') },
@@ -9906,7 +10014,10 @@ options(width = 200)
         try {
           if (!webRReady) await loadWebR();
           if (!webRShelter) webRShelter = await new webR.Shelter();
-          var captured = await webRShelter.captureR(code, { withAutoprint: true });
+          // Bredt plotformat (16:9-aktig) — webR-defaulten er kvadratisk
+          // og ga mye dødplass i dashboard-kortene.
+          var captured = await webRShelter.captureR(code, { withAutoprint: true,
+            captureGraphics: { width: 800, height: 420, bg: 'white', pointsize: 13 } });
           var parts = [];
           // WebR stripper trailing \n per linje-entry; join med '\n'
           // (samme regel som forklarRunOneRBlock).
@@ -9963,12 +10074,20 @@ options(width = 200)
       dashboardPendingParsed = null;
       if (window.Dashboard && (activeEditorMode === 'python' || activeEditorMode === 'r')) {
         var _dOpts = extractScriptOptions(effectiveScript);
-        if (String(_dOpts.view || '').toLowerCase() === 'dashboard') {
+        var _dashForced = !!window.__dashViewOverride;
+        window.__dashViewOverride = false;      // engangsvalg fra visnings-dropdownen
+        if (String(_dOpts.view || '').toLowerCase() === 'dashboard' || _dashForced) {
           var _dp = window.Dashboard.parse(effectiveScript);
           window.Dashboard.mountSkeleton(_dp, {
             container: outputArea.parentNode, hideNode: outputArea, t: t,
-            onShowCode: function () { if (window.mdSetInputHidden) window.mdSetInputHidden(false); }
+            onShowCode: function () {
+              if (window.mdSetInputHidden) window.mdSetInputHidden(false);
+              if (window.mdSyncViewDropdown) {
+                window.mdSyncViewDropdown(window.mdIsStackedLayout && window.mdIsStackedLayout() ? 'stacked' : 'columns');
+              }
+            }
           });
+          if (window.mdSyncViewDropdown) window.mdSyncViewDropdown('dashboard');
           window.Dashboard.setProgress(t('Laster kjøremiljø og data …'));
           if (window.mdSetInputHidden) window.mdSetInputHidden(true);
           dashboardPendingParsed = _dp;
