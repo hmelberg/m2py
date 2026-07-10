@@ -1,0 +1,14 @@
+# Example: KPI cards with pe.indicator — headline numbers for dashboards
+# load https://raw.githubusercontent.com/hmelberg/safestat/master/data/iris.csv as iris
+import pandas_brython as pd
+import plotly_express_brython as pe
+
+antall = len(iris)
+snitt = round(iris["sepal_length"].mean(), 2)
+maks = iris["sepal_length"].max()
+
+show(pe.indicator(value=antall, title="Antall blomster"))
+show(pe.indicator(value=snitt, title="Snitt sepal-lengde"))
+show(pe.indicator(value=maks, title="Lengste sepal"))
+
+pe.pie(iris, names="species", title="Fordeling av arter")

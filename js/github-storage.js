@@ -22,7 +22,7 @@
         // Ukjent/utelatt språk: python med mindre URL-en sier micro — appen kan
         // ikke vite modusen fra en .txt-fil; #options.mode i scriptet kan
         // overstyre etterpå (autorun-flyten).
-        if (lang !== 'python' && lang !== 'r' && lang !== 'duckdb' && lang !== 'microdata') {
+        if (lang !== 'python' && lang !== 'r' && lang !== 'duckdb' && lang !== 'microdata' && lang !== 'brython') {
           lang = (window.NotebookLinks && window.NotebookLinks.urlHasMicro(location.href)) ? 'microdata' : 'python';
         }
         if (typeof editorContent !== 'undefined') editorContent[lang] = text;

@@ -1,0 +1,21 @@
+# Example: counting and recoding — value_counts, apply, fillna
+# load https://raw.githubusercontent.com/hmelberg/safestat/master/data/iris.csv as iris
+import pandas_brython as pd
+import plotly_express_brython as pe
+
+# How many of each species?
+show(iris["species"].value_counts())
+
+# Recode with apply — classify by sepal length:
+iris = iris.assign(storrelse=iris["sepal_length"].apply(
+    lambda x: "lang" if x >= 6.0 else "kort"))
+
+show(iris["storrelse"].value_counts())
+
+# Note: filter step by step (masks cannot be combined with & in Brython mode):
+lange = iris[iris["storrelse"] == "lang"]
+lange = lange[lange["species"] != "setosa"]
+show("Lange, ikke-setosa: " + str(len(lange)))
+
+pe.histogram(iris, x="sepal_length", color="storrelse",
+             title="Sepal-lengde — kort vs lang")

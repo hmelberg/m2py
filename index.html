@@ -82,6 +82,20 @@
               <button type="button" data-example="sql09_micro_then_sql.txt" data-mode="duckdb">SQL &mdash; #micro &rarr; DuckDB (hybrid)</button>
               <button type="button" data-example="sql10_py_then_sql.txt" data-mode="duckdb">SQL &mdash; #py &rarr; DuckDB (hybrid)</button>
             </div>
+            <div class="examples-section" data-section-mode="brython">
+              <button type="button" data-example="bry01_pandas_basics.txt" data-mode="brython" data-i18n>pandas_brython &mdash; basics</button>
+              <button type="button" data-example="bry02_plotly_charts.txt" data-mode="brython" data-i18n>plotly_express_brython &mdash; chart gallery</button>
+              <button type="button" data-example="bry03_csv_iris.txt" data-mode="brython" data-i18n>Load a CSV from GitHub</button>
+              <button type="button" data-example="bry04_columns_penguins.txt" data-mode="brython" data-i18n>Select columns &rarr; focused dataset</button>
+              <button type="button" data-example="bry05_connect_load.txt" data-mode="brython" data-i18n>connect + load &mdash; several frames</button>
+              <button type="button" data-example="bry06_api_live.txt" data-mode="brython" data-i18n>Live data &mdash; World Bank API</button>
+              <button type="button" data-example="bry07_value_counts_recode.txt" data-mode="brython" data-i18n>Counting and recoding</button>
+              <button type="button" data-example="bry08_facets_color.txt" data-mode="brython" data-i18n>Facets &mdash; one panel per category</button>
+              <button type="button" data-example="bry09_kpi_indicator.txt" data-mode="brython" data-i18n>KPI cards + pie</button>
+              <button type="button" data-example="bry10_dashboard_iris.txt" data-mode="brython" data-i18n>Dashboard &mdash; iris (interactive)</button>
+              <button type="button" data-example="bry11_dashboard_salg.txt" data-mode="brython" data-i18n>Dashboard &mdash; sales (no external data)</button>
+              <button type="button" data-example="bry12_cheatsheet.txt" data-mode="brython" data-i18n>Cheat sheet &mdash; Brython vs Python</button>
+            </div>
             <div class="examples-section" data-section-mode="safestat">
               <button type="button" data-example="safestat01_url_csv.txt" data-mode="safestat" data-i18n>SafeStat &mdash; CSV from URL</button>
             </div>
@@ -2113,7 +2127,7 @@
             if (!r.ok) throw new Error(r.status);
             return r.text();
           }).then(function(text) {
-            if (mode && (mode === 'microdata' || mode === 'python' || mode === 'r' || mode === 'statx' || mode === 'duckdb')
+            if (mode && (mode === 'microdata' || mode === 'python' || mode === 'r' || mode === 'statx' || mode === 'duckdb' || mode === 'brython')
                 && typeof switchEditorMode === 'function'
                 && typeof activeEditorMode !== 'undefined') {
               if (typeof editorContent !== 'undefined') editorContent[mode] = text;
@@ -2636,7 +2650,7 @@
           var _wanted = _mm[1].toLowerCase();
           if (_wanted === 'py') _wanted = 'python';
           var _cur = window.M2PY && window.M2PY.currentMode && window.M2PY.currentMode();
-          if (['python', 'r', 'duckdb', 'microdata', 'jamovi'].indexOf(_wanted) < 0) _wanted = _cur && _cur.id;
+          if (['python', 'r', 'duckdb', 'microdata', 'jamovi', 'brython'].indexOf(_wanted) < 0) _wanted = _cur && _cur.id;
           if (_wanted && (!_cur || _cur.id !== _wanted)) {
             var _txt = _si.value;
             window.switchEditorMode(_wanted);

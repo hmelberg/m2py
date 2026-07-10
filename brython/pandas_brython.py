@@ -339,7 +339,7 @@ class ILocDF:
             if isinstance(item, self.obj.ITERABLE_1D):
                 # if it's a boolean
                 if is_bool(item):
-                    items[i] = [i for i, val in enumerate(item) if val]
+                    items[i] = [_ci for _ci, val in enumerate(item) if val]
                 data_items[i] = self.obj.bound_iterable_to_df(items[i], axis=i)
 
             elif isinstance(item, slice):
@@ -464,7 +464,7 @@ class ILocDF:
             elif isinstance(item, self.obj.ITERABLE_1D):
                 # if it's a boolean
                 if is_bool(item):
-                    items[i] = [i for i, val in enumerate(item) if val]
+                    items[i] = [_ci for _ci, val in enumerate(item) if val]
                 data_items[i] = self.obj.bound_iterable_to_df(items[i], axis=i)
             elif isinstance(item, slice):
                 items[i] = self.obj.convert_slice(item, axis=i)
@@ -643,7 +643,7 @@ class ILocSer:
 
         if isinstance(item, self.ITERABLE_1D + (self.obj.__class__,)):
             if is_bool(item):
-                item = [i for i, val in enumerate(item) if val]
+                item = [_ci for _ci, val in enumerate(item) if val]
 
             index = self.obj.index
             index = [index[i] if i is not None else None for i in item]
@@ -661,7 +661,7 @@ class ILocSer:
         if isinstance(item, self.ITERABLE_1D + (self.obj.__class__,)):
             # if it's a boolean
             if is_bool(item):
-                item = [i for i, val in enumerate(item) if val]
+                item = [_ci for _ci, val in enumerate(item) if val]
             data_item = self.obj.bound_iterable(item)
             if not isinstance(value, self.ITERABLE_1D + (self.obj.__class__,)):
                 value = [value] * len(self.obj)
@@ -1181,7 +1181,7 @@ class Series:
         :return: Series, sorted
         """
         # remove nans
-        indices = [i for i, x in enumerate(self.values) if x is nan]
+        indices = [_ci for _ci, x in enumerate(self.values) if x is nan]
         nan_index = [self.index[i] for i in indices]
         new_values = self.values
         new_index = list(self.index)
@@ -1605,10 +1605,10 @@ class DataFrame:
                 self.step = len(val)
 
         if len(self.columns) == 0:
-            self.columns = tuple(i for i in range(len(self.data) // self.step))
+            self.columns = tuple(_ci for _ci in range(len(self.data) // self.step))
 
         if len(self.index) == 0:
-            self.index = tuple(i for i in range(self.step))
+            self.index = tuple(_ci for _ci in range(self.step))
         self.shape = (self.step, len(self.columns))
         self.view = (slice(0, self.shape[0]), slice(0, self.shape[1]))
 
@@ -1939,7 +1939,7 @@ class DataFrame:
             return self
         else:
             # drop rows
-            keep_rows = [i for i, idx in enumerate(self.index) if idx not in labels_set]
+            keep_rows = [_ci for _ci, idx in enumerate(self.index) if idx not in labels_set]
             # rebuild data by selecting kept rows for each column
             data_cols = []
             for j in range(self.view[1].start, self.view[1].stop):
@@ -2333,7 +2333,7 @@ class DataFrame:
         if not drop:
             cp["index"] = cp.index
             cp = cp.loc[:, cp.columns[-1:] + cp.columns[:-1]]
-        cp.index = tuple(i for i in range(len(self)))
+        cp.index = tuple(_ci for _ci in range(len(self)))
 
         return cp
 
@@ -2793,7 +2793,7 @@ class DataFrame:
 
     def drop_duplicates(self, subset=None, keep="first"):
         mask = ~self.duplicated(subset=subset, keep=keep).values
-        keep_rows = [i for i, ok in enumerate(mask) if ok]
+        keep_rows = [_ci for _ci, ok in enumerate(mask) if ok]
         return self.iloc[keep_rows, :]
     
     def describe(self):
@@ -3179,6 +3179,32 @@ def read_csv(filepath, sep=",", header=0, names=None, index_col=None):
         # Close the file if it was opened from a path
         if not isinstance(filepath, io.StringIO):
             csvfile.close()
+
+    # Type inference per column (like real pandas): try int, then float,
+    # else keep str. Empty strings become the module's `nan` sentinel in
+    # numeric columns — isna()/dropna() check `item is nan`, so None would
+    # be invisible to them. Without this every CSV column is a string and
+    # comparisons/means fail — the whole point of loading data.
+    if data and data[0]:
+        ncols = len(data[0])
+        for c in range(ncols):
+            raw = [row[c] for row in data if len(row) > ncols - 1]
+            nonempty = [v for v in raw if v != '']
+            if not nonempty:
+                continue
+            converted = None
+            for conv in (int, float):
+                try:
+                    converted = [nan if v == '' else conv(v) for v in raw]
+                    break
+                except (ValueError, TypeError):
+                    converted = None
+            if converted is not None:
+                k = 0
+                for row in data:
+                    if len(row) > ncols - 1:
+                        row[c] = converted[k]
+                        k += 1
 
     # Return the dataframe-like structure
     return DataFrame(data, columns=columns, index=index)

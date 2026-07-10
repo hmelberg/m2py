@@ -1,0 +1,33 @@
+#options.view = dashboard
+#options.mode = brython
+#options.title = "Salgsdashboard (Brython)"
+#options.description = "Dashboard uten eksterne data — alt konstrueres i koden"
+import pandas_brython as pd
+import plotly_express_brython as pe
+
+salg = pd.DataFrame({
+    "maaned": ["jan", "feb", "mar", "apr", "mai", "jun",
+               "jan", "feb", "mar", "apr", "mai", "jun"],
+    "region": ["Nord", "Nord", "Nord", "Nord", "Nord", "Nord",
+               "Sor", "Sor", "Sor", "Sor", "Sor", "Sor"],
+    "belop":  [120, 135, 128, 150, 162, 171,
+               210, 205, 226, 230, 244, 251],
+})
+
+#input region = dropdown("Nord", "Sor")
+
+#%% Omsetning per måned, wide
+sub = salg[salg["region"] == region]
+pe.bar(sub, x="maaned", y="belop", title="Omsetning — " + region)
+
+#%% Sum, row=kpi
+print(sub["belop"].sum())
+
+#%% Snitt per måned, row=kpi
+print(round(sub["belop"].mean(), 1))
+
+#%% Beste måned, row=kpi
+print(list(sub.nlargest(1, "belop")["maaned"])[0])
+
+#%% Utvikling, wide
+pe.line(sub, x="maaned", y="belop", title="Utvikling over året")

@@ -137,7 +137,11 @@ def _bind_datasets(spec_json):
             if d['kind'] == 'csv':
                 _shared_vars[name] = _pd.read_csv(StringIO(d['payload']))
             else:
-                _shared_vars[name] = _pd.DataFrame(d['payload'])
+                # JSON null (from JS) arrives as None; pandas_brython's
+                # isna()/dropna() only recognize its own nan sentinel.
+                cols = {k: [_pd.nan if v is None else v for v in vals]
+                        for k, vals in d['payload'].items()}
+                _shared_vars[name] = _pd.DataFrame(cols)
         return ''
     except Exception:
         return traceback.format_exc()

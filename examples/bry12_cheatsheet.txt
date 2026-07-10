@@ -1,0 +1,25 @@
+# Brython mode — what it can and cannot do (cheat sheet)
+# Brython is the FAST engine: loads in seconds, perfect for dashboards.
+# Python mode (Pyodide) is the FULL engine: real pandas, statsmodels, matplotlib.
+import pandas_brython as pd
+import plotly_express_brython as pe
+
+df = pd.DataFrame({"g": ["a", "b", "a", "b"], "v": [1, 2, 3, 4]})
+
+# WORKS: filtering, groupby, describe, sort, head, apply, assign, fillna,
+# value_counts, concat, read_csv — and all pe.* charts.
+show(df[df["v"] > 1])
+show(df.groupby("g").sum())
+
+# NOT in Brython mode (raises a clear error — switch to Python mode):
+#   merge, join, pivot, pivot_table, melt, corr, rolling, resample
+#   numpy, statsmodels, matplotlib, scikit-learn
+# Also note two idioms that differ from real pandas:
+#   - combine filters step by step (no `&` between masks)
+#   - select columns BEFORE groupby (no groupby(...)["col"])
+
+# Data in:  # load <url> as <name>   (csv/json/parquet)
+#           # connect <base> as <alias>  +  # load <alias>/<fil> as <name>
+#           from browser import ajax     (live APIs)
+
+pe.bar(df, x="g", y="v", title="Brython er raskest — Python-modus er størst")

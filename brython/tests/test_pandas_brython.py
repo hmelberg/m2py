@@ -34,6 +34,22 @@ def test_module_gap_verbs_raise():
         except NotImplementedError as e:
             assert 'Brython' in str(e)
 
+def test_read_csv_type_inference():
+    df = pd.read_csv(io.StringIO("a,b,c\n1,x,1.5\n2,y,\n"))
+    assert list(df['a']) == [1, 2], 'int inference'
+    assert isinstance(list(df['c'])[0], float), 'float inference'
+    assert list(df['b']) == ['x', 'y'], 'strings preserved'
+    missing = list(df['c'])[1]
+    assert missing is pd.nan, 'empty numeric cell becomes nan sentinel'
+    assert len(df.dropna()) == 1, 'dropna sees the nan'
+    assert df['a'].mean() == 1.5, 'mean works on inferred ints'
+
+def test_groupby_mean_with_missing_values():
+    df = pd.read_csv(io.StringIO("g,v\na,1\na,\nb,3\n"))
+    out = df.groupby('g').mean()
+    html = out.to_html()
+    assert '<table' in html
+
 if __name__ == '__main__':
     for name, fn in sorted(globals().items()):
         if name.startswith('test_'):
