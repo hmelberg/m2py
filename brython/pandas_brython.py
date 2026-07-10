@@ -23,6 +23,7 @@ import random
 import html
 import math
 import json
+import re
 
 # Simple display controls for __str__ output
 DISPLAY_MAX_ROWS = 60
@@ -104,20 +105,53 @@ class NaN:
     def __radd__(self, other):
         return self
 
+    def __sub__(self, other):
+        return self
+
+    def __rsub__(self, other):
+        return self
+
     def __truediv__(self, other):
+        return self
+
+    def __rtruediv__(self, other):
         return self
 
     def __floordiv__(self, other):
         return self
 
+    def __rfloordiv__(self, other):
+        return self
+
     def __mul__(self, other):
+        return self
+
+    def __rmul__(self, other):
         return self
 
     def __pow__(self, other):
         return self
 
+    def __rpow__(self, other):
+        return self
+
     def __mod__(self, other):
         return self
+
+    def __rmod__(self, other):
+        return self
+
+    def __neg__(self):
+        return self
+
+    def __pos__(self):
+        return self
+
+    def __abs__(self):
+        return self
+
+    def __float__(self):
+        return float('nan')
 
 
 nan = NaN()
@@ -1213,10 +1247,15 @@ class Series:
             new_values = [nan] * len(nan_index) + list(new_values)
             new_index = list(nan_index) + list(new_index)
 
-        return self.from_data(new_values, new_index, name=self.name)
+        # Eksplisitt view: from_data-defaulten slice(None, None) har step=None,
+        # som knekker iloc-aritmetikken på det sorterte resultatet.
+        return self.from_data(list(new_values), new_index, name=self.name,
+                              view=slice(0, len(new_index), 1))
 
     def unique(self):
-        return list(set(self.values))
+        # Bevarer rekkefølgen verdiene først opptrer i (som pandas.unique) —
+        # set() ga vilkårlig rekkefølge og dermed ustabile groupby-resultater.
+        return list(dict.fromkeys(self.values))
 
     def __add__(self, other):
         cp = self.copy()
@@ -1370,27 +1409,34 @@ class Series:
         return cp
 
     def mean(self, dropna=True):
-        if dropna:
-            values = self.dropna().values
+        values = self.dropna().values if dropna else self.values
+        if len(values) == 0:
+            return nan
         return sum(values) / len(values)
 
     def sum(self, dropna=True):
-        if dropna:
-            values = self.dropna().values
+        values = self.dropna().values if dropna else self.values
+        if len(values) == 0:
+            return 0
         res = values[0]
         for item in values[1:]:
             res += item
         return res
 
-    def value_counts(self, dropna=True):
-      if dropna:
-        values = self.dropna().values
-      else:
-        values=self.values
-      counted=Counter(values)
-      index=list(counted.keys())
-      values=list(counted.values())
-      return Series(values, index=index)
+    def value_counts(self, normalize=False, sort=True, ascending=False, dropna=True):
+        values = self.dropna().values if dropna else self.values
+        counted = Counter(values)
+        # most_common() gir pandas' synkende sortering; ties beholder
+        # innsettingsrekkefølge (samme som pandas' stable sort).
+        items = counted.most_common() if sort else list(counted.items())
+        if sort and ascending:
+            items = items[::-1]
+        idx = [k for k, _c in items]
+        counts = [_c for _k, _c in items]
+        if normalize:
+            total = sum(counts)
+            counts = [c / total for c in counts] if total else counts
+        return Series(counts, index=idx, name='proportion' if normalize else 'count')
     
     def to_dict(self, orient="None", index=True):
       #columns=list(self.columns)
@@ -1527,25 +1573,261 @@ class Series:
             if mask[i]:
                 cp.data[i] = other
         return cp
-    
+
+    # ── Fase 2-utvidelser (2026-07-10): små pandas-metoder ────────────────
+
+    def map(self, arg, na_action=None):
+        cp = self.copy()
+        if isinstance(arg, dict):
+            # Ikke-mappede nøkler blir nan (ulikt replace, som beholder verdien).
+            cp.data = [nan if (v is nan or v not in arg) else arg[v] for v in cp.values]
+        else:
+            cp.data = [nan if (v is nan and na_action == 'ignore') else arg(v)
+                       for v in cp.values]
+        return cp
+
+    def isin(self, values):
+        vs = set(values)
+        cp = self.copy()
+        cp.data = [v in vs for v in cp.values]
+        return cp
+
+    def notna(self):
+        return ~self.isna()
+
+    notnull = notna
+
+    def head(self, n=5):
+        return self.iloc[:n]
+
+    def tail(self, n=5):
+        return self.iloc[-n:]
+
+    def round(self, decimals=0):
+        return self.apply(lambda v: v if v is nan else round(v, decimals))
+
+    def abs(self):
+        return self.apply(lambda v: v if v is nan else abs(v))
+
+    def count(self):
+        return len(self.dropna())
+
+    def sort_index(self, ascending=True):
+        pairs = sorted(zip(self.index, self.values),
+                       key=lambda p: p[0], reverse=not ascending)
+        return Series([v for _i, v in pairs], index=[i for i, _v in pairs],
+                      name=self.name)
+
+    def nlargest(self, n=5):
+        return self.dropna().sort_values(ascending=False).iloc[:n]
+
+    def nsmallest(self, n=5):
+        return self.dropna().sort_values(ascending=True).iloc[:n]
+
+    def cumsum(self):
+        cp = self.copy()
+        total, out = 0, []
+        for v in cp.values:
+            if v is nan:
+                out.append(nan)          # pandas: nan forblir, summen fortsetter
+            else:
+                total += v
+                out.append(total)
+        cp.data = out
+        return cp
+
+    def rank(self, method='average', ascending=True):
+        vals = list(self.values)
+        order = sorted((i for i, v in enumerate(vals) if v is not nan),
+                       key=lambda i: vals[i], reverse=not ascending)
+        ranks = [nan] * len(vals)
+        pos = 0
+        while pos < len(order):
+            j = pos
+            while j + 1 < len(order) and vals[order[j + 1]] == vals[order[pos]]:
+                j += 1
+            for k in range(pos, j + 1):
+                if method == 'min':
+                    ranks[order[k]] = float(pos + 1)
+                elif method == 'max':
+                    ranks[order[k]] = float(j + 1)
+                elif method == 'first':
+                    ranks[order[k]] = float(k + 1)
+                else:                    # 'average' (default)
+                    ranks[order[k]] = (pos + j) / 2 + 1
+            pos = j + 1
+        cp = self.copy()
+        cp.data = ranks
+        return cp
+
+    def mode(self):
+        counted = Counter(self.dropna().values)
+        if not counted:
+            return Series([])
+        m = max(counted.values())
+        vals = [k for k, c in counted.items() if c == m]
+        try:
+            vals = sorted(vals)          # pandas sorterer mode-resultatet
+        except TypeError:
+            pass
+        return Series(vals)
+
+    def describe(self):
+        vals = self.dropna().values
+        numeric = bool(vals) and all(
+            isinstance(v, (int, float)) and not isinstance(v, bool) for v in vals)
+        if numeric:
+            idx = ['count', 'mean', 'std', 'min', '25%', '50%', '75%', 'max']
+            data = [float(len(vals)), self.mean(), self.std(), self.min(),
+                    self.quantile(0.25), self.quantile(0.5), self.quantile(0.75),
+                    self.max()]
+            return Series(data, index=idx, name=self.name)
+        counted = Counter(vals)
+        top, freq = counted.most_common(1)[0] if counted else (nan, nan)
+        return Series([len(vals), len(counted), top, freq],
+                      index=['count', 'unique', 'top', 'freq'], name=self.name)
+
+    def corr(self, other, method='pearson'):
+        """
+        Korrelasjon mot en annen serie (parvis dropna). Pearson eller Spearman.
+        """
+        pairs = [(a, b) for a, b in zip(self.values, other.values)
+                 if a is not nan and b is not nan]
+        n = len(pairs)
+        if n < 2:
+            return nan
+        if method == 'spearman':
+            ra = Series([a for a, _b in pairs]).rank()
+            rb = Series([b for _a, b in pairs]).rank()
+            return ra.corr(rb, method='pearson')
+        xs = [a for a, _b in pairs]
+        ys = [b for _a, b in pairs]
+        mx, my = sum(xs) / n, sum(ys) / n
+        cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+        vx = sum((x - mx) ** 2 for x in xs)
+        vy = sum((y - my) ** 2 for y in ys)
+        if vx == 0 or vy == 0:
+            return nan
+        return cov / math.sqrt(vx * vy)
 
 
 class STR:
+    """
+    Streng-accessor med pandas-semantikk: nan og ikke-strenger passerer
+    gjennom som nan i stedet for å krasje (den gamle blinde
+    getattr(str, …)-fallbacken feilet på første nan).
+    """
     def __init__(self, obj):
         self.obj = obj
 
+    def _map(self, fn):
+        return self.obj.apply(
+            lambda v: nan if v is nan or not isinstance(v, str) else fn(v))
+
+    def contains(self, pat, case=True, regex=True):
+        if regex:
+            rx = re.compile(pat, 0 if case else re.IGNORECASE)
+            return self._map(lambda v: rx.search(v) is not None)
+        if not case:
+            p = pat.lower()
+            return self._map(lambda v: p in v.lower())
+        return self._map(lambda v: pat in v)
+
+    def startswith(self, pat):
+        return self._map(lambda v: v.startswith(pat))
+
+    def endswith(self, pat):
+        return self._map(lambda v: v.endswith(pat))
+
+    def lower(self):
+        return self._map(lambda v: v.lower())
+
+    def upper(self):
+        return self._map(lambda v: v.upper())
+
+    def strip(self, to_strip=None):
+        return self._map(lambda v: v.strip(to_strip))
+
+    def title(self):
+        return self._map(lambda v: v.title())
+
+    def len(self):
+        return self._map(lambda v: len(v))
+
+    def replace(self, pat, repl, regex=False):
+        if regex:
+            rx = re.compile(pat)
+            return self._map(lambda v: rx.sub(repl, v))
+        return self._map(lambda v: v.replace(pat, repl))
+
+    def split(self, pat=None):
+        return self._map(lambda v: v.split(pat))
+
+    def get(self, i):
+        return self.obj.apply(
+            lambda v: v[i] if isinstance(v, (str, list, tuple))
+            and -len(v) <= i < len(v) else nan)
+
+    def slice(self, start=None, stop=None, step=None):
+        return self._map(lambda v: v[start:stop:step])
+
     def __getattr__(self, item):
-        # must return a partialed apply, which can accept args
-        return functools.partial(self.obj.apply, func=getattr(str, item))
+        # Fallback for øvrige str-metoder — med nan-vakt, ulikt den gamle.
+        str_fn = getattr(str, item)
+        def _call(*args, **kwargs):
+            return self.obj.apply(
+                lambda v: nan if v is nan or not isinstance(v, str)
+                else str_fn(v, *args, **kwargs))
+        return _call
 
 
 class DT:
+    """
+    Dato-accessor med eksplisitte properties (den gamle getattr(datetime, …)
+    ga descriptors, så .dt.year krasjet). nan passerer gjennom som nan.
+    """
     def __init__(self, obj):
         self.obj = obj
 
-    def __getattr__(self, item):
-        # must return a partialed apply, which can accept args
-        return functools.partial(self.obj.apply, func=getattr(datetime, item))
+    def _map(self, fn):
+        return self.obj.apply(lambda v: nan if v is nan else fn(v))
+
+    @property
+    def year(self):
+        return self._map(lambda v: v.year)
+
+    @property
+    def month(self):
+        return self._map(lambda v: v.month)
+
+    @property
+    def day(self):
+        return self._map(lambda v: v.day)
+
+    @property
+    def hour(self):
+        return self._map(lambda v: v.hour)
+
+    @property
+    def minute(self):
+        return self._map(lambda v: v.minute)
+
+    @property
+    def second(self):
+        return self._map(lambda v: v.second)
+
+    @property
+    def dayofweek(self):
+        return self._map(lambda v: v.weekday())
+
+    weekday = dayofweek
+
+    @property
+    def date(self):
+        return self._map(lambda v: v.date())
+
+    def strftime(self, fmt):
+        return self._map(lambda v: v.strftime(fmt))
 
 
 
@@ -2355,18 +2637,45 @@ class DataFrame:
     def tail(self, n=5):
         return self.iloc[-n:, :]
 
-    def groupby(self, by):
+    def groupby(self, by, sort=True):
         """
-        Simple groupby implementation
+        Simple groupby implementation.
+
+        by: kolonnenavn eller liste av kolonnenavn. Liste gir flat indeks av
+        tupler (ingen MultiIndex — bevisst). sort=True sorterer gruppenøklene
+        som pandas; usammenliknbare nøkler faller tilbake til
+        opptredensrekkefølge.
         """
         gb = GroupBy()
         gb.parent = self
         gb.by = by
 
-        for item in self[by].unique():
-            df = self.loc[self[by] == item, :]
-            df.name = item
-            df.drop(by)
+        multi = isinstance(by, (list, tuple))
+        if multi:
+            key_cols = [list(self[b].values) for b in by]
+            keys = list(dict.fromkeys(zip(*key_cols)))
+        else:
+            keys = self[by].unique()
+        if sort:
+            try:
+                keys = sorted(keys)
+            except TypeError:
+                pass  # blandede typer: behold opptredensrekkefølge
+
+        for item in keys:
+            if multi:
+                mask = self[by[0]] == item[0]
+                for j in range(1, len(by)):
+                    other = self[by[j]] == item[j]
+                    mask.data = [a and b for a, b in zip(mask.values, other.values)]
+                df = self.loc[mask, :]
+                df.name = item
+                for b in by:
+                    df.drop(b)
+            else:
+                df = self.loc[self[by] == item, :]
+                df.name = item
+                df.drop(by)
             gb.dfs.append(df)
         return gb
 
@@ -2867,7 +3176,74 @@ class DataFrame:
         for j in range(cp.shape[1]):
             cp.iloc[:, j] = cp.iloc[:, j].mask(mask_df.iloc[:, j].values, other).values
         return cp
-    
+
+    def merge(self, right, how='inner', on=None, left_on=None, right_on=None,
+              suffixes=('_x', '_y')):
+        # Delegerer til modulfunksjonen merge() (definert nederst i filen;
+        # oppslaget skjer ved kall, så rekkefølgen er trygg).
+        return merge(self, right, how=how, on=on, left_on=left_on,
+                     right_on=right_on, suffixes=suffixes)
+
+    def join(self, other, how='left', lsuffix='', rsuffix=''):
+        """
+        Indeks-basert join (pandas-semantikk: kobler på radetiketter).
+        Støtter how='left' og 'inner'; kolonneoverlapp krever lsuffix/rsuffix.
+        """
+        if how not in ('left', 'inner'):
+            raise NotImplementedError("join: bare how='left'/'inner' — bruk merge() for resten")
+        overlap = set(self.columns) & set(other.columns)
+        if overlap and not (lsuffix or rsuffix):
+            raise ValueError('join: overlappende kolonner %r krever lsuffix/rsuffix'
+                             % sorted(str(c) for c in overlap))
+        rmap = {}
+        for j, lbl in enumerate(other.index):
+            rmap.setdefault(lbl, []).append(j)
+        lrows, rrows = self.values, other.values
+        pairs = []                                   # (venstre rad, høyre rad|None, etikett)
+        for i, lbl in enumerate(self.index):
+            js = rmap.get(lbl)
+            if js:
+                for j in js:
+                    pairs.append((i, j, lbl))
+            elif how == 'left':
+                pairs.append((i, None, lbl))
+        out = {}
+        for ci, c in enumerate(self.columns):
+            name = (str(c) + lsuffix) if c in overlap else c
+            out[name] = [lrows[i][ci] for i, _j, _l in pairs]
+        for cj, c in enumerate(other.columns):
+            name = (str(c) + rsuffix) if c in overlap else c
+            out[name] = [rrows[j][cj] if j is not None else nan for _i, j, _l in pairs]
+        return DataFrame(out, index=[lbl for _i, _j, lbl in pairs])
+
+    def pivot_table(self, values=None, index=None, columns=None, aggfunc='mean',
+                    fill_value=None):
+        return pivot_table(self, values=values, index=index, columns=columns,
+                           aggfunc=aggfunc, fill_value=fill_value)
+
+    def melt(self, id_vars=None, value_vars=None, var_name='variable', value_name='value'):
+        return melt(self, id_vars=id_vars, value_vars=value_vars,
+                    var_name=var_name, value_name=value_name)
+
+    def corr(self, method='pearson'):
+        """
+        Parvis korrelasjon mellom numeriske kolonner (parvis dropna).
+        """
+        numeric = []
+        for label, ser in self.itercols():
+            vals = ser.dropna().values
+            if vals and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in vals):
+                numeric.append((label, ser))
+        rows = []
+        for _la, sa in numeric:
+            row = []
+            for _lb, sb in numeric:
+                row.append(sa.corr(sb, method=method))
+            rows.append(row)
+        cols = [la for la, _s in numeric]
+        return DataFrame({c: [rows[i][j] for i in range(len(cols))]
+                          for j, c in enumerate(cols)}, index=cols)
+
 
 class Plot:
     def __init__(self, data):
@@ -3061,6 +3437,19 @@ class GroupBy:
         self.dfs = []
         self.parent = None
         self.by = None
+        self.select = None  # kolonnevalg fra gb['kol'] / gb[['a','b']]
+
+    def __getitem__(self, key):
+        """
+        gb['kol'] / gb[['a','b']]: aggregér bare utvalgte kolonner
+        (pandas-mønsteret df.groupby('g')['v'].mean()).
+        """
+        gb = GroupBy()
+        gb.parent = self.parent
+        gb.by = self.by
+        gb.dfs = self.dfs
+        gb.select = key
+        return gb
 
     def apply(self, func, axis=0, dropna=True):
         """
@@ -3088,13 +3477,52 @@ class GroupBy:
         res_ser = []
         res_idx = []
         for df in self.dfs:
-            out = df.__getattribute__(method_name)(*args, **kwargs)
+            target = df if self.select is None else df[self.select]
+            if isinstance(target, DataFrame):
+                target.name = df.name
+            out = getattr(target, method_name)(*args, **kwargs)
             res_ser.append(out)
             res_idx.append(df.name)
         # If outputs are Series, stack into DataFrame; else return Series of scalars per group
         if len(res_ser) > 0 and isinstance(res_ser[0], Series):
             return DataFrame(res_ser, index=res_idx)
-        return Series(res_ser, res_idx)
+        name = self.select if isinstance(self.select, str) else None
+        return Series(res_ser, res_idx, name=name)
+
+    def agg(self, func=None):
+        """
+        gb.agg('mean') | gb.agg({'v':'sum','w':'mean'}) | gb['v'].agg(['mean','sum']).
+        Dict/liste gir flat kolonneindeks (kol_funk ved flere funksjoner per
+        kolonne) — ingen MultiIndex, bevisst.
+        """
+        if isinstance(func, str):
+            return self.loop_func(func)
+        group_names = [df.name for df in self.dfs]
+        if isinstance(func, dict):
+            cols = {}
+            for col, f in func.items():
+                fs = f if isinstance(f, (list, tuple)) else [f]
+                for fname in fs:
+                    key = col if not isinstance(f, (list, tuple)) else col + '_' + fname
+                    cols[key] = [getattr(df[col], fname)() for df in self.dfs]
+            return DataFrame(cols, index=group_names)
+        if isinstance(func, (list, tuple)):
+            if not isinstance(self.select, str):
+                raise NotImplementedError(
+                    "agg(liste) støttes bare etter kolonnevalg, f.eks. gb['v'].agg(['mean','sum'])")
+            cols = {fname: [getattr(df[self.select], fname)() for df in self.dfs]
+                    for fname in func}
+            return DataFrame(cols, index=group_names)
+        if callable(func):
+            vals = []
+            for df in self.dfs:
+                target = df if self.select is None else df[self.select]
+                vals.append(func(target))
+            name = self.select if isinstance(self.select, str) else None
+            return Series(vals, group_names, name=name)
+        raise TypeError('agg: støtter str, dict, liste eller callable')
+
+    aggregate = agg
 
     def size(self):
         counts = []
@@ -3221,6 +3649,321 @@ def read_csv(filepath, sep=",", header=0, names=None, index_col=None):
     # Return the dataframe-like structure
     return DataFrame(data, columns=columns, index=index)
 
+# ── Reshaping/kobling (fase 2-utvidelse 2026-07-10) ───────────────────────
+# Radorienterte implementasjoner oppå .values/.columns — bevisst utenom
+# view-mekanikken. Flat indeks (tupler ved flere nøkler), ingen MultiIndex.
+
+def _sorted_unique(values):
+    """Unike verdier, sortert som pandas; usammenliknbare typer faller
+    tilbake til opptredensrekkefølge."""
+    uniq = list(dict.fromkeys(values))
+    try:
+        return sorted(uniq)
+    except TypeError:
+        return uniq
+
+
+def merge(left, right, how='inner', on=None, left_on=None, right_on=None,
+          suffixes=('_x', '_y')):
+    """
+    Hash-join på nøkkelkolonner. how: inner/left/right/outer.
+    nan-nøkler matcher aldri (nan == nan er False).
+    """
+    def _aslist(x):
+        return list(x) if isinstance(x, (list, tuple)) else [x]
+
+    lcols, rcols = list(left.columns), list(right.columns)
+    if on is not None:
+        lkeys = rkeys = _aslist(on)
+    elif left_on is not None or right_on is not None:
+        lkeys, rkeys = _aslist(left_on), _aslist(right_on)
+        if len(lkeys) != len(rkeys):
+            raise ValueError('merge: left_on og right_on må ha samme lengde')
+    else:
+        lkeys = rkeys = [c for c in lcols if c in rcols]
+        if not lkeys:
+            raise ValueError('merge: ingen felles kolonner å koble på')
+    shared_keys = (lkeys == rkeys)
+
+    lrows, rrows = left.values, right.values
+    lpos = {c: i for i, c in enumerate(lcols)}
+    rpos = {c: i for i, c in enumerate(rcols)}
+
+    def keytup(row, pos, keys):
+        return tuple(row[pos[k]] for k in keys)
+
+    pairs = []                                   # (venstre rad|None, høyre rad|None)
+    if how == 'right':
+        # Følger høyre-radenes rekkefølge (pandas-semantikk).
+        lmap = {}
+        for i, row in enumerate(lrows):
+            lmap.setdefault(keytup(row, lpos, lkeys), []).append(i)
+        for j, row in enumerate(rrows):
+            matches = lmap.get(keytup(row, rpos, rkeys))
+            if matches:
+                for i in matches:
+                    pairs.append((i, j))
+            else:
+                pairs.append((None, j))
+    else:
+        rmap = {}
+        for j, row in enumerate(rrows):
+            rmap.setdefault(keytup(row, rpos, rkeys), []).append(j)
+        matched_r = set()
+        for i, row in enumerate(lrows):
+            matches = rmap.get(keytup(row, lpos, lkeys))
+            if matches:
+                for j in matches:
+                    pairs.append((i, j))
+                    matched_r.add(j)
+            elif how in ('left', 'outer'):
+                pairs.append((i, None))
+        if how == 'outer':
+            pairs.extend((None, j) for j in range(len(rrows)) if j not in matched_r)
+            # pandas sorterer nøklene leksikografisk ved how='outer'
+            # (men bevarer rekkefølgen ved inner/left/right).
+            def _pairkey(p):
+                i, j = p
+                if i is not None:
+                    return keytup(lrows[i], lpos, lkeys)
+                return keytup(rrows[j], rpos, rkeys)
+            try:
+                pairs.sort(key=_pairkey)
+            except TypeError:
+                pass
+
+    r_out_cols = [c for c in rcols if not (shared_keys and c in rkeys)]
+    overlap = set(lcols) & set(r_out_cols)
+
+    out = {}
+    for c in lcols:
+        ci = lpos[c]
+        col = []
+        for i, j in pairs:
+            if i is not None:
+                col.append(lrows[i][ci])
+            elif shared_keys and c in lkeys:
+                # uparret høyre-rad: nøkkelverdien hentes fra høyresiden
+                col.append(rrows[j][rpos[rkeys[lkeys.index(c)]]])
+            else:
+                col.append(nan)
+        out[(str(c) + suffixes[0]) if c in overlap else c] = col
+    for c in r_out_cols:
+        cj = rpos[c]
+        out[(str(c) + suffixes[1]) if c in overlap else c] = [
+            rrows[j][cj] if j is not None else nan for _i, j in pairs]
+    return DataFrame(out)
+
+
+def pivot_table(data, values=None, index=None, columns=None, aggfunc='mean',
+                fill_value=None):
+    """
+    Flat pivot: index/columns/values er kolonnenavn. aggfunc er navnet på en
+    Series-metode ('mean', 'sum', …), 'count', eller en callable(Series).
+    Kombinasjoner uten data blir nan (eller fill_value).
+    """
+    if index is None or values is None:
+        raise NotImplementedError('pivot_table: index= og values= kreves')
+
+    def _agg(ser):
+        if callable(aggfunc):
+            return aggfunc(ser)
+        if aggfunc == 'count':
+            return len(ser.dropna())
+        return getattr(ser, aggfunc)()
+
+    if columns is None:
+        gb = data.groupby(index)
+        vals = [_agg(df[values]) for df in gb.dfs]
+        names = [df.name for df in gb.dfs]
+        return DataFrame({values: vals}, index=names)
+
+    ivals = list(data[index].values)
+    cvals = list(data[columns].values)
+    vvals = list(data[values].values)
+    row_keys = _sorted_unique(ivals)
+    col_keys = _sorted_unique(cvals)
+    buckets = {}
+    for rk, ck, v in zip(ivals, cvals, vvals):
+        buckets.setdefault((rk, ck), []).append(v)
+    out = {}
+    for ck in col_keys:
+        col = []
+        for rk in row_keys:
+            vs = buckets.get((rk, ck))
+            if vs is None:
+                col.append(nan if fill_value is None else fill_value)
+            else:
+                col.append(_agg(Series(vs)))
+        out[ck] = col
+    return DataFrame(out, index=row_keys)
+
+
+def crosstab(index, columns):
+    """
+    Frekvenskrysstabell av to serier/lister. Tomme kombinasjoner blir 0.
+    """
+    ivals = list(index.values) if isinstance(index, Series) else list(index)
+    cvals = list(columns.values) if isinstance(columns, Series) else list(columns)
+    counts = Counter(zip(ivals, cvals))
+    row_keys = _sorted_unique(ivals)
+    col_keys = _sorted_unique(cvals)
+    out = {ck: [counts.get((rk, ck), 0) for rk in row_keys] for ck in col_keys}
+    return DataFrame(out, index=row_keys)
+
+
+def melt(frame, id_vars=None, value_vars=None, var_name='variable', value_name='value'):
+    """
+    Bred → lang: value_vars stables til (variable, value)-kolonner,
+    id_vars gjentas. Samme radrekkefølge som pandas (variabel for variabel).
+    """
+    def _aslist(x):
+        if x is None:
+            return None
+        return list(x) if isinstance(x, (list, tuple)) else [x]
+
+    id_vars = _aslist(id_vars) or []
+    value_vars = _aslist(value_vars) or [c for c in frame.columns if c not in id_vars]
+    pos = {c: i for i, c in enumerate(frame.columns)}
+    rows = frame.values
+    out = {c: [] for c in id_vars}
+    out[var_name] = []
+    out[value_name] = []
+    for vv in value_vars:
+        for row in rows:
+            for c in id_vars:
+                out[c].append(row[pos[c]])
+            out[var_name].append(vv)
+            out[value_name].append(row[pos[vv]])
+    return DataFrame(out)
+
+
+def to_datetime(arg, format=None, errors='raise'):
+    """
+    Streng(er) → datetime. Prøver format= først, ellers vanlige formater
+    (ISO først, deretter måned-først som pandas). errors='coerce' gir nan.
+    """
+    common = ['%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d',
+              '%m/%d/%Y', '%d.%m.%Y', '%Y%m%d']
+
+    def parse(v):
+        if v is nan or v is None or v == '':
+            return nan
+        if isinstance(v, datetime):
+            return v
+        s = str(v)
+        for f in ([format] if format else common):
+            try:
+                return datetime.strptime(s, f)
+            except (ValueError, TypeError):
+                pass
+        if errors == 'coerce':
+            return nan
+        raise ValueError('to_datetime: kunne ikke tolke %r' % (v,))
+
+    if isinstance(arg, Series):
+        return arg.apply(parse)
+    if isinstance(arg, (list, tuple)):
+        return Series([parse(v) for v in arg])
+    return parse(arg)
+
+
+def get_dummies(data, prefix=None, prefix_sep='_'):
+    """
+    Kategorisk serie/liste → 0/1-kolonner (én per unik verdi, sortert).
+    """
+    vals = list(data.values) if isinstance(data, Series) else list(data)
+    keys = _sorted_unique([v for v in vals if v is not nan])
+    out = {}
+    for k in keys:
+        name = k if prefix is None else '%s%s%s' % (prefix, prefix_sep, k)
+        out[name] = [1 if v == k else 0 for v in vals]
+    return DataFrame(out)
+
+
+def _fmt_edge(v):
+    return '%g' % v if isinstance(v, (int, float)) else str(v)
+
+
+def cut(x, bins, labels=None, right=True, include_lowest=False):
+    """
+    Verdier → intervaller. bins: liste av kanter eller antall (int).
+    labels=None gir '(a, b]'-strenger (ingen Categorical — bevisst).
+    Verdier utenfor kantene blir nan, som i pandas.
+    """
+    vals = list(x.values) if isinstance(x, Series) else list(x)
+    nums = [v for v in vals if v is not nan]
+    if isinstance(bins, int):
+        lo, hi = min(nums), max(nums)
+        span = (hi - lo) or 1
+        edges = [lo + span * i / bins for i in range(bins + 1)]
+        edges[0] = lo - span * 0.001     # pandas utvider nederste kant 0,1 %
+    else:
+        edges = list(bins)
+    if include_lowest:
+        edges = [edges[0] - 1e-9] + edges[1:]
+
+    def label(i):
+        if labels is not None and labels is not False:
+            return labels[i]
+        if right:
+            return '(%s, %s]' % (_fmt_edge(edges[i]), _fmt_edge(edges[i + 1]))
+        return '[%s, %s)' % (_fmt_edge(edges[i]), _fmt_edge(edges[i + 1]))
+
+    def place(v):
+        if v is nan:
+            return nan
+        for i in range(len(edges) - 1):
+            if right:
+                if edges[i] < v <= edges[i + 1]:
+                    return label(i)
+            else:
+                if edges[i] <= v < edges[i + 1]:
+                    return label(i)
+        return nan
+
+    out = [place(v) for v in vals]
+    if isinstance(x, Series):
+        cp = x.copy()
+        cp.data = out
+        return cp
+    return Series(out)
+
+
+def qcut(x, q, labels=None):
+    """
+    Kvantilbasert cut: q er antall like store grupper eller en liste av
+    kvantiler (0–1). Laveste verdi inkluderes (som i pandas).
+    """
+    vals = list(x.values) if isinstance(x, Series) else list(x)
+    ser = Series([v for v in vals if v is not nan])
+    qs = [i / q for i in range(q + 1)] if isinstance(q, int) else list(q)
+    edges = [ser.quantile(p) for p in qs]
+    edges[0] = edges[0] - abs(edges[0]) * 1e-9 - 1e-9
+    return cut(x, edges, labels=labels)
+
+
+def isna(obj):
+    if isinstance(obj, Series):
+        return obj.isna()
+    if isinstance(obj, DataFrame):
+        return obj.isna()
+    return obj is nan or (isinstance(obj, float) and obj != obj)
+
+
+def notna(obj):
+    res = isna(obj)
+    if isinstance(res, (Series, DataFrame)):
+        return ~res
+    return not res
+
+
+def unique(values):
+    if isinstance(values, Series):
+        return values.unique()
+    return list(dict.fromkeys(values))
+
+
 # ── Brython-mode gaps ─────────────────────────────────────────────────────
 # These pandas verbs are intentionally not implemented in the lightweight
 # engine. They raise a clear error naming the escape hatch instead of an
@@ -3232,11 +3975,9 @@ def _brython_gap(name):
     _raise.__name__ = name
     return _raise
 
-for _name in ['merge', 'join', 'pivot', 'pivot_table', 'melt', 'rolling', 'resample', 'corr']:
+# (2026-07-10: merge, join, pivot_table, melt og corr er nå implementert —
+# fjernet fra listen. MultiIndex-avhengige verb forblir bevisst gap.)
+for _name in ['pivot', 'rolling', 'resample']:
     if not hasattr(DataFrame, _name):
         setattr(DataFrame, _name, _brython_gap(_name))
-
-for _name in ['merge', 'crosstab', 'get_dummies', 'pivot_table', 'melt']:
-    if _name not in globals():
-        globals()[_name] = _brython_gap(_name)
 
