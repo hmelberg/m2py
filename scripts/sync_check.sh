@@ -13,6 +13,8 @@ siblings="${1:-openstat microdata}"
 
 # Delte kjernefiler/-kataloger (motor + metadata). Hold listen i sync med
 # README-avsnittet om søsken-repoene.
+# (py2m/r2m er fjernet fra openstat/safestat 2026-07-10 — de eies nå av
+# microdata-repoen alene og skal ikke synces.)
 core="
 m2py.py
 functions.py
@@ -25,8 +27,6 @@ static_source.py
 command_help.js
 variable_metadata.json
 codelists
-py2m
-r2m
 "
 
 status=0

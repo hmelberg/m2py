@@ -504,12 +504,6 @@
           <button type="button" data-view="dashboard" data-i18n>Dashboard</button>
         </div>
       </div>
-      <button type="button" class="bottombar-icon-btn" id="csvToolBtn" data-i18n-title data-i18n-aria title="CSV omkodingsverktøy" aria-label="CSV omkodingsverktøy">
-        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
-          <path d="M4 8h12M13 5.5L16 8l-3 2.5"/>
-          <path d="M20 16H8M11 13.5L8 16l3 2.5"/>
-        </svg>
-      </button>
       <div style="width:1px;height:20px;background:var(--border);margin:0 6px;flex-shrink:0"></div>
       <div class="mode-dropdown-wrap">
         <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg språk (Microdata, Python, R, Statx, Jamovi, Jamovi light, DuckDB, Brython, SafeStat)">
@@ -536,7 +530,6 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/></svg>
         <span data-i18n>Vurder personvern</span>
       </button>
-      <button type="button" class="oversett-btn" id="oversettBtn" style="display:none">Oversett</button>
     </div>
     <div class="bottombar-center">
       <input type="text" class="bottombar-ask" id="topbarAsk" data-i18n-placeholder data-i18n-aria data-i18n-title placeholder="Hva vil du undersøke?" aria-label="Spør AI" autocomplete="off" title="Skriv et spørsmål og trykk Enter — AI-panelet åpnes og svarer" style="display:none">
@@ -567,42 +560,6 @@
     </div>
   </footer>
 
-  <div class="csv-tool-overlay" id="csvToolOverlay" role="dialog" aria-modal="true" aria-labelledby="csvToolTitle" aria-hidden="true">
-    <div class="csv-tool-dialog">
-      <div class="csv-tool-header">
-        <h2 class="csv-tool-title" id="csvToolTitle" data-i18n>CSV omkodingsverktøy</h2>
-        <button type="button" class="csv-tool-close" id="csvToolCloseBtn" data-i18n-title data-i18n-aria title="Lukk" aria-label="Lukk">&#10005;</button>
-      </div>
-      <div class="csv-tool-body" id="csvToolBody">
-        <p data-i18n>Genererer et recode-uttrykk fra korrespondansetabell i opplastet csv-fil.</p>
-        <p data-i18n-html>Formatet er basert på SSBs egne klassifikasjoner og kodelister: <a href="https://www.ssb.no/klass" target="_blank" rel="noopener noreferrer">ssb.no/klass</a> under «korrespondanser».</p>
-        <p data-i18n-html>Tabellen må være en semikolon-separert csv-fil med følgende kolonner:<br>fra-kode, fra-navn, til-kode og til-navn</p>
-        <p data-i18n>Tabellen må også inneholde en første linje som beskriver de etterfølgende kolonnene. Om denne inneholder de tre verdiene &lsquo;sourceCode&rsquo;, &lsquo;targetCode&rsquo; og &lsquo;targetName&rsquo;, så vil kolonnene under disse bli definert som hhv. fra-kode, fra-navn og til-kode. Om disse ikke er definert vil standardoppsettet fra over brukes. Kolonnen &lsquo;targetCode&rsquo; kan unnlates om du ikke vil sette en label på den omkodede verdien.</p>
-        <p><strong data-i18n>Eksempel</strong></p>
-        <p data-i18n>Utsnitt fra korrespondansetabell mellom økonomiske regioner og kommuner. Denne tabellen har kolonnene i standardoppsett.</p>
-        <pre class="csv-tool-example">'sourceCode'	;	'sourceName'	;	'targetCode'	;	'targetName'
-'03001'	;	'Oslo'	;	'0301'	;	'Oslo'
-'11001'	;	'Dalane'	;	'1101'	;	'Eigersund'
-'11001'	;	'Dalane'	;	'1111'	;	'Sokndal'</pre>
-        <p data-i18n>Dette vil generere recode-uttrykket</p>
-        <pre class="csv-tool-example">recode variable ('03001' = '0301' 'Oslo') ('11001' = '1101' 'Eigersund') ('11001' = '1111' 'Sokndal')</pre>
-        <p data-i18n>Om du heller vil omkode fra kommuner til økonomiske regioner og invertere tabellen, kan da verdiene i den første linjen, sourceCode/sourceName og targetCode/targetName bytte plass, og resten av verdiene stå som før</p>
-        <pre class="csv-tool-example">'targetCode'	;	'targetName'	;	'sourceCode'	;	'sourceName'</pre>
-        <p data-i18n>vil generere</p>
-        <pre class="csv-tool-example">recode variable ('0301' = '03001' 'Oslo') ('1101' '1111' = '11001' 'Dalane')</pre>
-        <div class="csv-tool-actions">
-          <button type="button" class="btn btn-primary" id="csvToolUploadBtn" data-i18n>Last opp csv</button>
-          <button type="button" class="btn btn-secondary" id="csvToolCopyBtn" disabled data-i18n>Kopier recode</button>
-        </div>
-        <label for="csvToolOutput" class="var-detail-section-title" style="display:block;margin-top:14px;" data-i18n>Generert recode</label>
-        <textarea id="csvToolOutput" class="csv-tool-out" readonly rows="6" data-i18n-placeholder placeholder="Last opp en fil for å generere recode-uttrykk her."></textarea>
-      </div>
-      <div class="csv-tool-buttons">
-        <button type="button" class="btn btn-secondary" id="csvToolOkBtn" data-i18n>Lukk</button>
-      </div>
-    </div>
-  </div>
-  <input type="file" id="csvToolFileInput" accept=".csv,text/csv,text/plain" style="display:none">
 
   <div class="settings-overlay" id="settingsOverlay" role="dialog" aria-modal="true" data-i18n-aria aria-label="Innstillinger">
     <div class="settings-dialog">
@@ -1652,222 +1609,6 @@
       if (layoutOutputBtn) layoutOutputBtn.addEventListener('click', function() { var h = !isInputHidden(); setInputHidden(h); if (window.mdOnInputToggle) window.mdOnInputToggle(h); });
     })();
 
-    (function initCsvRecodeTool() {
-      var overlay = document.getElementById('csvToolOverlay');
-      var closeBtn = document.getElementById('csvToolCloseBtn');
-      var okBtn = document.getElementById('csvToolOkBtn');
-      var openBtn = document.getElementById('csvToolBtn');
-      var uploadBtn = document.getElementById('csvToolUploadBtn');
-      var copyBtn = document.getElementById('csvToolCopyBtn');
-      var fileInput = document.getElementById('csvToolFileInput');
-      var outTa = document.getElementById('csvToolOutput');
-      if (!overlay || !openBtn || !fileInput || !outTa) return;
-
-      function setOpen(open) {
-        overlay.classList.toggle('open', open);
-        overlay.setAttribute('aria-hidden', open ? 'false' : 'true');
-        if (open) {
-          try { okBtn && okBtn.focus(); } catch (e) {}
-        }
-      }
-
-      function normHeader(s) {
-        return String(s || '').trim().replace(/^['"]|['"]$/g, '').toLowerCase();
-      }
-      function normHeaderKey(s) {
-        return normHeader(s).replace(/-/g, '');
-      }
-
-      function parseCsvLine(line) {
-        var out = [];
-        var i = 0;
-        var len = line.length;
-        while (i < len) {
-          while (i < len && (line.charAt(i) === ' ' || line.charAt(i) === '\t')) i++;
-          if (i >= len) break;
-          var ch = line.charAt(i);
-          if (ch === "'" || ch === '"') {
-            i++;
-            var sb = '';
-            while (i < len) {
-              if (line.charAt(i) === ch) {
-                i++;
-                break;
-              }
-              sb += line.charAt(i++);
-            }
-            out.push(sb);
-            while (i < len && line.charAt(i) !== ';') i++;
-            if (line.charAt(i) === ';') i++;
-          } else {
-            var end = line.indexOf(';', i);
-            if (end === -1) {
-              out.push(line.slice(i).trim());
-              break;
-            }
-            out.push(line.slice(i, end).trim());
-            i = end + 1;
-          }
-        }
-        return out;
-      }
-
-      function findColIndex(headerRow, keys) {
-        var h = headerRow.map(normHeaderKey);
-        for (var k = 0; k < keys.length; k++) {
-          var key = keys[k];
-          var kn = key.toLowerCase().replace(/-/g, '');
-          for (var j = 0; j < h.length; j++) {
-            if (h[j] === kn) return j;
-          }
-        }
-        return -1;
-      }
-
-      function fmtPart(v) {
-        return "'" + String(v).replace(/'/g, "\\'") + "'";
-      }
-
-      function buildRecodeFromRows(rows) {
-        if (rows.length < 2) return { error: t('For få linjer (trenger header og minst én datarad).') };
-        var header = rows[0];
-        var dataRows = rows.slice(1);
-
-        var iSrc = findColIndex(header, ['sourceCode', 'fra-kode', 'frakode']);
-        var iSrcName = findColIndex(header, ['sourceName', 'fra-navn', 'franavn']);
-        var iTgt = findColIndex(header, ['targetCode', 'til-kode', 'tilkode']);
-        var iTgtName = findColIndex(header, ['targetName', 'til-navn', 'tilnavn']);
-
-        var useDefault = iSrc < 0 && iTgt < 0;
-        if (useDefault) {
-          if (header.length < 4) return { error: t('Forventet minst fire kolonner (fra-kode, fra-navn, til-kode, til-navn) eller SSB-kolonneravn i første linje.') };
-          iSrc = 0;
-          iSrcName = 1;
-          iTgt = 2;
-          iTgtName = 3;
-        } else {
-          if (iSrc < 0) return { error: t('Fant ikke sourceCode / fra-kode i første linje.') };
-          if (iTgt < 0 && iTgtName < 0) return { error: t('Fant verken targetCode/til-kode eller targetName/til-navn.') };
-        }
-
-        var inverted = false;
-        if (!useDefault && iSrc >= 0 && iTgt >= 0 && iTgt < iSrc) inverted = true;
-
-        function cell(r, idx) {
-          if (idx < 0 || idx >= r.length) return '';
-          return String(r[idx]).trim();
-        }
-
-        var rules = [];
-        if (inverted) {
-          var groups = {};
-          var groupOrder = [];
-          for (var r = 0; r < dataRows.length; r++) {
-            var row = dataRows[r];
-            var oldV = cell(row, iTgt);
-            var newC = cell(row, iSrc);
-            var lab = iSrcName >= 0 ? cell(row, iSrcName) : '';
-            if (!oldV && !newC) continue;
-            var gk = newC + '\0' + lab;
-            if (!groups[gk]) {
-              groups[gk] = { news: newC, lab: lab, olds: [] };
-              groupOrder.push(gk);
-            }
-            groups[gk].olds.push(oldV);
-          }
-          for (var gi = 0; gi < groupOrder.length; gi++) {
-            var g = groups[groupOrder[gi]];
-            var seen = {};
-            var olds = [];
-            for (var oi = 0; oi < g.olds.length; oi++) {
-              var ov = g.olds[oi];
-              if (!ov || seen[ov]) continue;
-              seen[ov] = true;
-              olds.push(ov);
-            }
-            if (!olds.length || !g.news) continue;
-            var lhs = olds.map(fmtPart).join(' ');
-            var rhs = fmtPart(g.news) + (g.lab ? ' ' + fmtPart(g.lab) : '');
-            rules.push('(' + lhs + ' = ' + rhs + ')');
-          }
-        } else {
-          for (var r2 = 0; r2 < dataRows.length; r2++) {
-            var row2 = dataRows[r2];
-            var oldV2 = cell(row2, iSrc);
-            var newC2 = iTgt >= 0 ? cell(row2, iTgt) : cell(row2, iTgtName);
-            var lab2 = iTgt >= 0 ? cell(row2, iTgtName) : '';
-            if (!oldV2) continue;
-            var rhs2 = fmtPart(newC2) + (lab2 ? ' ' + fmtPart(lab2) : '');
-            rules.push('(' + fmtPart(oldV2) + ' = ' + rhs2 + ')');
-          }
-        }
-
-        if (!rules.length) return { error: 'Ingen gyldige datarader.' };
-        return { text: 'recode variable ' + rules.join(' ') };
-      }
-
-      function onFile(ev) {
-        var f = ev.target.files && ev.target.files[0];
-        fileInput.value = '';
-        if (!f) return;
-        var reader = new FileReader();
-        reader.onload = function() {
-          var text = String(reader.result || '');
-          text = text.replace(/^\uFEFF/, '');
-          var lines = text.split(/\r?\n/).filter(function(line) { return String(line).trim().length; });
-          var rows = lines.map(function(line) { return parseCsvLine(line); });
-          var res = buildRecodeFromRows(rows);
-          if (res.error) {
-            outTa.value = '';
-            if (copyBtn) copyBtn.disabled = true;
-            alert(res.error);
-            return;
-          }
-          outTa.value = res.text;
-          if (copyBtn) copyBtn.disabled = false;
-        };
-        reader.onerror = function() {
-          alert('Kunne ikke lese filen.');
-        };
-        reader.readAsText(f, 'UTF-8');
-      }
-
-      openBtn.addEventListener('click', function() {
-        outTa.value = '';
-        if (copyBtn) copyBtn.disabled = true;
-        setOpen(true);
-        setTimeout(function() {
-          try {
-            if (uploadBtn) uploadBtn.focus();
-          } catch (e) {}
-        }, 0);
-      });
-      if (closeBtn) closeBtn.addEventListener('click', function() { setOpen(false); });
-      if (okBtn) okBtn.addEventListener('click', function() { setOpen(false); });
-      overlay.addEventListener('click', function(e) {
-        if (e.target === overlay) setOpen(false);
-      });
-      if (uploadBtn) uploadBtn.addEventListener('click', function() { fileInput.click(); });
-      fileInput.addEventListener('change', onFile);
-      if (copyBtn) copyBtn.addEventListener('click', function() {
-        var t = outTa.value;
-        if (!t) return;
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(t).then(function() {}).catch(function() {
-            outTa.select();
-            try { document.execCommand('copy'); } catch (e) {}
-          });
-        } else {
-          outTa.select();
-          try { document.execCommand('copy'); } catch (e2) {}
-        }
-      });
-      document.addEventListener('keydown', function(e) {
-        if (e.key !== 'Escape') return;
-        if (overlay.classList.contains('open')) setOpen(false);
-      });
-    })();
-
     (function initLineNumbersAndBreakpoints() {
       const lineNumbers = document.getElementById('lineNumbers');
       const scriptInput = document.getElementById('scriptInput');
@@ -2796,7 +2537,7 @@
         t('<p class="var-detail-prose" style="margin-bottom:10px">Skriv og kjør microdata.no-kode, Python og R direkte i nettleseren.</p>'),
         t('<p class="var-detail-prose" style="margin-bottom:10px;font-size:12px;color:var(--text-muted)">NB: Dette er et hobbyprosjekt &mdash; ikke laget av microdata.no. Tallene er ikke ekte, og det gis ingen garantier for korrekthet.</p>'),
         t('<div class="var-detail-section-title">Kjøre</div>'),
-        t('<p class="var-detail-prose">Trykk <strong>Kjør</strong> eller <kbd style="font-size:11px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 5px">Ctrl+Enter</kbd>. <strong>Oversett</strong>-knappen konverterer Python/R til microdata-syntaks.</p>'),
+        t('<p class="var-detail-prose">Trykk <strong>Kjør</strong> eller <kbd style="font-size:11px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 5px">Ctrl+Enter</kbd>.</p>'),
         t('<div class="var-detail-section-title">Moduser</div>'),
         t('<p class="var-detail-prose">Microdata · Python (Pyodide) · R (WebR). Bytt modus med dropdown-menyen i bunnbaren, eller bruk <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">#r</code> / <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">#py</code> / <code style="font-size:12px;background:var(--bg-code);border:1px solid var(--border);border-radius:3px;padding:1px 4px">#micro</code> på egen linje i scriptet for hybridkode.</p>'),
         t('<div class="var-detail-section-title">Tab-autocomplete</div>'),
@@ -3809,19 +3550,10 @@
     // Behavior-preserving: this only centralizes dispatch that was previously
     // scattered as `activeEditorMode === '…'` branches.
     const modeRegistry = {
-      microdata: { id: 'microdata', label: 'Microdata', handleTab: microdataHandleTab,
-        translate: { showsButton: true,
-          toPython: async function (src, py) {
-            var raw = await py.runPythonAsync(
-              'from m2py import MicroInterpreter as _MI\n_e_ov = _MI()\n' +
-              'str(_e_ov.translate_script_to_python(' + JSON.stringify(src) + '))');
-            return String(raw);
-          } } },
+      // (translate-feltene + Oversett-knappen er fjernet 2026-07-10:
+      // oversettelse mellom språkene er microdata-repoens funksjon.)
+      microdata: { id: 'microdata', label: 'Microdata', handleTab: microdataHandleTab },
       python:    { id: 'python',    label: 'Python', hlConfig: PY_HL_CFG, handleTab: handlePythonTab,
-        translate: { showsButton: true,
-          toMicrodata: async function (src, py) { await loadPy2m(py);
-            if (!py2mReady) throw new Error('py2m ikke tilgjengelig.');
-            return await translatePythonThroughPy2m(src, py); } },
         runDefault: 'pyodide',
         preRun: async function (script, ctx) {
           try {
@@ -3842,10 +3574,6 @@
           }
         } },
       r:         { id: 'r',         label: 'R', hlConfig: R_HL_CFG, onActivate: function () { if (!webRReady && !webRLoading) loadWebR(); }, handleTab: handleRTab,
-        translate: { showsButton: true,
-          toMicrodata: async function (src) {
-            if (!webRReady) throw new Error('WebR ikke klar.');
-            return await translateRThroughR2m(src); } },
         runSelf: async function (script, ctx) {
           await runHybridR(script, ctx.py, { showCommands: ctx.showCommands, profile: ctx.profile });
         } },
@@ -3853,12 +3581,10 @@
         hlConfig: STATA_HL_CFG,
         handleTab: microdataHandleTab,
         onActivate: function () { if (!pdexplorerReady && !pdexplorerLoading) loadPyodideAndM2py().then(loadPdexplorer); },
-        translate: { showsButton: false },
         runSelf: async function (script, ctx) { await runStatxScript(script, ctx); } },
       duckdb: { id: 'duckdb', label: 'DuckDB', hlConfig: SQL_HL_CFG, handleTab: microdataHandleTab,
-        translate: { showsButton: false }, runDefault: 'duckdb' },
+        runDefault: 'duckdb' },
       brython: { id: 'brython', label: 'Brython', hlConfig: PY_HL_CFG, handleTab: handlePythonTab,
-        translate: { showsButton: false },
         onActivate: function () { if (window.BrythonEngine) window.BrythonEngine.load().catch(function () {}); },
         runSelf: async function (script, ctx) {
           setStatus(ctx.rightStatus, t('Laster Brython…'));
@@ -3881,7 +3607,6 @@
       // executing the generated code (offline path) rather than the emulator.
       // Execution is local now; a remote compute-to-data executor is a placeholder.
       safestat: { id: 'safestat', label: 'SafeStat', handleTab: microdataHandleTab,
-        translate: { showsButton: false },
         runSelf: async function (script, ctx) { await runSafeStatScript(script, ctx); } },
     };
     function currentMode() {
@@ -4103,7 +3828,6 @@
     // – Elementer med data-mode-only="<modus-id>" (mellomromseparert liste)
     //   vises bare når aktiv modus matcher; data-mode-display kan angi
     //   display-verdien ved visning (default '').
-    // – Oversett-knappen styres av registerfeltet translate.showsButton.
     // – Safestat-tillegg: btnDmQuick (micro + innlogget) og Anvil-knappen
     //   (micro + admin) har auth-vilkår oppå modus-vilkåret, derfor
     //   imperative her; kjøres også på auth-endringer via updateVisible.
@@ -4116,8 +3840,6 @@
         var show = el.getAttribute('data-mode-only').split(/\s+/).indexOf(m.id) !== -1;
         el.style.display = show ? (el.getAttribute('data-mode-display') || '') : 'none';
       });
-      var ob = document.getElementById('oversettBtn');
-      if (ob) ob.style.display = (m.translate && m.translate.showsButton) ? '' : 'none';
       var micro = (m.id === 'microdata');
       var dm = document.getElementById('btnDmQuick');
       var loggedIn = !!(window.mdAuth && window.mdAuth.isLoggedIn);
@@ -4275,53 +3997,6 @@
           if (window.mdOnInputToggle) window.mdOnInputToggle(v === 'output');
           setActive(v);
         });
-      });
-    })();
-
-    (function initOversettBtn() {
-      var btn = document.getElementById('oversettBtn');
-      if (!btn) return;
-      btn.addEventListener('click', async function() {
-        if (btn.disabled || scriptRunInProgress) return;
-        btn.disabled = true;
-        var outputArea = document.getElementById('outputArea');
-        try {
-          var src = scriptInput.value || '';
-          outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + window.t('Oversetter…') + '</div>';
-          var script = '', warnings = [];
-
-          var t = currentMode().translate;
-          if (activeEditorMode === 'microdata') {
-            var py = await loadPyodideAndM2py();
-            script = await t.toPython(src, py);
-            editorContent.python = script;
-          } else if (t && t.toMicrodata) {
-            if (activeEditorMode === 'r' && !webRReady) {
-              outputArea.innerHTML = '<div class="transl-warn">' + window.t('WebR er ikke klar ennå. Vent litt og prøv igjen.') + '</div>';
-              return;
-            }
-            var py2 = activeEditorMode === 'python' ? await loadPyodideAndM2py() : null;
-            var res = await t.toMicrodata(src, py2);
-            script = res.script; warnings = res.warnings;
-            editorContent.microdata = script;
-          }
-
-          var html = '';
-          if (warnings && warnings.length) {
-            html += '<div class="transl-warn">' + window.t('Oversettelseadvarsler:') + '\n' +
-              warnings.map(function(w) {
-                return String(w).replace(/&/g,'&amp;').replace(/</g,'&lt;');
-              }).join('\n') + '</div>';
-          }
-          html += '<pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.5;padding:8px 0">' +
-            String(script).replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</pre>';
-          outputArea.innerHTML = html;
-
-        } catch(e) {
-          outputArea.innerHTML = '<pre class="error">' + window.t('Oversettingsfeil: {msg}', { msg: String(e.message||e).replace(/&/g,'&amp;').replace(/</g,'&lt;') }) + '</pre>';
-        } finally {
-          btn.disabled = false;
-        }
       });
     })();
 
@@ -4543,7 +4218,6 @@
     scriptInput.selectionStart = scriptInput.selectionEnd = 0;
     scriptInput.focus();
 
-    let py2mReady = false;
     let pdexplorerReady = false, pdexplorerLoading = false;
     let explainAbortRef = null;
     let explainRunActive = false;
@@ -4796,8 +4470,6 @@
         if (!explainRunActive || !scriptRunInProgress) return;
         var vdo = document.getElementById('varDetailOverlay');
         if (vdo && vdo.classList.contains('open')) return;
-        var csvDlg = document.getElementById('csvToolOverlay');
-        if (csvDlg && csvDlg.classList.contains('open')) return;
         if (e.code === 'Space' && !e.repeat) {
           if (e.shiftKey) return;
           var t = e.target;
@@ -8202,12 +7874,12 @@ json.dumps(out)
       }
     }
 
-    // ── Translation helpers ──────────────────────────────────────────────────
-
-    // Normalize block markers before passing source to py2m / r2m.
-    // Users naturally write "// microdata" and "// pyodide" (microdata comment style).
-    // py2m expects "## microdata" / "## python"; r2m expects "## microdata" / "## r".
-    // Normalise // and ## block markers to the form each translator expects.
+    // Normalize block markers before segmenting hybrid scripts. Users
+    // naturally write "// microdata" and "// pyodide" (microdata comment
+    // style); the run pipeline expects "## microdata" / "## python" / "## r".
+    // (Var opprinnelig delt med py2m/r2m-oversetterne — de er fjernet
+    // 2026-07-10 sammen med Oversett-knappen; hybrid-R-kjøringen bruker
+    // fortsatt denne.)
     function normalizeBlockMarkers(src, targetLang) {
       // targetLang: 'python' or 'r'
       return src.split(/\r?\n/).map(function(line) {
@@ -8222,83 +7894,6 @@ json.dumps(out)
         return line;
       }).join('\n');
     }
-
-    // Extract the dataset name from the first 'create-dataset NAME' line in
-    // microdata segments. This becomes df_name for py2m so that Python code
-    // using the same name (e.g. df_2.kjonn...) translates correctly.
-    function extractDatasetName(segments) {
-      for (var i = 0; i < segments.length; i++) {
-        if (segments[i].kind !== 'microdata') continue;
-        var lines = (segments[i].text || '').split(/\r?\n/);
-        for (var j = 0; j < lines.length; j++) {
-          var m = lines[j].trim().match(/^create-dataset\s+(\S+)/i);
-          if (m) return m[1];
-        }
-      }
-      return 'df'; // fallback
-    }
-
-    // py2m calls ast.parse() on the whole source, so microdata blocks must be
-    // split out first. This function segments the mixed code, translates only
-    // the Python portions through py2m, and passes microdata portions through.
-    async function translatePythonThroughPy2m(src, py) {
-      const normalized = normalizeBlockMarkers(src, 'python');
-      // Default mode 'pyodide' so unmarked code is treated as Python
-      const segments = parseHybridScript(normalized, 'pyodide');
-      const dfName = extractDatasetName(segments);
-      const parts = [];
-      const allWarnings = [];
-      for (var i = 0; i < segments.length; i++) {
-        var seg = segments[i];
-        var text = (seg.text || '').trim();
-        if (!text) continue;
-        if (seg.kind === 'microdata') {
-          parts.push(text);
-        } else {
-          // Translate Python segment via py2m, using the detected df name
-          var resRaw = await py.runPythonAsync(
-            'import py2m as _p2m, json as _json; _r = _p2m.transform(' + JSON.stringify(text) + ', df_name=' + JSON.stringify(dfName) + '); _json.dumps({"s": _r.script(), "w": _r.warnings})'
-          );
-          var res = JSON.parse(String(resRaw));
-          if (res.s && res.s.trim()) parts.push(res.s.trim());
-          if (res.w && res.w.length) allWarnings.push.apply(allWarnings, res.w);
-        }
-      }
-      return { script: parts.join('\n\n'), warnings: allWarnings };
-    }
-
-    // r2m similarly: split segments, translate only the R portions through r2m.
-    async function translateRThroughR2m(src) {
-      const normalized = normalizeBlockMarkers(src, 'r');
-      // If the script contains explicit mode markers (## r, ## microdata), treat untagged
-      // code at the top as microdata setup. If no markers, treat everything as R.
-      var hasMarkers = /^##\s*(r|microdata|micro|pyodide|python)\s*$/im.test(normalized);
-      const segments = parseHybridScript(normalized, hasMarkers ? 'microdata' : 'r');
-      const parts = [];
-      const allWarnings = [];
-      for (var i = 0; i < segments.length; i++) {
-        var seg = segments[i];
-        var text = (seg.text || '').trim();
-        if (!text) continue;
-        if (seg.kind === 'microdata') {
-          parts.push(text);
-        } else {
-          // Translate R segment via r2m
-          var rr = await (await webR.evalR(
-            'result <- translate(' + JSON.stringify(text) + '); list(s = result$script, w = result$warnings)'
-          )).toJs();
-          var s = rr.values[0].values[0];
-          var w = rr.values[1].values[0];
-          if (s && s.trim()) parts.push(s.trim());
-          if (w) allWarnings.push(w);
-        }
-      }
-      return { script: parts.join('\n\n'), warnings: allWarnings };
-    }
-
-    // Keep these for the old prepSource calls that haven't been replaced yet
-    function prepSourceForPy2m(src) { return normalizeBlockMarkers(src, 'python'); }
-    function prepSourceForR2m(src)  { return normalizeBlockMarkers(src, 'r'); }
 
     function extractRPackages(src) {
       var pkgs = [], seen = {}, re = /\b(?:library|require)\(\s*["']?([A-Za-z0-9_.]+)["']?\s*\)/g, m;
@@ -9109,34 +8704,6 @@ has and "int" in (m.get_microdata_functions() or {})
       }
     }
 
-    async function loadPy2m(py) {
-      if (py2mReady) return;
-      setStatus(leftStatus, t('Henter py2m...'));
-      const base = window.location.href.replace(/[^/]+$/, '');
-      const root = base + 'py2m/py2m/';
-      const modules = ['__init__', 'chain', 'expr', 'formula', 'commands', 'expander', 'transformer'];
-      let srcs;
-      try {
-        srcs = await Promise.all(modules.map(function(m) {
-          return fetch(root + m + '.py').then(function(r) {
-            if (!r.ok) throw new Error(m + '.py');
-            return r.text();
-          });
-        }));
-      } catch(e) {
-        setStatus(leftStatus, t('py2m utilgjengelig: {msg}', { msg: e.message || e }), true);
-        return;
-      }
-      await py.runPythonAsync('import os; os.makedirs("/home/pyodide/py2m", exist_ok=True)');
-      for (let i = 0; i < modules.length; i++) {
-        await py.runPythonAsync(
-          `open('/home/pyodide/py2m/${modules[i]}.py', 'w', encoding='utf-8').write(${JSON.stringify(srcs[i])})`
-        );
-      }
-      await py.runPythonAsync('import sys; sys.path.insert(0, "/home/pyodide"); import py2m');
-      py2mReady = true;
-      setStatus(leftStatus, t('Klar.'));
-    }
 
     // Write the m2py_runtime package to the Pyodide FS so it imports normally.
     // Used by BOTH the main bootstrap (emulator merge -> `from m2py_runtime import
@@ -9865,19 +9432,8 @@ _json.dumps({"code": _code, "out": _buf.getvalue(), "html": _html,
         const { WebR } = await import('https://webr.r-wasm.org/v0.6.0/webr.mjs');
         webR = new WebR();
         await webR.init();
-        setStatus(leftStatus, t('Laster r2m…'));
-        const base = window.location.href.replace(/[^/]+$/, '');
-        const root = base + 'r2m/r2m/';
-        // Order matches r2m/test_r2m.R: expr.R defines helpers used by
-        // expanders.R; expanders.R must load before commands.R/translator.R
-        // (which call .expand_ifelse etc.).
-        for (const f of ['expr.R', 'expanders.R', 'commands.R', 'translator.R']) {
-          const src = await fetch(root + f).then(function(r) {
-            if (!r.ok) throw new Error(f);
-            return r.text();
-          });
-          await webR.evalRVoid(src);
-        }
+        // (r2m-oversetteren ble tidligere lastet her — fjernet 2026-07-10
+        // sammen med Oversett-knappen; sparer fire fetch + evalR per oppstart.)
         // base64enc + nanoparquet for typed dataframe transfer from Pyodide
         // (Parquet er binært/typed — base64 pakker det trygt gjennom
         // evalR()-strengen; nanoparquet leser de rå bytene tilbake. Erstatter

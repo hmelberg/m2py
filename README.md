@@ -32,7 +32,6 @@ with **python** as the fallback.
 | `functions.py` | microdata functions used in generate/replace/if expressions. |
 | `protect.py` | `scrub-*` data-protection verbs (noise, swap, k-anon, risk, …). |
 | `mockdata_export.py`, `static_source.py`, `build_static_data.py` | Static synthetic-data build (Parquet/DuckDB) + the static data source. |
-| `py2m/`, `r2m/` | Python→microdata and R→microdata translators (each with its own runner + tests). |
 | `netlify/edge-functions/` | The AI endpoints (`dm-vurder`, `kode-svar`, `tolk-resultat`) + shared `_lib/`. |
 | `manual_scripts/` | End-to-end example scripts run as a smoke suite. |
 | `tests/` | pytest suite (engine, regressions, equivalence, mock-data, performance). |
@@ -50,9 +49,6 @@ A companion repo, `microdata-api` (Anvil), hosts the auth/AI backend and a
 .venv/bin/python manual_scripts/run_manual_scripts.py
 
 # Translator tests
-.venv/bin/python -m pytest py2m/tests/
-Rscript r2m/test_r2m.R
-
 # Edge functions (Deno)
 cd netlify/edge-functions && deno check *.ts _lib/*.ts && deno test --allow-all _lib/
 
@@ -66,7 +62,7 @@ cd netlify/edge-functions && deno check *.ts _lib/*.ts && deno test --allow-all 
 sh scripts/sync_check.sh                  # exit 1 ved avvik; UI-filer er bevisst utelatt
 ```
 
-CI lives in `.github/workflows/` (pytest + manual scripts, py2m, r2m, edge).
+CI lives in `.github/workflows/` (pytest + manual scripts, edge).
 
 ## Deployment
 
