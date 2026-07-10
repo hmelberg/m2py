@@ -506,7 +506,7 @@
       </div>
       <div style="width:1px;height:20px;background:var(--border);margin:0 6px;flex-shrink:0"></div>
       <div class="mode-dropdown-wrap">
-        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg språk (Microdata, Python, R, Statx, Jamovi, Jamovi light, SQL - DuckDB, Brython, SafeStat)">
+        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg språk (Microdata, Python, R, Statx, Jamovi, SQL - DuckDB, Brython, SafeStat)">
           <span id="editorModeLabel">Microdata</span>
           <span class="chevron">▲</span>
         </button>
@@ -516,7 +516,6 @@
           <button type="button" data-mode="r">R</button>
           <button type="button" data-mode="statx">Statx</button>
           <button type="button" data-mode="jamovi">Jamovi</button>
-          <button type="button" data-mode="jamovilight">Jamovi light</button>
           <button type="button" data-mode="duckdb">SQL - DuckDB</button>
           <button type="button" data-mode="brython">Brython</button>
           <button type="button" data-mode="safestat">SafeStat</button>
@@ -3613,18 +3612,18 @@
       return modeRegistry[activeEditorMode] || modeRegistry.microdata;
     }
 
-    // Input-panel visibility: jamovi/jamovilight hide it by default; other modes use the user pref.
+    // Input-panel visibility: jamovi hides it by default; other modes use the user pref.
     var _inputHiddenPref = false;
-    window.mdOnInputToggle = function(h){ if (activeEditorMode !== 'jamovi' && activeEditorMode !== 'jamovilight') _inputHiddenPref = !!h; };
-    function applyInputForMode(mode){ if (window.mdSetInputHidden) window.mdSetInputHidden((mode === 'jamovi' || mode === 'jamovilight') ? true : _inputHiddenPref); }
+    window.mdOnInputToggle = function(h){ if (activeEditorMode !== 'jamovi') _inputHiddenPref = !!h; };
+    function applyInputForMode(mode){ if (window.mdSetInputHidden) window.mdSetInputHidden((mode === 'jamovi') ? true : _inputHiddenPref); }
 
-    // Topbar visibility: jamovi/jamovilight hide the fixed app topbar by default
+    // Topbar visibility: jamovi hides the fixed app topbar by default
     // (Task 1, fase 3 del 2 — see --topbar-h in app.css for the offset rules this
     // drives). localStorage m2py_topbar_visible === '1' means the user overrode
     // it back on via the jamovi hamburger's «Vis/skjul toppmenyen» toggle
     // (M2PY.toggleTopbarVisible below). Re-applied on every mode switch.
     function applyTopbarVisibility(mode) {
-      var wantHidden = (mode === 'jamovi' || mode === 'jamovilight')
+      var wantHidden = (mode === 'jamovi')
         && localStorage.getItem('m2py_topbar_visible') !== '1';
       document.body.classList.toggle('topbar-hidden', wantHidden);
     }
@@ -3635,7 +3634,7 @@
     // btnRun/bootstrap/modusbytte ruter alle gjennom runtimeForMode()
     // (plan 2026-07-09: R uten Pyodide, fremtidig brython/subdomene-boot).
     var RUNTIME_FOR_MODE = { python: 'pyodide', microdata: 'pyodide', duckdb: 'pyodide',
-                             jamovi: 'pyodide', jamovilight: 'pyodide', statx: 'pyodide',
+                             jamovi: 'pyodide', statx: 'pyodide',
                              safestat: 'pyodide', brython: 'brython', r: 'webr' };
     function runtimeForMode(id) { return RUNTIME_FOR_MODE[id] || 'pyodide'; }  // ukjent → trygt valg
 
@@ -3860,7 +3859,7 @@
       });
       // The topbar is position:fixed and the bar is fixed right below it, at
       // top: var(--topbar-h) (app.css) — 44px normally, 0 when body has
-      // topbar-hidden (jamovi/jamovilight with the topbar toggled off).
+      // topbar-hidden (jamovi with the topbar toggled off).
       // Push the (margin-top: var(--topbar-h)) app body down by the bar's
       // height when shown so nothing is hidden under the bar; restore the
       // CSS default when hidden.
@@ -3906,7 +3905,7 @@
       getWebR: function(){ return webR; },
       ensureWebRShelter: async function(){ if (!webRReady) await loadWebR(); if (!webRShelter) webRShelter = await new webR.Shelter(); return webRShelter; }
     };
-    var MODE_MODULES = { jamovi: { js: ['js/modes/jmv_specs.js', 'js/modes/jamovi.js'], css: 'css/modes/jamovi.css' }, jamovilight: { js: 'js/modes/jamovi_light.js', css: 'css/modes/jamovi_light.css' } };
+    var MODE_MODULES = { jamovi: { js: ['js/modes/jmv_specs.js', 'js/modes/jamovi.js'], css: 'css/modes/jamovi.css' } };
     var _modeModuleP = {};
     function loadModeModule(id){
       if (_modeModuleP[id]) return _modeModuleP[id];

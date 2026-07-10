@@ -91,7 +91,7 @@ window.M2PY_I18N.en = {
   "Skjul/vis inndatapanel (bare output)": "Hide/show the input panel (output only)",
   "Skjul inndatapanel": "Hide input panel",
   "CSV omkodingsverktøy": "CSV recoding tool",
-  "Velg språk (Microdata, Python, R, Statx, Jamovi, Jamovi light, SQL - DuckDB, Brython, SafeStat)": "Select language (Microdata, Python, R, Statx, Jamovi, Jamovi light, SQL - DuckDB, Brython, SafeStat)",
+  "Velg språk (Microdata, Python, R, Statx, Jamovi, SQL - DuckDB, Brython, SafeStat)": "Select language (Microdata, Python, R, Statx, Jamovi, SQL - DuckDB, Brython, SafeStat)",
   "Kryptert": "Encrypted",
   "Åpen": "Open",
   "Ukjent": "Unknown",
