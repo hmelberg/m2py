@@ -183,3 +183,20 @@ def test_fit_rejects_unsupported_kwargs():
         smb.ols('y ~ x', d).fit(cov_type='HC1')
     d['b'] = [0.0, 0.0, 1.0, 1.0]
     smb.logit('b ~ x', d).fit(disp=0)          # hvitelistet — skal gå fint
+
+
+def test_ols_and_logit_accept_pandas_brython_dataframe():
+    # Integrasjon: pandas_brython-DataFrames (den vanlige # load-flyten) skal
+    # gi identiske resultater som dict-of-lists — duck-typet via _col/_data_nrows.
+    import pandas_brython as pd
+    raw = {'y': [3.0, 5.0, 7.0, 9.5], 'x': [1.0, 2.0, 3.0, 4.0],
+           'g': ['a', 'b', 'a', 'b']}
+    df = pd.DataFrame(raw)
+    fra_df = smb.ols('y ~ x + g', df).fit()
+    fra_dict = smb.ols('y ~ x + g', raw).fit()
+    assert fra_df.params == pytest.approx(fra_dict.params)
+    assert fra_df.rsquared == pytest.approx(fra_dict.rsquared)
+    assert (fra_df.predict(pd.DataFrame({'x': [5.0], 'g': ['a']}))
+            == pytest.approx(fra_dict.predict({'x': [5.0], 'g': ['a']})))
+    df['b'] = [0.0, 0.0, 1.0, 1.0]
+    assert smb.logit('b ~ x', df).fit(disp=0).converged in (True, False)  # ingen krasj
