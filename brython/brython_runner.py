@@ -127,6 +127,27 @@ def _execute_code(code):
 def _get_last_error():
     return _last_error
 
+def _register_module(name, source):
+    """Lazy lib-loading (engine calls this): make `source` importable as
+    module `name`. Idempotent; returns '' on success, traceback on failure."""
+    import types
+    if name in sys.modules:
+        return ''
+    mod = types.ModuleType(name)
+    try:
+        exec(compile(source, name + '.py', 'exec'), mod.__dict__)
+    except Exception:
+        return traceback.format_exc()
+    sys.modules[name] = mod
+    return ''
+
+def _alias_module(alias, canonical):
+    """Make `import alias` resolve to already-registered module `canonical`."""
+    if canonical not in sys.modules:
+        return 'Ukjent modul: ' + canonical
+    sys.modules[alias] = sys.modules[canonical]
+    return ''
+
 def _bind_datasets(spec_json):
     """Bind datasets from JS into user globals. spec: {name: {kind, payload}}.
     kind 'csv' → payload is CSV text; kind 'columns' → payload is {col: [values]}."""

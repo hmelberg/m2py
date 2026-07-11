@@ -144,6 +144,40 @@ def test_long_trailing_expression_beyond_scan_cap_displays():
     assert str(sum(range(60))) in out
     assert br._get_last_error() == ''
 
+# ── lazy library registration (_register_module / _alias_module) ──────────
+
+def test_register_module_import_works():
+    err = br._register_module('lazydemo_a', 'value = 41\ndef bump(x):\n    return x + 1\n')
+    assert err == ''
+    out = br._execute_code('import lazydemo_a\nlazydemo_a.bump(lazydemo_a.value)')
+    assert br._get_last_error() == ''
+    assert '42' in out
+
+def test_register_module_is_idempotent():
+    assert br._register_module('lazydemo_b', 'value = 1\n') == ''
+    assert br._register_module('lazydemo_b', 'value = 2\n') == ''  # no-op, not re-exec
+    out = br._execute_code('import lazydemo_b\nlazydemo_b.value')
+    assert '1' in out
+
+def test_register_module_syntax_error_reports_and_skips():
+    err = br._register_module('lazydemo_bad', 'def broken(:\n')
+    assert 'SyntaxError' in err
+    assert 'lazydemo_bad' not in sys.modules
+
+def test_register_module_runtime_error_reports_and_skips():
+    err = br._register_module('lazydemo_boom', 'raise ValueError("boom")\n')
+    assert 'ValueError' in err and 'boom' in err
+    assert 'lazydemo_boom' not in sys.modules
+
+def test_alias_module():
+    br._register_module('lazydemo_c', 'value = 7\n')
+    assert br._alias_module('lazydemo_c_alias', 'lazydemo_c') == ''
+    out = br._execute_code('import lazydemo_c_alias\nlazydemo_c_alias.value')
+    assert '7' in out
+
+def test_alias_unknown_module_errors():
+    assert br._alias_module('nope_alias', 'nope_canonical') != ''
+
 if __name__ == '__main__':
     # NOTE: iterate in declaration order (not sorted alphabetically) — several
     # tests share state via module globals (e.g. test_figure_embed_marker

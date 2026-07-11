@@ -1,78 +1,117 @@
 // js/brython-engine.js — lightweight Python engine (Brython) for openstat/safestat.
 // Design: docs/superpowers/specs/2026-07-10-brython-engine-design.md
+// Lazy libs: docs/superpowers/plans/2026-07-11-brython-lazy-registration.md
 //
-// Loads Brython 3.12 from CDN, registers pandas_brython/plotly_express_brython
-// as text/python script tags (id MUST equal module name — that is how Brython
-// resolves imports), compiles brython_runner.py once via __BRYTHON__.runPythonSource,
-// and exposes run(). Output is embed-marker text; index.html renders it via
-// buildOutputNodes().
+// Loads Brython 3.12 core+stdlib from CDN, compiles brython_runner.py once via
+// __BRYTHON__.runPythonSource, and exposes run(). Python libraries are NOT
+// loaded up front: before each run, scanImports() finds which LIB_REGISTRY
+// libraries the user's code mentions and ensureLibs() fetches and registers
+// only those — via the runner's _register_module(), which execs the source
+// into a fresh module object and inserts it in sys.modules. External JS
+// dependencies (e.g. a stats lib backing a wrapper module) are declared per
+// library in LIB_REGISTRY and loaded on first use only.
 //
-// Bootstrap mirrors code2web's proven pattern (web2.html), verified against
-// code2web/web2.html and the actual Brython 3.12.0 source (jsdelivr) rather
-// than assumed — see divergences from the task-4 brief's draft, documented
-// inline below and in .superpowers/sdd/task-4-report.md:
+// This replaces the original text/python script-tag mechanism and with it the
+// MutationObserver race it required (tags had to be registered before
+// brython() ran; the full analysis lives in git history of this file).
 //
-//  1. brython() is called with NO arguments, exactly like code2web's
-//     ensureBrythonLoaded(). The brief's draft called `window.brython({debug:0,
-//     ids:[]})`; decompiling brython.min.js shows brython() only ever reads
-//     options.debug / .args / .breakpoint / .indexedDB / .python_extension —
-//     there is no `ids` option, so that key would silently do nothing. We
-//     drop it rather than ship a fictional option.
-//  2. Script tags for pandas_brython/plotly_express_brython are registered
-//     BEFORE brython() runs, and brython() is called only AFTER stdlib has
-//     finished loading (core THEN stdlib THEN module tags THEN brython()).
-//     code2web's own ensureBrythonLoaded() calls brython() right after core
-//     loads, before stdlib finishes — but that path never registers any
-//     text/python script tags (its "shared module" is run later via
-//     runPythonSource, not import-resolved), so the ordering there is
-//     untested for module compilation. The proven script-tag-registration
-//     pattern lives in code2web's export/bundling code (web2.html ~13523),
-//     which always adds `<script type="text/python" id="<module>">` tags to
-//     the document BEFORE Brython's own DOMContentLoaded-triggered scan runs
-//     — i.e. tags-before-brython() is the real contract. We combine that
-//     with a full core+stdlib load first, since our modules (unlike
-//     code2web's shared module) get eagerly compiled during the brython()
-//     scan and may need real stdlib imports (io, re, json, math, ...)
-//     available at that time.
-//  3. __BRYTHON__.runPythonSource(source, name) is called with the module
-//     name as the second argument, matching the brief's draft. code2web's
-//     own live-cell path calls runPythonSource(src, {}) for its shared
-//     module — but decompiling brython.min.js shows the second parameter is
-//     `script_id` (used only as a compile-unit name; Brython auto-generates
-//     one only when it is literally `undefined`). A real string is the
-//     correct/intended usage; code2web's `{}` is not a documented pattern to
-//     imitate, just a value that happens not to be `undefined`. We pass
-//     'brython_runner' for a meaningful compiled name.
+// Verified against the actual jsdelivr brython@3.12.0 bundle:
+//   - brython() is called with NO arguments; its options object only reads
+//     debug/args/breakpoint/indexedDB/python_extension — nothing else exists.
+//   - __BRYTHON__.runPythonSource(source, script_id) takes the module name as
+//     its second argument (compile-unit name; auto-generated only when the
+//     argument is literally undefined).
 //
-// Confirmed by inspecting the actual jsdelivr brython@3.12.0 bundle:
-//   - runPythonSource=function(src,script_id){if(script_id===undefined){...
-//   - brython=function(options){...} only reads debug/args/breakpoint/
-//     indexedDB/python_extension from options — no `ids` key exists.
-//   - script.id is the value used to key registered/defined modules —
-//     confirming the id-must-equal-module-name import contract.
-//
-// CORRECTION (found via real-browser testing, not just source reading): the
-// earlier claim here — that Brython scans script[type="text/python"] tags
-// "at call time" via a synchronous querySelectorAll with no MutationObserver
-// dependency — is WRONG. Brython's script-tag registry is actually populated
-// through a MutationObserver callback, which Chrome/Firefox schedule as a
-// microtask fired only once the current task yields. Appending our
-// <script id="pandas_brython"> tag synchronously and then calling
-// global.brython() in the very next line does NOT give that observer
-// callback a chance to run first, so brython() starts its module scan before
-// our tags are registered — `import pandas_brython` then fails with
-// ModuleNotFoundError in a real browser (this never showed up in
-// `node --check`, which only parses the file). The fix is to yield a real
-// macrotask (a `setTimeout(0)`, not just a microtask like `Promise.resolve()`
-// — those run before the observer's microtask too) between registering the
-// tags and calling brython(), so the MutationObserver has run by the time
-// the scan starts. See the `await new Promise(setTimeout(...))` below.
+// Output is embed-marker text; index.html renders it via buildOutputNodes().
 (function (global) {
   'use strict';
 
   var BRYTHON_CORE = 'https://cdn.jsdelivr.net/npm/brython@3.12.0/brython.min.js';
   var BRYTHON_STDLIB = 'https://cdn.jsdelivr.net/npm/brython@3.12.0/brython_stdlib.js';
-  var PY_LIBS = ['pandas_brython', 'plotly_express_brython'];
+
+  // Library registry — single source of truth for lazily loaded Python libs.
+  // Key = canonical module name (== brython/<key>.py).
+  //   aliases: extra import names resolving to the same module.
+  //   deps:    registry keys that must be registered first (module-level imports).
+  //   js:      external JS scripts loaded (once) before the module registers;
+  //            skipped when window[<global>] already exists.
+  var LIB_REGISTRY = {
+    // pandas_brython.py:15 har en modulnivå try-import av plotly (df.plot);
+    // uten deps-oppføringen feiler den stille ved lazy registrering.
+    pandas_brython:         { aliases: [], deps: ['plotly_express_brython'], js: [] },
+    plotly_express_brython: { aliases: [], deps: [], js: [] }
+  };
+
+  function scanImports(code) {
+    // Find registry libraries mentioned in import statements. Over-matching
+    // (imports inside strings/docstrings) is harmless — it only registers a
+    // library the code never uses. Dotted names count by their first segment.
+    // Under-matches: one-line compounds (`if x: import y`), semicolon-glued
+    // imports and dynamic imports (__import__) — failure mode is a loud
+    // ModuleNotFoundError, never silent wrong output.
+    var needed = [];
+    function add(rawName) {
+      var name = rawName.split('.')[0];
+      var canonical = LIB_REGISTRY.hasOwnProperty(name) ? name : null;
+      if (!canonical) {
+        for (var k in LIB_REGISTRY) {
+          if (LIB_REGISTRY[k].aliases.indexOf(name) !== -1) { canonical = k; break; }
+        }
+      }
+      if (canonical && needed.indexOf(canonical) === -1) needed.push(canonical);
+    }
+    var re = /^[ \t]*(?:from[ \t]+([A-Za-z_][A-Za-z0-9_.]*)|import[ \t]+([^#\r\n]+))/gm;
+    var m, parts, i, t;
+    while ((m = re.exec(code))) {
+      if (m[1]) { add(m[1]); continue; }
+      parts = m[2].split(',');
+      for (i = 0; i < parts.length; i++) {
+        t = parts[i].trim().split(/[ \t]/)[0];   // drop "as <alias>"
+        if (/^[A-Za-z_][A-Za-z0-9_.]*$/.test(t)) add(t);
+      }
+    }
+    return needed;
+  }
+
+  var __registered = {};   // canonical name -> true once registered in the runner
+  var __jsLoaded = {};     // url -> load promise (shared across libs)
+
+  function loadJsDep(dep) {
+    if (global[dep.global]) return Promise.resolve();   // already on the page
+    if (!__jsLoaded[dep.url]) {
+      __jsLoaded[dep.url] = addScript(dep.url).catch(function (e) {
+        delete __jsLoaded[dep.url];                     // ikke cache feil — prøv igjen neste run
+        throw e;
+      });
+    }
+    return __jsLoaded[dep.url];
+  }
+
+  async function ensureLibs(mod, names, _visiting) {
+    _visiting = _visiting || {};                       // syklusvakt for deps-rekursjonen
+    for (var i = 0; i < names.length; i++) {
+      var name = names[i];
+      if (__registered[name]) continue;
+      var entry = LIB_REGISTRY[name];
+      if (!entry) {
+        throw new Error('Ukjent bibliotek i LIB_REGISTRY: ' + name);   // typo i en deps-liste
+      }
+      if (_visiting[name]) {
+        throw new Error('Sirkulær avhengighet i LIB_REGISTRY: ' + name);
+      }
+      _visiting[name] = true;
+      await ensureLibs(mod, entry.deps, _visiting);     // deps first (module-level imports)
+      for (var j = 0; j < entry.js.length; j++) await loadJsDep(entry.js[j]);
+      var source = await fetchText('brython/' + name + '.py');
+      var err = mod._register_module(name, source);
+      if (err) throw new Error(String(err));
+      for (var a = 0; a < entry.aliases.length; a++) {
+        err = mod._alias_module(entry.aliases[a], name);
+        if (err) throw new Error(String(err));
+      }
+      __registered[name] = true;
+    }
+  }
 
   var __enginePromise = null;
 
@@ -84,15 +123,6 @@
       s.onerror = function () { reject(new Error('Kunne ikke laste ' + src)); };
       document.head.appendChild(s);
     });
-  }
-
-  function addPyModule(name, source) {
-    if (document.getElementById(name)) return;
-    var s = document.createElement('script');
-    s.type = 'text/python';
-    s.id = name;                       // id == module name (Brython import contract)
-    s.textContent = source;
-    document.head.appendChild(s);
   }
 
   function fetchText(path) {
@@ -107,21 +137,9 @@
     __enginePromise = (async function () {
       await addScript(BRYTHON_CORE);
       await addScript(BRYTHON_STDLIB);
-      var sources = await Promise.all(
-        PY_LIBS.concat(['brython_runner']).map(function (m) { return fetchText('brython/' + m + '.py'); }));
-      PY_LIBS.forEach(function (m, i) { addPyModule(m, sources[i]); });
-      // Race fix (see file-header comment above): Brython's script-tag
-      // registry is filled in by a MutationObserver callback, which the
-      // browser schedules asynchronously. Without this yield, brython() can
-      // run its module scan before the observer has registered the tags we
-      // just appended, and `import pandas_brython` fails with
-      // ModuleNotFoundError. A macrotask yield (setTimeout, not a
-      // microtask/Promise.resolve — those still run before the observer's
-      // callback) reliably lets that callback run first.
-      await new Promise(function (r) { setTimeout(r, 0); });
-      global.brython();                // no-args, matching code2web's proven invocation
-      var mod = global.__BRYTHON__.runPythonSource(sources[PY_LIBS.length], 'brython_runner');
-      return mod;
+      var source = await fetchText('brython/brython_runner.py');
+      global.brython();                // no-args (see header)
+      return global.__BRYTHON__.runPythonSource(source, 'brython_runner');
     })().catch(function (e) { __enginePromise = null; throw e; });
     return __enginePromise;
   }
@@ -169,6 +187,11 @@
     try {
       var mod = await load();
       var spec = await buildDatasetSpec(opts && opts.loads);
+      var needed = scanImports(script);
+      if (Object.keys(spec).length && needed.indexOf('pandas_brython') === -1) {
+        needed.push('pandas_brython');   // _bind_datasets bygger DataFrames
+      }
+      await ensureLibs(mod, needed);
       if (Object.keys(spec).length) {
         var bindErr = mod._bind_datasets(JSON.stringify(spec));
         if (bindErr) return { text: '', error: String(bindErr) };
@@ -181,5 +204,5 @@
     }
   }
 
-  global.BrythonEngine = { load: load, run: run };
+  global.BrythonEngine = { load: load, run: run, _scanImports: scanImports };
 })(typeof window !== 'undefined' ? window : globalThis);
