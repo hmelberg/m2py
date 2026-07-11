@@ -1,0 +1,31 @@
+# Eksempel: maskinlæring i Brython-modus — sklearn-subsett (ren Python)
+# load https://raw.githubusercontent.com/hmelberg/openstat/main/data/iris.csv as iris
+import plotly_express_brython as pe
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix
+
+X = iris[["sepal_length", "sepal_width", "petal_length", "petal_width"]]
+
+# KMeans: finn 3 klynger uten fasit
+km = KMeans(n_clusters=3, random_state=1).fit(X)
+iris["klynge"] = [str(k) for k in km.labels_.tolist()]
+show(pe.scatter(iris, x="petal_length", y="petal_width", color="klynge",
+                title="KMeans-klynger (uten fasit)"))
+
+# PCA: fire mål ned til to hovedkomponenter
+pc = PCA(n_components=2).fit_transform(X).tolist()
+iris["pc1"] = [r[0] for r in pc]
+iris["pc2"] = [r[1] for r in pc]
+show(pe.scatter(iris, x="pc1", y="pc2", color="species", title="PCA av iris"))
+
+# Klassifisering: er blomsten virginica?
+y = [1 if s == "virginica" else 0 for s in iris["species"]]
+X_tren, X_test, y_tren, y_test = train_test_split(X, y, test_size=0.3, random_state=1)
+modell = LogisticRegression().fit(X_tren, y_tren)
+pred = modell.predict(X_test)
+print("Treffsikkerhet:", round(accuracy_score(y_test, pred), 3))
+print("Forvirringsmatrise (rader = fasit):")
+print(confusion_matrix(y_test, pred).tolist())

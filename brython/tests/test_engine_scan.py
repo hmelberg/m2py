@@ -78,3 +78,9 @@ def test_seaborn_alias_resolves_to_canonical():
 def test_duckdb_alias():
     assert scan('import duckdb') == ['duckdb_brython']
     assert scan('from duckdb import sql') == ['duckdb_brython']
+
+
+def test_sklearn_alias():
+    assert scan('import sklearn') == ['sklearn_brython']
+    assert scan('from sklearn.cluster import KMeans') == ['sklearn_brython']
+    assert scan('from sklearn import metrics') == ['sklearn_brython']

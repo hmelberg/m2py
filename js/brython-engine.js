@@ -57,6 +57,12 @@
     // async-bro med replay — se beginDuckBridge()/run(); pandas for .df()
     duckdb_brython:         { aliases: ['duckdb'],
                               deps: ['pandas_brython'], js: [] },
+    // flat modul + namespace-objekter; dottede aliaser krever 'sklearn' først
+    sklearn_brython:        { aliases: ['sklearn', 'sklearn.model_selection',
+                                        'sklearn.preprocessing', 'sklearn.linear_model',
+                                        'sklearn.cluster', 'sklearn.decomposition',
+                                        'sklearn.neighbors', 'sklearn.metrics'],
+                              deps: ['numpy_brython'], js: [] },
     // MERK: denne oppføringen har forsvunnet i to parallell-økt-kollisjoner —
     // ved konflikt her: BEHOLD den. js-deps er {url, global}-objekter, ikke strenger.
     dash:                   { aliases: [], deps: [], js: [{ url: 'js/dash.js', global: 'Dash' }] }
