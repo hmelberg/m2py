@@ -3110,6 +3110,16 @@
       },
       async exec(sql) { if (!this.conn) throw new Error('__duck: call begin() first'); await this.conn.query(sql); },
       async query(sql) { if (!this.conn) throw new Error('__duck: call begin() first'); return __arrowToColumns(await this.conn.query(sql)); },
+      // Native-veiens CSV-motstykke til registerTable (som tar parquet-bytes).
+      async registerCsv(name, csvBytes) {
+        if (!this.conn) throw new Error('__duck: call begin() before registerCsv()');
+        const db = await __ensureDuckDB();
+        const ident = String(name).replace(/"/g, '""');
+        const fname = String(name).replace(/'/g, "''") + '.csv';
+        await db.registerFileBuffer(String(name) + '.csv', new Uint8Array(csvBytes));
+        await this.conn.query('CREATE OR REPLACE VIEW "' + ident +
+          '" AS SELECT * FROM read_csv_auto(\'' + fname + '\')');
+      },
       async end() {
         try { if (this.conn) await this.conn.close(); }
         finally { this.conn = null; }
@@ -3582,6 +3592,10 @@
         onActivate: function () { if (!pdexplorerReady && !pdexplorerLoading) loadPyodideAndM2py().then(loadPdexplorer); },
         runSelf: async function (script, ctx) { await runStatxScript(script, ctx); } },
       duckdb: { id: 'duckdb', label: 'SQL - DuckDB', hlConfig: SQL_HL_CFG, handleTab: microdataHandleTab,
+        // Fase 1 (2026-07-11): SQL-modus varmer duckdb-wasm, ikke Pyodide —
+        // rene SQL-kjøringer går native (maybeRunDuckNative); hybride faller
+        // tilbake til Pyodide-veien med sen boot.
+        onActivate: function () { __ensureDuckDB().catch(function () {}); },
         runDefault: 'duckdb' },
       brython: { id: 'brython', label: 'Brython', hlConfig: PY_HL_CFG, handleTab: handlePythonTab,
         onActivate: function () { if (window.BrythonEngine) window.BrythonEngine.load().catch(function () {}); },
@@ -3633,7 +3647,7 @@
     // moduser (f.eks. brython) er én ny rad + en loader — guardene i
     // btnRun/bootstrap/modusbytte ruter alle gjennom runtimeForMode()
     // (plan 2026-07-09: R uten Pyodide, fremtidig brython/subdomene-boot).
-    var RUNTIME_FOR_MODE = { python: 'pyodide', microdata: 'pyodide', duckdb: 'pyodide',
+    var RUNTIME_FOR_MODE = { python: 'pyodide', microdata: 'pyodide', duckdb: 'duckdb',
                              jamovi: 'pyodide', statx: 'pyodide',
                              safestat: 'pyodide', brython: 'brython', r: 'webr' };
     function runtimeForMode(id) { return RUNTIME_FOR_MODE[id] || 'pyodide'; }  // ukjent → trygt valg
@@ -7601,6 +7615,101 @@ async def _run_duck_sql(_sql):
       }
     }
 
+    // ── Fase 1: native duckdb-kjørevei, uten Pyodide (plan 2026-07-11) ──────
+    // Kjører rene SQL-scripts direkte mot duckdb-wasm. Returnerer true når
+    // kjøringen er håndtert her; false betyr «bruk Pyodide-veien» (hybride
+    // segmenter, use-direktiver, montering, remote-kilder eller lasteformater
+    // pandas må håndtere). Speiler _run_duck_sql i interpreter-preamblet —
+    // endres semantikken der, må den endres her. Merk atferdsdeltaet fra
+    // planen: tabeller opprettet her materialiseres IKKE inn i e.datasets;
+    // senere python-kjøringer henter dem med «# use <navn> from duckdb».
+    async function maybeRunDuckNative(script, ctx) {
+      // Er Pyodide alt i gang i denne fanen, kan e.datasets holde pandas-
+      // rammer scriptet refererer (python → SQL-flyten). Da gjelder dagens
+      // semantikk uendret: Pyodide-veien registrerer refererte datasett selv.
+      if (__pyodidePromise) return false;
+      var _segs = parseHybridScript(script, 'duckdb');
+      if (_segs.some(function (s) { return s.kind !== 'duckdb'; })) return false;
+      if (window.DataDirectives) {
+        var _up = window.DataDirectives.parseUse(script);
+        if (_up.errors.length) throw new Error(_up.errors.join('; '));
+        if (_up.uses.length) return false;
+      }
+      var _deps = {
+        authToken: getAuthToken(), anthropicKey: getAnthropicKey(),
+        apiBase: getMdApiBase(), promptKey: mdPromptKey,
+        authorizeStrict: function (ids) { return mdAuthorizeStrictRun(ids, script); } };
+      var _res = await resolveAssemblyOrLoads(script, _deps);
+      if (_res.asmSpec && _res.asmSpec.datasets && _res.asmSpec.datasets.length) return false;
+      if (_res.dl.remote.length) return false;
+      var _loads = _res.dl.loads;
+      var _html = _loads.find(function (l) { return l.format === 'html'; });
+      if (_html) throw new Error(t('html-kilder støttes ikke i duckdb-modus ({alias}) — bruk python/r', { alias: _html.alias }));
+      var _supported = _loads.every(function (l) {
+        if (l.format === 'parquet' || l.format === 'csv') return !!l.bytes;
+        if (l.format === 'duckdb' || l.format === 'sqlite') return !!(l.bytes && l.table);
+        return false;
+      });
+      if (!_supported) return false;
+      // Fra hit er kjøringen vår. Sidepanel-nivåer som i Pyodide-veien.
+      _loads.forEach(function (l) {
+        if (window.SessionContext) window.SessionContext.noteFetchedLoad(l.alias,
+          { level: l.level, strict: !!l.strict, envelopeKind: l.envelope && l.envelope.format });
+        if (window.__setDatasetLevel) window.__setDatasetLevel(l.alias, l.level || 'public');
+      });
+      setStatus(ctx.rightStatus, t('Kjører…'));
+      // Direktivlinjene er metadata (og «# load» er ikke gyldig SQL) — fjern
+      // dem før exec, samme regex som remote-veien bruker.
+      var _sql = script.replace(/^[ \t]*(?:#|--|\/\/)[ \t]*(?:connect|load|require|import|join|create-dataset)\b[^\n]*\n?/gim, '');
+      var DN = window.DuckdbNative;
+      var _out = [];
+      // Kun kommentarer (f.eks. en innledende --/​/* */-notis) → ingen SQL å
+      // kjøre; samme sjekk som _run_duck_sql gjør med _scrub.
+      if (DN.scrub(_sql).trim()) {
+        await window.__duck.begin();
+        try {
+          for (var _li = 0; _li < _loads.length; _li++) {
+            var _l = _loads[_li];
+            if (_l.format === 'parquet') await window.__duck.registerTable(_l.alias, _l.bytes);
+            else if (_l.format === 'csv') await window.__duck.registerCsv(_l.alias, _l.bytes);
+            else {
+              // duckdb/sqlite-fil med tabell → parquet-bytes via eksisterende ekstraktor
+              var _pq = await __extractDuckdbTable(_l.bytes, _l.format, _l.table);
+              await window.__duck.registerTable(_l.alias, _pq);
+            }
+          }
+          await window.__duck.exec(_sql);
+          var _stmts = DN.splitSqlStatements(_sql);
+          var _preview = DN.buildPreviewSelect(_stmts);
+          if (_preview) {
+            var _cnt = await window.__duck.query('SELECT count(*) AS n FROM (' + _preview + ') _q');
+            var _total = Number((_cnt.n || [0])[0] || 0);
+            var _cols = await window.__duck.query('SELECT * FROM (' + _preview + ') _q LIMIT 400');
+            var _keys = Object.keys(_cols);
+            var _shown = _keys.length ? _cols[_keys[0]].length : 0;
+            _out.push(_shown ? DN.formatColumnsText(_cols) : '(0 rader)');
+            if (_total > 400) _out.push(_total + ' rader — viser de første 400. Bruk CREATE TABLE navn AS … for å lagre som datasett.');
+          }
+          if (!_preview) {
+            var _created = DN.extractCreatedTables(_stmts);
+            for (var _ci = 0; _ci < _created.length; _ci++) {
+              var _ident = _created[_ci].replace(/"/g, '""');
+              var _cc = await window.__duck.query('SELECT count(*) AS n FROM "' + _ident + '"');
+              var _dd = await window.__duck.query('DESCRIBE "' + _ident + '"');
+              _out.push('Opprettet datasett ' + _created[_ci] + ' (' +
+                Number((_cc.n || [0])[0] || 0) + ' rader × ' + ((_dd.column_name || []).length) + ' kolonner)');
+            }
+          }
+        } finally {
+          await window.__duck.end();
+        }
+      }
+      renderOutput(_out.join('\n\n'), false, false);
+      refreshDatasetSidebarFromDuck();
+      setStatus(ctx.rightStatus, t('Ferdig'));
+      return true;
+    }
+
     // R-motstykket til refreshDatasetSidebarFromPy: sidepanelet var før et
     // rent Python-vindu (R-datasett vistes aldri). Leser alle data.frames i
     // globalenv via evalR/toJs — ingen jsonlite-avhengighet. dtypes mappes
@@ -9566,6 +9675,13 @@ options(width = 200)
       }).catch(function (e) {
         setStatus(leftStatus, 'Load failed: ' + (e && e.message ? e.message : String(e)), true);
       });
+    } else if (runtimeForMode(activeEditorMode) === 'duckdb') {
+      // Fase 1 (plan 2026-07-11): SQL-modus booter duckdb-wasm, ikke Pyodide.
+      __ensureDuckDB().then(function () {
+        runtimeReadyBootstrap(null);
+      }).catch(function (e) {
+        setStatus(leftStatus, 'Load failed: ' + (e && e.message ? e.message : String(e)), true);
+      });
     } else {
       loadPyodideAndM2py()
         .then(runtimeReadyBootstrap)
@@ -9724,23 +9840,28 @@ options(width = 200)
         py = (runtimeForMode(activeEditorMode) !== 'pyodide') ? null : await loadPyodideAndM2py();
         let stdout = '';
         let stderr = '';
-        if (py && typeof py.setStdout === 'function') {
-          py.setStdout({ batched: s => {
-            // Filtrer bort Pyodide/micropip pakke-lastemeldinger (bakgrunns-prefetch)
-            // som ellers lekker inn i output ved første kjøring.
-            var f = String(s).split('\n').filter(function (l) {
-              var t = l.replace(/\s+$/, '');
-              return !(/ already loaded from default channel$/.test(t)
-                || /^Load(ing|ed) [\w.\-]+(, [\w.\-]+)+$/.test(t)
-                || /^Load(ing|ed) (statsmodels|matplotlib|patsy|lifelines|linearmodels|autograd|numpy|scipy|pandas)$/.test(t));
-            }).join('\n');
-            if (f === '' && String(s).trim() !== '') return;  // ren pakke-støy → hopp over
-            stdout += f + '\n';
-          } });
-        }
-        if (py && typeof py.setStderr === 'function') {
-          py.setStderr({ batched: s => { stderr += s + '\n'; } });
-        }
+        // Egen funksjon: kalles både ved normal boot her og ved SEN Pyodide-
+        // boot i duckdb-fallbackveien lenger ned (fase 1, plan 2026-07-11).
+        const _wirePyIO = function (p) {
+          if (p && typeof p.setStdout === 'function') {
+            p.setStdout({ batched: s => {
+              // Filtrer bort Pyodide/micropip pakke-lastemeldinger (bakgrunns-prefetch)
+              // som ellers lekker inn i output ved første kjøring.
+              var f = String(s).split('\n').filter(function (l) {
+                var t = l.replace(/\s+$/, '');
+                return !(/ already loaded from default channel$/.test(t)
+                  || /^Load(ing|ed) [\w.\-]+(, [\w.\-]+)+$/.test(t)
+                  || /^Load(ing|ed) (statsmodels|matplotlib|patsy|lifelines|linearmodels|autograd|numpy|scipy|pandas)$/.test(t));
+              }).join('\n');
+              if (f === '' && String(s).trim() !== '') return;  // ren pakke-støy → hopp over
+              stdout += f + '\n';
+            } });
+          }
+          if (p && typeof p.setStderr === 'function') {
+            p.setStderr({ batched: s => { stderr += s + '\n'; } });
+          }
+        };
+        _wirePyIO(py);
         // ── Parse inline-direktiver fra scriptet (f.eks.
         //    `#options.show_commands=False`). Brukes til a styre om
         //    kode-echo skal vises i output for R og Python.
@@ -9796,6 +9917,16 @@ options(width = 200)
         if (activeEditorMode === 'microdata' && await maybeRunRemoteMicrodata(effectiveScript, _ctx)) return;
         if (_mr.runSelf) { await _mr.runSelf(effectiveScript, _ctx); return; }
         if (_mr.preRun)  await _mr.preRun(effectiveScript, _ctx);
+        // Fase 1 (plan 2026-07-11-phase1-duckdb-native.md): ren SQL i duckdb-
+        // modus kjører native mot duckdb-wasm, uten Pyodide. Hybride segmenter,
+        // use-direktiver, montering og pandas-formater faller igjennom hit —
+        // da bootes Pyodide sent, og resten av veien under er uendret.
+        if (activeEditorMode === 'duckdb' && !py && !dashboardPendingParsed) {
+          if (await maybeRunDuckNative(effectiveScript, _ctx)) return;
+          py = await loadPyodideAndM2py();
+          _ctx.py = py;
+          _wirePyIO(py);
+        }
         // Web-modus: connect/load-direktiver — hent kildene og skriv dem til
         // Pyodide-FS her; selve bindingen inn i e.datasets/_g skjer i
         // buildWebDataLoaderPreamble() (kjøres som del av runCode under).
@@ -10707,6 +10838,7 @@ def _run_microdata_chunk(_code):
   <script src="js/enc-crypto.js"></script>
   <script src="js/data-loader.js"></script>
   <script src="js/assembly-duckdb.js"></script>
+  <script src="js/duckdb-native.js"></script>
   <script src="js/ai-chat.js"></script>
   <script src="js/github-storage.js"></script>
 
