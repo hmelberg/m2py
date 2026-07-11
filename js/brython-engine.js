@@ -51,7 +51,9 @@
     statsmodels_brython:    { aliases: ['statsmodels', 'statsmodels.formula',
                                         'statsmodels.formula.api'],
                               deps: ['scipy_stats_brython'], js: [] },
-    numpy_brython:          { aliases: ['numpy'], deps: [], js: [] }
+    numpy_brython:          { aliases: ['numpy'], deps: [], js: [] },
+    // js-oppføringen laster dash v2-motoren (window.Dash) før dash.py kjører
+    dash:                   { aliases: [], deps: [], js: [{ url: 'js/dash.js', global: 'Dash' }] }
   };
 
   function scanImports(code) {
