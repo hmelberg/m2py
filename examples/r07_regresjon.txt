@@ -9,6 +9,7 @@ import fd/BEFOLKNING_KJOENN as kjonn
 import fd/BEFOLKNING_FOEDSELS_AAR_MND as fodt
 
 #r
+# use folk
 library(dplyr)
 
 folk <- folk |>

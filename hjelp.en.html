@@ -733,6 +733,16 @@ summarize kjonn
       </tbody>
     </table>
 
+    <h3>Sharing data between languages: <code># use</code></h3>
+    <p>Microdata and Python blocks share datasets automatically (same engine). Between <strong>different</strong> engines — Python↔R, microdata→R, DuckDB↔others — fetch a dataset explicitly with a <code>use</code> line at the top of the block:</p>
+    <pre><code>#py
+df["ny"] = df["x"] * 2
+
+#r
+# use df
+summary(df$ny)</code></pre>
+    <p>Without <code>from</code>, the dataset is fetched from the nearest earlier block in a different language; specify <code># use df from python|r|duckdb</code> when needed (required when the source is a <em>previous run</em>). Copy semantics: the block gets a snapshot — changes do not propagate back to the source engine.</p>
+
     <h3>Example: microdata + Python</h3>
     <pre><code>## microdata
 require no.ssb.fdb:52 as db

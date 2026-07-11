@@ -175,18 +175,72 @@
   // "# use <navn> from r|python" — kryssruntime-kopi av et datasett (parquet-
   // bro, kopisemantikk: endringer smitter ikke). Ren parsing; overføringen
   // gjøres av index.html i materialiseringsfasen for hver modus.
-  var USE_RE = /^[ \t]*(?:#|--|\/\/)[ \t]*use[ \t]+(\S+)[ \t]+from[ \t]+(\S+)[ \t]*$/gim;
+  // `from <kilde>` er valgfri (kortform, 2026-07-11): uten from er kilden
+  // null her — parseSegmentUses() utleder den fra segmentrekkefølgen, og
+  // run-start-brukere som krever eksplisitt kilde feiler med tydelig melding.
+  var USE_RE = /^[ \t]*(?:#|--|\/\/)[ \t]*use[ \t]+(\S+)(?:[ \t]+from[ \t]+(\S+))?[ \t]*$/gim;
   function parseUse(script) {
     var uses = [], errors = [], m;
     USE_RE.lastIndex = 0;
     while ((m = USE_RE.exec(script || '')) !== null) {
-      var name = m[1], from = m[2].toLowerCase();
+      var name = m[1], from = m[2] ? m[2].toLowerCase() : null;
       if (!/^[A-Za-z_]\w*$/.test(name)) { errors.push('ugyldig datasettnavn i use: «' + name + '»'); continue; }
-      if (from !== 'r' && from !== 'python' && from !== 'duckdb') { errors.push('use «' + name + '»: kilde må være r, python eller duckdb, fikk «' + m[2] + '»'); continue; }
+      if (from !== null && from !== 'r' && from !== 'python' && from !== 'duckdb') { errors.push('use «' + name + '»: kilde må være r, python eller duckdb, fikk «' + m[2] + '»'); continue; }
       uses.push({ name: name, from: from });
     }
     return { uses: uses, errors: errors };
   }
 
-  global.DataDirectives = { parse: parse, resolve: resolve, scrubKeys: scrubKeys, parseAssembly: parseAssembly, parseOptions: parseOptions, parseUse: parseUse };
+  // Runtime-familie per segment-kind: microdata/pyodide deler Python-heapen
+  // (use er aldri nødvendig dem imellom), duckdb og r er egne motorer.
+  function runtimeFamily(kind) {
+    if (kind === 'r') return 'r';
+    if (kind === 'duckdb') return 'duckdb';
+    return 'python';   // microdata, pyodide, ukjent → trygt valg
+  }
+
+  // Segmentnivå-use (plan 2026-07-11-segment-use-cross-runtime): trekk
+  // use-linjene ut av hvert segment, utled manglende kilde som familien til
+  // NÆRMESTE FOREGÅENDE segment med annen runtime enn blokken selv, og
+  // returner segmentene med use-linjene strippet (de er metadata; «# use»
+  // er ikke gyldig SQL, og i R/py ville de bare vært støy).
+  // -> { segments: [{kind, text, uses: [{name, from}]}], errors: [...] }
+  function parseSegmentUses(segments) {
+    var out = [], errors = [];
+    // Egen regex-instans: USE_RE deles med parseUse, og replace/exec på samme
+    // globale regex-objekt tråkker i hverandres lastIndex.
+    var SEG_USE_RE = new RegExp(USE_RE.source, 'gim');
+    (segments || []).forEach(function (seg, i) {
+      var fam = runtimeFamily(seg.kind);
+      var uses = [];
+      var text = String(seg.text || '').replace(SEG_USE_RE, function (line, name, fromRaw) {
+        var u = { name: name, from: fromRaw ? fromRaw.toLowerCase() : null };
+        if (!/^[A-Za-z_]\w*$/.test(u.name)) { errors.push('ugyldig datasettnavn i use: «' + u.name + '»'); return ''; }
+        if (u.from !== null && u.from !== 'r' && u.from !== 'python' && u.from !== 'duckdb') {
+          errors.push('use «' + u.name + '»: kilde må være r, python eller duckdb, fikk «' + fromRaw + '»');
+          return '';
+        }
+        if (u.from === null) {
+          for (var j = i - 1; j >= 0; j--) {
+            var pf = runtimeFamily((segments[j] || {}).kind);
+            if (pf !== fam) { u.from = pf; break; }
+          }
+          if (u.from === null) {
+            errors.push('use «' + u.name + '»: fant ingen tidligere blokk med annet språk å hente fra — angi kilden: # use ' + u.name + ' from python|r|duckdb');
+            return '';
+          }
+        }
+        if (u.from === fam) {
+          errors.push('use «' + u.name + '» from ' + u.from + ': blokken kjører allerede i ' + u.from + ' — datasett derfra refereres direkte');
+          return '';
+        }
+        uses.push(u);
+        return '';
+      });
+      out.push({ kind: seg.kind, text: text, uses: uses });
+    });
+    return { segments: out, errors: errors };
+  }
+
+  global.DataDirectives = { parse: parse, resolve: resolve, scrubKeys: scrubKeys, parseAssembly: parseAssembly, parseOptions: parseOptions, parseUse: parseUse, parseSegmentUses: parseSegmentUses, runtimeFamily: runtimeFamily };
 })(typeof window !== 'undefined' ? window : globalThis);

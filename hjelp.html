@@ -733,6 +733,16 @@ summarize kjonn
       </tbody>
     </table>
 
+    <h3>Dele data mellom språk: <code># use</code></h3>
+    <p>Microdata- og Python-blokker deler samme datasett automatisk (samme motor). Mellom <strong>ulike</strong> motorer — Python↔R, microdata→R, DuckDB↔andre — henter du et datasett eksplisitt med en <code>use</code>-linje øverst i blokken:</p>
+    <pre><code>#py
+df["ny"] = df["x"] * 2
+
+#r
+# use df
+summary(df$ny)</code></pre>
+    <p>Uten <code>from</code> hentes datasettet fra nærmeste tidligere blokk med et annet språk; presiser med <code># use df from python|r|duckdb</code> ved behov (må angis når kilden er en <em>tidligere kjøring</em>). Kopisemantikk: blokken får et øyeblikksbilde — endringer smitter ikke tilbake til kildemotoren.</p>
+
     <h3>Eksempel: microdata + Python</h3>
     <pre><code>## microdata
 require no.ssb.fdb:52 as db

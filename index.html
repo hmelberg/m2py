@@ -7737,6 +7737,96 @@ async def _run_duck_sql(_sql):
       return { handled: true };
     }
 
+    // ── Segmentnivå-use: kopier datasett mellom runtimes ved blokkgrensene ──
+    // (plan 2026-07-11-segment-use-cross-runtime). Kopisemantikk: parquet-
+    // snapshot idet blokken starter; endringer smitter ikke tilbake.
+    // Henter navngitt datasett fra kilderuntimen som parquet-bytes.
+    async function _useBytesFromRuntime(u) {
+      if (u.from === 'duckdb') return await __duckUseBytes(u.name);
+      if (u.from === 'r') {
+        if (!webRReady || !webR) throw new Error(t('use «{name}» from r: ingen R-økt i denne fanen — kjør R-scriptet først', { name: u.name }));
+        var _chk = await webR.evalR('exists(' + JSON.stringify(u.name) + ', envir = .GlobalEnv) && is.data.frame(get(' + JSON.stringify(u.name) + ', envir = .GlobalEnv))');
+        var _ok = false;
+        try { _ok = !!((await _chk.toJs()).values || [])[0]; } finally { try { await webR.destroy(_chk); } catch (e) {} }
+        if (!_ok) throw new Error(t('use «{name}» from r: fant ingen data.frame «{name}» i R-økten', { name: u.name }));
+        var _rp = '/tmp/_use_' + u.name + '.parquet';
+        await webR.evalRVoid('nanoparquet::write_parquet(get(' + JSON.stringify(u.name) + ', envir = .GlobalEnv), ' + JSON.stringify(_rp) + ')');
+        return await webR.FS.readFile(_rp);
+      }
+      // from === 'python': fra pyodide-økten (e.datasets → bare globals → _g)
+      if (!__pyodidePromise) throw new Error(t('use «{name}» from python: ingen python-økt i denne fanen — kjør python-scriptet først', { name: u.name }));
+      var _upy = await loadPyodideAndM2py();
+      await ensurePyarrowFor(_upy);
+      var _pp = '/tmp/_use_' + u.name + '.parquet';
+      // Prioritet: kjøringens _g (ferskeste brukerscope) → datasett-
+      // registeret → __main__-attributter (kan holde gamle/engine-objekter).
+      await _upy.runPythonAsync([
+        'import __main__ as _m_u',
+        'import pandas as _pd_uu',
+        '_df_u = None',
+        '_g_u = getattr(_m_u, "_g", None)',
+        'if isinstance(_g_u, dict) and isinstance(_g_u.get(' + JSON.stringify(u.name) + '), _pd_uu.DataFrame):',
+        '    _df_u = _g_u[' + JSON.stringify(u.name) + ']',
+        'if _df_u is None:',
+        '    try:',
+        '        _cand_u = _m_u.micro_interpreter.datasets.get(' + JSON.stringify(u.name) + ')',
+        '        if isinstance(_cand_u, _pd_uu.DataFrame):',
+        '            _df_u = _cand_u',
+        '    except Exception:',
+        '        pass',
+        'if _df_u is None:',
+        '    _cand_u = getattr(_m_u, ' + JSON.stringify(u.name) + ', None)',
+        '    if isinstance(_cand_u, _pd_uu.DataFrame):',
+        '        _df_u = _cand_u',
+        'if _df_u is None:',
+        '    raise NameError(' + JSON.stringify('use «' + u.name + '» from python: fant ingen dataframe «' + u.name + '» i python-økten') + ')',
+        '_df_u.to_parquet(' + JSON.stringify(_pp) + ', index=False)',
+      ].join('\n'));
+      var _pbytes = _upy.FS.readFile(_pp);
+      try { _upy.FS.unlink(_pp); } catch (e) {}
+      return _pbytes;
+    }
+    // Binder parquet-bytes inn i pyodide-økten som e.datasets[navn] + _g[navn].
+    async function _bindUseIntoPy(py, name, bytes) {
+      await ensurePyarrowFor(py);
+      var _bp = '/tmp/_useb_' + name + '.parquet';
+      py.FS.writeFile(_bp, bytes);
+      py.globals.set('_use_bind_name', name);
+      py.globals.set('_use_bind_path', _bp);
+      await py.runPythonAsync(
+        'import pandas as _pd_ub\n' +
+        '_df_ub = _pd_ub.read_parquet(_use_bind_path)\n' +
+        'e.datasets[_use_bind_name] = _df_ub\n' +
+        '_g[_use_bind_name] = _df_ub\n');
+      try { py.FS.unlink(_bp); } catch (e) {}
+    }
+    // Binder parquet-bytes inn i webR-økten som <navn> (data.frame).
+    async function _bindUseIntoR(name, bytes) {
+      if (!webRReady) await loadWebR();
+      try { await webR.installPackages(['nanoparquet'], { quiet: true }); } catch (e) {}
+      var _bp2 = '/home/web_user/_useb_' + name + '.parquet';
+      await webR.FS.writeFile(_bp2, bytes);
+      await webR.evalRVoid(name + ' <- as.data.frame(nanoparquet::read_parquet(' + JSON.stringify(_bp2) + '))');
+    }
+    // Kjører en #r-blokk inne i et python-familie-script: materialiser
+    // blokkens uses, kjør via captureR, og legg output/plot rett i outputArea.
+    async function runInlineRSegment(seg) {
+      if (!webRReady) await loadWebR();
+      for (var _iu = 0; _iu < (seg.uses || []).length; _iu++) {
+        var _u3 = seg.uses[_iu];
+        await _bindUseIntoR(_u3.name, await _useBytesFromRuntime(_u3));
+      }
+      if (!webRShelter) webRShelter = await new webR.Shelter();
+      var _cap = await webRShelter.captureR(seg.text, { withAutoprint: true,
+        captureGraphics: { width: 800, height: 420, bg: 'white', pointsize: 13 } });
+      var _parts = [];
+      var _lines = (_cap.output || []).filter(function (o) { return o.type === 'stdout' || o.type === 'stderr'; })
+        .map(function (o) { return String(o.data); }).join('\n');
+      if (_lines.trim()) _parts.push({ type: 'text', text: _lines, className: 'm2py-stmt-output' });
+      (_cap.images || []).forEach(function (bm) { _parts.push({ type: 'image', bitmap: bm }); });
+      outputArea.appendChild(buildROutputNodes(_parts));
+    }
+
     // R-motstykket til refreshDatasetSidebarFromPy: sidepanelet var før et
     // rent Python-vindu (R-datasett vistes aldri). Leser alle data.frames i
     // globalenv via evalR/toJs — ingen jsonlite-avhengighet. dtypes mappes
@@ -8322,40 +8412,9 @@ json.dumps(out)
       // loads i webR (speilbildet av python-sidens use from r). Krever en
       // EKSISTERENDE python-økt — vi tvinger aldri frem Pyodide-lasting i
       // R-modus (fase 1); uten økt finnes det uansett ingen data å hente.
-      var _useR = window.DataDirectives.parseUse(src);
-      if (_useR.errors.length) throw new Error(_useR.errors.join('; '));
-      for (var _uri = 0; _uri < _useR.uses.length; _uri++) {
-        var _ur = _useR.uses[_uri];
-        if (_ur.from === 'r') throw new Error(t('use «{name}» from r: du er allerede i R — mente du from python eller duckdb?', { name: _ur.name }));
-        if (_ur.from === 'duckdb') {
-          _loadsR.push({ alias: _ur.name, format: 'parquet', bytes: await __duckUseBytes(_ur.name) });
-          continue;
-        }
-        if (!__pyodidePromise) throw new Error(t('use «{name}» from python: ingen python-økt i denne fanen — kjør python-scriptet først', { name: _ur.name }));
-        var _upy = await loadPyodideAndM2py();
-        await ensurePyarrowFor(_upy);          // to_parquet trenger pyarrow-motoren
-        var _urPath = '/tmp/_use_' + _ur.name + '.parquet';
-        var _urGlue = [
-          'import __main__ as _m_u',
-          '_df_u = None',
-          'try:',
-          '    _df_u = _m_u.micro_interpreter.datasets.get(' + JSON.stringify(_ur.name) + ')',
-          'except Exception:',
-          '    pass',
-          'if _df_u is None:',
-          '    _df_u = getattr(_m_u, ' + JSON.stringify(_ur.name) + ', None)',
-          'if _df_u is None:',
-          '    _g_u = getattr(_m_u, "_g", None)',
-          '    if isinstance(_g_u, dict):',
-          '        _df_u = _g_u.get(' + JSON.stringify(_ur.name) + ')',
-          'if _df_u is None:',
-          '    raise NameError(' + JSON.stringify('use «' + _ur.name + '» from python: fant ingen dataframe «' + _ur.name + '» i python-økten') + ')',
-          '_df_u.to_parquet(' + JSON.stringify(_urPath) + ', index=False)',
-        ].join('\n');
-        await _upy.runPythonAsync(_urGlue);
-        _loadsR.push({ alias: _ur.name, format: 'parquet', bytes: _upy.FS.readFile(_urPath) });
-        try { _upy.FS.unlink(_urPath); } catch (e) {}
-      }
+      // "# use …" håndteres nå på segmentnivå (plan 2026-07-11): use-linjene
+      // parses/strippes per blokk lenger ned, og kopiene materialiseres
+      // etter micro-fasen — se _rUses-blokken der.
       if (_loadsR.length && _loadsR.some(function (l) { return l.format === 'json'; })) {
         try { await webR.installPackages(['jsonlite'], { quiet: true }); } catch (e) {
           console.warn('R jsonlite install error:', e);
@@ -8384,8 +8443,25 @@ json.dumps(out)
       var hasMarkers = /^##\s*(r|microdata|micro|pyodide|python)\s*$/im.test(normalized);
       const segments = parseHybridScript(normalized, hasMarkers ? 'microdata' : 'r');
 
-      var microdataSegs = segments.filter(function(s) { return s.kind === 'microdata' && (s.text || '').trim(); });
-      var rSegs        = segments.filter(function(s) { return s.kind !== 'microdata' && (s.text || '').trim(); });
+      // Segmentnivå-use (plan 2026-07-11): parse/strip use-linjene per blokk.
+      // I R-modus er kjøringen faseinndelt (alle #micro først, så all R), så
+      // use-kopiene materialiseres samlet ETTER micro-fasen, før R-fasen.
+      var _suR = (window.DataDirectives && window.DataDirectives.parseSegmentUses)
+        ? window.DataDirectives.parseSegmentUses(segments)
+        : { segments: segments, errors: [] };
+      if (_suR.errors.length) throw new Error(_suR.errors.join('; '));
+      var _rSegsAll = _suR.segments;
+      var _badSeg = _rSegsAll.find(function (s) {
+        return s.kind !== 'r' && s.kind !== 'microdata' && (s.text || '').trim();
+      });
+      if (_badSeg) throw new Error(t('#py-blokker støttes ikke i R-modus — kjør dem i python-modus og hent resultatet med «# use <navn> from r», eller hent python-data hit med «# use <navn> from python»'));
+      var _badMicroUse = _rSegsAll.find(function (s) { return s.kind === 'microdata' && (s.uses || []).length; });
+      if (_badMicroUse) throw new Error(t('use i #micro-blokker støttes ikke i R-modus ennå — legg use-linjen i R-blokken i stedet'));
+      var _rUses = [];
+      _rSegsAll.forEach(function (s) { if (s.kind === 'r') _rUses.push.apply(_rUses, s.uses || []); });
+
+      var microdataSegs = _rSegsAll.filter(function(s) { return s.kind === 'microdata' && (s.text || '').trim(); });
+      var rSegs        = _rSegsAll.filter(function(s) { return s.kind !== 'microdata' && (s.text || '').trim(); });
       var outputParts  = [];
 
       // ── Phase 1: run all microdata segments with a shared interpreter ────
@@ -8410,51 +8486,69 @@ json.dumps(out)
           for (var ms = 0; ms < microdataSegs.length; ms++) {
             mdSetupCode += '_e_r.run_script(' + JSON.stringify(microdataSegs[ms].text.trim()) + ')\n';
           }
-
-          mdSetupCode +=
-            '_g_xfer = {}\n' +
-            '_e_r.sync_datasets_to_globals(_g_xfer)\n' +
-            '_result_b64 = {}\n' +
-            '_result_cols = {}\n' +
-            'for _k, _v in list(_g_xfer.items()):\n' +
-            '    if isinstance(_v, _pd3.DataFrame):\n' +
-            '        _buf4 = _io4.BytesIO()\n' +
-            '        _v.to_parquet(_buf4, index=False)\n' +
-            '        _result_b64[_k] = _b64.b64encode(_buf4.getvalue()).decode("ascii")\n' +
-            '        _result_cols[_k] = list(_v.columns)\n' +
-            '_j.dumps({"data": _result_b64, "columns": _result_cols})\n';
-
-          var mdRes  = JSON.parse(String(await py.runPythonAsync(mdSetupCode)));
-          var b64Map = mdRes.data;
-
-          var catVars = (microdataCatalog && microdataCatalog.variables) ? microdataCatalog.variables : {};
-
-          // Inject each dataframe into WebR via Parquet (typed — dates/NA/int
-          // vs. double survive exactly, unlike the previous CSV round-trip),
-          // then apply catalog factors in base R.
-          for (var dfName of Object.keys(b64Map)) {
-            var b64 = b64Map[dfName];
-            var dfCols = mdRes.columns[dfName] || [];
-
-            var rCode = parquetInjectionRCode(dfName, b64);
-
-            // Apply catalog labels as factors using base R only
-            dfCols.forEach(function(col) {
-              var meta = catVars[col] || catVars[col.toUpperCase()] || catVars[col.toLowerCase()];
-              if (!meta || !meta.labels) return;
-              var lbl = meta.labels;
-              var lvls = 'c(' + Object.keys(lbl).map(function(k) { return JSON.stringify(String(k)); }).join(',') + ')';
-              var labs = 'c(' + Object.values(lbl).map(function(v) { return JSON.stringify(String(v)); }).join(',') + ')';
-              rCode += dfName + '[[' + JSON.stringify(col) + ']] <- factor(' +
-                'as.character(' + dfName + '[[' + JSON.stringify(col) + ']]),' +
-                ' levels=' + lvls + ', labels=' + labs + ')\n';
-            });
-
-            await webR.evalRVoid(rCode);
-          }
+          // Implisitt kopier-alt-eksport til R er FJERNET (2026-07-11):
+          // safestat/openstat krever eksplisitt «# use <navn>» i R-blokken —
+          // microdata-repoen beholder den implisitte kopieringen.
+          await py.runPythonAsync(mdSetupCode);
           setStatus(rightStatus, t('Kjører R…'));
         } catch(e) {
           outputParts.push({ type: 'error', text: 'Microdata-feil: ' + (e.message || e) });
+        }
+      }
+
+      // ── Eksplisitte use-kopier inn i R (etter micro-fasen: «# use folk» i
+      // en R-blokk henter fra dette scriptets #micro-tilstand først, så fra
+      // hoved-python-økten; «from duckdb» fra wasm-katalogen) ──
+      if (_rUses.length) {
+        setStatus(rightStatus, t('Henter use-datasett…'));
+        var catVars = (microdataCatalog && microdataCatalog.variables) ? microdataCatalog.variables : {};
+        for (var _ru = 0; _ru < _rUses.length; _ru++) {
+          var _u5 = _rUses[_ru];
+          if (_u5.from === 'duckdb') {
+            await _bindUseIntoR(_u5.name, await __duckUseBytes(_u5.name));
+            continue;
+          }
+          // from 'python'
+          if (!py) {
+            if (!__pyodidePromise) throw new Error(t('use «{name}» from python: ingen python-økt i denne fanen — kjør python-scriptet først', { name: _u5.name }));
+            py = await loadPyodideAndM2py();
+          }
+          await ensurePyarrowFor(py);
+          py.globals.set('_use_r_name', _u5.name);
+          py.globals.set('_use_er_ok', microdataSegs.length > 0);
+          var _uRes = JSON.parse(String(await py.runPythonAsync([
+            'import __main__ as _m_u, json as _ju, base64 as _b64u, io as _iou, pandas as _pdu',
+            '_df_u = None',
+            '_er_src = getattr(getattr(_m_u, "_e_r", None), "datasets", None) if _use_er_ok else None',
+            '_mi_src = getattr(getattr(_m_u, "micro_interpreter", None), "datasets", None)',
+            'for _srcd in (_er_src, _mi_src, getattr(_m_u, "_g", None)):',
+            '    if isinstance(_srcd, dict) and _use_r_name in _srcd and isinstance(_srcd[_use_r_name], _pdu.DataFrame):',
+            '        _df_u = _srcd[_use_r_name]',
+            '        break',
+            'if _df_u is None:',
+            '    _cand = getattr(_m_u, _use_r_name, None)',
+            '    if isinstance(_cand, _pdu.DataFrame):',
+            '        _df_u = _cand',
+            'if _df_u is None:',
+            "    raise NameError('use \\u00ab' + _use_r_name + '\\u00bb from python: fant ingen dataframe \\u00ab' + _use_r_name + '\\u00bb i python-\\u00f8kten')",
+            '_bufu = _iou.BytesIO()',
+            '_df_u.to_parquet(_bufu, index=False)',
+            "_ju.dumps({'b64': _b64u.b64encode(_bufu.getvalue()).decode('ascii'), 'cols': list(_df_u.columns)})",
+          ].join('\n'))));
+          var _rCodeU = parquetInjectionRCode(_u5.name, _uRes.b64);
+          // Katalog-etiketter som factors — samme regel som den gamle
+          // implisitte eksporten brukte.
+          (_uRes.cols || []).forEach(function (col) {
+            var meta = catVars[col] || catVars[col.toUpperCase()] || catVars[col.toLowerCase()];
+            if (!meta || !meta.labels) return;
+            var lbl = meta.labels;
+            var lvls = 'c(' + Object.keys(lbl).map(function (k) { return JSON.stringify(String(k)); }).join(',') + ')';
+            var labs = 'c(' + Object.values(lbl).map(function (v) { return JSON.stringify(String(v)); }).join(',') + ')';
+            _rCodeU += _u5.name + '[[' + JSON.stringify(col) + ']] <- factor(' +
+              'as.character(' + _u5.name + '[[' + JSON.stringify(col) + ']]),' +
+              ' levels=' + lvls + ', labels=' + labs + ')\n';
+          });
+          await webR.evalRVoid(_rCodeU);
         }
       }
 
@@ -10021,54 +10115,10 @@ options(width = 200)
             var _htmlLoad = _rawLoads.find(function (l) { return l.format === 'html'; });
             if (_htmlLoad) throw new Error(t('html-kilder støttes ikke i duckdb-modus ({alias}) — bruk python/r', { alias: _htmlLoad.alias }));
           }
-          // "# use <navn> from r": kopiér R-rammer inn som parquet-loads —
-          // rir hele den eksisterende materialiserings-pipelinen (kopi-
-          // semantikk; endringer i én runtime smitter ikke).
-          var _useP = window.DataDirectives.parseUse(effectiveScript);
-          if (_useP.errors.length) throw new Error(_useP.errors.join('; '));
-          for (var _ui = 0; _ui < _useP.uses.length; _ui++) {
-            var _u = _useP.uses[_ui];
-            if (_u.from === 'python' && activeEditorMode !== 'duckdb') {
-              throw new Error(t('use «{name}» from python: du er allerede i python — mente du from r?', { name: _u.name }));
-            }
-            if (_u.from === 'duckdb' && activeEditorMode === 'duckdb') {
-              throw new Error(t('use «{name}» from duckdb: du er allerede i duckdb — tabellene fra forrige kjøring refereres direkte', { name: _u.name }));
-            }
-            if (_u.from === 'r') {
-              if (!webRReady || !webR) throw new Error(t('use «{name}» from r: ingen R-økt i denne fanen — kjør R-scriptet først', { name: _u.name }));
-              var _uchk = await webR.evalR('exists(' + JSON.stringify(_u.name) + ', envir = .GlobalEnv) && is.data.frame(get(' + JSON.stringify(_u.name) + ', envir = .GlobalEnv))');
-              var _uok = false;
-              try { _uok = !!((await _uchk.toJs()).values || [])[0]; } finally { try { await webR.destroy(_uchk); } catch (e) {} }
-              if (!_uok) throw new Error(t('use «{name}» from r: fant ingen data.frame «{name}» i R-økten', { name: _u.name }));
-              var _upath = '/tmp/_use_' + _u.name + '.parquet';
-              await webR.evalRVoid('nanoparquet::write_parquet(get(' + JSON.stringify(_u.name) + ', envir = .GlobalEnv), ' + JSON.stringify(_upath) + ')');
-              _rawLoads.push({ alias: _u.name, format: 'parquet', bytes: await webR.FS.readFile(_upath) });
-            } else if (_u.from === 'duckdb') {
-              _rawLoads.push({ alias: _u.name, format: 'parquet', bytes: await __duckUseBytes(_u.name) });
-            } else { // 'python' i duckdb-modus: hent pandas-rammen fra py-økten
-              var _udPath = '/tmp/_use_' + _u.name + '.parquet';
-              await ensurePyarrowFor(py);
-              await py.runPythonAsync([
-                'import __main__ as _m_u',
-                '_df_u = None',
-                'try:',
-                '    _df_u = _m_u.micro_interpreter.datasets.get(' + JSON.stringify(_u.name) + ')',
-                'except Exception:',
-                '    pass',
-                'if _df_u is None:',
-                '    _df_u = getattr(_m_u, ' + JSON.stringify(_u.name) + ', None)',
-                'if _df_u is None:',
-                '    _g_u = getattr(_m_u, "_g", None)',
-                '    if isinstance(_g_u, dict):',
-                '        _df_u = _g_u.get(' + JSON.stringify(_u.name) + ')',
-                'if _df_u is None:',
-                '    raise NameError(' + JSON.stringify('use «' + _u.name + '» from python: fant ingen dataframe «' + _u.name + '» i python-økten') + ')',
-                '_df_u.to_parquet(' + JSON.stringify(_udPath) + ', index=False)',
-              ].join('\n'));
-              _rawLoads.push({ alias: _u.name, format: 'parquet', bytes: py.FS.readFile(_udPath) });
-              try { py.FS.unlink(_udPath); } catch (e) {}
-            }
-          }
+          // "# use …" håndteres nå på SEGMENTNIVÅ (plan 2026-07-11-segment-
+          // use-cross-runtime): use-linjene parses/strippes per blokk og
+          // materialiseres ved blokkgrensen i kjøringsløkka lenger ned —
+          // samme semantikk for én-blokks script (grensen = kjøringsstart).
           if (_rawLoads.some(function (l) { return l.bytes; })) py.FS.mkdirTree('/home/pyodide/_webdata');
           _pyLoads = await Promise.all(_rawLoads.map(async function (l) {
             // (Pushdown-resultater kommer nå som bytes — trinn A — og tar
@@ -10182,6 +10232,13 @@ options(width = 200)
             catch (e) { console.warn('rProsePrep:', e); }
           }
         }
+        // Segmentnivå-use: trekk use-linjene ut av hver blokk og utled kilder
+        // (kortform henter fra nærmeste foregående blokk med annet språk).
+        if (window.DataDirectives && window.DataDirectives.parseSegmentUses) {
+          var _segUse = window.DataDirectives.parseSegmentUses(segments);
+          if (_segUse.errors.length) throw new Error(_segUse.errors.join('; '));
+          segments = _segUse.segments;
+        }
         // If any segment is DuckDB SQL, make sure the bridge module is ready
         // before the Pyodide run loop reaches a #duckdb segment.
         if (segments.some(function (s) { return s.kind === 'duckdb'; })) {
@@ -10289,6 +10346,19 @@ async def _m2py_run_segment(_seg_json):
         let renderedLen = 0;
         for (let i = 0; i < segments.length; i++) {
           if (segments.length > 1) setStatus(rightStatus, t('Kjører del {i} av {n}…', { i: i + 1, n: segments.length }));
+          // #r-blokker kjøres JS-side mot webR (før 2026-07-11 ble de STILLE
+          // ignorert her — python-runneren har ingen r-gren).
+          if (segments[i].kind === 'r') {
+            appendOutput(stdout.slice(renderedLen), asHtml, suppress);
+            renderedLen = stdout.length;
+            await runInlineRSegment(segments[i]);
+            continue;
+          }
+          // Materialiser blokkens use-kopier inn i python-familien først.
+          for (var _um = 0; _um < (segments[i].uses || []).length; _um++) {
+            var _u4 = segments[i].uses[_um];
+            await _bindUseIntoPy(py, _u4.name, await _useBytesFromRuntime(_u4));
+          }
           py.globals.set('_m2py_seg_json', JSON.stringify(segments[i]));
           const rc = await py.runPythonAsync('await _m2py_run_segment(_m2py_seg_json)');
           appendOutput(stdout.slice(renderedLen), asHtml, suppress);

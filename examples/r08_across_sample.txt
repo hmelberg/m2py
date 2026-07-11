@@ -9,6 +9,7 @@ import fd/INNTEKT_WKAPINNT 2022-01-01 as kapital
 import fd/BEFOLKNING_KJOENN as kjonn
 
 #r
+# use folk
 library(dplyr)
 
 # Scale several amount columns at once to thousands of kroner

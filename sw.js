@@ -3,7 +3,7 @@
 // duplicated across this file (PRECACHE_URLS below), index.html and
 // export_data*.html — update all together when upgrading Pyodide.
 const PYODIDE_VERSION = 'v314.0.2';
-const CACHE = 'm2py-v11';
+const CACHE = 'm2py-v12';
 const CDN_HOSTS = new Set([
   'cdn.jsdelivr.net',
   'cdn.plot.ly',
