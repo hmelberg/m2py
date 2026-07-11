@@ -50,7 +50,10 @@
     // tre alias-nivåer — rekkefølgen bindende (forelder før barn)
     statsmodels_brython:    { aliases: ['statsmodels', 'statsmodels.formula',
                                         'statsmodels.formula.api'],
-                              deps: ['scipy_stats_brython'], js: [] }
+                              deps: ['scipy_stats_brython'], js: [] },
+    // dash.py importerer ingen andre lazy-moduler paa modulnivaa (duck-typet
+    // figur-deteksjon, ingen import av pandas_brython/plotly)
+    dash:                   { aliases: [], deps: [], js: [] }
   };
 
   function scanImports(code) {
