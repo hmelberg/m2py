@@ -46,6 +46,14 @@
 }
 .dash-widget input[type="number"] { width: 5em; }
 .dash-widget--check input { accent-color: var(--accent); }
+.dash-play-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; border-radius: 6px; line-height: 1;
+  border: 1px solid var(--border); background: var(--bg-code); color: var(--text);
+  font-size: .8rem; cursor: pointer;
+}
+.dash-play-btn:hover { background: color-mix(in srgb, var(--accent) 12%, var(--bg-code)); }
+.dash-play-btn--playing { border-color: var(--accent); color: var(--accent); }
 
 .dash-kpi { display: flex; align-items: baseline; gap: 8px; margin: auto 0; }
 .dash-kpi-value {
@@ -53,6 +61,12 @@
   font-variant-numeric: tabular-nums; color: var(--text);
 }
 .dash-kpi-unit { font-size: .9rem; color: var(--text-muted); }
+.dash-kpi-delta {
+  font-size: .95rem; font-weight: 600; font-variant-numeric: tabular-nums;
+  display: inline-flex; align-items: center; gap: 2px;
+}
+.dash-kpi-delta--good { color: var(--success); }
+.dash-kpi-delta--bad { color: var(--danger); }
 
 .dash-md { color: var(--text); line-height: 1.55; overflow-wrap: break-word; }
 .dash-md :first-child { margin-top: 0; }
