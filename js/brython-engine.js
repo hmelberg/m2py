@@ -52,8 +52,11 @@
                                         'statsmodels.formula.api'],
                               deps: ['scipy_stats_brython'], js: [] },
     // dash.py importerer ingen andre lazy-moduler paa modulnivaa (duck-typet
-    // figur-deteksjon, ingen import av pandas_brython/plotly)
-    dash:                   { aliases: [], deps: [], js: [] }
+    // figur-deteksjon, ingen import av pandas_brython/plotly), men trenger
+    // js/dash.js (window.Dash) — uten denne js-oppforingen feiler
+    // window.Dash.create() med AttributeError fordi motoren aldri lastes.
+    dash:                   { aliases: [], deps: [],
+                              js: [{ url: 'js/dash.js', global: 'Dash' }] }
   };
 
   function scanImports(code) {

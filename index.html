@@ -3611,10 +3611,23 @@
           var _dl = await window.DataLoader.resolveAndFetchLoads(script,
             { anthropicKey: getAnthropicKey(), promptKey: mdPromptKey });
           setStatus(ctx.rightStatus, t('Kjører…'));
+          // dash v2 (js/dash.js) skriver DOM direkte til #outputArea MENS
+          // scriptet kjører (window.Dash.create/addCard) — helt utenom
+          // renderOutput/buildOutputNodes. Tøm FØR kjøring (fjerner forrige
+          // kjørings dashboard/output), og hopp over renderOutput sin
+          // innerHTML=''-tømming etterpå hvis et dashboard ble bygget — den
+          // ville ellers slettet DOM-treet BrythonEngine.run() nettopp satte inn.
+          purgePlots(outputArea);
+          outputArea.innerHTML = '';
           var res = await window.BrythonEngine.run(script, { loads: _dl.loads });
           var _omEl = document.querySelector('input[name="outputMode"]:checked');
-          renderOutput(res.text || '', !_omEl || _omEl.value === 'html',
-            (typeof suppressEmbedded !== 'undefined' && suppressEmbedded) ? !!suppressEmbedded.checked : false);
+          var _asHtml = !_omEl || _omEl.value === 'html';
+          var _suppress = (typeof suppressEmbedded !== 'undefined' && suppressEmbedded) ? !!suppressEmbedded.checked : false;
+          if (outputArea.querySelector('.dash')) {
+            appendOutput(res.text || '', _asHtml, _suppress);
+          } else {
+            renderOutput(res.text || '', _asHtml, _suppress);
+          }
           if (res.error) {
             var _pre = document.createElement('pre');
             _pre.className = 'error';
