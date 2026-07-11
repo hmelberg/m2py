@@ -1,0 +1,29 @@
+# Example: regresjon i Brython-modus — statsmodels-formel-API
+# smf.ols / smf.logit i ren Python, diff-testet mot ekte statsmodels.
+import statsmodels.formula.api as smf
+
+data = {
+    "inntekt": [420.0, 480.0, 510.0, 545.0, 560.0, 590.0, 610.0, 620.0,
+                680.0, 710.0, 820.0, 950.0],
+    "alder":   [27.0, 31.0, 29.0, 36.0, 34.0, 41.0, 38.0, 44.0,
+                45.0, 47.0, 50.0, 52.0],
+    "region":  ["N", "S", "N", "O", "S", "N", "O", "S",
+                "O", "N", "S", "O"],
+}
+
+# Lineær regresjon med kategorisk variabel (region kodes automatisk):
+res = smf.ols("inntekt ~ alder + region", data).fit()
+show(res.summary())
+
+print("Stigningstall alder:", round(res.params["alder"], 2))
+print("R² =", round(res.rsquared, 3))
+
+# Prediksjon for nye observasjoner:
+nye = {"alder": [30.0, 48.0], "region": ["N", "S"]}
+print("Predikert inntekt:", [round(v, 1) for v in res.predict(nye)])
+
+# Logistisk regresjon (binært utfall):
+data["hoy"] = [1.0 if v > 600.0 else 0.0 for v in data["inntekt"]]
+logit_res = smf.logit("hoy ~ alder", data).fit()
+show(logit_res.summary())
+print("P(hoy inntekt | alder=50):", round(logit_res.predict({"alder": [50.0]})[0], 3))

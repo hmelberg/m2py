@@ -59,3 +59,8 @@ def test_scipy_alias_resolves_to_canonical():
     assert scan('import scipy.stats as st') == ['scipy_stats_brython']
     assert scan('from scipy.stats import norm, ttest_ind') == ['scipy_stats_brython']
     assert scan('import scipy_stats_brython as st') == ['scipy_stats_brython']
+
+def test_statsmodels_alias_resolves_to_canonical():
+    assert scan('import statsmodels.formula.api as smf') == ['statsmodels_brython']
+    assert scan('from statsmodels.formula.api import ols') == ['statsmodels_brython']
+    assert scan('import statsmodels_brython as smb') == ['statsmodels_brython']

@@ -46,7 +46,11 @@
                               deps: ['plotly_express_brython'], js: [] },
     // aliasrekkefølgen bindende her også: 'scipy' før 'scipy.stats'
     scipy_stats_brython:    { aliases: ['scipy', 'scipy.stats'],
-                              deps: [], js: [] }
+                              deps: [], js: [] },
+    // tre alias-nivåer — rekkefølgen bindende (forelder før barn)
+    statsmodels_brython:    { aliases: ['statsmodels', 'statsmodels.formula',
+                                        'statsmodels.formula.api'],
+                              deps: ['scipy_stats_brython'], js: [] }
   };
 
   function scanImports(code) {
