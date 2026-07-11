@@ -48,3 +48,8 @@ def test_import_mid_line_not_matched_but_string_line_start_overmatches():
     # ...men en docstring-LINJE som starter med 'import' over-matcher.
     # AKSEPTERT: harmløst — registrerer bare en lib koden aldri bruker.
     assert scan('s = """\nimport pandas_brython\n"""') == ['pandas_brython']
+
+def test_matplotlib_alias_resolves_to_canonical():
+    assert scan('import matplotlib.pyplot as plt') == ['matplotlib_brython']
+    assert scan('import matplotlib') == ['matplotlib_brython']
+    assert scan('import matplotlib_brython as plt') == ['matplotlib_brython']

@@ -193,7 +193,9 @@ class PlotlyFigure:
             if len(parts) > 1 and parts[0] in (
                     'xaxis', 'yaxis', 'legend', 'title', 'font', 'margin',
                     'coloraxis', 'hoverlabel', 'grid'):
-                node = out.setdefault(parts[0], {})
+                if parts[0] not in out:    # ikke setdefault — Brython-felle:
+                    out[parts[0]] = {}      # AST-vakten godtar bare streng-litteral-nøkler
+                node = out[parts[0]]
                 node['_'.join(parts[1:])] = v
             else:
                 out[k] = v
@@ -214,7 +216,9 @@ class PlotlyFigure:
         for k, v in kwargs.items():
             parts = k.split('_')
             if len(parts) > 1 and parts[0] in ('marker', 'line', 'error'):
-                expanded.setdefault(parts[0], {})['_'.join(parts[1:])] = v
+                if parts[0] not in expanded:
+                    expanded[parts[0]] = {}
+                expanded[parts[0]]['_'.join(parts[1:])] = v
             else:
                 expanded[k] = v
         for trace in self.data:

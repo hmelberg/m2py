@@ -39,7 +39,11 @@
     // pandas_brython.py:15 har en modulnivå try-import av plotly (df.plot);
     // uten deps-oppføringen feiler den stille ved lazy registrering.
     pandas_brython:         { aliases: [], deps: ['plotly_express_brython'], js: [] },
-    plotly_express_brython: { aliases: [], deps: [], js: [] }
+    plotly_express_brython: { aliases: [], deps: [], js: [] },
+    // aliasrekkefølgen er bindende: 'matplotlib' (plain) må registreres før
+    // den dottede 'matplotlib.pyplot' (trenger forelderen i sys.modules)
+    matplotlib_brython:     { aliases: ['matplotlib', 'matplotlib.pyplot'],
+                              deps: ['plotly_express_brython'], js: [] }
   };
 
   function scanImports(code) {

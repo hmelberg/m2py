@@ -3179,9 +3179,10 @@ class DataFrame:
 
     def merge(self, right, how='inner', on=None, left_on=None, right_on=None,
               suffixes=('_x', '_y')):
-        # Delegerer til modulfunksjonen merge() (definert nederst i filen;
-        # oppslaget skjer ved kall, så rekkefølgen er trygg).
-        return merge(self, right, how=how, on=on, left_on=left_on,
+        # Delegerer til modulfunksjonen merge() via alias — se Brython-fellen
+        # nederst i filen (metodenavn == globalt navn er en stille no-op i
+        # Brython 3.12).
+        return _merge_fn(self, right, how=how, on=on, left_on=left_on,
                      right_on=right_on, suffixes=suffixes)
 
     def join(self, other, how='left', lsuffix='', rsuffix=''):
@@ -3197,7 +3198,9 @@ class DataFrame:
                              % sorted(str(c) for c in overlap))
         rmap = {}
         for j, lbl in enumerate(other.index):
-            rmap.setdefault(lbl, []).append(j)
+            if lbl not in rmap:        # ikke setdefault — Brython-felle:
+                rmap[lbl] = []          # setdefault stringifiserer ikke-streng-nøkler
+            rmap[lbl].append(j)
         lrows, rrows = self.values, other.values
         pairs = []                                   # (venstre rad, høyre rad|None, etikett)
         for i, lbl in enumerate(self.index):
@@ -3218,11 +3221,11 @@ class DataFrame:
 
     def pivot_table(self, values=None, index=None, columns=None, aggfunc='mean',
                     fill_value=None):
-        return pivot_table(self, values=values, index=index, columns=columns,
+        return _pivot_table_fn(self, values=values, index=index, columns=columns,
                            aggfunc=aggfunc, fill_value=fill_value)
 
     def melt(self, id_vars=None, value_vars=None, var_name='variable', value_name='value'):
-        return melt(self, id_vars=id_vars, value_vars=value_vars,
+        return _melt_fn(self, id_vars=id_vars, value_vars=value_vars,
                     var_name=var_name, value_name=value_name)
 
     def corr(self, method='pearson'):
@@ -3697,7 +3700,10 @@ def merge(left, right, how='inner', on=None, left_on=None, right_on=None,
         # Følger høyre-radenes rekkefølge (pandas-semantikk).
         lmap = {}
         for i, row in enumerate(lrows):
-            lmap.setdefault(keytup(row, lpos, lkeys), []).append(i)
+            key = keytup(row, lpos, lkeys)
+            if key not in lmap:        # ikke setdefault — Brython-felle:
+                lmap[key] = []          # setdefault stringifiserer ikke-streng-nøkler
+            lmap[key].append(i)
         for j, row in enumerate(rrows):
             matches = lmap.get(keytup(row, rpos, rkeys))
             if matches:
@@ -3708,7 +3714,10 @@ def merge(left, right, how='inner', on=None, left_on=None, right_on=None,
     else:
         rmap = {}
         for j, row in enumerate(rrows):
-            rmap.setdefault(keytup(row, rpos, rkeys), []).append(j)
+            key = keytup(row, rpos, rkeys)
+            if key not in rmap:
+                rmap[key] = []
+            rmap[key].append(j)
         matched_r = set()
         for i, row in enumerate(lrows):
             matches = rmap.get(keytup(row, lpos, lkeys))
@@ -3785,7 +3794,10 @@ def pivot_table(data, values=None, index=None, columns=None, aggfunc='mean',
     col_keys = _sorted_unique(cvals)
     buckets = {}
     for rk, ck, v in zip(ivals, cvals, vvals):
-        buckets.setdefault((rk, ck), []).append(v)
+        key = (rk, ck)
+        if key not in buckets:      # ikke setdefault — Brython-felle:
+            buckets[key] = []        # setdefault stringifiserer ikke-streng-nøkler
+        buckets[key].append(v)
     out = {}
     for ck in col_keys:
         col = []
@@ -3980,4 +3992,9 @@ def _brython_gap(name):
 for _name in ['pivot', 'rolling', 'resample']:
     if not hasattr(DataFrame, _name):
         setattr(DataFrame, _name, _brython_gap(_name))
+
+
+# Brython-felle (se matplotlib_brython.py nederst): metoder kan ikke referere
+# globale funksjoner med samme navn som metoden — kall via alias.
+_merge_fn, _pivot_table_fn, _melt_fn = merge, pivot_table, melt
 

@@ -142,9 +142,17 @@ def _register_module(name, source):
     return ''
 
 def _alias_module(alias, canonical):
-    """Make `import alias` resolve to already-registered module `canonical`."""
+    """Make `import alias` resolve to already-registered module `canonical`.
+    Dotted alias ('matplotlib.pyplot'): foreldremodulen må allerede ligge i
+    sys.modules (registrer den plain aliasen først); barnet settes som
+    attributt på forelderen så `import a.b as x` binder riktig."""
     if canonical not in sys.modules:
         return 'Ukjent modul: ' + canonical
+    if '.' in alias:
+        parent_name, _, child = alias.rpartition('.')
+        if parent_name not in sys.modules:
+            return 'Ukjent foreldremodul: ' + parent_name
+        setattr(sys.modules[parent_name], child, sys.modules[canonical])
     sys.modules[alias] = sys.modules[canonical]
     return ''
 

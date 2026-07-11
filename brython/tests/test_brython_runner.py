@@ -178,6 +178,20 @@ def test_alias_module():
 def test_alias_unknown_module_errors():
     assert br._alias_module('nope_alias', 'nope_canonical') != ''
 
+def test_dotted_alias_binds_parent_attribute_and_sys_modules():
+    br._register_module('lazydemo_mpl', 'def plot(x):\n    return x * 2\n')
+    assert br._alias_module('lazydemo_pkg', 'lazydemo_mpl') == ''
+    assert br._alias_module('lazydemo_pkg.pyplot', 'lazydemo_mpl') == ''
+    out = br._execute_code('import lazydemo_pkg.pyplot as plt\nplt.plot(21)')
+    assert br._get_last_error() == ''
+    assert '42' in out
+
+def test_dotted_alias_requires_parent_in_sys_modules():
+    br._register_module('lazydemo_orphan', 'x = 1\n')
+    err = br._alias_module('no_such_parent.child', 'lazydemo_orphan')
+    assert 'Ukjent foreldremodul' in err
+    assert 'no_such_parent.child' not in sys.modules
+
 if __name__ == '__main__':
     # NOTE: iterate in declaration order (not sorted alphabetically) — several
     # tests share state via module globals (e.g. test_figure_embed_marker
