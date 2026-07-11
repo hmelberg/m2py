@@ -118,7 +118,15 @@ def _execute_code(code):
         if shown:
             out = out + ('' if not out or out.endswith(chr(10)) else chr(10)) + shown
         return out
-    except Exception:
+    except BaseException as e:
+        if getattr(e, '__brython_pending__', False):
+            # Async-bro (duckdb_brython o.l.): motoren kjører de ventende
+            # spørringene og re-kjører hele scriptet (replay). Utskrift fra
+            # dette passet forkastes — replay-passet bygger den på nytt.
+            _last_error = '__BRYTHON_PENDING__'
+            return ''
+        if not isinstance(e, Exception):
+            raise   # SystemExit o.l. — samme oppførsel som før
         _last_error = traceback.format_exc()
         return buf.getvalue()
     finally:
@@ -156,6 +164,30 @@ def _alias_module(alias, canonical):
     sys.modules[alias] = sys.modules[canonical]
     return ''
 
+_snap = None
+
+def _snapshot():
+    """Motoren kaller dette én gang per run (før pass 1): fang brukerglobals
+    så replay-pass (async-broen) kan spole tilbake mellom pass."""
+    global _snap
+    _snap = dict(_shared_vars)
+
+def _rollback():
+    """Spol brukerglobals tilbake til siste _snapshot(). Grunn kopi:
+    objekter fra tidligere kjøringer som muteres in place spoles IKKE
+    tilbake — akseptert replay-forbehold (motoren re-binder datasett per
+    pass, så # load-frames er alltid ferske).
+    NB: per-nøkkel-operasjoner med vilje — clear()+update() mistet
+    gjenopprettede nøkler i Brython 3.12 (browser-verifisert 2026-07-11);
+    d[k]=v / del d[k] / k in d oppfører seg riktig."""
+    if _snap is None:
+        return
+    for k in list(_shared_vars.keys()):
+        if k not in _snap:
+            del _shared_vars[k]
+    for k in list(_snap.keys()):
+        _shared_vars[k] = _snap[k]
+
 def _bind_datasets(spec_json):
     """Bind datasets from JS into user globals. spec: {name: {kind, payload}}.
     kind 'csv' → payload is CSV text; kind 'columns' → payload is {col: [values]}."""
@@ -168,7 +200,12 @@ def _bind_datasets(spec_json):
             else:
                 # JSON null (from JS) arrives as None; pandas_brython's
                 # isna()/dropna() only recognize its own nan sentinel.
-                cols = {k: [_pd.nan if v is None else v for v in vals]
+                # Float-str-rundturen: Brython 3.12s json.loads gir JS-backede
+                # floats som knekker format('g') nedstrøms (og aritmetikk
+                # vasker ikke taint) — verifisert i browser 2026-07-11.
+                cols = {k: [_pd.nan if v is None else
+                            (float(str(v)) if isinstance(v, float) else v)
+                            for v in vals]
                         for k, vals in d['payload'].items()}
                 _shared_vars[name] = _pd.DataFrame(cols)
         return ''

@@ -104,6 +104,7 @@
               <button type="button" data-example="bry18_dashboard_fordeling.txt" data-mode="brython" data-i18n>Dashboard &mdash; fordelingsutforsker</button>
               <button type="button" data-example="bry19_dashboard_regresjon.txt" data-mode="brython" data-i18n>Dashboard &mdash; regresjon</button>
               <button type="button" data-example="bry20_dashboard_rapport.txt" data-mode="brython" data-i18n>Dashboard &mdash; rapport</button>
+              <button type="button" data-example="bry21_duckdb.txt" data-mode="brython" data-i18n>duckdb &mdash; SQL i Brython (.sql &rarr; .df)</button>
             </div>
             <div class="examples-section" data-section-mode="safestat">
               <button type="button" data-example="safestat01_url_csv.txt" data-mode="safestat" data-i18n>SafeStat &mdash; CSV from URL</button>
@@ -3064,6 +3065,57 @@
       const conn = await db.connect();
       try { return __arrowToColumns(await conn.query("SELECT * FROM read_parquet('" + fname + "')")); }
       finally { await conn.close(); try { await db.dropFile(fname); } catch (e) {} }
+    };
+    // Brython duckdb-modul (js/brython-engine.js beginDuckBridge): registrer
+    // et # load-datasett som view + kjør én spørring mot den delte databasen.
+    window.__brythonDuck = {
+      async register(name, kind, payload) {
+        // kind 'csv' → payload er CSV-tekst; 'columns' → {kol: [verdier]}
+        const db = await __ensureDuckDB();
+        const ident = String(name).replace(/"/g, '""');
+        const conn = await db.connect();
+        try {
+          let fname, reader;
+          if (kind === 'csv') {
+            fname = String(name) + '.csv';
+            reader = 'read_csv_auto';
+            await db.registerFileBuffer(fname, new TextEncoder().encode(payload));
+          } else {
+            const cols = Object.keys(payload);
+            const n = cols.length ? payload[cols[0]].length : 0;
+            if (!n) return;   // read_json_auto takler ikke tomme datasett
+            const rows = new Array(n);
+            for (let i = 0; i < n; i++) {
+              const r = {};
+              for (const c of cols) r[c] = payload[c][i];
+              rows[i] = r;
+            }
+            fname = String(name) + '.json';
+            reader = 'read_json_auto';
+            await db.registerFileBuffer(fname, new TextEncoder().encode(JSON.stringify(rows)));
+          }
+          // Et objekt med samme navn (tabell fra SQL-modus, view fra forrige
+          // brython-kjøring) blokkerer CREATE — DROP må matche typen: DuckDBs
+          // «DROP TABLE IF EXISTS» kaster katalogfeil hvis objektet er et view
+          // (og omvendt), så slå opp typen først (som i __duck.begin()).
+          const chk = __arrowToColumns(await conn.query(
+            "SELECT table_type FROM information_schema.tables WHERE table_schema = 'main' AND table_name = '" +
+            String(name).replace(/'/g, "''") + "'"));
+          const typ = (chk.table_type || [])[0];
+          if (typ) {
+            await conn.query('DROP ' + (/VIEW/i.test(typ) ? 'VIEW' : 'TABLE') +
+                             ' IF EXISTS "' + ident + '"');
+          }
+          await conn.query('CREATE VIEW "' + ident + '" AS SELECT * FROM ' +
+                           reader + "('" + fname.replace(/'/g, "''") + "')");
+        } finally { await conn.close(); }
+      },
+      async query(sql) {
+        const db = await __ensureDuckDB();
+        const conn = await db.connect();
+        try { return __arrowToColumns(await conn.query(sql)); }
+        finally { await conn.close(); }
+      }
     };
     // Column lists per static table (so routing knows what's materialised).
     window.runStaticSchemas = async function (base) {

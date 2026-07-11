@@ -73,3 +73,8 @@ def test_numpy_alias_resolves_to_canonical():
 def test_seaborn_alias_resolves_to_canonical():
     assert scan('import seaborn as sns') == ['seaborn_brython']
     assert scan('from seaborn import histplot') == ['seaborn_brython']
+
+
+def test_duckdb_alias():
+    assert scan('import duckdb') == ['duckdb_brython']
+    assert scan('from duckdb import sql') == ['duckdb_brython']

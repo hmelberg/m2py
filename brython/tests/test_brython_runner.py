@@ -192,6 +192,38 @@ def test_dotted_alias_requires_parent_in_sys_modules():
     assert 'Ukjent foreldremodul' in err
     assert 'no_such_parent.child' not in sys.modules
 
+class _Pending(BaseException):
+    __brython_pending__ = True
+
+def test_pending_exception_sets_marker_and_discards_output():
+    br._shared_vars['_P'] = _Pending
+    out = br._execute_code('print("halv utskrift")\nraise _P("q1")')
+    assert out == ''
+    assert br._get_last_error() == '__BRYTHON_PENDING__'
+
+def test_pending_not_swallowed_by_user_except_exception():
+    br._shared_vars['_P'] = _Pending
+    code = ('try:\n'
+            '    raise _P("q2")\n'
+            'except Exception:\n'
+            '    print("slukt")\n')
+    br._execute_code(code)
+    assert br._get_last_error() == '__BRYTHON_PENDING__'
+
+def test_normal_exception_still_formats_traceback():
+    br._execute_code('1/0')
+    assert 'ZeroDivisionError' in br._get_last_error()
+
+def test_snapshot_rollback_rewinds_rebindings():
+    br._shared_vars['sxx'] = 1
+    br._snapshot()
+    out = br._execute_code('sxx = sxx + 1\nnytt_navn = 99')
+    assert br._get_last_error() == ''
+    assert br._shared_vars['sxx'] == 2
+    br._rollback()
+    assert br._shared_vars['sxx'] == 1
+    assert 'nytt_navn' not in br._shared_vars
+
 if __name__ == '__main__':
     # NOTE: iterate in declaration order (not sorted alphabetically) — several
     # tests share state via module globals (e.g. test_figure_embed_marker

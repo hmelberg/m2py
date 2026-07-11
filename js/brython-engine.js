@@ -53,7 +53,10 @@
                               deps: ['scipy_stats_brython'], js: [] },
     numpy_brython:          { aliases: ['numpy'], deps: [], js: [] },
     seaborn_brython:        { aliases: ['seaborn'],
-                              deps: ['matplotlib_brython', 'plotly_express_brython'], js: [] }
+                              deps: ['matplotlib_brython', 'plotly_express_brython'], js: [] },
+    // async-bro med replay — se beginDuckBridge()/run(); pandas for .df()
+    duckdb_brython:         { aliases: ['duckdb'],
+                              deps: ['pandas_brython'], js: [] }
   };
 
   function scanImports(code) {
@@ -125,6 +128,54 @@
       }
       __registered[name] = true;
     }
+  }
+
+  var PENDING_MARKER = '__BRYTHON_PENDING__';   // == runnerens _last_error-markør
+  var MAX_DUCK_PASSES = 10;
+
+  // Per-run duckdb-bro: duckdb_brython.py kaller window.__brythonDuckSync(sql)
+  // synkront. Cache-treff returnerer JSON-strengen; miss legger spørringen i
+  // kø og returnerer null (Python kaster da pending-unntaket). flush() kjører
+  // køen asynkront via index.html-hjelperen __brythonDuck og cacher svarene;
+  // run() re-kjører deretter scriptet (replay). Closure settes friskt per run
+  // — en gammel closure ville ellers servert forrige runs data.
+  function beginDuckBridge(spec) {
+    var cache = {};      // sql -> JSON-streng {cols} | {error}
+    var pending = [];    // sql-strenger i kø til neste flush
+    var registered = false;
+    // Returnerer ALLTID en JSON-streng — JS null blir IKKE Python None i
+    // Brython 3.12, så miss signaliseres med {"pending":true} i stedet.
+    global.__brythonDuckSync = function (sqlText) {
+      if (cache.hasOwnProperty(sqlText)) return cache[sqlText];
+      if (pending.indexOf(sqlText) === -1) pending.push(sqlText);
+      return '{"pending":true}';
+    };
+    return {
+      hasPending: function () { return pending.length > 0; },
+      flush: async function () {
+        if (!global.__brythonDuck) {
+          throw new Error('duckdb i Brython-modus krever DuckDB-hjelperen (__brythonDuck) i index.html');
+        }
+        if (!registered) {
+          // # load-datasett (og innbakte blokker) blir spørrbare views
+          for (var name in spec) {
+            await global.__brythonDuck.register(name, spec[name].kind, spec[name].payload);
+          }
+          registered = true;
+        }
+        var batch = pending;
+        pending = [];
+        for (var i = 0; i < batch.length; i++) {
+          try {
+            var cols = await global.__brythonDuck.query(batch[i]);
+            cache[batch[i]] = JSON.stringify({ cols: cols });
+          } catch (e) {
+            // feilen caches så replay-passet feiler PÅ kallstedet med norsk prefiks
+            cache[batch[i]] = JSON.stringify({ error: (e && e.message) || String(e) });
+          }
+        }
+      }
+    };
   }
 
   var __enginePromise = null;
@@ -206,12 +257,32 @@
         needed.push('pandas_brython');   // _bind_datasets bygger DataFrames
       }
       await ensureLibs(mod, needed);
-      if (Object.keys(spec).length) {
-        var bindErr = mod._bind_datasets(JSON.stringify(spec));
-        if (bindErr) return { text: '', error: String(bindErr) };
+      // Replay-løkke (duckdb-async-broen): et pass som stopper på en ventende
+      // SQL-spørring signaliserer via PENDING_MARKER; vi kjører køen, spoler
+      // brukerglobals tilbake og kjører hele scriptet på nytt. Uten duckdb i
+      // koden er dette nøyaktig ett pass (pending oppstår aldri).
+      var duck = beginDuckBridge(spec);
+      mod._snapshot();
+      var text = '', err = null, pass;
+      for (pass = 0; pass < MAX_DUCK_PASSES; pass++) {
+        if (pass > 0) mod._rollback();   // spol brukerglobals til før pass 1
+        if (Object.keys(spec).length) {
+          var bindErr = mod._bind_datasets(JSON.stringify(spec));   // ferske frames per pass
+          if (bindErr) return { text: '', error: String(bindErr) };
+        }
+        text = mod._execute_code(script);
+        err = mod._get_last_error();
+        if (err !== PENDING_MARKER) break;
+        if (!duck.hasPending()) {
+          return { text: '', error: 'duckdb_brython: replay uten ventende spørringer (intern feil)' };
+        }
+        await duck.flush();
       }
-      var text = mod._execute_code(script);
-      var err = mod._get_last_error();
+      if (err === PENDING_MARKER) {
+        return { text: '', error: 'duckdb-spørringene stabiliserer seg ikke etter ' +
+                 MAX_DUCK_PASSES + ' pass — bygges SQL-tekstene av ikke-deterministiske ' +
+                 'verdier (f.eks. random uten seed)?' };
+      }
       return { text: String(text == null ? '' : text), error: err ? String(err) : null };
     } catch (e) {
       return { text: '', error: (e && e.message) || String(e) };
