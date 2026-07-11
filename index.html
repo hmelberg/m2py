@@ -7643,7 +7643,17 @@ async def _run_duck_sql(_sql):
         apiBase: getMdApiBase(), promptKey: mdPromptKey,
         authorizeStrict: function (ids) { return mdAuthorizeStrictRun(ids, script); } };
       var _res = await resolveAssemblyOrLoads(script, _deps);
-      if (_res.asmSpec && _res.asmSpec.datasets && _res.asmSpec.datasets.length) return false;
+      // Montering: DuckDB-pushdown (fase 2-planen 2026-07-09) returnerer
+      // FERDIGE datasett som parquet-bytes med passthrough-spec
+      // ({name, load: name}) — de kan registreres direkte her. Alt annet
+      // (safepy-montering med steg) trenger pandas → Pyodide-veien.
+      if (_res.asmSpec && _res.asmSpec.datasets && _res.asmSpec.datasets.length) {
+        var _passthrough = _res.asmSpec.datasets.every(function (d) {
+          var ks = Object.keys(d).sort();
+          return ks.length === 2 && ks[0] === 'load' && ks[1] === 'name' && d.load === d.name;
+        });
+        if (!_passthrough) return false;
+      }
       if (_res.dl.remote.length) return false;
       var _loads = _res.dl.loads;
       var _html = _loads.find(function (l) { return l.format === 'html'; });
