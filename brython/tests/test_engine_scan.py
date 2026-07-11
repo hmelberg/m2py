@@ -69,3 +69,7 @@ def test_numpy_alias_resolves_to_canonical():
     assert scan('import numpy as np') == ['numpy_brython']
     assert scan('from numpy import array, mean') == ['numpy_brython']
     assert scan('import numpy_brython as np') == ['numpy_brython']
+
+def test_seaborn_alias_resolves_to_canonical():
+    assert scan('import seaborn as sns') == ['seaborn_brython']
+    assert scan('from seaborn import histplot') == ['seaborn_brython']
