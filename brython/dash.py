@@ -367,8 +367,20 @@ class Dash:
                              ref=card.get("ref"), bra=card.get("bra", "opp"))
                 if p["kind"] == "node":
                     node = _dom_node(res)
-        except Exception as e:
-            p = {"kind": "error", "message": "%s: %s" % (type(e).__name__, e)}
+        except BaseException as e:
+            if getattr(e, "__brython_pending__", False):
+                # duckdb-broens replay-signal: replay virker bare for hele
+                # script-kjøringer, ikke widget-callbacks. Forhåndskjør
+                # spørringene på script-nivå så callbacks treffer cachen.
+                p = {"kind": "error",
+                     "message": ("SQL-sporringen er ikke i cache. Kjor den "
+                                 "(for alle kontrollverdier) pa script-niva "
+                                 "forst - widget-endringer kan ikke vente pa "
+                                 "DuckDB.")}
+            elif isinstance(e, Exception):
+                p = {"kind": "error", "message": "%s: %s" % (type(e).__name__, e)}
+            else:
+                raise
         finally:
             sys.stdout = old
         window.Dash.updateCard(cid, json.dumps(p), node)
