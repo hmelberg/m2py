@@ -228,15 +228,20 @@ class StaticDataSource:
             out.append(d)
         return out
 
-    def plan_sql(self, script_text: str, base_url: str, limit: Optional[int] = None) -> list:
+    def plan_sql(self, script_text: str, base_url: str, limit: Optional[int] = None,
+                 version: Optional[str] = None) -> list:
         """Pre-fetch plan as [{key, sql}] — full DuckDB SQL against the hosted
         Parquet. The app (JS) runs each in DuckDB-WASM and returns the columns
-        keyed by `key`; the routing/SQL stays here in Python."""
+        keyed by `key`; the routing/SQL stays here in Python. `version` legges
+        på som ?v=-parameter (cache-bust mot CDN-en på deploy-grenene — samme
+        mekanisme som .py-filene bruker med M2PY_VERSION)."""
         base = base_url if base_url.endswith("/") else base_url + "/"
         out = []
         for d in self.plan(extract_import_specs(script_text), limit):
             sel = ", ".join('"%s"' % c for c in d["select"])
             url = f"{base}static_data/{d['table']}.parquet"
+            if version:
+                url += f"?v={version}"
             sql = f"SELECT {sel} FROM read_parquet('{url}')"
             if d.get("where"):
                 sql += " WHERE " + d["where"]

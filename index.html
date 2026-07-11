@@ -653,8 +653,8 @@
         </div>
         <div class="settings-field">
           <label data-i18n>Datakilde</label>
-          <button type="button" class="btn btn-secondary" id="menuDataSource" data-i18n-title title="Dynamisk: variabler genereres på nytt ved hver kjøring (standard). Statisk: import laster fra ferdige, konsistente datafiler (static_data/*.parquet) via DuckDB-WASM. Variabler/datoer som ikke finnes statisk faller tilbake til generering. Kan også settes per script med // m2py: data-source=static.">Datakilde: Dynamisk</button>
-          <p class="settings-hint" data-i18n-html>Dynamisk = generer ved kjøring (standard). Statisk = last fra <code>static_data/*.parquet</code> (krever at filene er tilgjengelige). Per script: <code>// m2py: data-source=static</code>.</p>
+          <button type="button" class="btn btn-secondary" id="menuDataSource" data-i18n-title title="Statisk: import laster fra ferdige, konsistente datafiler (static_data/*.parquet) via DuckDB-WASM (standard). Variabler/datoer som ikke finnes statisk faller tilbake til generering. Dynamisk: variabler genereres på nytt ved hver kjøring. Kan også settes per script med // m2py: data-source=dynamic.">Datakilde: Statisk</button>
+          <p class="settings-hint" data-i18n-html>Statisk = last fra <code>static_data/*.parquet</code> (standard). Dynamisk = generer ved kjøring. Per script: <code>// m2py: data-source=dynamic</code>.</p>
         </div>
       </div>
       <div class="settings-buttons">
@@ -807,7 +807,7 @@
     window.t = window.t || function (s) { return s; };
     window.i18nField = window.i18nField || function (obj, field) { return obj && obj[field]; };
 
-    window.M2PY_VERSION = '2026-05-25g';
+    window.M2PY_VERSION = '2026-07-11a';
 
     // One-time migration: remove obsolete localStorage keys from previous milestones
     // Safe to delete this snippet after a few months when most users have re-loaded
@@ -2979,7 +2979,10 @@
     const STATIC_TABLES = ['person', 'person_year', 'jobb', 'kjoretoy', 'kurs',
                            'npr', 'malepunkt', 'trafikkulykke', 'person_i_trafikkulykke'];
     function isStaticDataSource() {
-      try { return localStorage.getItem(DATA_SOURCE_KEY) === 'static'; } catch (e) { return false; }
+      // Fase 2 (plan 2026-07-11): statisk er DEFAULT — dynamisk generering er
+      // opt-in (Innstillinger eller // m2py: data-source=dynamic). Uendret for
+      // brukere som alt har valgt eksplisitt (lagret 'static'/'dynamic').
+      try { return localStorage.getItem(DATA_SOURCE_KEY) !== 'dynamic'; } catch (e) { return true; }
     }
     function setDataSource(on) {
       try { localStorage.setItem(DATA_SOURCE_KEY, on ? 'static' : 'dynamic'); } catch (e) {}
@@ -3068,7 +3071,7 @@
       try {
         for (const t of STATIC_TABLES) {
           try {
-            const r = await conn.query("SELECT * FROM read_parquet('" + base + "static_data/" + t + ".parquet') LIMIT 0");
+            const r = await conn.query("SELECT * FROM read_parquet('" + base + "static_data/" + t + ".parquet?v=" + (window.M2PY_VERSION || '1') + "') LIMIT 0");
             out[t] = r.schema.fields.map(f => f.name);
           } catch (e) { /* table absent */ }
         }
@@ -10187,12 +10190,12 @@ if getattr(_m2py_mod, 'M2PY_DATA_SOURCE', 'dynamic') == 'static' and getattr(e, 
         # Manifest gir limit-planen levende/døde-fordelingen (unit_id-splitten);
         # uten den faller planen tilbake til kun-levende-grensen.
         try:
-            _mresp = await _js.fetch(${JSON.stringify(pageBase)} + 'static_data/manifest.json')
+            _mresp = await _js.fetch(${JSON.stringify(pageBase)} + 'static_data/manifest.json?v=' + ${JSON.stringify(String(window.M2PY_VERSION || '1'))})
             if _mresp.ok:
                 e.static_source.manifest = json.loads(await _mresp.text())
         except Exception:
             pass
-        _plan = e.static_source.plan_sql(${JSON.stringify(effectiveScript)}, ${JSON.stringify(pageBase)}, ${getImportLimit()})
+        _plan = e.static_source.plan_sql(${JSON.stringify(effectiveScript)}, ${JSON.stringify(pageBase)}, ${getImportLimit()}, version=${JSON.stringify(String(window.M2PY_VERSION || '1'))})
         _cache = {}
         for _q in _plan:
             try:
