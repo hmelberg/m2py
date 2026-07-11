@@ -495,14 +495,14 @@
       <!-- Visningsmodus samlet i én dropdown (før: tre ikonknapper) —
            kolonner/stablet/kun output/skrittvis. -->
       <div class="mode-dropdown-wrap">
-        <button type="button" class="mode-dropdown-btn" id="viewModeBtn" data-i18n-title title="Velg visning (kolonner, stablet, kun output, skrittvis)">
+        <button type="button" class="mode-dropdown-btn" id="viewModeBtn" data-i18n-title title="Velg visning (kolonner, stablet, kun output/dashboard, skrittvis)">
           <span id="viewModeLabel" data-i18n>Kolonner</span>
           <span class="chevron">▲</span>
         </button>
         <div class="mode-dropdown-menu" id="viewModeMenu">
           <button type="button" data-view="columns" class="active" data-i18n>Kolonner</button>
           <button type="button" data-view="stacked" data-i18n>Stablet</button>
-          <button type="button" data-view="output" data-i18n>Kun output</button>
+          <button type="button" data-view="output" data-i18n>Kun output / dashboard</button>
           <button type="button" data-view="forklar" data-i18n>Skrittvis</button>
         </div>
       </div>
@@ -3982,7 +3982,7 @@
       var menu = document.getElementById('viewModeMenu');
       var label = document.getElementById('viewModeLabel');
       if (!btn || !menu) return;
-      var LABELS = { columns: t('Kolonner'), stacked: t('Stablet'), output: t('Kun output'),
+      var LABELS = { columns: t('Kolonner'), stacked: t('Stablet'), output: t('Kun output / dashboard'),
                      forklar: t('Skrittvis') };
       function setActive(view) {
         if (label) label.textContent = LABELS[view] || view;
