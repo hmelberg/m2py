@@ -53,6 +53,17 @@
     };
   };
 
+  D.autoSpan = function (kind, cols) {
+    if (kind === 'number') return 3;
+    if (kind === 'markdown' || kind === 'text') return 12;
+    if (kind === 'table') return (cols && cols > 6) ? 12 : 6;
+    return 6; // figure, image, node, error
+  };
+
+  D.autoOrder = function (kind) {
+    return kind === 'number' ? 0 : 1;
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = D;
   global.Dash = D;
 })(typeof window !== 'undefined' ? window : globalThis);
