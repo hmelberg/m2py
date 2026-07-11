@@ -8,7 +8,6 @@
   <link rel="preconnect" href="https://cdn.plot.ly" crossorigin>
   <link rel="preload" as="script" href="https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.js">
   <link rel="stylesheet" href="app.css">
-  <link rel="stylesheet" href="css/dashboard.css">
   <link rel="stylesheet" href="css/dash.css">
 </head>
 <body data-theme="light">
@@ -281,8 +280,7 @@
         <div class="output-scroll-wrap" id="outputScrollWrap">
           <div class="output-area" id="outputArea"></div>
         </div>
-        <!-- Flyttet fra toppen av panelet: tok fokus fra resultatene.
-             Diskret nederst; dashboard-visningen har sin egen fotlenke. -->
+        <!-- Flyttet fra toppen av panelet: tok fokus fra resultatene. -->
         <button type="button" id="notebookShowCode" class="ai-modal-btn" style="display:none;align-self:flex-start;opacity:.7;font-size:12px;margin-top:4px" data-i18n>‹ Vis kode</button>
         <button type="button" class="output-jump-last-btn" id="outputJumpLastBtn" data-i18n-title data-i18n-aria title="Bla ned til resultat fra siste linje" aria-label="Bla ned til resultat fra siste linje"><span aria-hidden="true">&#8595;</span></button>
         <button type="button" class="copy-all-results-btn" id="copyAllResultsBtn" style="display:none" data-i18n-title data-i18n-aria title="Kopier alle resultater" aria-label="Kopier alle resultater"><span aria-hidden="true">&#10697;</span></button>
@@ -496,7 +494,7 @@
       <!-- Visningsmodus samlet i én dropdown (før: tre ikonknapper) —
            kolonner/stablet/kun output/skrittvis/dashboard. -->
       <div class="mode-dropdown-wrap">
-        <button type="button" class="mode-dropdown-btn" id="viewModeBtn" data-i18n-title title="Velg visning (kolonner, stablet, kun output, skrittvis, dashboard)">
+        <button type="button" class="mode-dropdown-btn" id="viewModeBtn" data-i18n-title title="Velg visning (kolonner, stablet, kun output, skrittvis)">
           <span id="viewModeLabel" data-i18n>Kolonner</span>
           <span class="chevron">▲</span>
         </button>
@@ -505,7 +503,6 @@
           <button type="button" data-view="stacked" data-i18n>Stablet</button>
           <button type="button" data-view="output" data-i18n>Kun output</button>
           <button type="button" data-view="forklar" data-i18n>Skrittvis</button>
-          <button type="button" data-view="dashboard" data-i18n>Dashboard</button>
         </div>
       </div>
       <div style="width:1px;height:20px;background:var(--border);margin:0 6px;flex-shrink:0"></div>
@@ -801,7 +798,6 @@
   <script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/js/tabulator.min.js" defer></script>
   <script src="widgets/forklar-widgets.js"></script>
   <script src="js/names.js"></script>
-  <script src="js/dashboard.js"></script>
   <script src="command_help.js"></script>
   <script>window.M2PY_APP = 'safestat';</script>
   <script src="js/notebook-links.js"></script>
@@ -2374,11 +2370,7 @@
           if (!ok) return;                               // declined: leave input/button untouched
         }
         if (window.mdSetInputHidden) window.mdSetInputHidden(true);   // output-only
-        // Dashboard-scripts har egen «Vis koden»-fotlenke — toppknappen
-        // stjal fokus fra selve dashboardet.
-        var _siAff = document.getElementById('scriptInput');
-        var _isDashScript = _siAff && /^\s*(?:#|\/\/|--)\s*options\.view\s*=\s*["']?dashboard/mi.test(_siAff.value);
-        if (!_isDashScript && window.mdShowCodeAffordance) window.mdShowCodeAffordance();
+        if (window.mdShowCodeAffordance) window.mdShowCodeAffordance();
         if (scriptRunInProgress) return;
         // "#options.mode = python|r|duckdb|microdata" i scriptet overstyrer
         // filendelsen — .txt-scripts kan dermed si hvor de skal kjøre.
@@ -3983,14 +3975,14 @@
     })();
 
     // ── Visningsmodus-dropdown i bunnmenyen (erstatter de tre layout-
-    //    ikonknappene): kolonner/stablet/kun output/skrittvis/dashboard.
+    //    ikonknappene): kolonner/stablet/kun output/skrittvis.
     (function initViewModeDropdown() {
       var btn = document.getElementById('viewModeBtn');
       var menu = document.getElementById('viewModeMenu');
       var label = document.getElementById('viewModeLabel');
       if (!btn || !menu) return;
       var LABELS = { columns: t('Kolonner'), stacked: t('Stablet'), output: t('Kun output'),
-                     forklar: t('Skrittvis'), dashboard: t('Dashboard') };
+                     forklar: t('Skrittvis') };
       function setActive(view) {
         if (label) label.textContent = LABELS[view] || view;
         menu.querySelectorAll('button[data-view]').forEach(function (b) {
@@ -4013,14 +4005,6 @@
             if (fk && !fk.disabled && !scriptRunInProgress) fk.click();
             return;
           }
-          if (v === 'dashboard') {
-            if (scriptRunInProgress) return;
-            setActive('dashboard');
-            window.__dashViewOverride = true;   // konsumeres av kjøre-grenen
-            document.getElementById('btnRun').click();
-            return;
-          }
-          if (window.Dashboard) window.Dashboard.unmount();
           if (v === 'output') {
             window.mdSetInputHidden(true);
           } else {
@@ -4180,9 +4164,6 @@
     let pyodide = null;
     let pyInterruptBuf = null;
     let scriptRunInProgress = false;
-    // Satt av dashboard-grenen i btnRun-handleren; konsumeres av finally-
-    // hooken samme sted (dashboard-spec 2026-07-09 §2/§3).
-    let dashboardPendingParsed = null;
     // ── Editor mode (always-on, controlled by bottom-bar dropdown) ──────
     let activeEditorMode  = 'microdata'; // 'microdata' | 'python' | 'r'
     // «Kryptert» (he) er ikke lenger en egen modus: HE er et sikkerhetsNIVÅ
@@ -9834,86 +9815,6 @@ options(width = 200)
     // run has settled before inspecting #outputArea for a `pre.error` node.
     window.mdIsScriptRunning = function () { return scriptRunInProgress; };
 
-    // Dashboard-kontrakten (spec 2026-07-09 §2): kjør en chunk i ved-
-    // varende scope og returner resultatet — python via _exec_pyodide_
-    // block/_g (samme maskineri som forklar), R via shelter.captureR.
-    // renderOutput gjenbruker appens output-byggere så kortene ser
-    // identiske ut med vanlig visning.
-    function buildDashboardCtx() {
-      var mode = (activeEditorMode === 'r') ? 'r'
-        : (activeEditorMode === 'brython') ? 'brython' : 'python';
-      async function runPy(code) {
-        var py = await loadPyodideAndM2py();
-        var buf = '';
-        if (typeof py.setStdout === 'function') py.setStdout({ batched: function (s) { buf += s + '\n'; } });
-        if (typeof py.setStderr === 'function') py.setStderr({ batched: function (s) { buf += s + '\n'; } });
-        try {
-          await py.runPythonAsync(
-            'import json\n' +
-            'try:\n    _g\nexcept NameError:\n    _g = globals()\n' +
-            '_st = json.loads(' + JSON.stringify(JSON.stringify(code)) + ')\n' +
-            '_exec_pyodide_block(_st, _g)');
-          await new Promise(function (r) { setTimeout(r, 0); });
-          return { kind: 'py', text: buf, error: null };
-        } catch (e) {
-          return { kind: 'py', text: buf, error: (e && e.message) || String(e) };
-        } finally {
-          if (typeof py.setStdout === 'function') py.setStdout();
-          if (typeof py.setStderr === 'function') py.setStderr();
-        }
-      }
-      async function runR(code) {
-        try {
-          if (!webRReady) await loadWebR();
-          if (!webRShelter) webRShelter = await new webR.Shelter();
-          // Bredt plotformat (16:9-aktig) — webR-defaulten er kvadratisk
-          // og ga mye dødplass i dashboard-kortene.
-          var captured = await webRShelter.captureR(code, { withAutoprint: true,
-            captureGraphics: { width: 800, height: 420, bg: 'white', pointsize: 13 } });
-          var parts = [];
-          // WebR stripper trailing \n per linje-entry; join med '\n'
-          // (samme regel som forklarRunOneRBlock).
-          var lines = (captured.output || []).filter(function (o) { return o.type === 'stdout'; })
-            .map(function (o) { return String(o.data); }).join('\n');
-          if (lines.trim()) parts.push({ type: 'text', text: lines, className: 'm2py-stmt-output' });
-          (captured.images || []).forEach(function (bm) { parts.push({ type: 'image', bitmap: bm }); });
-          return { kind: 'r', parts: parts, error: null };
-        } catch (e) {
-          return { kind: 'r', parts: [], error: (e && e.message) || String(e) };
-        }
-      }
-      async function runBry(code) {
-        try {
-          var res = await window.BrythonEngine.run(code, {});
-          // kind 'py' med ren tekst — renderInto ruter den til buildOutputNodes,
-          // som forstår Brython-runnerens embed-markører direkte.
-          return { kind: 'py', text: res.text || '', error: res.error || null };
-        } catch (e) {
-          return { kind: 'py', text: '', error: (e && e.message) || String(e) };
-        }
-      }
-      function renderInto(result, node) {
-        purgePlots(node);
-        node.innerHTML = '';
-        if (result.kind === 'r') {
-          node.appendChild(buildROutputNodes(result.parts || []));
-        } else {
-          var _omEl = document.querySelector('input[name="outputMode"]:checked');
-          var _asHtml = !_omEl || _omEl.value === 'html';
-          var _sup = (typeof suppressEmbedded !== 'undefined' && suppressEmbedded) ? !!suppressEmbedded.checked : false;
-          node.appendChild(buildOutputNodes(result.text || '', _asHtml, _sup));
-        }
-        if (result.error) {
-          var pre = document.createElement('pre');
-          pre.className = 'error';
-          pre.textContent = result.error;
-          node.appendChild(pre);
-        }
-      }
-      return { mode: mode, run: (mode === 'r') ? runR : (mode === 'brython') ? runBry : runPy,
-               renderOutput: renderInto, t: t };
-    }
-
     btnRun.addEventListener('click', async () => {
       if (scriptRunInProgress) {
         performRunInterrupt();
@@ -9927,37 +9828,6 @@ options(width = 200)
         if (_bps && _bps.size > 0) {
           const _stopLine = Math.min(..._bps);
           effectiveScript = rawScript.split('\n').slice(0, _stopLine).join('\n');
-        }
-      }
-      // Dashboard-visning (spec 2026-07-09-dashboard-design.md): monter
-      // skjelettet FØR runtime laster, og la pipelinen kjøre KUN setup-sonen
-      // (alt over første #input) — samme trunkeringstriks som breakpoints
-      // over. Cellene kjøres inkrementelt via buildDashboardCtx() når denne
-      // kjøringen har satt seg (se hooken i finally-blokken).
-      dashboardPendingParsed = null;
-      if (window.Dashboard && (activeEditorMode === 'python' || activeEditorMode === 'r' || activeEditorMode === 'brython')) {
-        var _dOpts = extractScriptOptions(effectiveScript);
-        var _dashForced = !!window.__dashViewOverride;
-        window.__dashViewOverride = false;      // engangsvalg fra visnings-dropdownen
-        if (String(_dOpts.view || '').toLowerCase() === 'dashboard' || _dashForced) {
-          var _dp = window.Dashboard.parse(effectiveScript);
-          window.Dashboard.mountSkeleton(_dp, {
-            container: outputArea.parentNode, hideNode: outputArea, t: t,
-            onShowCode: function () {
-              if (window.mdSetInputHidden) window.mdSetInputHidden(false);
-              if (window.mdSyncViewDropdown) {
-                window.mdSyncViewDropdown(window.mdIsStackedLayout && window.mdIsStackedLayout() ? 'stacked' : 'columns');
-              }
-            }
-          });
-          if (window.mdSyncViewDropdown) window.mdSyncViewDropdown('dashboard');
-          window.Dashboard.setProgress(t('Laster kjøremiljø og data …'));
-          if (window.mdSetInputHidden) window.mdSetInputHidden(true);
-          dashboardPendingParsed = _dp;
-          // Tom setup-sone må fortsatt gi en gyldig pipeline-kjøring (den
-          // etablerer _g/_exec_pyodide_block for python-chunkene).
-          effectiveScript = _dp.setupCode.trim() ? _dp.setupCode
-            : (activeEditorMode === 'r' ? 'invisible(0)' : 'pass');
         }
       }
       const scriptTrim = effectiveScript.trim();
@@ -10008,10 +9878,7 @@ options(width = 200)
         // #options.view = output-only | split  → toggle the input-panel visibility from a script
         if (_scriptOpts.view !== undefined && window.mdSetInputHidden) {
           var _vw = String(_scriptOpts.view).toLowerCase().replace(/[\s_]+/g, '-');
-          // dashboard er implisitt output-only — uten denne satte view-
-          // håndtereren hidden=false igjen ETTER at dashboard-grenen skjulte
-          // editoren (mottakere så både dashboard og kode).
-          var _hide = (_vw === 'output-only' || _vw === 'output' || _vw === 'results-only' || _vw === 'dashboard');
+          var _hide = (_vw === 'output-only' || _vw === 'output' || _vw === 'results-only');
           window.mdSetInputHidden(_hide);
           if (window.mdOnInputToggle) window.mdOnInputToggle(_hide);
         }
@@ -10060,7 +9927,7 @@ options(width = 200)
         // use-direktiver, montering og pandas-formater faller igjennom hit —
         // da bootes Pyodide sent, og resten av veien under er uendret.
         var _duckPreResolved = null;
-        if (activeEditorMode === 'duckdb' && !py && !dashboardPendingParsed) {
+        if (activeEditorMode === 'duckdb' && !py) {
           var _dn = await maybeRunDuckNative(effectiveScript, _ctx);
           if (_dn.handled) return;
           // Gjenbruk native-veiens resolve i fallback: authorize/pushdown
@@ -10417,20 +10284,6 @@ async def _m2py_run_segment(_seg_json):
         // duckdb-modus: sidepanelet mates fra wasm-katalogen (sannheten for
         // denne øktens tabeller/visninger) — fire-and-forget.
         if (activeEditorMode === 'duckdb') { refreshDatasetSidebarFromDuck(); }
-        // Dashboard-hook: setup-sonen har kjørt (evt. feilet) — start celle-
-        // kjøringen, eller vis setup-feilen (pre.error-sjekken er samme
-        // presedens som ai-chat.js' runScriptAndCaptureError bruker).
-        if (dashboardPendingParsed) {
-          dashboardPendingParsed = null;
-          var _dSetupErr = outputArea.querySelector('pre.error');
-          if (_dSetupErr) {
-            window.Dashboard.showSetupError(_dSetupErr.textContent);
-          } else {
-            window.Dashboard.start(buildDashboardCtx()).catch(function (e) {
-              window.Dashboard.showSetupError((e && e.message) || String(e));
-            });
-          }
-        }
       }
     });
 
