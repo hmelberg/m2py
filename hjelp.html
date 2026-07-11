@@ -177,7 +177,7 @@
   <a href="hjelp.en.html" style="font-size:12px;color:var(--text-muted)">In English</a>
   <div class="nav-section">Kom i gang</div>
   <a href="#intro">Hva er dette?</a>
-  <a href="#running">Kjøre og oversette</a>
+  <a href="#running">Kjøre</a>
   <a href="#microdata">Microdata-kommandoer</a>
   <div class="nav-section">Editoren</div>
   <a href="#editor">Editor og snarveier</a>
@@ -209,7 +209,7 @@
   <!-- ── INTRO ── -->
   <section id="intro">
     <h2>Hva er dette?</h2>
-    <p>Script Runner er et verktøy for å skrive og kjøre kode mot norske registerdata fra <strong>microdata.no</strong>. Du kan skrive microdata-kommandoer og se resultater umiddelbart, oversette mellom Python/R og microdata-syntaks, og kjøre hybridskript der ulike språk samarbeider.</p>
+    <p>Script Runner er et verktøy for å skrive og kjøre kode mot norske registerdata fra <strong>microdata.no</strong>. Du kan skrive microdata-kommandoer og se resultater umiddelbart, og kjøre hybridskript der ulike språk samarbeider.</p>
 
     <div class="callout">
       <strong>NB:</strong> Dette er et hobbyprosjekt og er ikke laget av microdata.no selv. Siden inneholder ikke ekte tall, og det gis ingen garantier for at analysene er korrekt implementert.
@@ -224,13 +224,11 @@
 
   <!-- ── RUNNING ── -->
   <section id="running">
-    <h2>Kjøre og oversette</h2>
+    <h2>Kjøre</h2>
 
     <h3>Kjøre direkte</h3>
     <p>Trykk <kbd>Ctrl</kbd>+<kbd>Enter</kbd> eller knappen <strong>Kjør</strong>. Resultater vises i outputfeltet. Tabeller, diagrammer og tekst vises automatisk.</p>
 
-    <h3>Oversette</h3>
-    <p>Knappen <strong>Oversett</strong> (pil-ikon) konverterer Python- eller R-kode til microdata-syntaks. Resultatet vises i outputfeltet — for å <strong>kjøre</strong> den oversatte koden må du enten kopiere den inn i editoren og bytte til microdata-modus, eller skrive den om til microdata direkte.</p>
 
     <h3>Stoppe / avbryte</h3>
     <p>Trykk <strong>Kjør</strong>-knappen igjen under kjøring for å avbryte.</p>
@@ -711,17 +709,6 @@ summarize kjonn
       </tbody>
     </table>
 
-    <h3>Oversettelse til microdata</h3>
-    <p>Følgende Python-mønstre oversettes godt av <em>py2m</em>:</p>
-    <ul>
-      <li><code>df = pd.read_csv(...)</code> → <code>import</code>-kommandoer</li>
-      <li><code>df.groupby("x")["y"].mean()</code> → <code>collapse (mean) y, by(x)</code></li>
-      <li><code>df[df["x"] &gt; 0]</code> → <code>keep if x &gt; 0</code></li>
-      <li><code>df["ny"] = df["x"] + df["y"]</code> → <code>generate ny = x + y</code></li>
-      <li><code>df.rename(columns={"a": "b"})</code> → <code>rename a b</code></li>
-      <li><code>df.merge(df2, on="id")</code> → <code>merge</code></li>
-    </ul>
-    <p>Kode som bruker egendefinerte klasser, list comprehensions, rekursjon, asynkron logikk eller komplekse lambda-uttrykk oversettes ikke og må skrives om.</p>
   </section>
 
   <!-- ── R ── -->
@@ -729,17 +716,6 @@ summarize kjonn
     <h2>R (WebR)</h2>
     <p>R kjøres via <a href="https://docs.r-wasm.org/webr/latest/" target="_blank" rel="noopener">WebR</a> (WebAssembly). Pakker installeres automatisk første gang de brukes (<code>library(dplyr)</code> osv.).</p>
 
-    <h3>Oversettelse til microdata</h3>
-    <p>Følgende R-mønstre oversettes godt av <em>r2m</em>:</p>
-    <ul>
-      <li><code>df %&gt;% filter(x &gt; 0)</code> → <code>keep if x &gt; 0</code></li>
-      <li><code>df %&gt;% select(x, y)</code> → <code>keep x y</code></li>
-      <li><code>df %&gt;% mutate(ny = x + y)</code> → <code>generate ny = x + y</code></li>
-      <li><code>df %&gt;% group_by(g) %&gt;% summarise(m = mean(x))</code> → <code>collapse (mean) x -> m, by(g)</code></li>
-      <li><code>df %&gt;% rename(ny = gammel)</code> → <code>rename gammel ny</code></li>
-      <li><code>left_join(df, df2, by = "id")</code> → <code>merge</code></li>
-    </ul>
-    <p>Kode som bruker <code>purrr</code>, egendefinerte R6-klasser, Shiny, miljømanipulasjon eller komplekse NSE-uttrykk oversettes ikke automatisk.</p>
   </section>
 
   <!-- ── HYBRID ── -->

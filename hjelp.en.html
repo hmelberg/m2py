@@ -177,7 +177,7 @@
   <a href="hjelp.html" style="font-size:12px;color:var(--text-muted)">Norsk versjon</a>
   <div class="nav-section">Getting started</div>
   <a href="#intro">What is this?</a>
-  <a href="#running">Running and translating</a>
+  <a href="#running">Running</a>
   <a href="#microdata">Microdata commands</a>
   <div class="nav-section">The editor</div>
   <a href="#editor">Editor and shortcuts</a>
@@ -209,7 +209,7 @@
   <!-- ── INTRO ── -->
   <section id="intro">
     <h2>What is this?</h2>
-    <p>Script Runner is a tool for writing and running code against Norwegian register data from <strong>microdata.no</strong>. You can write microdata commands and see results immediately, translate between Python/R and microdata syntax, and run hybrid scripts where different languages work together.</p>
+    <p>Script Runner is a tool for writing and running code against Norwegian register data from <strong>microdata.no</strong>. You can write microdata commands and see results immediately, and run hybrid scripts where different languages work together.</p>
 
     <div class="callout">
       <strong>Note:</strong> This is a hobby project and is not made by microdata.no itself. The page does not contain real figures, and there is no guarantee that the analyses are correctly implemented.
@@ -224,13 +224,11 @@
 
   <!-- ── RUNNING ── -->
   <section id="running">
-    <h2>Running and translating</h2>
+    <h2>Running</h2>
 
     <h3>Running directly</h3>
     <p>Press <kbd>Ctrl</kbd>+<kbd>Enter</kbd> or the <strong>Run</strong> button. Results are shown in the output field. Tables, charts and text are displayed automatically.</p>
 
-    <h3>Translating</h3>
-    <p>The <strong>Translate</strong> button (arrow icon) converts Python or R code to microdata syntax. The result is shown in the output field — to <strong>run</strong> the translated code you must either copy it into the editor and switch to microdata mode, or rewrite it directly in microdata.</p>
 
     <h3>Stop / cancel</h3>
     <p>Press the <strong>Run</strong> button again while running to cancel.</p>
@@ -711,17 +709,6 @@ summarize kjonn
       </tbody>
     </table>
 
-    <h3>Translation to microdata</h3>
-    <p>The following Python patterns translate well with <em>py2m</em>:</p>
-    <ul>
-      <li><code>df = pd.read_csv(...)</code> → <code>import</code> commands</li>
-      <li><code>df.groupby("x")["y"].mean()</code> → <code>collapse (mean) y, by(x)</code></li>
-      <li><code>df[df["x"] &gt; 0]</code> → <code>keep if x &gt; 0</code></li>
-      <li><code>df["ny"] = df["x"] + df["y"]</code> → <code>generate ny = x + y</code></li>
-      <li><code>df.rename(columns={"a": "b"})</code> → <code>rename a b</code></li>
-      <li><code>df.merge(df2, on="id")</code> → <code>merge</code></li>
-    </ul>
-    <p>Code that uses custom classes, list comprehensions, recursion, asynchronous logic or complex lambda expressions is not translated and must be rewritten.</p>
   </section>
 
   <!-- ── R ── -->
@@ -729,17 +716,6 @@ summarize kjonn
     <h2>R (WebR)</h2>
     <p>R runs via <a href="https://docs.r-wasm.org/webr/latest/" target="_blank" rel="noopener">WebR</a> (WebAssembly). Packages are installed automatically the first time they're used (<code>library(dplyr)</code>, etc.).</p>
 
-    <h3>Translation to microdata</h3>
-    <p>The following R patterns translate well with <em>r2m</em>:</p>
-    <ul>
-      <li><code>df %&gt;% filter(x &gt; 0)</code> → <code>keep if x &gt; 0</code></li>
-      <li><code>df %&gt;% select(x, y)</code> → <code>keep x y</code></li>
-      <li><code>df %&gt;% mutate(ny = x + y)</code> → <code>generate ny = x + y</code></li>
-      <li><code>df %&gt;% group_by(g) %&gt;% summarise(m = mean(x))</code> → <code>collapse (mean) x -> m, by(g)</code></li>
-      <li><code>df %&gt;% rename(ny = gammel)</code> → <code>rename gammel ny</code></li>
-      <li><code>left_join(df, df2, by = "id")</code> → <code>merge</code></li>
-    </ul>
-    <p>Code that uses <code>purrr</code>, custom R6 classes, Shiny, environment manipulation or complex NSE expressions is not translated automatically.</p>
   </section>
 
   <!-- ── HYBRID ── -->
