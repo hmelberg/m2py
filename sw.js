@@ -102,7 +102,10 @@ async function staleWhileRevalidate(req) {
   const keyUrl = new URL(req.url);
   const key = new Request(keyUrl.origin + keyUrl.pathname);
   const hit = await cache.match(key);
-  const network = fetch(req).then(res => {
+  // 'no-cache': revalider mot server (304 ved uendret). Default cache-modus
+  // kunne hente stale svar fra HTTP-diskcachen (kun Last-Modified-header →
+  // heuristisk freshness) og overskrive Cache Storage med gammelt innhold.
+  const network = fetch(req.url, { cache: 'no-cache' }).then(res => {
     if (res && res.ok) cache.put(key, res.clone()).catch(() => {});
     return res;
   });
