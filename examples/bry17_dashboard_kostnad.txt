@@ -1,0 +1,50 @@
+#options.mode = brython
+#options.title = "Dashboard — kostnadsmodell"
+#options.description = "Budsjettvirkning med delte kontroller — ren Python, ingen eksterne data"
+import pandas_brython as pd
+import plotly_express_brython as pe
+import dash
+
+d = dash.dashboard("Budsjettvirkning — nytt legemiddel", layout="""
+    total total perpas perpas
+    kurve kurve kurve  tabell
+    kurve kurve kurve  tabell
+""")
+
+AAR = [1, 2, 3, 4, 5]
+
+def kohort(pris, pasienter, opptak_pst):
+    """Enkel opptakskurve: andelen nås gradvis over tre år."""
+    rader = []
+    for t in AAR:
+        n = round(pasienter * min(1.0, (opptak_pst / 100) * t / 3))
+        rader.append({"aar": t, "pasienter": n, "mill_kr": round(n * pris / 1e6, 2)})
+    return rader
+
+d.controls(pris=dash.slider(5000, 50000, step=5000, label="Pris per pasient (kr)"),
+           pasienter=dash.slider(200, 2000, step=200, label="Aktuelle pasienter"),
+           opptak_pst=dash.slider(10, 90, step=10, label="Opptak (%)"))
+
+d.add(lambda pris, pasienter, opptak_pst:
+          round(sum(r["mill_kr"] for r in kohort(pris, pasienter, opptak_pst)), 1),
+      title="Totalkostnad 5 aar", unit="mill. kr", at="total")
+
+d.add(lambda pris, pasienter, opptak_pst:
+          kohort(pris, pasienter, opptak_pst)[-1]["pasienter"],
+      title="Pasienter i aar 5", unit="stk", at="perpas")
+
+def kurve(pris, pasienter, opptak_pst):
+    rader = kohort(pris, pasienter, opptak_pst)
+    kum, s = [], 0.0
+    for r in rader:
+        s += r["mill_kr"]
+        kum.append(round(s, 2))
+    return pe.line(x=AAR, y=kum, title="Kumulativ kostnad (mill. kr)")
+
+d.add(kurve, at="kurve")
+
+d.add(lambda pris, pasienter, opptak_pst:
+          pd.DataFrame({"Aar": AAR,
+                        "Pasienter": [r["pasienter"] for r in kohort(pris, pasienter, opptak_pst)],
+                        "Mill. kr": [r["mill_kr"] for r in kohort(pris, pasienter, opptak_pst)]}),
+      title="Per aar", at="tabell")
