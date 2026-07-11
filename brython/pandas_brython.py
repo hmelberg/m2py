@@ -1260,6 +1260,30 @@ class Series:
         # set() ga vilkårlig rekkefølge og dermed ustabile groupby-resultater.
         return list(dict.fromkeys(self.values))
 
+    def nunique(self, dropna=True):
+        data = self.dropna().values if dropna else self.values
+        return len(set(data))
+
+    def tolist(self):
+        return list(self.values)
+
+    def to_html(self, index=True):
+        # To-kolonners tabell: index + verdier. Samme html-stil som DataFrame.to_html.
+        try:
+            value_header = html.escape(str(self.name)) if self.name is not None else "values"
+            header_cells = ([] if not index else ["<th></th>"]) + [f"<th>{value_header}</th>"]
+            thead = "<tr>" + "".join(header_cells) + "</tr>"
+            body_rows = []
+            for idx, val in zip(self.index or [], self.values or []):
+                cells = []
+                if index:
+                    cells.append(f"<th>{html.escape(str(idx))}</th>")
+                cells.append(f"<td>{html.escape(_fmt_cell(val))}</td>")
+                body_rows.append("<tr>" + "".join(cells) + "</tr>")
+            return "<table><thead>" + thead + "</thead><tbody>" + "".join(body_rows) + "</tbody></table>"
+        except Exception:
+            return self._repr_html_() or ""
+
     def _coerce_binop_other(self, other):
         # numpy_brython-ndarray o.l. -> liste, slik at binops under
         # behandler den elementvis i stedet for som en skalar per celle.
