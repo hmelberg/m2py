@@ -176,11 +176,12 @@ class Dash:
 
     def add(self, x, title=None, at=None, unit=None, **kwargs):
         if callable(x) and not isinstance(x, Widget):
-            return self._add_func(x, title, at, unit, kwargs)
+            self._add_func(x, title, at, unit, kwargs)
+            return
         p = _payload(x, unit=unit)
         opts = {"title": title, "area": at, "content": p}
         node = _dom_node(x) if p["kind"] == "node" else None
-        return window.Dash.addCard(self.id, json.dumps(opts), None, node)
+        window.Dash.addCard(self.id, json.dumps(opts), None, node)
 
     def controls(self, **kwargs):
         for name, value in kwargs.items():
