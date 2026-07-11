@@ -53,7 +53,10 @@
                               deps: ['scipy_stats_brython'], js: [] },
     numpy_brython:          { aliases: ['numpy'], deps: [], js: [] },
     seaborn_brython:        { aliases: ['seaborn'],
-                              deps: ['matplotlib_brython', 'plotly_express_brython'], js: [] }
+                              deps: ['matplotlib_brython', 'plotly_express_brython'], js: [] },
+    // MERK: denne oppføringen har forsvunnet i to parallell-økt-kollisjoner —
+    // ved konflikt her: BEHOLD den. js-deps er {url, global}-objekter, ikke strenger.
+    dash:                   { aliases: [], deps: [], js: [{ url: 'js/dash.js', global: 'Dash' }] }
   };
 
   function scanImports(code) {
