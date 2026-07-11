@@ -808,6 +808,29 @@
   <script src="command_help.js"></script>
   <script>window.M2PY_APP = 'safestat';</script>
   <script src="js/notebook-links.js"></script>
+  <script>
+    // dash v2 URL-state (K2, docs/superpowers/plans/2026-07-11-dash-v2-forbedringer.md):
+    // et evt. ";ds=<base64url>"-suffiks på location.hash må strippes FØR
+    // NotebookLinks.classifyHash (kalt flere steder her og i js/github-storage.js
+    // sin openFromFragment) ser hashen — classifyHash sin output=/url=-gren er
+    // grådig og ville ellers dratt ";ds=..." inn som del av URL-en.
+    // Kjøres synkront her, tidligst mulig under parsing — lenge før 'load'-eventet
+    // som openFromFragment venter på, og før senere inline-skript som selv leser
+    // location.hash. dash.js (lastes lazy via LIB_REGISTRY først når et
+    // dashboard-script faktisk kjører) leser den avstrippede verdien fra
+    // window.__DASH_DS_INIT__ i stedet for location.hash, siden hashen da alt
+    // er renset for ds-suffikset.
+    (function () {
+      var h = location.hash || '';
+      var m = /;ds=([A-Za-z0-9_-]*)$/.exec(h);
+      if (!m) return;
+      window.__DASH_DS_INIT__ = m[1];
+      var clean = h.slice(0, m.index);
+      try {
+        history.replaceState(null, '', location.pathname + location.search + clean);
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
   <script src="js/session-context.js"></script>
   <script>
     // Fallback hvis js/i18n.js ikke lastet (404 e.l.): vis norsk uendret.

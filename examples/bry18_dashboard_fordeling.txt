@@ -17,7 +17,7 @@ def xakse(mu, sigma):
 
 d.controls(mu=dash.slider(-5, 5, step=1, default=0, label="Forventning (mu)"),
            sigma=dash.slider(1, 4, step=1, label="Standardavvik (sigma)"),
-           terskel=dash.slider(-5, 10, step=1, default=2, label="Terskel"))
+           terskel=dash.play(-5, 10, step=1, label="Terskel (spill av)"))
 
 def tetthet(mu, sigma, terskel):
     xs = xakse(mu, sigma)

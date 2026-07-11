@@ -3077,6 +3077,250 @@ def pie(data=None, values=None, names=None, color=None, title=None,
     }
     return PlotlyFigure(plot_data)
 
+def waterfall(data=None, x=None, y=None, measure=None, title=None,
+              height=None, width=None, config=None, static=None,
+              # Enhanced axis customization
+              xaxis_title=None, yaxis_title=None, xaxis_range=None, yaxis_range=None,
+              **kwargs):
+
+    traces = []
+    layout = {}
+
+    # Handle case where data is not provided but x and y are lists
+    if data is None and x is not None and y is not None:
+        if isinstance(x, list) and isinstance(y, list):
+            x_data = x
+            y_data = y
+        else:
+            raise ValueError("When data is None, both x and y must be lists")
+    elif data is not None:
+        # Use provided data and column names
+        data = ensure_data_dict(data)
+        x_data = data.get(x)
+        y_data = data.get(y)
+    else:
+        raise ValueError("Either data must be provided, or both x and y must be provided")
+
+    # px: measure defaults to 'relative' for every bar when not given
+    measure_data = measure if measure is not None else ['relative'] * len(y_data or [])
+
+    trace = remove_none({
+        **kwargs,
+        "type": "waterfall",
+        "x": x_data,
+        "y": y_data,
+        "measure": measure_data,
+    })
+
+    traces.append(trace)
+
+    # Let CSS handle all sizing - no dimension calculations needed
+    layout = remove_none({
+        "title": title,
+    })
+
+    # Enhanced axis customization
+    if xaxis_title or yaxis_title or xaxis_range or yaxis_range:
+        if 'xaxis' not in layout:
+            layout['xaxis'] = {}
+        if 'yaxis' not in layout:
+            layout['yaxis'] = {}
+
+        if xaxis_title:
+            layout['xaxis']['title'] = xaxis_title
+        if yaxis_title:
+            layout['yaxis']['title'] = yaxis_title
+        if xaxis_range:
+            layout['xaxis']['range'] = xaxis_range
+        if yaxis_range:
+            layout['yaxis']['range'] = yaxis_range
+
+    # Return JSON string with special prefix for JavaScript detection
+    import json
+    clean_config = config or {}
+    if resolve_static(static):
+        clean_config = dict(clean_config)
+        clean_config["staticPlot"] = True
+    plot_data = {
+        "type": "plotly",
+        "data": traces,
+        "layout": remove_none(layout),
+        "config": clean_config
+    }
+    return PlotlyFigure(plot_data)
+
+def funnel(data=None, x=None, y=None, title=None,
+           height=None, width=None, config=None, static=None,
+           # Enhanced axis customization
+           xaxis_title=None, yaxis_title=None, xaxis_range=None, yaxis_range=None):
+
+    traces = []
+    layout = {}
+
+    # Handle case where data is not provided but x and y are lists
+    if data is None and x is not None and y is not None:
+        if isinstance(x, list) and isinstance(y, list):
+            x_data = x
+            y_data = y
+        else:
+            raise ValueError("When data is None, both x and y must be lists")
+    elif data is not None:
+        # Use provided data and column names
+        data = ensure_data_dict(data)
+        x_data = data.get(x)
+        y_data = data.get(y)
+    else:
+        raise ValueError("Either data must be provided, or both x and y must be provided")
+
+    trace = remove_none({
+        "type": "funnel",
+        "x": x_data,
+        "y": y_data,
+    })
+
+    traces.append(trace)
+
+    # Let CSS handle all sizing - no dimension calculations needed
+    layout = remove_none({
+        "title": title,
+    })
+
+    # Enhanced axis customization
+    if xaxis_title or yaxis_title or xaxis_range or yaxis_range:
+        if 'xaxis' not in layout:
+            layout['xaxis'] = {}
+        if 'yaxis' not in layout:
+            layout['yaxis'] = {}
+
+        if xaxis_title:
+            layout['xaxis']['title'] = xaxis_title
+        if yaxis_title:
+            layout['yaxis']['title'] = yaxis_title
+        if xaxis_range:
+            layout['xaxis']['range'] = xaxis_range
+        if yaxis_range:
+            layout['yaxis']['range'] = yaxis_range
+
+    # Return JSON string with special prefix for JavaScript detection
+    import json
+    clean_config = config or {}
+    if resolve_static(static):
+        clean_config = dict(clean_config)
+        clean_config["staticPlot"] = True
+    plot_data = {
+        "type": "plotly",
+        "data": traces,
+        "layout": remove_none(layout),
+        "config": clean_config
+    }
+    return PlotlyFigure(plot_data)
+
+def treemap(data=None, names=None, parents=None, values=None, title=None,
+            height=None, width=None, config=None, static=None):
+
+    traces = []
+    layout = {}
+
+    # Handle case where data is not provided but names (and optionally
+    # parents/values) are lists
+    if data is None and names is not None:
+        if isinstance(names, list):
+            names_data = names
+            # px: parents defaults to '' for every node -> flat treemap
+            parents_data = parents if parents is not None else [''] * len(names_data)
+            values_data = values
+        else:
+            raise ValueError("When data is None, names must be a list")
+    elif data is not None:
+        # Use provided data and column names
+        data = ensure_data_dict(data)
+        names_data = data.get(names)
+        parents_data = data.get(parents) if parents else [''] * len(names_data or [])
+        values_data = data.get(values) if values else None
+    else:
+        raise ValueError("Either data must be provided, or names must be provided")
+
+    trace = remove_none({
+        "type": "treemap",
+        "labels": names_data,
+        "parents": parents_data,
+        "values": values_data,
+    })
+
+    traces.append(trace)
+
+    # Let CSS handle all sizing - no dimension calculations needed
+    layout = remove_none({
+        "title": title,
+    })
+
+    # Return JSON string with special prefix for JavaScript detection
+    import json
+    clean_config = config or {}
+    if resolve_static(static):
+        clean_config = dict(clean_config)
+        clean_config["staticPlot"] = True
+    plot_data = {
+        "type": "plotly",
+        "data": traces,
+        "layout": remove_none(layout),
+        "config": clean_config
+    }
+    return PlotlyFigure(plot_data)
+
+def sunburst(data=None, names=None, parents=None, values=None, title=None,
+             height=None, width=None, config=None, static=None):
+
+    traces = []
+    layout = {}
+
+    # Handle case where data is not provided but names (and optionally
+    # parents/values) are lists
+    if data is None and names is not None:
+        if isinstance(names, list):
+            names_data = names
+            # px: parents defaults to '' for every node -> flat sunburst
+            parents_data = parents if parents is not None else [''] * len(names_data)
+            values_data = values
+        else:
+            raise ValueError("When data is None, names must be a list")
+    elif data is not None:
+        # Use provided data and column names
+        data = ensure_data_dict(data)
+        names_data = data.get(names)
+        parents_data = data.get(parents) if parents else [''] * len(names_data or [])
+        values_data = data.get(values) if values else None
+    else:
+        raise ValueError("Either data must be provided, or names must be provided")
+
+    trace = remove_none({
+        "type": "sunburst",
+        "labels": names_data,
+        "parents": parents_data,
+        "values": values_data,
+    })
+
+    traces.append(trace)
+
+    # Let CSS handle all sizing - no dimension calculations needed
+    layout = remove_none({
+        "title": title,
+    })
+
+    # Return JSON string with special prefix for JavaScript detection
+    import json
+    clean_config = config or {}
+    if resolve_static(static):
+        clean_config = dict(clean_config)
+        clean_config["staticPlot"] = True
+    plot_data = {
+        "type": "plotly",
+        "data": traces,
+        "layout": remove_none(layout),
+        "config": clean_config
+    }
+    return PlotlyFigure(plot_data)
+
 def scatter_3d(data=None, x=None, y=None, z=None, color=None, size=None,
                 text=None, hover_name=None, hover_data=None,
                 title=None, height=None, width=None, config=None, static=None,

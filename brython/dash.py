@@ -25,7 +25,7 @@ class Widget:
     def default(self):
         if self.kind == "dropdown":
             return self.values[self.spec.get("index", 0)]
-        if self.kind == "slider":
+        if self.kind in ("slider", "play"):
             return self.spec.get("default", self.spec["min"])
         return self.spec.get("default")
 
@@ -33,7 +33,7 @@ class Widget:
         """JS-raaverdi -> Python-verdi."""
         if self.kind == "dropdown":
             return self.values[int(raw)]
-        if self.kind in ("slider", "numberfield"):
+        if self.kind in ("slider", "numberfield", "play"):
             v = float(raw)
             bounds = [self.spec.get(k) for k in ("min", "max", "step", "default")]
             ints = all(isinstance(b, int) for b in bounds if b is not None)
@@ -46,6 +46,14 @@ class Widget:
 def slider(min, max, step=None, default=None, label=None):
     return Widget("slider", min=min, max=max, step=step,
                   default=default if default is not None else min, label=label)
+
+
+def play(min, max, step=None, default=None, interval=600, loop=False, label=None):
+    """Avspillbar slider (K3): verdien animeres min->max (evt. loop) i UI-et.
+    Kun eksplisitt form - ingen implisitt kwarg-mapping til denne."""
+    return Widget("play", min=min, max=max, step=step,
+                  default=default if default is not None else min,
+                  interval=interval, loop=loop, label=label)
 
 
 def dropdown(*options, default=None, label=None):
@@ -88,7 +96,21 @@ def _infer(name, value):
         return textfield(default=value)
     if isinstance(value, (int, float)):
         return numberfield(default=value)
-    raise ValueError("dash: kan ikke lage kontroll av %s=%r" % (name, value))
+    if isinstance(value, tuple):
+        raise ValueError(
+            "dash: %s=%r er en tuppel, men ikke (min,max[,steg]) med tall. "
+            "Bruk list(...) rundt verdien for aa lage en nedtrekksmeny." % (name, value))
+    if isinstance(value, dict):
+        raise ValueError(
+            "dash: %s=%r er en dict - ikke stottet direkte som kontroll. "
+            "Bruk list(...) rundt noklene eller verdiene for aa lage en nedtrekksmeny."
+            % (name, value))
+    raise ValueError(
+        "dash: kan ikke lage kontroll av %s=%r (type %s). "
+        "Bruk list(...) rundt verdien for en nedtrekksmeny (funker ogsaa paa "
+        "pandas Series via .tolist()), eller oppgi en widget eksplisitt "
+        "(dash.slider/dropdown/checkbox/textfield/numberfield/play)."
+        % (name, value, type(value).__name__))
 
 
 def _figure_spec(x):
@@ -126,8 +148,85 @@ def _figure_spec(x):
 
 _IMG_EXT = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")
 
+_NNBSP = " "          # smalt hardt mellomrom (norsk tusenskille)
+_MINUS = "−"          # minustegn (ikke bindestrek), for eksplisitt fortegn
 
-def _payload(x, unit=None):
+
+def _fmt_norsk(value, fmt):
+    """format(value, fmt) med engelsk gruppering oversatt til norsk:
+    ','->smalt hardt mellomrom (tusenskille), '.'->',' (desimalskille)."""
+    s = format(value, fmt)
+    return s.translate(str.maketrans({",": _NNBSP, ".": ","}))
+
+
+def _fmt_default_norsk(value):
+    """fmtNumber-ekvivalent (js/dash.js sin fmtNumber) naar ingen fmt er oppgitt:
+    heltall vises som heltall, ellers avrundet til 2 desimaler uten
+    unodvendige etternuller - deretter norsk gruppering/desimalskille."""
+    r = round(value, 2)
+    if r == int(r):
+        s = format(int(r), ",")
+    else:
+        s = format(r, ",.2f").rstrip("0").rstrip(".")
+    return s.translate(str.maketrans({",": _NNBSP, ".": ","}))
+
+
+def _delta(value, ref, fmt, bra):
+    # Guard against non-finite ref (nan/inf)
+    if ref != ref or abs(ref) == float("inf"):
+        return None
+    diff = value - ref
+    if diff > 0:
+        direction = "opp"
+    elif diff < 0:
+        direction = "ned"
+    else:
+        direction = "flat"
+    good = (direction == bra) or direction == "flat"
+    text = _fmt_norsk(abs(diff), fmt) if fmt else _fmt_default_norsk(abs(diff))
+    sign = "+" if diff >= 0 else _MINUS
+    return {"text": sign + text, "dir": direction, "good": bool(good)}
+
+
+def _number_payload(value, unit, fmt, ref, bra):
+    return {
+        "kind": "number",
+        "value": value,
+        "unit": unit or "",
+        "text": _fmt_norsk(value, fmt) if fmt else None,
+        "delta": _delta(value, ref, fmt, bra) if ref is not None else None,
+    }
+
+
+def _initial_raw(id_):
+    """Hent lagrede raa-startverdier for et card-/dash-id via window.Dash.initialValues
+    (K2). Robust mot at JS-siden mangler funksjonen (eldre bygg) eller returnerer
+    noe uventet - da brukes python-defaultene som vanlig."""
+    try:
+        raw_json = window.Dash.initialValues(id_)
+    except Exception:
+        return {}
+    if not raw_json:
+        return {}
+    try:
+        raw = json.loads(raw_json)
+    except Exception:
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _map_raw(raw, widgets):
+    out = {}
+    for n, r in raw.items():
+        if n in widgets:
+            try:
+                out[n] = widgets[n].from_raw(r)
+            except Exception:
+                pass
+    return out
+
+
+def _payload(x, unit=None, fmt=None, ref=None, bra="opp"):
     """add(x)-dispatch (spec 5). Rekkefolgen er prioritetsrekkefolgen."""
     if x is None:
         return {"kind": "text", "text": ""}
@@ -136,7 +235,7 @@ def _payload(x, unit=None):
     if isinstance(x, (int, float)):
         if x != x or abs(x) == float("inf"):   # nan / inf — json.dumps -> literal NaN/Infinity, JSON.parse crashes in JS
             return {"kind": "text", "text": str(x)}
-        return {"kind": "number", "value": x, "unit": unit or ""}
+        return _number_payload(x, unit, fmt, ref, bra)
     if isinstance(x, str):
         s = x.strip()
         if s.startswith("data:image") or (
@@ -164,7 +263,7 @@ def _dom_node(x):
 
 def _func_params(f):
     code = f.__code__
-    return list(code.co_varnames[:code.co_argcount])
+    return list(code.co_varnames[:code.co_argcount + code.co_kwonlyargcount])
 
 
 class Dash:
@@ -176,16 +275,19 @@ class Dash:
 
     # ---- offentlig API ----
 
-    def add(self, x, title=None, at=None, unit=None, **kwargs):
+    def add(self, x, title=None, at=None, unit=None, fmt=None, ref=None, bra="opp", **kwargs):
         if callable(x) and not isinstance(x, Widget):
-            self._add_func(x, title, at, unit, kwargs)
+            self._add_func(x, title, at, unit, kwargs, fmt=fmt, ref=ref, bra=bra)
             return
-        p = _payload(x, unit=unit)
+        p = _payload(x, unit=unit, fmt=fmt, ref=ref, bra=bra)
         opts = {"title": title, "area": at, "content": p}
         node = _dom_node(x) if p["kind"] == "node" else None
         window.Dash.addCard(self.id, json.dumps(opts), None, node)
 
     def controls(self, **kwargs):
+        # re-registrerer HELE settet hver gang (self._shared akkumuleres over kall);
+        # window.Dash.addControls erstatter hele toppstripa i JS, saa den gamle
+        # on_change-closuren under blir aldri kalt igjen (ingen dobbel-fyring).
         for name, value in kwargs.items():
             w = _infer(name, value)
             self._shared[name] = w
@@ -202,20 +304,26 @@ class Dash:
                     self._run(cid)
 
         window.Dash.addControls(self.id, json.dumps(specs), on_change)
-        # kort lagt til foer controls(): kjoer paa nytt med delte defaults
+        # K2: gjenopprett delte startverdier fra delings-URL-en (om noen), foer
+        # kortene under kjoeres paa nytt for foerste gang med disse verdiene.
+        self._shared_vals.update(_map_raw(_initial_raw(self.id), self._shared))
+        # kort lagt til foer controls(): kjoer paa nytt med delte (evt. gjenopprettede) defaults
         for cid, card in self._cards.items():
             if set(card["params"]) & set(self._shared):
                 self._run(cid)
 
     # ---- internt ----
 
-    def _add_func(self, func, title, at, unit, kwargs):
+    def _add_func(self, func, title, at, unit, kwargs, fmt=None, ref=None, bra="opp"):
         widgets = {n: _infer(n, v) for n, v in kwargs.items()}
         specs = [w.to_spec(n) for n, w in widgets.items()]
         card = {
             "func": func,
             "widgets": widgets,
             "unit": unit,
+            "fmt": fmt,
+            "ref": ref,
+            "bra": bra,
             "params": _func_params(func),
             "vals": {n: w.default() for n, w in widgets.items()},
         }
@@ -233,6 +341,10 @@ class Dash:
                                   on_change if specs else None, None)
         holder["cid"] = cid
         self._cards[cid] = card
+        if specs:
+            # K2: gjenopprett kortets egne startverdier fra delings-URL-en (om noen)
+            # foer foerste kjoering, slik at foerste render matcher den delte lenken.
+            card["vals"].update(_map_raw(_initial_raw(cid), widgets))
         self._run(cid)
         return cid
 
@@ -251,7 +363,8 @@ class Dash:
             if res is None and buf.getvalue().strip():
                 p = {"kind": "text", "text": buf.getvalue().rstrip()}
             else:
-                p = _payload(res, unit=card["unit"])
+                p = _payload(res, unit=card["unit"], fmt=card.get("fmt"),
+                             ref=card.get("ref"), bra=card.get("bra", "opp"))
                 if p["kind"] == "node":
                     node = _dom_node(res)
         except Exception as e:
