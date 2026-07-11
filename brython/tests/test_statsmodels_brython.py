@@ -200,3 +200,25 @@ def test_ols_and_logit_accept_pandas_brython_dataframe():
             == pytest.approx(fra_dict.predict({'x': [5.0], 'g': ['a']})))
     df['b'] = [0.0, 0.0, 1.0, 1.0]
     assert smb.logit('b ~ x', df).fit(disp=0).converged in (True, False)  # ingen krasj
+
+
+def test_missing_drop_matches_manual_subset():
+    import pandas_brython as pd
+    d = pd.DataFrame({'y': [1.0, 2.0, pd.nan, 4.0, 5.0],
+                      'x': [1.0, pd.nan, 3.0, 4.0, 5.0]})
+    res = smb.ols('y ~ x', d).fit()
+    manuell = smb.ols('y ~ x', {'y': [1.0, 4.0, 5.0], 'x': [1.0, 4.0, 5.0]}).fit()
+    assert res.nobs == 3
+    assert res.params == pytest.approx(manuell.params)
+
+def test_missing_in_categorical_dropped():
+    import pandas_brython as pd
+    d = pd.DataFrame({'y': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+                      'g': ['a', pd.nan, 'b', 'a', 'b', 'a']})
+    res = smb.ols('y ~ g', d).fit()
+    assert res.nobs == 5
+    assert 'g[T.b]' in res.params
+
+def test_all_rows_missing_raises():
+    with pytest.raises(ValueError, match='manglende'):
+        smb.ols('y ~ x', {'y': [None, None], 'x': [1.0, 2.0]}).fit()
