@@ -43,7 +43,10 @@
     // aliasrekkefølgen er bindende: 'matplotlib' (plain) må registreres før
     // den dottede 'matplotlib.pyplot' (trenger forelderen i sys.modules)
     matplotlib_brython:     { aliases: ['matplotlib', 'matplotlib.pyplot'],
-                              deps: ['plotly_express_brython'], js: [] }
+                              deps: ['plotly_express_brython'], js: [] },
+    // aliasrekkefølgen bindende her også: 'scipy' før 'scipy.stats'
+    scipy_stats_brython:    { aliases: ['scipy', 'scipy.stats'],
+                              deps: [], js: [] }
   };
 
   function scanImports(code) {

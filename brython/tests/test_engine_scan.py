@@ -53,3 +53,9 @@ def test_matplotlib_alias_resolves_to_canonical():
     assert scan('import matplotlib.pyplot as plt') == ['matplotlib_brython']
     assert scan('import matplotlib') == ['matplotlib_brython']
     assert scan('import matplotlib_brython as plt') == ['matplotlib_brython']
+
+def test_scipy_alias_resolves_to_canonical():
+    assert scan('from scipy import stats') == ['scipy_stats_brython']
+    assert scan('import scipy.stats as st') == ['scipy_stats_brython']
+    assert scan('from scipy.stats import norm, ttest_ind') == ['scipy_stats_brython']
+    assert scan('import scipy_stats_brython as st') == ['scipy_stats_brython']
