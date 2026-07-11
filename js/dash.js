@@ -279,8 +279,13 @@
       (spec.options || []).forEach(function (o) {
         input.appendChild(el('option', null, o));
       });
-      input.selectedIndex = (override != null) ? override : (spec.index || 0);
-      initial = input.selectedIndex;
+      var idx = (override != null) ? override : (spec.index || 0);
+      // Clamp ds-override index to valid range
+      if (idx < 0 || idx >= (spec.options || []).length) {
+        idx = spec.index || 0;
+      }
+      input.selectedIndex = idx;
+      initial = idx;
       input.addEventListener('change', function () {
         report(spec.name, input.selectedIndex);
       });

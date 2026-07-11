@@ -172,6 +172,9 @@ def _fmt_default_norsk(value):
 
 
 def _delta(value, ref, fmt, bra):
+    # Guard against non-finite ref (nan/inf)
+    if ref != ref or abs(ref) == float("inf"):
+        return None
     diff = value - ref
     if diff > 0:
         direction = "opp"
