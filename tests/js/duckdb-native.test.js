@@ -45,6 +45,11 @@ test('created: or replace / temp / if not exists / quoted', () => {
   assert.deepEqual(DN.extractCreatedTables(stmts), ['bar', 'baz', 'Qux']);
 });
 
+test('created: norwegian table names survive (unicode continuation)', () => {
+  assert.deepEqual(DN.extractCreatedTables(['CREATE TABLE lønn AS SELECT 1']), ['lønn']);
+  assert.deepEqual(DN.extractCreatedTables(['CREATE TABLE hoytlønnede2 AS SELECT 1']), ['hoytlønnede2']);
+});
+
 test('created: dedup preserves order', () => {
   const stmts = ['CREATE TABLE a AS SELECT 1', 'CREATE OR REPLACE TABLE a AS SELECT 2'];
   assert.deepEqual(DN.extractCreatedTables(stmts), ['a']);

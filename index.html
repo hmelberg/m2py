@@ -7626,17 +7626,24 @@ async def _run_duck_sql(_sql):
     // endres semantikken der, må den endres her. Merk atferdsdeltaet fra
     // planen: tabeller opprettet her materialiseres IKKE inn i e.datasets;
     // senere python-kjøringer henter dem med «# use <navn> from duckdb».
+    // Returnerer {handled: true} når kjøringen er håndtert her, ellers
+    // {handled: false, res: <resolve-resultat>|null} — res gjenbrukes av
+    // fallback-veien så authorize/pushdown aldri kjøres dobbelt (review
+    // 2026-07-11 funn 4).
     async function maybeRunDuckNative(script, ctx) {
       // Er Pyodide alt i gang i denne fanen, kan e.datasets holde pandas-
       // rammer scriptet refererer (python → SQL-flyten). Da gjelder dagens
       // semantikk uendret: Pyodide-veien registrerer refererte datasett selv.
-      if (__pyodidePromise) return false;
+      if (__pyodidePromise) return { handled: false, res: null };
+      // Strict-profil (# options.profile = strict) skal ALLTID gjennom
+      // runStrictLocal-sandkassen — aldri rå SQL her (review funn 1).
+      if (ctx && ctx.profile === 'strict') return { handled: false, res: null };
       var _segs = parseHybridScript(script, 'duckdb');
-      if (_segs.some(function (s) { return s.kind !== 'duckdb'; })) return false;
+      if (_segs.some(function (s) { return s.kind !== 'duckdb'; })) return { handled: false, res: null };
       if (window.DataDirectives) {
         var _up = window.DataDirectives.parseUse(script);
         if (_up.errors.length) throw new Error(_up.errors.join('; '));
-        if (_up.uses.length) return false;
+        if (_up.uses.length) return { handled: false, res: null };
       }
       var _deps = {
         authToken: getAuthToken(), anthropicKey: getAnthropicKey(),
@@ -7652,10 +7659,13 @@ async def _run_duck_sql(_sql):
           var ks = Object.keys(d).sort();
           return ks.length === 2 && ks[0] === 'load' && ks[1] === 'name' && d.load === d.name;
         });
-        if (!_passthrough) return false;
+        if (!_passthrough) return { handled: false, res: _res };
       }
-      if (_res.dl.remote.length) return false;
+      if (_res.dl.remote.length) return { handled: false, res: _res };
       var _loads = _res.dl.loads;
+      // Strict-/konvolutt-kilder krever avsløringskontrollen i Pyodide-veien
+      // (runStrictLocal / dekryptering) — rå SQL ville omgått den (funn 1).
+      if (_loads.some(function (l) { return l.strict || l.envelope; })) return { handled: false, res: _res };
       var _html = _loads.find(function (l) { return l.format === 'html'; });
       if (_html) throw new Error(t('html-kilder støttes ikke i duckdb-modus ({alias}) — bruk python/r', { alias: _html.alias }));
       var _supported = _loads.every(function (l) {
@@ -7663,7 +7673,7 @@ async def _run_duck_sql(_sql):
         if (l.format === 'duckdb' || l.format === 'sqlite') return !!(l.bytes && l.table);
         return false;
       });
-      if (!_supported) return false;
+      if (!_supported) return { handled: false, res: _res };
       // Fra hit er kjøringen vår. Sidepanel-nivåer som i Pyodide-veien.
       _loads.forEach(function (l) {
         if (window.SessionContext) window.SessionContext.noteFetchedLoad(l.alias,
@@ -7717,10 +7727,14 @@ async def _run_duck_sql(_sql):
           await window.__duck.end();
         }
       }
-      renderOutput(_out.join('\n\n'), false, false);
+      // Speil legacy-veiens tilstand (10281-84) så outputMode-radioene
+      // re-rendrer ferske SQL-resultater, ikke forrige kjørings innhold.
+      lastOutput = _out.join('\n\n');
+      lastOutputMode = 'run';
+      renderOutput(lastOutput, false, false);
       refreshDatasetSidebarFromDuck();
       setStatus(ctx.rightStatus, t('Ferdig'));
-      return true;
+      return { handled: true };
     }
 
     // R-motstykket til refreshDatasetSidebarFromPy: sidepanelet var før et
@@ -9934,8 +9948,13 @@ options(width = 200)
         // modus kjører native mot duckdb-wasm, uten Pyodide. Hybride segmenter,
         // use-direktiver, montering og pandas-formater faller igjennom hit —
         // da bootes Pyodide sent, og resten av veien under er uendret.
+        var _duckPreResolved = null;
         if (activeEditorMode === 'duckdb' && !py && !dashboardPendingParsed) {
-          if (await maybeRunDuckNative(effectiveScript, _ctx)) return;
+          var _dn = await maybeRunDuckNative(effectiveScript, _ctx);
+          if (_dn.handled) return;
+          // Gjenbruk native-veiens resolve i fallback: authorize/pushdown
+          // skal ikke kjøres dobbelt (review 2026-07-11 funn 4).
+          _duckPreResolved = _dn.res;
           py = await loadPyodideAndM2py();
           _ctx.py = py;
           _wirePyIO(py);
@@ -9955,7 +9974,7 @@ options(width = 200)
             authToken: getAuthToken(), anthropicKey: getAnthropicKey(),
             apiBase: getMdApiBase(), promptKey: mdPromptKey,
             authorizeStrict: function (ids) { return mdAuthorizeStrictRun(ids, effectiveScript); } };
-          var _resolved = await resolveAssemblyOrLoads(effectiveScript, _dlDeps);
+          var _resolved = _duckPreResolved || await resolveAssemblyOrLoads(effectiveScript, _dlDeps);
           _asmSpec = _resolved.asmSpec;
           var _dl = _resolved.dl;
           if (_dl.remote.length) {

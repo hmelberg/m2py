@@ -76,7 +76,10 @@
     return out.join('');
   }
 
-  var CREATE_RE = /\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([A-Za-z_]\w*)"?/gi;
+  // NB: \w er ASCII-only i JS men unicode i Python — fortsettelsestegnene må
+  // derfor være \p{L}\p{N}_ (med u-flagg) for at «lønn» o.l. skal matche som
+  // i duckdb_bridge.py (review 2026-07-11 funn 3).
+  var CREATE_RE = /\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([A-Za-z_][\p{L}\p{N}_]*)"?/giu;
 
   // Targets of CREATE [OR REPLACE] [TEMP] TABLE [IF NOT EXISTS] name.
   // Order-preserving, deduped, unquoted.
