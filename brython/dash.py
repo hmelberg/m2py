@@ -134,6 +134,8 @@ def _payload(x, unit=None):
     if isinstance(x, bool):
         return {"kind": "text", "text": str(x)}
     if isinstance(x, (int, float)):
+        if x != x or abs(x) == float("inf"):   # nan / inf — json.dumps -> literal NaN/Infinity, JSON.parse crashes in JS
+            return {"kind": "text", "text": str(x)}
         return {"kind": "number", "value": x, "unit": unit or ""}
     if isinstance(x, str):
         s = x.strip()

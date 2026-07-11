@@ -240,6 +240,16 @@
   }
 
   D.create = function (optsJson) {
+    // Rydd registeret for stale oppforinger fra tidligere kjoringer for samme
+    // rerun-syklus (outputArea.innerHTML = '' fjerner DOM-noder uten a rydde
+    // _dashes/_cards, ellers vokser registeret ubegrenset og gamle Plotly-
+    // instanser lekker).
+    for (var did in _dashes) {
+      if (_dashes[did].root && !_dashes[did].root.isConnected) delete _dashes[did];
+    }
+    for (var cid in _cards) {
+      if (_cards[cid].node && !_cards[cid].node.isConnected) delete _cards[cid];
+    }
     var opts = JSON.parse(optsJson || '{}');
     var container = document.getElementById('outputArea');
     var root = el('div', 'dash');
@@ -277,6 +287,8 @@
       var area = rec.area;
       if (!area) {
         area = dash.mosaic.names.find(function (n) { return !dash.used[n]; });
+      } else if (dash.used[area]) {
+        area = null;   // eksplisitt at= peker på et allerede brukt omraade -> overflow, ikke dobbel-tildeling
       }
       if (area && dash.mosaic.names.indexOf(area) !== -1) {
         dash.used[area] = true;
@@ -288,7 +300,7 @@
           dash.overflow.style.gridTemplateColumns = 'repeat(12, 1fr)';
           dash.root.appendChild(dash.overflow);
           if (rec.area) console.warn('dash: omraadet "' + rec.area +
-            '" finnes ikke i layout; kortet legges under gridet');
+            '" finnes ikke i layout eller er allerede brukt; kortet legges under gridet');
         }
         rec.node.style.gridColumn = 'span ' + D.autoSpan(kind, cols);
         dash.overflow.appendChild(rec.node);

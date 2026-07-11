@@ -493,7 +493,7 @@
   <footer class="bottombar">
     <div class="bottombar-left">
       <!-- Visningsmodus samlet i én dropdown (før: tre ikonknapper) —
-           kolonner/stablet/kun output/skrittvis/dashboard. -->
+           kolonner/stablet/kun output/skrittvis. -->
       <div class="mode-dropdown-wrap">
         <button type="button" class="mode-dropdown-btn" id="viewModeBtn" data-i18n-title title="Velg visning (kolonner, stablet, kun output, skrittvis)">
           <span id="viewModeLabel" data-i18n>Kolonner</span>
@@ -1431,7 +1431,7 @@
       function show() {
         var _nlCls = window.NotebookLinks ? window.NotebookLinks.classifyHash(location.hash) : null;
         // Navnelenker (#demo) er også autorun-mottakere — ingen velkomst/tips
-        // (dashboard-spec §4; navn oppfører seg som #output.-formen).
+        // (navn oppfører seg som #output-formen).
         var isOutputOnly = !!(_nlCls && (_nlCls.action === 'output' || _nlCls.action === 'name'));
         var variant = window.NotebookLinks
           ? window.NotebookLinks.welcomeVariant(location.hostname, window.M2PY_APP || 'safestat', isOutputOnly)
@@ -6412,7 +6412,7 @@ json.dumps(out)
     // fjernes med innerHTML = '' — ellers lekker hver re-rendering.
     function purgePlots(container) {
       if (typeof Plotly === 'undefined' || !container || !container.querySelectorAll) return;
-      container.querySelectorAll('.plotly-container').forEach(function(el) {
+      container.querySelectorAll('.plotly-container, .js-plotly-plot').forEach(function(el) {
         try { Plotly.purge(el); } catch (e) {}
       });
     }
@@ -8140,8 +8140,9 @@ json.dumps(out)
       return pkgs;
     }
 
-    // Fragment-bygger delt mellom vanlig R-visning og dashboard-kort
-    // (dashboard-spec §2, ctx.renderOutput) — kortene skal se identiske ut.
+    // Fragment-bygger for R-output (tekst/bilde-deler) — brukt både for
+    // frittstående R-kjøringer og for inline #r-blokker inni skript, slik at
+    // begge rendres identisk.
     function buildROutputNodes(outputParts) {
       var frag = document.createDocumentFragment();
       if (!outputParts || outputParts.length === 0) {
