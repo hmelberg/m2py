@@ -30,6 +30,16 @@ def _col(data, name):
     return list(ser)
 
 
+def _is_missing(v):
+    """None, float-nan og pandas_brython sin NaN-sentinel (duck-typet på
+    klassenavn — samme idiom som plotly_express_brython._is_nan)."""
+    if v is None:
+        return True
+    if type(v).__name__ == 'NaN':
+        return True
+    return isinstance(v, float) and v != v
+
+
 def _parse_formula(formula):
     """'y ~ x1 + C(kat) - 1' -> ('y', ['x1', 'C(kat)'], False)."""
     left, sep, right = formula.partition('~')
@@ -97,6 +107,9 @@ def _design_from_spec(spec, intercept, data, n=None):
             _, col, levels, prefix = entry
             vals = _col(data, col)
             for v in vals:
+                if _is_missing(v):
+                    raise ValueError('manglende verdi i kolonnen %s — '
+                                     'prediksjon krever komplette rader' % col)
                 if v not in levels:
                     raise ValueError('ukjent kategorinivå %r i kolonnen %s'
                                      % (v, col))
@@ -136,11 +149,26 @@ def _data_nrows(data):
 
 
 def _build_design(formula, data):
-    """Formel + data -> (y, names, X, spec)."""
+    """Formel + data -> (y, names, X, spec). Rader med manglende verdier i
+    y eller noen formelkolonne DROPPES før tilpasning (statsmodels-default
+    missing='drop')."""
     yname, terms, intercept = _parse_formula(formula)
-    y = [float(v) for v in _col(data, yname)]
-    spec = [_term_spec(t, data) for t in terms]
-    names, X = _design_from_spec(spec, intercept, data, n=len(y))
+    used_cols = [yname]
+    for t in terms:
+        used_cols.append(t[2:-1].strip() if t.startswith('C(') and t.endswith(')') else t)
+    raw = {c: _col(data, c) for c in used_cols}
+    n_raw = len(raw[yname])
+    for c, vals in raw.items():
+        if len(vals) != n_raw:
+            raise ValueError('kolonnene i formelen har ulik lengde')
+    keep = [i for i in range(n_raw)
+            if not any(_is_missing(raw[c][i]) for c in used_cols)]
+    if n_raw > 0 and not keep:
+        raise ValueError('alle rader har manglende verdier i formelkolonnene')
+    clean = {c: [vals[i] for i in keep] for c, vals in raw.items()}
+    y = [float(v) for v in clean[yname]]
+    spec = [_term_spec(t, clean) for t in terms]
+    names, X = _design_from_spec(spec, intercept, clean, n=len(y))
     if not names:
         raise ValueError('formelen har ingen forklaringsvariabler')
     return y, names, X, spec

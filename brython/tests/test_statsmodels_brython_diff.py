@@ -86,3 +86,16 @@ def test_ols_diff_no_intercept_categorical_rsquared():
         assert mine.fvalue == pytest.approx(ref.fvalue, rel=1e-6)
         assert mine.f_pvalue == pytest.approx(ref.f_pvalue, rel=1e-6)
         assert mine.df_model == ref.df_model
+
+def test_missing_drop_diff():
+    raw_missing = {'y': [12.9, 13.5, None, 15.6, 17.2, 19.2, None, 15.3, 14.4, 11.3],
+                   'alder': [34.0, None, 29.0, 52.0, 38.0, 45.0, 31.0, 47.0, 36.0, 27.0],
+                   'region': ['N', 'S', 'N', 'S', 'O', 'O', 'N', 'S', 'O', 'N']}
+    mine = smb.ols('y ~ alder + region', raw_missing).fit()
+    ref = smf.ols('y ~ alder + region',
+                  pd.DataFrame(raw_missing).astype({'y': float, 'alder': float})).fit()
+    assert mine.nobs == int(ref.nobs)
+    for name in ref.params.index:
+        assert mine.params[name] == pytest.approx(ref.params[name], rel=1e-6)
+        assert mine.pvalues[name] == pytest.approx(ref.pvalues[name], rel=1e-6)
+    assert mine.rsquared == pytest.approx(ref.rsquared, rel=1e-8)
