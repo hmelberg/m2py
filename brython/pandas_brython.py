@@ -931,6 +931,8 @@ class Series:
 
     def __init__(self, data=None, index=None, name=None):
         view = None
+        if hasattr(data, 'tolist') and not isinstance(data, (Series, DataFrame)):
+            data = data.tolist()          # numpy_brython-ndarray o.l. -> lister
         if isinstance(data, self.__class__):
             data = data.data
             index = data.index
@@ -1093,6 +1095,7 @@ class Series:
         return ser
 
     def __eq__(self, other):
+        other = self._coerce_binop_other(other)
         if isinstance(other, (self.ITERABLE_1D, type(self))):
             if isinstance(other, type(self)):
                 if other.index != self.index:
@@ -1257,7 +1260,16 @@ class Series:
         # set() ga vilkårlig rekkefølge og dermed ustabile groupby-resultater.
         return list(dict.fromkeys(self.values))
 
+    def _coerce_binop_other(self, other):
+        # numpy_brython-ndarray o.l. -> liste, slik at binops under
+        # behandler den elementvis i stedet for som en skalar per celle.
+        if (hasattr(other, 'tolist')
+                and not isinstance(other, (self.__class__, DataFrame))):
+            return other.tolist()
+        return other
+
     def __add__(self, other):
+        other = self._coerce_binop_other(other)
         cp = self.copy()
         if isinstance(other, self.ITERABLE_1D + (self.__class__,)):
             for i, val in enumerate(other):
@@ -1268,6 +1280,7 @@ class Series:
         return cp
 
     def __sub__(self, other):
+        other = self._coerce_binop_other(other)
         cp = self.copy()
         if isinstance(other, self.ITERABLE_1D + (self.__class__,)):
             for i, val in enumerate(other):
@@ -1288,6 +1301,7 @@ class Series:
         #     return self
 
     def __mul__(self, other):
+        other = self._coerce_binop_other(other)
         cp = self.copy()
         if isinstance(other, self.ITERABLE_1D + (self.__class__,)):
             for i, val in enumerate(other):
@@ -1298,6 +1312,7 @@ class Series:
         return cp
 
     def __truediv__(self, other):
+        other = self._coerce_binop_other(other)
         cp = self.copy()
         if isinstance(other, self.ITERABLE_1D + (self.__class__,)):
             for i, val in enumerate(other):
@@ -1308,6 +1323,7 @@ class Series:
         return cp
 
     def __floordiv__(self, other):
+        other = self._coerce_binop_other(other)
         cp = self.copy()
         if isinstance(other, self.ITERABLE_1D + (self.__class__,)):
             for i, val in enumerate(other):
@@ -1318,6 +1334,7 @@ class Series:
         return cp
 
     def __pow__(self, other):
+        other = self._coerce_binop_other(other)
         cp = self.copy()
         if isinstance(other, self.ITERABLE_1D + (self.__class__,)):
             for i, val in enumerate(other):
@@ -1873,7 +1890,12 @@ class DataFrame:
 
         if data is None:
             return
+        if hasattr(data, 'tolist') and not isinstance(data, (Series, DataFrame)):
+            data = data.tolist()          # numpy_brython-ndarray o.l. -> lister
         if isinstance(data, dict):
+            data = {k: (v.tolist() if hasattr(v, 'tolist')
+                        and not isinstance(v, (Series, DataFrame)) else v)
+                    for k, v in data.items()}
             self.step = len(data[list(data.keys())[0]])
             self.data = list(itertools.chain(*data.values()))
             self.columns = tuple(data.keys())
@@ -2023,6 +2045,8 @@ class DataFrame:
         """
         This implementation just adds a new columns
         """
+        if hasattr(value, 'tolist') and not isinstance(value, (Series, DataFrame)):
+            value = value.tolist()        # numpy_brython-ndarray o.l. -> lister
         # if two params were provided (i.e. if it's a tuple) forward it
         # if it is a slice or boolean, forward as row indexer
         # otherwise, forward as column indexer

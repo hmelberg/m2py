@@ -50,7 +50,8 @@
     // tre alias-nivåer — rekkefølgen bindende (forelder før barn)
     statsmodels_brython:    { aliases: ['statsmodels', 'statsmodels.formula',
                                         'statsmodels.formula.api'],
-                              deps: ['scipy_stats_brython'], js: [] }
+                              deps: ['scipy_stats_brython'], js: [] },
+    numpy_brython:          { aliases: ['numpy'], deps: [], js: [] }
   };
 
   function scanImports(code) {

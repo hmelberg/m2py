@@ -64,3 +64,8 @@ def test_statsmodels_alias_resolves_to_canonical():
     assert scan('import statsmodels.formula.api as smf') == ['statsmodels_brython']
     assert scan('from statsmodels.formula.api import ols') == ['statsmodels_brython']
     assert scan('import statsmodels_brython as smb') == ['statsmodels_brython']
+
+def test_numpy_alias_resolves_to_canonical():
+    assert scan('import numpy as np') == ['numpy_brython']
+    assert scan('from numpy import array, mean') == ['numpy_brython']
+    assert scan('import numpy_brython as np') == ['numpy_brython']
