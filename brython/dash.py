@@ -110,7 +110,7 @@ def _figure_spec(x):
         if hasattr(x, m):
             try:
                 d = getattr(x, m)()
-                if isinstance(d, dict) and "data" in d:
+                if isinstance(d, dict) and "data" in d and "layout" in d:
                     return d
             except Exception:
                 pass
