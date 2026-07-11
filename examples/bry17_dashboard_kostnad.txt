@@ -25,9 +25,15 @@ d.controls(pris=dash.slider(5000, 50000, step=5000, label="Pris per pasient (kr)
            pasienter=dash.slider(200, 2000, step=200, label="Aktuelle pasienter"),
            opptak_pst=dash.slider(10, 90, step=10, label="Opptak (%)"))
 
+# Referanse: totalkostnad med pris/pasienter paa kontrollenes defaultverdier, men ved
+# 50 % opptak (i stedet for default 10 %) - et naturlig "hva om opptaket blir stort"-anker.
+# Slik viser delta-pilen (ned = bra) om dagens innstilling er billigere eller dyrere enn det.
+REF_TOTAL = round(sum(r["mill_kr"] for r in kohort(5000, 200, 50)), 1)
+
 d.add(lambda pris, pasienter, opptak_pst:
           round(sum(r["mill_kr"] for r in kohort(pris, pasienter, opptak_pst)), 1),
-      title="Totalkostnad 5 aar", unit="mill. kr", at="total")
+      title="Totalkostnad 5 aar", unit="mill. kr", at="total",
+      fmt=",.1f", ref=REF_TOTAL, bra="ned")
 
 d.add(lambda pris, pasienter, opptak_pst:
           kohort(pris, pasienter, opptak_pst)[-1]["pasienter"],
