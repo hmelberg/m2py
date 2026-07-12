@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<!-- fase 0-spike: boot-tid + primitiver + rå (uportert) pandas_brython under
+     MicroPython-wasm. Kjør: python3 -m http.server 8901 fra repo-roten,
+     åpne http://localhost:8901/web_examples/mpy_spike.html -->
+<html><head><meta charset="utf-8"><title>mpy-spike</title></head>
+<body><pre id="out">laster…</pre>
+<script type="module">
+const out = document.getElementById('out');
+const lines = [];
+const show = () => { out.textContent = lines.join('\n'); };
+const BASE = 'https://cdn.jsdelivr.net/npm/@micropython/micropython-webassembly-pyscript@1.27.0/';
+try {
+  const t0 = performance.now();
+  const { loadMicroPython } = await import(BASE + 'micropython.mjs');
+  const mp = await loadMicroPython({
+    url: BASE + 'micropython.wasm',
+    stdout: (l) => { lines.push(l); show(); },
+    linebuffer: true,
+  });
+  lines.push('BOOT: ' + Math.round(performance.now() - t0) + ' ms (mål: Brython-boot til sml. er ~1500-3000 ms)');
+
+  // js-interop: attributt, kall, Python-callback til JS
+  window.__spikeCb = (f) => f(21);
+  mp.runPython('import js\nprint("js.Math.floor:", js.Math.floor(1.5))\nprint("callback:", js.__spikeCb(lambda x: x * 2))');
+
+  // primitivene (samme fil som unix-kjøringen)
+  mp.runPython(await (await fetch('../micropython/tests/spike_primitives.py')).text());
+
+  // RÅ pandas_brython: registrer via modul-trikset og prøv kjernebruk.
+  // Feilene her er fase 0-funnene som styrer porte-jobben i Task 4.
+  const psrc = await (await fetch('../brython/pandas_brython.py')).text();
+  mp.globals.set('__pandas_src', psrc);
+  const t2 = performance.now();
+  mp.runPython(`
+import sys
+class _Mod:
+    def __init__(self, name, g):
+        self.__name__ = name
+        self._g = g
+    def __getattr__(self, k):
+        try:
+            return self._g[k]
+        except KeyError:
+            raise AttributeError(k)
+_g = {'__name__': 'pandas_brython'}
+try:
+    exec(compile(__pandas_src, 'pandas_brython.py', 'exec'), _g)
+    sys.modules['pandas_brython'] = _Mod('pandas_brython', _g)
+    import pandas_brython as pd
+    df = pd.DataFrame({'by': ['Oslo', 'Bergen', 'Oslo'], 'v': [10, 20, 30]})
+    print('RAA PANDAS: DataFrame OK, len =', len(df))
+    print('RAA PANDAS: groupby =', dict(df.groupby('by')['v'].mean()))
+    print('RAA PANDAS: to_html OK' if '<table' in df.to_html() else 'RAA PANDAS: to_html MANGLER TABLE')
+except BaseException as e:
+    import io
+    buf = io.StringIO()
+    sys.print_exception(e, buf)
+    print('RAA PANDAS FEILET:')
+    print(buf.getvalue())
+`);
+  lines.push('rå-pandas-forsøk: ' + Math.round(performance.now() - t2) + ' ms');
+} catch (e) {
+  lines.push('SPIKE-KRASJ: ' + (e && e.message ? e.message : String(e)));
+}
+show();
+</script></body></html>
