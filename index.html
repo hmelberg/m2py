@@ -10100,6 +10100,15 @@ options(width = 200)
     } else if (runtimeForMode(activeEditorMode) === 'micropython' && window.MicroPythonEngine) {
       window.MicroPythonEngine.load().then(function () {
         runtimeReadyBootstrap(null);
+        // Bakgrunns-prefetch av duckdb-wasm etter at MicroPython er klar: den
+        // statiske datakilden (standard) henter microdata via DuckDB-WASM, så
+        // uten dette betaler den FØRSTE data-kjøringen nedlastingen. Rører ikke
+        // kald-boot (kjøres etter Ready), og hoppes over i dynamisk modus der
+        // DuckDB ikke trengs. Feil svelges — første kjøring prøver på nytt.
+        if (isStaticDataSource()) {
+          var _pf = function () { __ensureDuckDB().catch(function () {}); };
+          if (window.requestIdleCallback) window.requestIdleCallback(_pf); else setTimeout(_pf, 0);
+        }
       }).catch(function (e) {
         setStatus(leftStatus, 'Load failed: ' + (e && e.message ? e.message : String(e)), true);
       });
