@@ -116,7 +116,7 @@ test('encodeState/decodeState: tomt objekt rundtur', () => {
 // ---------- Number-payload v3: formatNumber + computeDelta ----------
 
 test('formatNumber: default — heltall grupperes med U+202F', () => {
-  assert.strictEqual(D.formatNumber(1234567), '1 234 567');
+  assert.strictEqual(D.formatNumber(1234567), '1\u202f234\u202f567');
 });
 
 test('formatNumber: default — 2 desimaler uten etternuller, komma', () => {
@@ -126,11 +126,11 @@ test('formatNumber: default — 2 desimaler uten etternuller, komma', () => {
 });
 
 test('formatNumber: negativ bruker ekte minustegn', () => {
-  assert.strictEqual(D.formatNumber(-1234.5), '−1 234,5');
+  assert.strictEqual(D.formatNumber(-1234.5), '\u22121\u202f234,5');
 });
 
 test('formatNumber: fmt ",.1f" — gruppert, 1 desimal', () => {
-  assert.strictEqual(D.formatNumber(12345.678, ',.1f'), '12 345,7');
+  assert.strictEqual(D.formatNumber(12345.678, ',.1f'), '12\u202f345,7');
 });
 
 test('formatNumber: fmt ".0f" — ingen gruppering', () => {
@@ -142,7 +142,7 @@ test('formatNumber: fmt ".1%" — prosent', () => {
 });
 
 test('formatNumber: ukjent fmt faller tilbake til default (kaster aldri)', () => {
-  assert.strictEqual(D.formatNumber(1234.5, 'kroner'), '1 234,5');
+  assert.strictEqual(D.formatNumber(1234.5, 'kroner'), '1\u202f234,5');
 });
 
 test('formatNumber: ikke-tall passeres som streng', () => {
@@ -154,7 +154,7 @@ test('computeDelta: retning, fortegn og god/dårlig', () => {
   const d = D.computeDelta(120, 100, null, 'opp');
   assert.deepStrictEqual(d, { text: '+20', dir: 'opp', good: true });
   const n = D.computeDelta(80, 100, null, 'opp');
-  assert.deepStrictEqual(n, { text: '−20', dir: 'ned', good: false });
+  assert.deepStrictEqual(n, { text: '\u221220', dir: 'ned', good: false });
   const f = D.computeDelta(100, 100, null, 'ned');
   assert.deepStrictEqual(f, { text: '+0', dir: 'flat', good: true });
 });

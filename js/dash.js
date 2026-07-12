@@ -67,8 +67,8 @@
   // Number-payload v3 (spec 2026-07-12 §3.1): adapterne sender rå
   // {value, unit, fmt, ref, bra}; motoren formaterer. Én implementasjon
   // av norsk tallformat — U+202F tusenskille, komma-desimal, U+2212-minus.
-  var NNBSP = ' ';
-  var MINUS = '−';
+  var NNBSP = '\u202f';
+  var MINUS = '\u2212';
 
   function groupInt(intStr) {
     return intStr.replace(/\B(?=(\d{3})+(?!\d))/g, NNBSP);
