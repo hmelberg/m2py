@@ -250,6 +250,11 @@
     return spec;
   }
 
+  // Siste kjørings resolverte datasett-spec ({navn: {kind, payload}}),
+  // cachet slik at "Publiser dashboard" (index.html) kan bake dem inn som
+  // brythondata_<navn>-tags uten å kjøre scriptet på nytt.
+  var __lastSpec = {};
+
   async function run(script, opts) {
     // Contract: run() ALWAYS resolves {text, error} — never rejects. Callers
     // (index.html's mode dispatch) only handle a resolved promise; load()
@@ -261,6 +266,7 @@
     try {
       var mod = await load();
       var spec = await buildDatasetSpec(opts && opts.loads);
+      __lastSpec = spec;
       var needed = scanImports(script);
       if (Object.keys(spec).length && needed.indexOf('pandas_brython') === -1) {
         needed.push('pandas_brython');   // _bind_datasets bygger DataFrames
@@ -298,5 +304,8 @@
     }
   }
 
-  global.BrythonEngine = { load: load, run: run, _scanImports: scanImports };
+  global.BrythonEngine = {
+    load: load, run: run, _scanImports: scanImports,
+    getLastDatasetSpec: function () { return __lastSpec; }
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

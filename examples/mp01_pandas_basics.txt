@@ -1,0 +1,10 @@
+# MicroPython-modus: rask Python i nettleseren
+import pandas_mpy as pd
+
+df = pd.DataFrame({
+    "by": ["Oslo", "Bergen", "Oslo", "Bergen", "Tromsø"],
+    "år": [2023, 2023, 2024, 2024, 2024],
+    "verdi": [10, 20, 30, 25, 15],
+})
+show(df)
+df.groupby("by")["verdi"].mean()

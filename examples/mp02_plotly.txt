@@ -1,0 +1,10 @@
+# Grafer med plotly express (MicroPython)
+import pandas_mpy as pd
+import plotly_express_mpy as pe
+
+df = pd.DataFrame({
+    "x": [1, 2, 3, 4, 5, 6],
+    "y": [2, 4, 9, 16, 25, 36],
+    "gruppe": ["a", "b", "a", "b", "a", "b"],
+})
+pe.scatter(df, x="x", y="y", color="gruppe", title="Rask scatter")

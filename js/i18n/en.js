@@ -70,6 +70,7 @@ window.M2PY_I18N.en = {
   "Eksporter skriptresultatene": "Export the script results",
   "Kopier til utklippstavlen": "Copy to clipboard",
   "Skriv ut": "Print",
+  "Publiser dashboard (HTML)": "Publish dashboard (HTML)",
   "Tema": "Theme",
   "Tema og innstillinger": "Theme and settings",
   "Lys": "Light",

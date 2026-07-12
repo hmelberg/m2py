@@ -230,12 +230,18 @@
     return spec;
   }
 
+  // Siste kjørings resolverte datasett-spec, cachet slik at "Publiser
+  // dashboard" (index.html) kan bake dem inn som mpydata_<navn>-tags uten å
+  // kjøre scriptet på nytt. Samme mønster som brython-engine.js.
+  var __lastSpec = {};
+
   async function run(script, opts) {
     // Kontrakt: run() resolver ALLTID {text, error} — aldri reject (samme
     // begrunnelse som i brython-engine.js run()).
     try {
       var mod = await load();
       var spec = await buildDatasetSpec(opts && opts.loads);
+      __lastSpec = spec;
       var needed = scanImports(script);
       if (Object.keys(spec).length && needed.indexOf('pandas_mpy') === -1) {
         needed.push('pandas_mpy');   // _bind_datasets bygger DataFrames
@@ -273,5 +279,8 @@
     }
   }
 
-  global.MicroPythonEngine = { load: load, run: run, _scanImports: scanImports };
+  global.MicroPythonEngine = {
+    load: load, run: run, _scanImports: scanImports,
+    getLastDatasetSpec: function () { return __lastSpec; }
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

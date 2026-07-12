@@ -110,6 +110,11 @@
 <button type="button" data-example="bry22_dashboard_duckdb.txt" data-mode="brython" data-i18n>Dashboard &mdash; DuckDB (SQL)</button>
               <button type="button" data-example="bry23_sklearn.txt" data-mode="brython" data-i18n>sklearn &mdash; KMeans, PCA, regresjon</button>
             </div>
+            <div class="examples-section" data-section-mode="micropython">
+              <button type="button" data-example="mp01_pandas_basics.txt" data-mode="micropython" data-i18n>pandas_mpy &mdash; basics</button>
+              <button type="button" data-example="mp02_plotly.txt" data-mode="micropython" data-i18n>plotly_express_mpy &mdash; grafer</button>
+              <button type="button" data-example="mp03_dashboard.txt" data-mode="micropython" data-i18n>Dashboard &mdash; salg</button>
+            </div>
             <div class="examples-section" data-section-mode="safestat">
               <button type="button" data-example="safestat01_url_csv.txt" data-mode="safestat" data-i18n>SafeStat &mdash; CSV from URL</button>
             </div>
@@ -236,6 +241,7 @@
         <div class="export-dropdown-title" data-i18n>Eksporter skriptresultatene</div>
         <button type="button" id="exportCopy" data-i18n>Kopier til utklippstavlen</button>
         <button type="button" id="exportPrint" data-i18n>Skriv ut</button>
+        <button type="button" id="exportPublish" data-mode-only="brython micropython" data-i18n-title title="Last ned en frittstående HTML-fil som kjører dette scriptet automatisk — data hentet via # load bakes inn i siden (virker uten nettverk)." data-i18n>Publiser dashboard (HTML)</button>
       </div>
     </div>
     <div class="topbar-theme-wrap">
@@ -2483,6 +2489,147 @@
         // Enkel variant: skriv ut hele siden (inkl. output)
         window.print();
         exportDropdown.classList.remove('open');
+      });
+
+      // «Publiser dashboard (HTML)» — Brython/MicroPython (data-mode-only, se
+      // applyModeVisibility()). Laster ned en frittstående kopi av denne siden
+      // med (1) det aktive scriptet forhåndsutfylt og satt til å kjøre
+      // automatisk ved åpning, og (2) data som scriptets «# load»-linjer
+      // hentet i siste kjøring baked inn som <script type="application/json"
+      // id="brythondata_<navn>"|"mpydata_<navn>">-tags — samme lesekontrakt
+      // som js/brython-engine.js og js/micropython-engine.js sin
+      // buildDatasetSpec() allerede støtter (embedded-data-sporet, Task 3/5).
+      // «# load»-linjene fjernes fra det publiserte scriptet slik at siden
+      // ikke prøver å hente dataene på nytt over nett (kravet: dashboardet
+      // skal virke uten # load-kilder når det åpnes andre steder).
+      function __publishCsvToColumns(csvText) {
+        // Minimal RFC4180-parser (anførselstegn-escaping som i
+        // pandas_mpy/pandas_brython sin _parse_csv_text) — kjører i JS FØR
+        // Python-siden ser dataene, så vi trenger egen parsing her.
+        var rows = [], field = '', row = [], inQuotes = false, i, c;
+        for (i = 0; i < csvText.length; i++) {
+          c = csvText[i];
+          if (inQuotes) {
+            if (c === '"') {
+              if (csvText[i + 1] === '"') { field += '"'; i++; } else inQuotes = false;
+            } else field += c;
+          } else if (c === '"') {
+            inQuotes = true;
+          } else if (c === ',') {
+            row.push(field); field = '';
+          } else if (c === '\n' || c === '\r') {
+            if (c === '\r' && csvText[i + 1] === '\n') i++;
+            row.push(field); field = '';
+            if (row.length > 1 || row[0] !== '') rows.push(row);
+            row = [];
+          } else field += c;
+        }
+        if (field !== '' || row.length) { row.push(field); rows.push(row); }
+        if (!rows.length) return {};
+        var header = rows[0], cols = {};
+        header.forEach(function (h) { cols[h] = []; });
+        for (var r = 1; r < rows.length; r++) {
+          for (var ci = 0; ci < header.length; ci++) {
+            var v = (rows[r][ci] === undefined) ? '' : rows[r][ci];
+            cols[header[ci]].push(v !== '' && !isNaN(v) ? Number(v) : (v === '' ? null : v));
+          }
+        }
+        return cols;
+      }
+
+      async function publishStandaloneDashboard() {
+        var mode = (typeof activeEditorMode !== 'undefined') ? activeEditorMode
+          : (window.M2PY && window.M2PY.currentMode && window.M2PY.currentMode().id);
+        if (mode !== 'brython' && mode !== 'micropython') {
+          alert(t('Publisering (frittstående HTML) støtter bare Brython- og MicroPython-modus.'));
+          return;
+        }
+        var engine = mode === 'brython' ? window.BrythonEngine : window.MicroPythonEngine;
+        var prefix = mode === 'brython' ? 'brythondata_' : 'mpydata_';
+        if (!engine || typeof engine.getLastDatasetSpec !== 'function') {
+          alert(t('Motoren er ikke lastet ennå — kjør scriptet minst én gang først.'));
+          return;
+        }
+        var __si = document.getElementById('scriptInput');
+        var rawScript = __si ? __si.value : '';
+        if (!rawScript.trim()) { alert(t('Editoren er tom — ingenting å publisere.')); return; }
+        var spec = engine.getLastDatasetSpec() || {};
+        var hasLoadLines = /^[ \t]*#[ \t]*load\b/mi.test(rawScript);
+        if (hasLoadLines && !Object.keys(spec).length) {
+          if (!confirm(t('Scriptet har «# load»-linjer, men ingen data er hentet ennå i denne økten (kjør scriptet først for å bake dem inn). Publisere uten data likevel?'))) return;
+        }
+
+        var tags = '';
+        for (var name in spec) {
+          var entry = spec[name];
+          var cols = entry.kind === 'columns' ? entry.payload
+            : entry.kind === 'csv' ? __publishCsvToColumns(entry.payload)
+            : null;
+          if (cols === null) continue;   // ukjent kind — buildDatasetSpec produserer kun columns/csv
+          tags += '<script type="application/json" id="' + prefix + name + '">' +
+            JSON.stringify(cols).replace(/</g, '\\u003c') + '<\/script>\n    ';
+        }
+
+        var publishedScript = rawScript.replace(/^[ \t]*#[ \t]*load\b.*$/gmi,
+          '# ' + t('(fjernet ved publisering — data er baked inn som «{prefix}<navn>»-tag)', { prefix: prefix }));
+
+        var pageResp = await fetch(location.pathname || 'index.html');
+        if (!pageResp.ok) { alert(t('Kunne ikke hente siden for publisering (HTTP {code}).', { code: pageResp.status })); return; }
+        var html = await pageResp.text();
+
+        var scriptJson = JSON.stringify(publishedScript).replace(/</g, '\\u003c');
+        var modeJson = JSON.stringify(mode);
+        var autorun = '\n    <script id="mdPublishAutorun">\n(function () {\n' +
+          '  var MODE = ' + modeJson + ';\n' +
+          '  var SCRIPT = ' + scriptJson + ';\n' +
+          '  function tryRun(triesLeft) {\n' +
+          '    var si = document.getElementById("scriptInput");\n' +
+          '    var btn = document.getElementById("btnRun");\n' +
+          '    if (!si || !btn || typeof window.switchEditorMode !== "function" || !window.M2PY || !window.M2PY.currentMode) {\n' +
+          '      if (triesLeft > 0) setTimeout(function () { tryRun(triesLeft - 1); }, 200);\n' +
+          '      return;\n' +
+          '    }\n' +
+          '    var cur = window.M2PY.currentMode();\n' +
+          '    if (!cur || cur.id !== MODE) window.switchEditorMode(MODE);\n' +
+          '    si.value = SCRIPT;\n' +
+          '    if (window.updateLineNumbers) window.updateLineNumbers();\n' +
+          '    if (btn.disabled) {\n' +
+          '      if (triesLeft > 0) setTimeout(function () { tryRun(triesLeft - 1); }, 300);\n' +
+          '      return;\n' +
+          '    }\n' +
+          '    btn.click();\n' +
+          '  }\n' +
+          '  function boot() { tryRun(150); }\n' +
+          '  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();\n' +
+          '})();\n<\/script>\n';
+
+        var headClose = html.indexOf('</head>');
+        var bodyClose = html.lastIndexOf('</body>');
+        if (headClose === -1 || bodyClose === -1) {
+          alert(t('Fant ikke </head> eller </body> i siden — publisering avbrutt.'));
+          return;
+        }
+        html = html.slice(0, headClose) + tags + html.slice(headClose);
+        // </body> er nå forskjøvet med lengden av tags (satt inn FØR den) —
+        // slå opp på nytt i den oppdaterte strengen fremfor å justere indeksen manuelt.
+        bodyClose = html.lastIndexOf('</body>');
+        html = html.slice(0, bodyClose) + autorun + html.slice(bodyClose);
+
+        var __sn = document.getElementById('scriptName');
+        var baseName = ((__sn && __sn.value) || 'dashboard').trim().replace(/[^\w.\- æøåÆØÅ]/g, '_') || 'dashboard';
+        var blob = new Blob([html], { type: 'text/html' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = baseName + '_publisert.html';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+
+      document.getElementById('exportPublish').addEventListener('click', function () {
+        exportDropdown.classList.remove('open');
+        publishStandaloneDashboard().catch(function (e) {
+          alert(t('Publisering feilet: {msg}', { msg: (e && e.message) || String(e) }));
+        });
       });
     })();
 

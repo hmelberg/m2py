@@ -158,3 +158,53 @@ praksis):
 3. Rå `pandas_brython.py` feiler på kompilering (walrus-i-f-string ved linje
    1028) — forventet og dokumentert som input til Task 4, ikke en overraskelse
    som endrer gate-utfallet.
+
+## Feller funnet under portingen (Task 4-8a)
+
+Fullstendig liste (med kodeeksempler og fiks) står i filhode-kommentarene til
+hver ported modul — denne seksjonen er en kort peker, ikke en duplikat.
+
+- **`micropython/pandas_mpy.py`** (filhode, punkt 1–12): walrus i f-string,
+  manglende `base64`/`csv`/`functools`/`copy`/`itertools`/`html`/
+  `collections.Counter`/`os.linesep`-moduler, `slice(...)`-konstruktørkall
+  (kun subscript virker), `itertools.chain.from_iterable`, `re.IGNORECASE`
+  mangler i unix-bygget, `datetime.strptime` mangler i wasm-bygget,
+  slice-tildeling på lister godtar kun list/tuple som RHS. Se også
+  fase 0-funnene lenger opp i dette notatet (`c_binascii_base64`,
+  `c_re_split_class`, `c_csv_missing`).
+- **`micropython/plotly_express_mpy.py`** (filhode, punkt 1–4): samme
+  `datetime`-guard som pandas_mpy, `re.split` med tegnklasse-mønster erstattet
+  med dialekt-nøytral `.replace().split()`, `**dict_expr` inne i et
+  dict-LITERAL er `SyntaxError` i MicroPython (kun `**kwargs` i funksjonskall
+  virker) — løst med `_dict_merge()`, `str.capitalize()` finnes ikke — løst
+  med `_capitalize()`.
+- **`micropython/dash.py`** (filhode, punkt 1–3): `from browser import window`
+  → `from js import window` (jsffi, ikke Brython-broen), `sys.stdout`-bytte
+  er umulig (`c_sys_stdout_assign`, fase 0) — løst med
+  `__mpyCaptureStart()/__mpyCaptureEnd()`-motorhooks rundt callback-kallet i
+  et nestet `try/finally` (se filhodet for hvorfor et enkelt `try/finally`
+  rundt HELE kallet ikke holder), `f.__code__.co_varnames` finnes ikke på
+  MicroPython-funksjoner — `_func_params()` faller tilbake til å tekst-parse
+  kildeloggen (`window.__mpySource()`).
+- **`micropython/duckdb_mpy.py`** (filhode, punkt 1–3): `from browser import
+  window` → `import js as _js`-shim, Brythons float-str-rundtur i
+  `_run_sql` er fjernet (MicroPythons `json.loads` gir ekte Python-floats,
+  fase 0: `c_json_floats` OK), samt en repo-spesifikk CPython-testfelle
+  (namespace-package uten `__init__.py` gjør `import js` stille «vellykket»
+  under pytest — tvunget frem som ekte feil via `_js.window`-oppslaget).
+- **js/micropython-engine.js**: `LIB_REGISTRY`s `js`-felt er `{url, global}`-
+  objekter (som i brython-engine.js), ikke rene URL-strenger — feilaktig
+  antakelse har tidligere kostet en runde i andre lib-registre i dette
+  repoet (se `project_dashboard_openstat`-notatet i brukerens minne).
+- **Publisering (Task 8a, `index.html` `publishStandaloneDashboard()`)**:
+  skrivesiden for `brythondata_<navn>`/`mpydata_<navn>`-embed-tags fantes
+  ikke i noen av safestat/openstat/microdata-repoene før Task 8a (kun
+  leseren, se `js/brython-engine.js`/`js/micropython-engine.js`
+  `buildDatasetSpec()` — designdokumentet markerte skrivesiden eksplisitt som
+  «follow-up til fase 1»). Implementert fra bunnen: `# load`-linjer fjernes
+  fra det publiserte scriptet (dataene er allerede baked inn i tags, så et
+  gjenværende `# load` ville prøvd å hente på nytt over nett ved åpning
+  andre steder), og literal `</script>`-tekst i bruker-script/datainnhold må
+  escapes (`<`/`\/`) før det skrives inn i den nedlastede HTML-filen —
+  ellers kutter nettleserens HTML-parser scriptblokken midt i, uavhengig av
+  JS-strengsyntaks.
