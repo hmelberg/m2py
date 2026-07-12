@@ -804,6 +804,7 @@
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
   <script src="js/brython-engine.js"></script>
   <script src="js/dash.js"></script>
+  <script src="js/dash-webr.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/js/tabulator.min.js" defer></script>
   <script src="widgets/forklar-widgets.js"></script>
@@ -8640,6 +8641,18 @@ json.dumps(out)
         }
       }
 
+      // dash v2: definer R-adapteret + nullstill registeret FØR segmentene
+      // kjører (scriptet kaller dashboard()/add() under kjøringen). Gates på
+      // en billig tekst-sjekk så vanlige R-kjøringer ikke betaler fetch/eval.
+      if (window.DashWebR && /\bdashboard\s*\(/.test(src)) {
+        try {
+          await window.DashWebR.ensureDefs();
+          await window.DashWebR.reset();
+        } catch (e) {
+          outputParts.push({ type: 'error', text: 'dash: ' + ((e && e.message) || e) });
+        }
+      }
+
       // ── Phase 2: run R segments via captureR — interleaved code/output/plot
       // For hver R-blokk: splitt i top-level statements via R-parser, kjor hver
       // for seg med autoprint, og rendrer kode-echo → R sin konsoll-output (rett
@@ -8703,6 +8716,12 @@ json.dumps(out)
       }
 
       renderROutputParts(outputParts);
+      // dash v2: bygg dashboardet (om noe) etter at tekst-output er rendret.
+      // mount() venter på førsterenders i egen Shelter, så purgen under er trygg.
+      if (window.DashWebR) {
+        try { await window.DashWebR.mount(); }
+        catch (e) { console.warn('dash-webr mount:', e); }
+      }
       // Frigjør R-objektene captureR allokerte i denne kjøringen — uten purge
       // vokser WebR-minnet monotont for hver kjøring i økten.
       if (webRShelter) { try { await webRShelter.purge(); } catch (e) {} }
