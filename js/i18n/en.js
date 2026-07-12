@@ -707,4 +707,15 @@ window.M2PY_I18N.en = {
   "Krever admin.": "Requires admin.",
   "Kunne ikke hente kjøringslogg (status {status}).": "Could not fetch the run log (status {status}).",
   "Feil ved henting av kjøringslogg:\n{msg}": "Error fetching the run log:\n{msg}",
+
+  // ── Publiser dashboard (HTML) ──
+  "Last ned en frittstående HTML-fil som kjører dette scriptet automatisk — data hentet via # load bakes inn i siden (virker uten nettverk).": "Download a standalone HTML file that runs this script automatically — data fetched via # load is baked into the page (works offline).",
+  "Publisering (frittstående HTML) støtter bare Brython- og MicroPython-modus.": "Publishing (standalone HTML) is only supported in Brython and MicroPython mode.",
+  "Motoren er ikke lastet ennå — kjør scriptet minst én gang først.": "The engine is not loaded yet — run the script at least once first.",
+  "Editoren er tom — ingenting å publisere.": "The editor is empty — nothing to publish.",
+  "Scriptet har «# load»-linjer, men ingen data er hentet ennå i denne økten (kjør scriptet først for å bake dem inn). Publisere uten data likevel?": "The script has «# load» lines, but no data has been fetched in this session yet (run the script first to bake them in). Publish without data anyway?",
+  "(fjernet ved publisering — data er baked inn som «{prefix}<navn>»-tag)": "(removed at publishing — data is baked in as «{prefix}<name>» tags)",
+  "Kunne ikke hente siden for publisering (HTTP {code}).": "Could not fetch the page for publishing (HTTP {code}).",
+  "Fant ikke </head> eller </body> i siden — publisering avbrutt.": "Could not find </head> or </body> in the page — publishing aborted.",
+  "Publisering feilet: {msg}": "Publishing failed: {msg}",
 };
