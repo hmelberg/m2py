@@ -47,9 +47,13 @@
 #      get/values/items/len/sannhetsverdi fra dict).
 #   9. `os.linesep`: mangler i BÅDE unix- og wasm-bygg. Erstattet med
 #      modulnivå-konstanten `_LINESEP = getattr(os, 'linesep', '\n')`.
-#  10. `re.IGNORECASE`: mangler i BÅDE unix- og wasm-bygg. STR.contains()
-#      sitt case-insensitive regex-søk er omskrevet til å småbokstav-
-#      normalisere mønster og streng i stedet for å sette et flagg.
+#  10. `re.IGNORECASE`: mangler i unix-bygget (bekreftet). STR.contains()
+#      sitt case-insensitive regex-søk sjekker nå `getattr(re,
+#      'IGNORECASE', None)` og bruker et ekte re.IGNORECASE-flagg når det
+#      finnes (samme oppførsel som pandas_brython.py); småbokstav-
+#      normaliseringen av mønster og streng er en fallback som KUN brukes
+#      når flagget faktisk mangler (unix-micropython), og gjelder derfor
+#      ikke lenger ubetinget.
 #  11. `from datetime import datetime`: feiler helt (ImportError) i
 #      unix-bygget (wasm-bygget HAR en datetime-klasse, men den mangler
 #      strptime — ikke separat fikset, se avvikslisten i task-4-report.md).
@@ -60,9 +64,10 @@
 #  12. Slice-tildeling på rå Python-lister (`data[a:b] = value`) godtar bare
 #      list/tuple som RHS i MicroPython — en vilkårlig iterable (f.eks. en
 #      Series) gir `TypeError: object 'X' isn't a tuple or list` (CPython
-#      godtar enhver iterable). Fikset på det ene interne stedet dette
-#      forekommer (ILocDF.__setitem__, "Sets a 1D section"): eksplisitt
-#      `list(value)`-normalisering rett før tildelingen.
+#      godtar enhver iterable). Fikset på begge interne stedene dette
+#      forekommer (ILocDF.__setitem__, "Sets a 1D section", og
+#      ILocSer.__setitem__, slice-grenen): eksplisitt `list(value)`-
+#      normalisering rett før tildelingen.
 #  13. Funksjonsobjekter tillater ikke tilordning av `__name__` i MicroPython
 #      (`_raise.__name__ = name` i `_brython_gap` feilet). Guardet med
 #      try/except — rent kosmetisk under CPython/Brython (bedre
@@ -914,6 +919,15 @@ class ILocSer:
             data_item = self.obj.bound_slice(item)
             if not isinstance(value, self.ITERABLE_1D + (self.obj.__class__,)):
                 value = [value] * ((data_item.stop - data_item.start) // data_item.step)
+
+            # MicroPython-felle #12: list-slice-assignment (`data[a:b] =
+            # value`) godtar bare list/tuple som RHS — en Series eller annen
+            # vilkårlig iterable gir `TypeError: object 'X' isn't a tuple or
+            # list` (CPython godtar enhver iterable her). Normaliser
+            # eksplisitt til list rett før tildelingen (samme mønster som
+            # ILocDF.__setitem__, "Sets a 1D section").
+            if not isinstance(value, (list, tuple)):
+                value = list(value)
 
             self.obj.data[data_item] = value
 
@@ -1962,13 +1976,24 @@ class STR:
 
     def contains(self, pat, case=True, regex=True):
         if regex:
-            # MicroPython-felle: re.IGNORECASE finnes ikke (verken unix-
-            # eller wasm-bygg). Case-insensitivt regex-søk løses derfor med
-            # samme småbokstav-triks som non-regex-grenen under, i stedet
-            # for et flagg til re.compile.
-            rx = re.compile(pat if case else pat.lower())
-            return self._map(
-                lambda v: rx.search(v if case else v.lower()) is not None)
+            if not case:
+                _IC = getattr(re, 'IGNORECASE', None)
+                if _IC is not None:
+                    # re.IGNORECASE finnes (CPython/Brython/wasm-bygg med
+                    # støtte) — bruk ekte flagg, samme oppførsel som
+                    # pandas_brython.py.
+                    rx = re.compile(pat, _IC)
+                    return self._map(lambda v: rx.search(v) is not None)
+                # MicroPython-felle #10: re.IGNORECASE finnes ikke (unix-
+                # bygget, bekreftet). Fallback: småbokstav-normaliser mønster
+                # og streng i stedet for å sette et flagg. Dette er en
+                # tilnærming, ikke identisk med ekte IGNORECASE (f.eks.
+                # unicode-kanttilfeller), og gjelder KUN denne fallbacken —
+                # ikke case=True-grenen.
+                rx = re.compile(pat.lower())
+                return self._map(lambda v: rx.search(v.lower()) is not None)
+            rx = re.compile(pat)
+            return self._map(lambda v: rx.search(v) is not None)
         if not case:
             p = pat.lower()
             return self._map(lambda v: p in v.lower())

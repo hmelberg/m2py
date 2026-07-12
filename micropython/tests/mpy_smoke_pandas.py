@@ -15,4 +15,7 @@ assert list(df['dobbel']) == [20, 40, 60]
 from io import StringIO
 df2 = pd.read_csv(StringIO('a,b\n1,"x,y"\n2,z\n'))
 assert len(df2) == 2
+s = pd.Series([1, 2, 3, 4, 5])
+s.iloc[1:3] = pd.Series([100, 200])
+assert list(s) == [1, 100, 200, 4, 5]
 print('MPY-PANDAS-RØYK OK')
