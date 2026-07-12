@@ -107,6 +107,13 @@
              dir: dir, good: good };
   };
 
+  D.payloadCols = function (p) {
+    if (!p) return 0;
+    if (typeof p.cols === 'number') return p.cols;
+    if (p.columns && p.columns.length) return p.columns.length;
+    return 0;
+  };
+
   // K2 (docs/superpowers/plans/2026-07-11-dash-v2-forbedringer.md): URL-state
   // {shared:{navn:råverdi}, cards:{"<n>":{navn:råverdi}}} <-> kompakt JSON i
   // base64url (uten padding). Rene funksjoner, ingen DOM — node-testet.
@@ -258,7 +265,28 @@
     }
     if (kind === 'table') {
       var w = el('div', 'dash-table-wrap');
-      w.innerHTML = p.html;
+      if (p.html != null) {
+        w.innerHTML = p.html;
+        return w;
+      }
+      // strukturert variant (spec 2026-07-12 §3.2) — bygget med textContent,
+      // aldri innerHTML: celleinnhold kan ikke smugle markup.
+      var tbl = el('table');
+      var trh = el('tr');
+      (p.columns || []).forEach(function (c) { trh.appendChild(el('th', null, String(c))); });
+      var thead = el('thead');
+      thead.appendChild(trh);
+      tbl.appendChild(thead);
+      var tbody = el('tbody');
+      (p.rows || []).forEach(function (row) {
+        var tr = el('tr');
+        (row || []).forEach(function (cell) {
+          tr.appendChild(el('td', null, cell == null ? '' : String(cell)));
+        });
+        tbody.appendChild(tr);
+      });
+      tbl.appendChild(tbody);
+      w.appendChild(tbl);
       return w;
     }
     if (kind === 'image') {
@@ -565,13 +593,13 @@
     rec.node.classList.remove('dash-card--loading');
     rec.node.classList.toggle('dash-card--error', p.kind === 'error');
     if (rec.dashId && !rec.placed) {
-      placeCard(_dashes[rec.dashId], rec, p.kind, p.cols || 0);
+      placeCard(_dashes[rec.dashId], rec, p.kind, D.payloadCols(p));
     } else if (rec.provisional) {
       // Punkt 3: første reelle payload for et funksjonskort som ble
       // foreløpig plassert i auto-layout — oppdater span/order til faktisk kind.
       var dash = _dashes[rec.dashId];
       if (dash && !dash.mosaic) {
-        rec.node.style.gridColumn = 'span ' + D.autoSpan(p.kind, p.cols || 0);
+        rec.node.style.gridColumn = 'span ' + D.autoSpan(p.kind, D.payloadCols(p));
         rec.node.style.order = D.autoOrder(p.kind);
       }
       rec.provisional = false;
@@ -600,6 +628,19 @@
     if (_cards[id]) return JSON.stringify(_cards[id].controlValues || {});
     if (_dashes[id]) return JSON.stringify(_dashes[id].sharedValues || {});
     return '{}';
+  };
+
+  // Async-runtimes (dash-webr): slå på loading-shimmer til neste updateCard.
+  D.setBusy = function (cardId) {
+    var rec = _cards[cardId];
+    if (rec) rec.node.classList.add('dash-card--loading');
+  };
+
+  // Lever dashboardet fortsatt i DOM? (pyodide-adapteren rydder proxies
+  // for døde dashboards ved neste dashboard()-kall.)
+  D.isAlive = function (id) {
+    var d = _dashes[id];
+    return !!(d && d.root && d.root.isConnected);
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = D;

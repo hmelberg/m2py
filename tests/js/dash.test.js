@@ -169,3 +169,9 @@ test('computeDelta: bruker fmt på differansen', () => {
   const d = D.computeDelta(0.35, 0.30, '.1%', 'opp');
   assert.strictEqual(d.text, '+5,0%');
 });
+
+test('payloadCols: html-tabell bruker cols, strukturert bruker columns.length', () => {
+  assert.strictEqual(D.payloadCols({ kind: 'table', html: '<table/>', cols: 9 }), 9);
+  assert.strictEqual(D.payloadCols({ kind: 'table', columns: ['a', 'b'], rows: [] }), 2);
+  assert.strictEqual(D.payloadCols({ kind: 'number', value: 1 }), 0);
+});
