@@ -20,7 +20,12 @@ const LOCAL_SWR_SUFFIXES = [
   '/mockdata_realism.py',
   '/brython/pandas_brython.py',
   '/brython/plotly_express_brython.py',
-  '/brython/brython_runner.py'
+  '/brython/brython_runner.py',
+  '/micropython/micropython_runner.py',
+  '/micropython/pandas_mpy.py',
+  '/micropython/plotly_express_mpy.py',
+  '/micropython/dash.py',
+  '/micropython/duckdb_mpy.py'
 ];
 
 const PRECACHE_URLS = [
