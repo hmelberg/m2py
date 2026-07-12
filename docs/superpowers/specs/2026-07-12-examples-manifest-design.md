@@ -59,8 +59,8 @@ examples/
 - Én mappe per modus; mappenavnet ER modus-nøkkelen
   (`microdata|python|r|statx|duckdb|brython|micropython`, pluss `safestat` i
   safestat-repoet).
-- Valgfritt ett undernivå for struktur:
-  `examples/<modus>/<NN_gruppe>/<fil>.txt` → blir en underoverskrift i menyen.
+- **Kategorier via undermapper** (se «Kategorier» under): valgfritt ett
+  undernivå, `examples/<modus>/<NN_kategori>/<fil>.txt`.
 - Filnavn kan droppe dagens modus-prefiks (`mp`/`bry`/`sql`), siden mappa
   koder modus. Behold et numerisk sorteringsprefiks (`01_`, `02_`) for
   rekkefølge.
@@ -92,7 +92,30 @@ gjør `fetch(base + 'examples/' + file)`):
 }
 ```
 
-`group` er `null` for filer rett i modus-mappa, ellers underoverskrifts-teksten.
+`group` er `null` for filer rett i modus-mappa, ellers kategori-labelen
+(utledet fra undermappenavnet, samme `NN — Pen tittel`-regel som
+`web_examples`).
+
+## Kategorier (vist til brukeren)
+
+Kategorier er **implisitte gjennom mappestrukturen** og førsteklasses i UI-et:
+
+- Filer rett i `examples/<modus>/` vises som en flat liste (ingen seremoni for
+  små modi — micropython med 4 eksempler forblir flatt).
+- Legger du inn undermapper `examples/<modus>/<NN_kategori>/`, blir hver
+  undermappe en **kategori-underoverskrift** i dropdownen, med sine eksempler
+  under seg. En modus kan blande flate filer og kategoriserte undermapper.
+- Kategori-rekkefølgen styres av `NN_`-prefikset på undermappa; labelen er
+  `NN — Pen tittel` (samme `_folder_label`-regel som `web_examples`).
+- Dette skalerer naturlig: brython (~23 eksempler) kan deles i kategorier,
+  mens små modi slipper.
+
+**Presentasjon:** vi gjenbruker dagens dropdown og legger kategoriene inn som
+`.examples-dropdown-title`-underoverskrifter (samme klasse som «GitHub»-tittelen
+i menyen). Vi tar IKKE i bruk web-eksemplenes to-panels-modal for den innebygde
+menyen nå — den er tyngre for det vanlige «bare hent det ene eksempelet»-tilfellet.
+Hvis en modus en dag vokser forbi det en dropdown takler, kan modalen
+(`initWebExamples`, `index.html:1633`) gjenbrukes uendret. (YAGNI til da.)
 
 ### 3. `index.html`: dynamisk render + lat henting
 
