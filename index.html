@@ -111,10 +111,10 @@
               <button type="button" data-example="bry23_sklearn.txt" data-mode="brython" data-i18n>sklearn &mdash; KMeans, PCA, regresjon</button>
             </div>
             <div class="examples-section" data-section-mode="micropython">
-              <button type="button" data-example="mp01_pandas_basics.txt" data-mode="micropython" data-i18n>pandas_mpy &mdash; basics</button>
-              <button type="button" data-example="mp02_plotly.txt" data-mode="micropython" data-i18n>plotly_express_mpy &mdash; grafer</button>
-              <button type="button" data-example="mp03_dashboard.txt" data-mode="micropython" data-i18n>Dashboard &mdash; salg</button>
-              <button type="button" data-example="mp04_csv_url.txt" data-mode="micropython" data-i18n>Les en CSV fra en URL</button>
+              <button type="button" data-example="micropython/01_pandas_basics.txt" data-mode="micropython" data-i18n>pandas_mpy &mdash; basics</button>
+              <button type="button" data-example="micropython/02_plotly.txt" data-mode="micropython" data-i18n>plotly_express_mpy &mdash; grafer</button>
+              <button type="button" data-example="micropython/03_dashboard.txt" data-mode="micropython" data-i18n>Dashboard &mdash; salg</button>
+              <button type="button" data-example="micropython/04_csv_url.txt" data-mode="micropython" data-i18n>Les en CSV fra en URL</button>
             </div>
             <div class="examples-section" data-section-mode="safestat">
               <button type="button" data-example="safestat01_url_csv.txt" data-mode="safestat" data-i18n>SafeStat &mdash; CSV from URL</button>
@@ -823,6 +823,7 @@
   <script src="command_help.js"></script>
   <script>window.M2PY_APP = 'safestat';</script>
   <script src="js/notebook-links.js"></script>
+  <script src="js/examples-menu.js"></script>
   <script>
     // dash v2 URL-state (K2, docs/superpowers/plans/2026-07-11-dash-v2-forbedringer.md):
     // et evt. ";ds=<base64url>"-suffiks på location.hash må strippes FØR
@@ -1888,6 +1889,7 @@
       }
       document.getElementById('menuExamplesBtn').addEventListener('click', function(e) {
         e.stopPropagation();
+        ensureExamplesRendered();
         if (examplesDropdown) {
           updateExamplesVisibility();
           examplesDropdown.classList.toggle('open');
@@ -1896,41 +1898,97 @@
         exportDropdown.classList.remove('open');
       });
       if (examplesDropdown) examplesDropdown.addEventListener('click', function(e) { e.stopPropagation(); });
-      document.querySelectorAll('.examples-dropdown button[data-example]').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          var file = this.getAttribute('data-example');
-          var title = this.textContent.trim();
-          var mode = this.getAttribute('data-mode');
-          var base = window.location.href.replace(/[^/]+$/, '');
-          fetch(base + 'examples/' + file).then(function(r) {
-            if (!r.ok) throw new Error(r.status);
-            return r.text();
-          }).then(function(text) {
-            if (mode && (mode === 'microdata' || mode === 'python' || mode === 'r' || mode === 'statx' || mode === 'duckdb' || mode === 'brython' || mode === 'micropython')
-                && typeof switchEditorMode === 'function'
-                && typeof activeEditorMode !== 'undefined') {
-              if (typeof editorContent !== 'undefined') editorContent[mode] = text;
-              if (mode !== activeEditorMode) switchEditorMode(mode);
-            }
-            scriptInput.value = text;
-            scriptName.value = title;
-            if (window.mdClearOutput) window.mdClearOutput();
-            if (window.mdGithubClearCurrent) window.mdGithubClearCurrent();
-            if (window.updateLineNumbers) window.updateLineNumbers();
-            if (examplesDropdown) examplesDropdown.classList.remove('open');
-            dropdown.classList.remove('open');
-            // Returner fokus til textarea så Tab-autosuggestion virker rett etter lasting.
-            scriptInput.focus();
-            scriptInput.selectionStart = scriptInput.selectionEnd = 0;
-          }).catch(function(err) {
-            if (window.location.protocol === 'file:') {
-              alert(t('Filen er åpnet direkte i nettleseren (file://). Start en lokal webserver og åpne via http://localhost for å laste eksempler.\n\nEks: åpne terminal i m2py-mappen og kjør:\npython -m http.server 8000\n\nÅpne deretter http://localhost:8000/microdata_runner.html'));
-            } else {
-              alert(t('Kunne ikke laste eksempel: {file}\nFeil: {msg}\n\nSjekk at examples-mappen ligger i samme mappe som microdata_runner.html og at serveren har tilgang til den.', { file: file, msg: err && err.message ? err.message : String(err) }));
-            }
-          });
+      function loadExampleFile(file, title, mode) {
+        var base = window.location.href.replace(/[^/]+$/, '');
+        fetch(base + 'examples/' + file).then(function(r) {
+          if (!r.ok) throw new Error(r.status);
+          return r.text();
+        }).then(function(text) {
+          if (mode && (mode === 'microdata' || mode === 'python' || mode === 'r' || mode === 'statx' || mode === 'duckdb' || mode === 'brython' || mode === 'micropython')
+              && typeof switchEditorMode === 'function'
+              && typeof activeEditorMode !== 'undefined') {
+            if (typeof editorContent !== 'undefined') editorContent[mode] = text;
+            if (mode !== activeEditorMode) switchEditorMode(mode);
+          }
+          scriptInput.value = text;
+          scriptName.value = title;
+          if (window.mdClearOutput) window.mdClearOutput();
+          if (window.mdGithubClearCurrent) window.mdGithubClearCurrent();
+          if (window.updateLineNumbers) window.updateLineNumbers();
+          if (examplesDropdown) examplesDropdown.classList.remove('open');
+          dropdown.classList.remove('open');
+          scriptInput.focus();
+          scriptInput.selectionStart = scriptInput.selectionEnd = 0;
+        }).catch(function(err) {
+          if (window.location.protocol === 'file:') {
+            alert(t('Filen er åpnet direkte i nettleseren (file://). Start en lokal webserver og åpne via http://localhost for å laste eksempler.\n\nEks: åpne terminal i m2py-mappen og kjør:\npython -m http.server 8000\n\nÅpne deretter http://localhost:8000/microdata_runner.html'));
+          } else {
+            alert(t('Kunne ikke laste eksempel: {file}\nFeil: {msg}\n\nSjekk at examples-mappen ligger i samme mappe som microdata_runner.html og at serveren har tilgang til den.', { file: file, msg: err && err.message ? err.message : String(err) }));
+          }
         });
-      });
+      }
+
+      // Delegert klikk: virker for både statiske og dynamisk bygde knapper.
+      if (examplesDropdown) {
+        examplesDropdown.addEventListener('click', function(e) {
+          var btn = e.target && e.target.closest ? e.target.closest('button[data-example]') : null;
+          if (!btn || !examplesDropdown.contains(btn)) return;
+          loadExampleFile(btn.getAttribute('data-example'),
+                          btn.textContent.trim(),
+                          btn.getAttribute('data-mode'));
+        });
+      }
+
+      // Lat henting av examples/manifest.json ved FØRSTE åpning av menyen.
+      // Bygger seksjonene for modi som finnes i manifestet; modi som mangler
+      // beholder sine statiske knapper (inkrementell migrering). no-store så
+      // nye eksempler alltid vises.
+      var __examplesRendered = false;
+      function renderExamplesFromManifest(manifest) {
+        if (!examplesDropdown || !global_ExamplesMenu()) return;
+        Object.keys(manifest).forEach(function(mode) {
+          var sec = examplesDropdown.querySelector(
+            '.examples-section[data-section-mode="' + mode + '"]');
+          if (!sec) return;
+          sec.innerHTML = '';
+          global_ExamplesMenu().groupForMode(manifest, mode).forEach(function(grp) {
+            if (grp.group) {
+              var h = document.createElement('div');
+              h.className = 'examples-dropdown-title';
+              h.textContent = grp.group;
+              sec.appendChild(h);
+            }
+            grp.examples.forEach(function(ex) {
+              var b = document.createElement('button');
+              b.type = 'button';
+              b.setAttribute('data-example', ex.file);
+              b.setAttribute('data-mode', mode);
+              b.setAttribute('data-i18n', '');
+              b.textContent = ex.label;
+              sec.appendChild(b);
+            });
+          });
+          if (window.applyTranslations) window.applyTranslations(sec);
+        });
+      }
+      function global_ExamplesMenu() {
+        return (typeof ExamplesMenu !== 'undefined') ? ExamplesMenu
+             : (typeof globalThis !== 'undefined' ? globalThis.ExamplesMenu : null);
+      }
+      function ensureExamplesRendered() {
+        if (__examplesRendered) return;
+        var base = window.location.href.replace(/[^/]+$/, '');
+        fetch(base + 'examples/manifest.json', { cache: 'no-store' })
+          .then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+          .then(function(manifest) {
+            __examplesRendered = true;      // kun ved suksess → tillat retry ved feil
+            renderExamplesFromManifest(manifest);
+            updateExamplesVisibility();     // hold synlighet i takt med aktiv modus
+          })
+          .catch(function(err) {
+            console.warn('examples manifest load failed (statiske knapper beholdes):', err);
+          });
+      }
 
       // Web-eksempler: to-panels-modal som laster scripts fra web_examples/ via manifest.json
       (function initWebExamples() {
