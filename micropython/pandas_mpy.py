@@ -71,7 +71,15 @@
 #  13. Funksjonsobjekter tillater ikke tilordning av `__name__` i MicroPython
 #      (`_raise.__name__ = name` i `_brython_gap` feilet). Guardet med
 #      try/except — rent kosmetisk under CPython/Brython (bedre
-#      tracebacks), trygt å hoppe over under MicroPython.
+#      tracebacker), trygt å hoppe over under MicroPython.
+#  14. (Task 5) `.plot`-aksessoren gjorde `import plotly_express_brython as
+#      px` — en ren kopi-feil fra pandas_brython.py, usett i CPython-testene
+#      siden importen er try/except-guardet og ingen test faktisk kaller
+#      `.plot.*`. Nå som Task 5 har levert micropython/plotly_express_mpy.py,
+#      byttet til `import plotly_express_mpy as px` slik at motorens
+#      LIB_REGISTRY-avhengighet (pandas_mpy → plotly_express_mpy, deklarert
+#      i js/micropython-engine.js) faktisk stemmer med hva modulen prøver å
+#      importere.
 #
 # (Se filhode-kommentarene ved hvert enkelt endringspunkt for detaljer.)
 
@@ -150,9 +158,9 @@ import sys
 _LINESEP = getattr(os, 'linesep', '\n')
 
 try:
-  import plotly_express_brython as px
+  import plotly_express_mpy as px
 except:
-  print("failed to import plotly_express_brython")
+  print("failed to import plotly_express_mpy")
   pass
 try:
     from datetime import datetime

@@ -20,4 +20,7 @@ rec('feil-traceback', await MicroPythonEngine.run('1/0'));
 rec('scanImports', { text: MicroPythonEngine._scanImports('import duckdb\nimport pandas_mpy').join(','), error: null });
 rec('pandas', await MicroPythonEngine.run(
   'import pandas_mpy as pd\ndf = pd.DataFrame({"a": [1, 2, 3]})\ndf'));
+rec('plotly', await MicroPythonEngine.run(
+  'import pandas_mpy as pd\nimport plotly_express_mpy as pe\n' +
+  'df = pd.DataFrame({"x": [1, 2], "y": [3, 4]})\npe.scatter(df, x="x", y="y")'));
 </script></body></html>
