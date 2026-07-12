@@ -18,4 +18,6 @@ await MicroPythonEngine.run('zz = 40');
 rec('state', await MicroPythonEngine.run('zz + 2'));
 rec('feil-traceback', await MicroPythonEngine.run('1/0'));
 rec('scanImports', { text: MicroPythonEngine._scanImports('import duckdb\nimport pandas_mpy').join(','), error: null });
+rec('pandas', await MicroPythonEngine.run(
+  'import pandas_mpy as pd\ndf = pd.DataFrame({"a": [1, 2, 3]})\ndf'));
 </script></body></html>
