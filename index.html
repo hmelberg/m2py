@@ -8644,11 +8644,16 @@ json.dumps(out)
       }
 
       // dash v2: definer R-adapteret + nullstill registeret FØR segmentene
-      // kjører (scriptet kaller dashboard()/add() under kjøringen). Gates på
-      // en billig tekst-sjekk så vanlige R-kjøringer ikke betaler fetch/eval.
-      if (window.DashWebR && /\bdashboard\s*\(/.test(src)) {
+      // kjører (scriptet kaller dashboard()/add() under kjøringen). reset()
+      // kjøres UBETINGET (no-op om defs aldri er lastet, se dash-webr.js) —
+      // ellers står forrige dashboards register igjen R-side når et vanlig
+      // R-script uten dashboard() kjøres etterpå, og mount() bygger opp
+      // forrige dashboard som et fantom-remount under det nye scriptets
+      // output. ensureDefs() gates fortsatt på tekst-sjekken så vanlige
+      // R-kjøringer ikke betaler fetch/eval.
+      if (window.DashWebR) {
         try {
-          await window.DashWebR.ensureDefs();
+          if (/\bdashboard\s*\(/.test(src)) await window.DashWebR.ensureDefs();
           await window.DashWebR.reset();
         } catch (e) {
           outputParts.push({ type: 'error', text: 'dash: ' + ((e && e.message) || e) });
