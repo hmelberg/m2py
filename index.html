@@ -530,6 +530,7 @@
           <button type="button" data-mode="jamovi">Jamovi</button>
           <button type="button" data-mode="duckdb">SQL - DuckDB</button>
           <button type="button" data-mode="brython">Brython</button>
+          <button type="button" data-mode="micropython">MicroPython</button>
           <button type="button" data-mode="safestat">SafeStat</button>
         </div>
       </div>
@@ -805,6 +806,7 @@
   <script src="https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
   <script src="js/brython-engine.js"></script>
+  <script src="js/micropython-engine.js"></script>
   <script src="js/dash.js"></script>
   <script src="js/dash-webr.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
@@ -1897,7 +1899,7 @@
             if (!r.ok) throw new Error(r.status);
             return r.text();
           }).then(function(text) {
-            if (mode && (mode === 'microdata' || mode === 'python' || mode === 'r' || mode === 'statx' || mode === 'duckdb' || mode === 'brython')
+            if (mode && (mode === 'microdata' || mode === 'python' || mode === 'r' || mode === 'statx' || mode === 'duckdb' || mode === 'brython' || mode === 'micropython')
                 && typeof switchEditorMode === 'function'
                 && typeof activeEditorMode !== 'undefined') {
               if (typeof editorContent !== 'undefined') editorContent[mode] = text;
@@ -2416,7 +2418,7 @@
           var _wanted = _mm[1].toLowerCase();
           if (_wanted === 'py') _wanted = 'python';
           var _cur = window.M2PY && window.M2PY.currentMode && window.M2PY.currentMode();
-          if (['python', 'r', 'duckdb', 'microdata', 'jamovi', 'brython'].indexOf(_wanted) < 0) _wanted = _cur && _cur.id;
+          if (['python', 'r', 'duckdb', 'microdata', 'jamovi', 'brython', 'micropython'].indexOf(_wanted) < 0) _wanted = _cur && _cur.id;
           if (_wanted && (!_cur || _cur.id !== _wanted)) {
             var _txt = _si.value;
             window.switchEditorMode(_wanted);
@@ -3720,6 +3722,34 @@
           }
           setStatus(ctx.rightStatus, res.error ? t('Feil') : t('Ferdig'));
         } },
+      micropython: { id: 'micropython', label: 'MicroPython', hlConfig: PY_HL_CFG, handleTab: handlePythonTab,
+        onActivate: function () { if (window.MicroPythonEngine) window.MicroPythonEngine.load().catch(function () {}); },
+        runSelf: async function (script, ctx) {
+          setStatus(ctx.rightStatus, t('Laster MicroPython…'));
+          var _dl = await window.DataLoader.resolveAndFetchLoads(script,
+            { anthropicKey: getAnthropicKey(), promptKey: mdPromptKey });
+          setStatus(ctx.rightStatus, t('Kjører…'));
+          // Samme dash v2-forbehold som Brython-raden over: js/dash.js skriver
+          // DOM direkte til #outputArea under kjøring — tøm FØR, ikke etter.
+          purgePlots(outputArea);
+          outputArea.innerHTML = '';
+          var res = await window.MicroPythonEngine.run(script, { loads: _dl.loads });
+          var _omEl = document.querySelector('input[name="outputMode"]:checked');
+          var _asHtml = !_omEl || _omEl.value === 'html';
+          var _suppress = (typeof suppressEmbedded !== 'undefined' && suppressEmbedded) ? !!suppressEmbedded.checked : false;
+          if (outputArea.querySelector('.dash')) {
+            appendOutput(res.text || '', _asHtml, _suppress);
+          } else {
+            renderOutput(res.text || '', _asHtml, _suppress);
+          }
+          if (res.error) {
+            var _pre = document.createElement('pre');
+            _pre.className = 'error';
+            _pre.textContent = res.error;
+            outputArea.appendChild(_pre);
+          }
+          setStatus(ctx.rightStatus, res.error ? t('Feil') : t('Ferdig'));
+        } },
       // SafeStat: same microdata language, but runs by translating to pandas and
       // executing the generated code (offline path) rather than the emulator.
       // Execution is local now; a remote compute-to-data executor is a placeholder.
@@ -3753,7 +3783,7 @@
     // (plan 2026-07-09: R uten Pyodide, fremtidig brython/subdomene-boot).
     var RUNTIME_FOR_MODE = { python: 'pyodide', microdata: 'pyodide', duckdb: 'duckdb',
                              jamovi: 'pyodide', statx: 'pyodide',
-                             safestat: 'pyodide', brython: 'brython', r: 'webr' };
+                             safestat: 'pyodide', brython: 'brython', micropython: 'micropython', r: 'webr' };
     function runtimeForMode(id) { return RUNTIME_FOR_MODE[id] || 'pyodide'; }  // ukjent → trygt valg
 
     function switchEditorMode(newMode) {
@@ -4262,8 +4292,8 @@
     // som avledes av kildene (safepy-he-v1) i hvilken som helst språkmodus —
     // se sesjonskontekst-badgene og js/session-context.js. Eksempel på
     // HE-script ligger i docs/directive-language-examples.md.
-    const editorContent   = { microdata: '', python: '', r: '', statx: '', jamovi: '', duckdb: '', brython: '', safestat: '' };
-    const editorBP        = { microdata: new Set(), python: new Set(), r: new Set(), statx: new Set(), jamovi: new Set(), duckdb: new Set(), brython: new Set(), safestat: new Set() };
+    const editorContent   = { microdata: '', python: '', r: '', statx: '', jamovi: '', duckdb: '', brython: '', micropython: '', safestat: '' };
+    const editorBP        = { microdata: new Set(), python: new Set(), r: new Set(), statx: new Set(), jamovi: new Set(), duckdb: new Set(), brython: new Set(), micropython: new Set(), safestat: new Set() };
     // B4/B5 (docs/REVIEW_2026-07-07.md §3): switchEditorMode() persists
     // md_editor_mode but nothing ever read it back, so a reload always
     // landed on 'microdata'. Restore it here, synchronously, as part of this
@@ -9931,6 +9961,12 @@ options(width = 200)
       });
     } else if (runtimeForMode(activeEditorMode) === 'brython' && window.BrythonEngine) {
       window.BrythonEngine.load().then(function () {
+        runtimeReadyBootstrap(null);
+      }).catch(function (e) {
+        setStatus(leftStatus, 'Load failed: ' + (e && e.message ? e.message : String(e)), true);
+      });
+    } else if (runtimeForMode(activeEditorMode) === 'micropython' && window.MicroPythonEngine) {
+      window.MicroPythonEngine.load().then(function () {
         runtimeReadyBootstrap(null);
       }).catch(function (e) {
         setStatus(leftStatus, 'Load failed: ' + (e && e.message ? e.message : String(e)), true);

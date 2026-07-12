@@ -13,13 +13,16 @@ hverandre gjennom hele notatet fordi de IKKE er samme binær/VM-build:
    `window` — samme underliggende mekanisme (i nettleseren er `window` en
    `globalThis`-egenskap), men ekte DOM-objekter (`document` osv.) er **ikke**
    testet.
-3. **wasm i nettleser** — **ikke kjørt**. `web_examples/mpy_spike.html` er
-   skrevet nøyaktig som spesifisert og er klar for manuell verifisering i en
-   ekte nettleser (`python3 -m http.server 8901` fra repo-roten, åpne
-   `http://localhost:8901/web_examples/mpy_spike.html`). Boot-tiden målt i
-   Node (se under) er **indikativ, ikke** et mål på nettleser-boot-tid — Node
-   laster wasm fra lokal disk uten nettverkslatens/kompileringsforskjeller
-   som gjelder i nettleseren, og gir derfor et kunstig lavt tall.
+3. **wasm i nettleser** — kjørt 2026-07-12 (Task 7, browser-røyk via
+   Playwright MCP mot `python3 -m http.server 8901`, Chromium):
+   `http://localhost:8901/web_examples/mpy_spike.html`. BOOT: **18 ms** —
+   godt under briefens forventning (500 ms) og faktisk i samme størrelsesorden
+   som Node-tallet under (9–14 ms), altså ikke det kunstig lave Node-tallet
+   man kunne fryktet. js-interop (`js.Math.floor` og `window.__spikeCb`-
+   callback via ekte `window`, ikke `globalThis`-proxy) ga samme OK-resultat
+   som Node-kjøringen. Primitiv-sjekkene ga identisk OK/FEIL-mønster som
+   wasm-via-Node (se lista under) — ingen nye avvik oppdaget i ekte
+   nettleser-VM. Forbehold 1 under er dermed lukket.
 
 GATE-vurderingen i dette notatet er basert på **wasm-via-Node**-resultatene
 (punkt 2), fordi det er samme VM/dialekt som nettleseren kjører — ikke på
@@ -30,8 +33,10 @@ versjon (v1.28.0 vs v1.27.0).
 
 - **wasm via Node**: 9–14 ms over 4 målinger (`loadMicroPython` til ferdig
   instansiert VM, lokale filer, `stdout` no-op). **Indikativ, ikke nettleser-tall.**
-- **wasm i nettleser**: ikke målt — manuell verifisering gjenstår. Forventning
-  fra briefen: godt under 500 ms (sammenligningsmål Brython-boot ~1500–3000 ms).
+- **wasm i nettleser**: **18 ms** (Chromium, Playwright MCP, 2026-07-12,
+  `python3 -m http.server 8901` + `web_examples/mpy_spike.html`,
+  `loadMicroPython` til ferdig instansiert VM). Godt under briefens mål
+  (500 ms) og under Brython-boot-sammenligningen (~1500–3000 ms).
 
 ## Primitiv-sjekker: full OK/FEIL-liste
 
@@ -142,11 +147,10 @@ Alle fem er **OK** i wasm-via-Node-kjøringen:
 Forbehold (ikke gate-blokkerende, men bør lukkes før Task 2 begynner i
 praksis):
 
-1. Faktisk nettleser-kjøring av `web_examples/mpy_spike.html` er ikke gjort —
-   boot-tid-tallet og `window`/DOM-spesifikk js-interop er verifisert i Node
-   som en god proxy, men ikke i ekte nettleser-VM. Anbefaling: gjør denne
-   manuelle sjekken før/parallelt med Task 2–3, siden Task 3 (motoren) er den
-   som faktisk kjører i nettleseren.
+1. ~~Faktisk nettleser-kjøring av `web_examples/mpy_spike.html` er ikke
+   gjort~~ — **LUKKET 2026-07-12 (Task 7)**: kjørt i ekte Chromium via
+   Playwright MCP, BOOT 18 ms, samme OK/FEIL-mønster og js-interop (ekte
+   `window`) som Node-proxyen. Se punkt 3 og boot-tid-seksjonen over.
 2. `c_binascii_base64`-avviket (str vs. bytes) og `c_re_split_class`-feilen
    er informasjonspunkter med kjente fallbacks i senere tasks, ikke
    gate-blokkerende (per briefens instruks om at enkeltsjekker som feiler er
