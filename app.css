@@ -44,7 +44,7 @@
     .hamburger-dropdown.open { display: block; }
     .hamburger-dropdown button { display: block; width: 100%; text-align: left; padding: 10px 14px; border: none; background: none; color: var(--text); cursor: pointer; font-size: 14px; }
     .hamburger-dropdown button:hover { background: var(--border); }
-    .examples-dropdown { display: none; position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: 200; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 0; min-width: 220px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .examples-dropdown { display: none; position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: 200; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 0; min-width: 220px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: calc(100vh - 90px); overflow-y: auto; }
     .examples-dropdown.open { display: block; }
     .examples-dropdown-title { font-size: 11px; text-transform: uppercase; color: var(--text-muted); padding: 4px 14px 6px 14px; }
     .examples-dropdown button { display: block; width: 100%; padding: 8px 14px; border: none; background: none; color: var(--text); cursor: pointer; font-size: 14px; text-align: left; }
