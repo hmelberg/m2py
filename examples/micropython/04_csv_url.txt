@@ -1,4 +1,5 @@
 #options.mode = micropython
+# label: Les en CSV fra en URL
 # MicroPython: les en CSV fra en URL med `# load`-direktivet.
 # Fila hentes i nettleseren og bindes som en pandas_mpy-DataFrame under
 # navnet du velger — ingen DuckDB trengs for CSV (kun parquet krever det).

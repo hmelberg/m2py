@@ -1,4 +1,5 @@
 #options.mode = micropython
+# label: Dashboard — salg
 #options.title = "Salgs-dashboard (dash v2)"
 #options.description = "Auto-layout og kontroller per kort — ingen eksterne data"
 import plotly_express_mpy as pe

@@ -1,3 +1,4 @@
+# label: pandas_mpy — basics
 # MicroPython-modus: rask Python i nettleseren
 import pandas_mpy as pd
 

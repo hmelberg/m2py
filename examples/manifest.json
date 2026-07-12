@@ -1,0 +1,24 @@
+{
+  "micropython": [
+    {
+      "file": "micropython/01_pandas_basics.txt",
+      "label": "pandas_mpy — basics",
+      "group": null
+    },
+    {
+      "file": "micropython/02_plotly.txt",
+      "label": "plotly_express_mpy — grafer",
+      "group": null
+    },
+    {
+      "file": "micropython/03_dashboard.txt",
+      "label": "Dashboard — salg",
+      "group": null
+    },
+    {
+      "file": "micropython/04_csv_url.txt",
+      "label": "Les en CSV fra en URL",
+      "group": null
+    }
+  ]
+}
