@@ -17,6 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent          # .../examples
 NUM_RE = re.compile(r"^(\d+)_(.+)$")
 LABEL_RE = re.compile(r"^\s*(?:#|--|//)\s*label:\s*(.+?)\s*$")
+EXAMPLE_RE = re.compile(r"^\s*(?:#|--|//)\s*Example:\s*(.+?)\s*$")
 TITLE_RE = re.compile(r"""^\s*#options\.title\s*=\s*["'](.+?)["']\s*$""")
 SKIP_DIRS = {"tests"}
 # Kjente modus-nøkler (safestat + openstat). Ukjente topp-mapper (f.eks. en
@@ -55,7 +56,13 @@ def label_for(path: Path) -> str:
             if m:
                 return m.group(1)
 
-        # Second pass: check for #options.title
+        # Second pass: check for Example marker (# Example:, -- Example:, // Example:)
+        for line in lines:
+            m = EXAMPLE_RE.match(line)
+            if m:
+                return m.group(1)
+
+        # Third pass: check for #options.title
         for line in lines:
             m = TITLE_RE.match(line)
             if m:

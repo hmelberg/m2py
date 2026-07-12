@@ -88,3 +88,16 @@ def test_build_manifest_skips_unknown_mode_folders(tmp_path):
     m = gm.build_manifest(root)
 
     assert list(m.keys()) == ["micropython"]
+
+
+def test_label_from_example_marker(tmp_path):
+    p = tmp_path / "01_x.txt"
+    p.write_text("// ===\n// Example: Opprette datasett\n// Source: http://x\n",
+                 encoding="utf-8")
+    assert gm.label_for(p) == "Opprette datasett"
+
+
+def test_label_line_beats_example_marker(tmp_path):
+    p = tmp_path / "01_x.txt"
+    p.write_text("// Example: Fra Example\n# label: Fra label\n", encoding="utf-8")
+    assert gm.label_for(p) == "Fra label"
