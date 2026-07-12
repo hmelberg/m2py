@@ -188,3 +188,124 @@ def test_print_fanges_naar_retur_er_none(dash):
     d.add(lambda: print("hei", 3) or None)
     p = last_payload(dash)
     assert p == {"kind": "text", "text": "hei 3"}
+
+
+# ---- (4) _func_params: __code__-fallback for MicroPython (c_no_dunder_code) ----
+#
+# MicroPython-funksjoner mangler __code__ - se filhode-kommentaren i dash.py
+# punkt 3. Under CPython/pytest TAR alle ekte def-funksjoner (og lambdaer)
+# alltid __code__-veien (den er alltid til stede), saa fallback-parseren
+# testes her paa to måter: (a) DIREKTE mot _parse_params_from_source med
+# haandskrevne kildestrenger (dekker parse-logikken uavhengig av om noe
+# objekt faktisk mangler __code__), og (b) via _func_params selv med et
+# konstruert "MicroPython-lignende" objekt (callable, har __name__, har
+# INGEN __code__-attributt) for aa oeve selve AttributeError-fallback-grenen
+# og window.__mpySource()-oppslaget ende-til-ende.
+#
+# `win.__mpySource = ...` under settes UTENFOR enhver klassekropp (i en
+# vanlig testfunksjon) - se `_Dash__mpyCaptureStart/End`-kommentaren i
+# filhodet for hvorfor navnemangling er relevant her: dash.py sitt
+# `window.__mpySource()`-kall skjer i `_func_params`, en MODULFUNKSJON
+# (utenfor "class Dash"), saa CPython mangler IKKE selve kallet - stubben
+# maa derfor eksponere det BOKSTAVELIGE navnet `__mpySource`. Ville vi satt
+# det via en `def __mpySource(self):` INNI FakeWindow-klassekroppen, hadde
+# CPythons kompilator manglet SELVE DEFINISJONEN til `_FakeWindow__mpySource`
+# (mangling gjelder ethvert `__navn`-forekomst tekstlig inne i en
+# klassedefinisjon, ogsaa def-statements) - da ville `window.__mpySource()`
+# fra dash.py feilet med AttributeError. Attributt-tilordning i en vanlig
+# funksjon (ikke i en klassekropp) mangler IKKE, saa `win.__mpySource = fn`
+# her gir et oppslaabart, bokstavelig `__mpySource`-attributt.
+
+class _NoCodeFunc:
+    """Emulerer en MicroPython-funksjon: callable, har __name__, har IKKE
+    __code__ (getattr(f, '__code__', MISSING) gir AttributeError, akkurat
+    som en ekte MicroPython-funksjon gjor - fase 0-funn)."""
+    def __init__(self, name):
+        self.__name__ = name
+
+    def __call__(self, **kwargs):
+        return None
+
+
+class _NoCodeLambda(_NoCodeFunc):
+    def __init__(self):
+        super().__init__("<lambda>")
+
+
+def test_parse_params_enkel_def(dash):
+    src = "def f(a, b):\n    pass\n"
+    assert dash._parse_params_from_source(src, "f") == ["a", "b"]
+
+
+def test_parse_params_defaults_med_parenteser_og_komma_i_streng(dash):
+    src = 'def f(a, b=(1,2), c="x,y"):\n    pass\n'
+    assert dash._parse_params_from_source(src, "f") == ["a", "b", "c"]
+
+
+def test_parse_params_annotasjoner(dash):
+    src = 'def f(a: int, b: str = "z") -> None:\n    pass\n'
+    assert dash._parse_params_from_source(src, "f") == ["a", "b"]
+
+
+def test_parse_params_args_kwargs_droppes(dash):
+    src = "def f(a, *args, **kwargs):\n    pass\n"
+    assert dash._parse_params_from_source(src, "f") == ["a"]
+
+
+def test_parse_params_kwonly_etter_stjerne_tas_med(dash):
+    # NB: co_varnames-veien (CPython/__code__) tar med kwonly-parametre -
+    # fallback-parseren maa matche det, ikke bare droppe alt etter '*'.
+    src = "def f(a, *, b):\n    pass\n"
+    assert dash._parse_params_from_source(src, "f") == ["a", "b"]
+
+
+def test_parse_params_siste_definisjon_vinner_samme_script(dash):
+    src = "def f(a):\n    pass\ndef f(a, b):\n    pass\n"
+    assert dash._parse_params_from_source(src, "f") == ["a", "b"]
+
+
+def test_parse_params_siste_definisjon_vinner_paa_tvers_av_scriptlogg(dash):
+    # __mpySource() slaar sammen flere run()-kall (se js/micropython-
+    # engine.js) - nyeste script staar sist. Samme fasit: bakerste treff
+    # vinner uavhengig av script-grenser.
+    eldre = "def f(a, b):\n    pass\n"
+    nyere = "def f(x):\n    pass\n"
+    src = eldre + "\n\x00SCRIPT\x00\n" + nyere
+    assert dash._parse_params_from_source(src, "f") == ["x"]
+
+
+def test_parse_params_funksjon_ikke_funnet_gir_norsk_value_error(dash):
+    with pytest.raises(ValueError, match="fant ikke parametrene"):
+        dash._parse_params_from_source("def g(x):\n pass\n", "f")
+
+
+def test_func_params_bruker_code_naar_tilgjengelig(dash):
+    def f(a, b):
+        pass
+    assert dash._func_params(f) == ["a", "b"]
+
+
+def test_func_params_faller_tilbake_til_kildeparsing_uten_code(dash):
+    win = fake_window(dash)
+    win.__mpySource = lambda: "def minfunk(a, b=2):\n    pass\n"
+    assert dash._func_params(_NoCodeFunc("minfunk")) == ["a", "b"]
+
+
+def test_func_params_lambda_uten_code_gir_norsk_feil(dash):
+    with pytest.raises(ValueError, match="lambda"):
+        dash._func_params(_NoCodeLambda())
+
+
+def test_func_params_uten_code_og_uten_mpysource_gir_norsk_feil(dash):
+    # FakeWindow har ingen __mpySource by default -> window.__mpySource()
+    # kaster AttributeError, fanges av _func_params, gir tydelig norsk feil
+    # (IKKE en stille tom liste).
+    with pytest.raises(ValueError, match="fant ikke parametrene"):
+        dash._func_params(_NoCodeFunc("ukjent"))
+
+
+def test_func_params_funksjon_ikke_i_loggen_gir_norsk_feil(dash):
+    win = fake_window(dash)
+    win.__mpySource = lambda: "def annenfunk(z):\n    pass\n"
+    with pytest.raises(ValueError, match="fant ikke parametrene"):
+        dash._func_params(_NoCodeFunc("minfunk"))

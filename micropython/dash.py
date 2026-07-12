@@ -50,6 +50,28 @@ Dialektfeller fikset i denne porten:
      fangede stroemmen, saa dette bevarer originalens semantikk selv om
      "restore"-tidspunktet ikke er bokstavelig identisk.) `import
      sys`/`import io` er fjernet - ingenting annet i fila brukte dem.
+  3. `_func_params(f)` brukte `f.__code__.co_varnames` for aa finne
+     parameternavnene til en add()-et funksjon. MicroPython-funksjonsobjekter
+     har IKKE `__code__` (verifisert - ingen co_varnames/co_argcount), bare
+     `__name__`. `dash.add(<funksjon>)` kraster derfor under MicroPython med
+     den opprinnelige koden. Fikset med et fallback-spor: naar `__code__`
+     mangler (AttributeError), tekst-parses parameterlisten i stedet ut fra
+     kildeloggen motoren fører (`window.__mpySource()`,
+     js/micropython-engine.js sin `__scriptLog`/`run()`-hook) - let bakfra
+     etter siste `def <navn>(`, slice til matchende ')' (parentesdybde,
+     hopper over anforselstegn), splitt paa komma paa dybde 0, og strip
+     *args/**kwargs/'/' samt annotasjoner/defaults fra hvert navn (se
+     `_parse_params_from_source`/`_find_def_open_paren`/`_match_paren`/
+     `_split_top_level` under). `__code__`-veien proves ALLTID foerst og
+     brukes uendret der den finnes (CPython/pytest, ev. fremtidige
+     MicroPython-bygg med `__code__`). Lambdas (`__name__ == '<lambda>'`)
+     og funksjoner som ikke finnes i loggen kaster en tydelig norsk
+     ValueError i stedet for aa stille returnere en tom parameterliste -
+     en stille tom liste ville gitt et dashboard-kort som ignorerer alle
+     widget-verdiene uten aa si ifra. Delfelle: MicroPython-`str` mangler
+     `.isalnum()` (finnes i CPython) - ordgrense-sjekken i
+     `_find_def_open_paren` bruker derfor `_is_ident_char` (isalpha()/
+     isdigit()/'_'  i stedet).
 """
 from js import window                # MicroPython: js-modulen (jsffi)
 import json
@@ -272,9 +294,161 @@ def _dom_node(x):
     return getattr(x, "elt", x)
 
 
+def _is_ident_char(c):
+    """MicroPython-fella: str har IKKE .isalnum() (verifisert). isalpha()/
+    isdigit() finnes, saa identifikator-tegn (for ordgrense-sjekk under)
+    bygges av de to pluss understrek."""
+    return c.isalpha() or c.isdigit() or c == "_"
+
+
+def _match_paren(src, open_idx):
+    """src[open_idx] maa vaere '('. Returnerer indeksen til den MATCHENDE
+    ')' - teller parentes/brakett/brace-dybde og hopper over innhold i
+    enkle/doble anforselstegn (\\-escape respekteres), saa defaults som
+    `b=(1, 2)` eller `c="x,y"` ikke forstyrrer tellingen."""
+    depth = 0
+    quote = None
+    i = open_idx + 1
+    n = len(src)
+    while i < n:
+        c = src[i]
+        if quote:
+            if c == "\\":
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+            i += 1
+            continue
+        if c == '"' or c == "'":
+            quote = c
+        elif c in "([{":
+            depth += 1
+        elif c in ")]}":
+            if depth == 0:
+                return i
+            depth -= 1
+        i += 1
+    raise ValueError("dash: ubalanserte parenteser i funksjonsdefinisjonen")
+
+
+def _split_top_level(s, sep):
+    """Splitt s paa sep, men KUN paa dybde 0 (parentes/brakett/brace) og
+    utenfor anforselstegn - samme skjerming som _match_paren."""
+    parts = []
+    depth = 0
+    quote = None
+    start = 0
+    i = 0
+    n = len(s)
+    while i < n:
+        c = s[i]
+        if quote:
+            if c == "\\":
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+            i += 1
+            continue
+        if c == '"' or c == "'":
+            quote = c
+        elif c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+        elif c == sep and depth == 0:
+            parts.append(s[start:i])
+            start = i + 1
+        i += 1
+    parts.append(s[start:])
+    return parts
+
+
+def _find_def_open_paren(src, name):
+    """Finn INDEKSEN TIL '(' for den SISTE (bakerste) `def <name>(`-
+    definisjonen i src. src kan vaere flere scripts satt sammen (se
+    js/micropython-engine.js sin __mpySource()) - "siste vinner" gjelder
+    baade innad i ett script (omdefinering) og paa tvers av script-kjoeringer
+    i loggen (nyeste script sist). Returnerer None hvis ingen match.
+    Ordgrense-sjekk paa begge sider av <name> hindrer at f.eks. navnet
+    'foo' feilaktig matcher `def foo2(` eller `def xfoo(`."""
+    target = "def " + name
+    bound = len(src)
+    while True:
+        idx = src.rfind(target, 0, bound)
+        if idx == -1:
+            return None
+        before_ok = idx == 0 or not _is_ident_char(src[idx - 1])
+        after = idx + len(target)
+        j = after
+        while j < len(src) and src[j] in " \t":
+            j += 1
+        if before_ok and j < len(src) and src[j] == "(":
+            return j
+        bound = idx  # ikke et gyldig treff her - let videre bakover foer det
+
+
+def _parse_params_from_source(src, name):
+    """Fallback-parser for MicroPython (ingen __code__): let bakfra etter
+    `def <name>(`, slice ut parameterlisten til den matchende ')', splitt
+    paa komma (dybde 0), og strip *args/**kwargs/'/' samt annotasjoner
+    (etter ':') og defaults (etter '=') fra hvert gjenvaerende navn.
+    Kaster ValueError (norsk feiltekst) hvis funksjonen ikke finnes -
+    ALDRI stille tom liste, siden det ville gitt et dashboard-kort som
+    stille ignorerer alle widget-verdier."""
+    open_idx = _find_def_open_paren(src, name)
+    if open_idx is None:
+        raise ValueError(
+            "dash: fant ikke parametrene til funksjonen '%s' — definer den "
+            "med def paa toppnivaa i scriptet." % name)
+    close_idx = _match_paren(src, open_idx)
+    params_src = src[open_idx + 1:close_idx]
+    out = []
+    for tok in _split_top_level(params_src, ","):
+        t = tok.strip()
+        if not t or t.startswith("*") or t == "/":
+            continue
+        cut = len(t)
+        for ch in (":", "="):
+            p = t.find(ch)
+            if p != -1 and p < cut:
+                cut = p
+        t = t[:cut].strip()
+        if t:
+            out.append(t)
+    return out
+
+
 def _func_params(f):
-    code = f.__code__
-    return list(code.co_varnames[:code.co_argcount + code.co_kwonlyargcount])
+    """MicroPython-dialektfelle: funksjonsobjekter mangler __code__ (verifisert
+    i fase 0 - ingen co_varnames/co_argcount), i motsetning til CPython/pytest
+    (og ev. fremtidige MicroPython-bygg som FAAR __code__). __code__-veien
+    proves derfor foerst og brukes uendret der den finnes; MicroPython faller
+    til AttributeError og gaar videre til tekst-parsing av kildeloggen
+    (window.__mpySource(), se js/micropython-engine.js) - se
+    _parse_params_from_source over. Lambdas har __name__ == '<lambda>' og kan
+    ikke identifiseres i kildeteksten paa denne maaten -> tydelig feil med
+    hint om aa bruke def i stedet."""
+    try:
+        code = f.__code__
+        return list(code.co_varnames[:code.co_argcount + code.co_kwonlyargcount])
+    except AttributeError:
+        pass
+    name = getattr(f, "__name__", None)
+    if not name or name == "<lambda>":
+        raise ValueError(
+            "dash: fant ikke parametrene til funksjonen '%s' — definer den "
+            "med def (ikke lambda) paa toppnivaa i scriptet." % (name or "?"))
+    try:
+        source = window.__mpySource()
+    except Exception:
+        source = None
+    if not source:
+        raise ValueError(
+            "dash: fant ikke parametrene til funksjonen '%s' — definer den "
+            "med def paa toppnivaa i scriptet." % name)
+    return _parse_params_from_source(source, name)
 
 
 class Dash:

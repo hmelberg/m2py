@@ -7,6 +7,14 @@
 // print (MicroPython tillater ikke sys.stdout-bytte), motoren samler linjene
 // i __stdoutBuf og bygger {text}. Lazy libs, duck-replay-broen og
 // {text, error}-kontrakten er som i Brython-motoren.
+//
+// __scriptLog/__mpySource(): MicroPython-funksjonsobjekter mangler
+// __code__ (co_varnames m.m. finnes ikke, kun __name__ — verifisert i
+// fase 0). dash.py sin _func_params(f) må derfor kunne falle tilbake til
+// å tekst-parse KILDEN til add()-ede funksjoner for å finne
+// parameternavnene deres. run() logger scriptet (én gang per kall, IKKE
+// per duck-replay-pass) til __scriptLog; __mpySource() eksponeres på
+// global slik at dash.py kan hente hele loggen via window.__mpySource().
 (function (global) {
   'use strict';
 
@@ -53,6 +61,7 @@
   var __jsLoaded = {};
   var __stdoutBuf = [];
   var __captureMark = 0;
+  var __scriptLog = [];
 
   // dash.py-kroker: MicroPython kan ikke bytte sys.stdout, så callback-
   // utskrift fanges ved å merke/splitte motorens stdout-buffer i stedet.
@@ -60,6 +69,19 @@
   global.__mpyCaptureEnd = function () {
     return __stdoutBuf.splice(__captureMark).join('\n');
   };
+
+  // dash.py _func_params-fallback: MicroPython-funksjoner har IKKE
+  // __code__ (co_varnames/co_argcount finnes ikke), bare __name__. dash.py
+  // trenger likevel parameternavnene til add()-ede funksjoner for å vite
+  // hvilke kwargs å kalle dem med. Løsning: motoren logger kildeteksten til
+  // hvert run()-kall (én gang per run, ikke per duck-replay-pass), og
+  // dash.py sitt fallback-spor tekst-parser DENNE loggen etter
+  // `def <navn>(...)` for å finne parameterlisten når __code__ mangler.
+  // __mpySource() returnerer alle loggede scripts som ÉN streng (nyeste
+  // sist), skilt av et NUL-omsluttet skilletegn som ikke kan forekomme i
+  // gyldig Python-kildetekst — enklere å konsumere fra Python enn en
+  // JsProxy-array (som ville krevd iterering/indeksering over grensen).
+  global.__mpySource = function () { return __scriptLog.join('\n\x00SCRIPT\x00\n'); };
 
   function addScript(src) {
     return new Promise(function (resolve, reject) {
@@ -220,6 +242,7 @@
       }
       await ensureLibs(mod, needed);
       var duck = beginDuckBridge(spec);
+      __scriptLog.push(script);   // én gang per run(), IKKE per duck-replay-pass (se __mpySource over)
       mod._snapshot();
       var err = null, pass;
       for (pass = 0; pass < MAX_DUCK_PASSES; pass++) {
