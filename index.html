@@ -8728,6 +8728,7 @@ json.dumps(out)
       // vokser WebR-minnet monotont for hver kjøring i økten.
       if (webRShelter) { try { await webRShelter.purge(); } catch (e) {} }
       await refreshDatasetSidebarFromR();
+      setStatus(rightStatus, '');
       setRunButtonsUi('idle');
       scriptRunInProgress = false;
     }
