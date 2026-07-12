@@ -1,8 +1,17 @@
 # Manifest-drevne eksempler (slutt på hardkoding i index.html)
 
 **Dato:** 2026-07-12
-**Status:** Design, klar for plan
+**Status:** v2 — modal-basert (se «v2-revisjon» under). Datalaget (generator,
+manifest, lat henting) fra v1 står; presentasjonen (dropdown) er erstattet.
 **Gjelder:** safestat (leder) + openstat (synk etterpå)
+
+> **v2-revisjon (2026-07-12, etter Hans' testing):** v1 bygde en modus-filtrert
+> *dropdown* og lot den mode-blinde «Flere eksempler på web»-modalen (kun
+> microdata-scripts) ligge ved siden av. I micropython-modus kunne man dermed nå
+> microdata-eksempler — to systemer, ikke modus-relevant. v2 samler alt i ÉN
+> modal, scoped til aktiv modus, drevet av per-modus-folderen. Se seksjonen
+> «v2-revisjon: én modus-scoped modal» nedenfor; den overstyrer «index.html:
+> dynamisk render + lat henting» og «Kategorier»-seksjonene i v1-teksten.
 
 ## Problem
 
@@ -191,3 +200,97 @@ de tapt. Ren filnavn-avledning ville stille degradere dem.
 
 - Undernivå-gruppering: sortering av grupper (numerisk prefiks på undermappe).
 - Nøyaktig plassholder-tekst og i18n-nøkkel for hentefeil.
+
+---
+
+# v2-revisjon: én modus-scoped modal
+
+## Prinsipp
+
+Ett system. Klikk på **«Eksempler»** åpner en **modal** (samme to-panels-komponent
+som dagens web-eksempel-velger, `initWebExamples`), som viser KUN eksemplene for
+**aktiv modus** — hentet fra `examples/<modus>/`-folderen via manifestet. Ingen
+egen «Flere eksempler»-knapp; ingen modus-blind microdata-liste ved siden av.
+
+## Datalag (uendret fra v1)
+
+Generatoren, `examples/manifest.json`-skjemaet (`{ "<modus>": [{file, label,
+group}] }`) og `js/examples-menu.js` (`groupForMode`) står. Lat henting av
+manifestet (`{cache:'no-store'}`, kun ved første åpning) står.
+
+## Fold `web_examples/` inn i `examples/microdata/` (valg a)
+
+- Flytt hver kategorimappe `web_examples/<NN_kategori>/` →
+  `examples/microdata/<NN_kategori>/`. Da blir microdata-modusens eksempler
+  nettopp dagens web-bibliotek, med kategoriene som undermapper.
+- `web_examples/`-mappa, `web_examples/generate_manifest.py` og
+  `web_examples/manifest.json` pensjoneres etter flytting.
+- **Label-markør:** web-eksemplene bruker `// Example: <tittel>` på linje 2.
+  Utvid generatorens label-lesing til også å godta `Example:` som markør (samme
+  prioritetsnivå som `# label:`), så de ~50 filene virker uendret etter flytting.
+  Prioritet blir: `# label:`/`// Example:` → `#options.title` → filnavn.
+  (Da slipper vi å redigere 50 filer; `# label:` forblir den dokumenterte
+  konvensjonen for nye eksempler.)
+- microdata-eksemplene laster i microdata-modus (manifest-modus = folder =
+  `microdata`; `loadExampleFile`-hvitelista har alt `microdata`).
+
+## Modal-presentasjon (fleksibel)
+
+Modalen tilpasser seg antall eksempler og om modusen har kategorier:
+
+- **Få eksempler, ingen kategorier** (f.eks. micropython, 4 flate filer): vis én
+  enkel liste med scriptene — INGEN tomt kategori-panel. (Skjul venstre panel
+  eller vis kun script-panelet.)
+- **Kategorisert** (f.eks. microdata med undermapper): to paneler — kategorier
+  til venstre, scripts til høyre (som dagens web-modal).
+- **Mange eksempler**: begge paneler er **scrollbare** (`overflow-y:auto`).
+  Modalen har begrenset høyde (f.eks. `max-height: 80vh`) og innholdet scroller
+  inni — må virke enten det er 4 eller 150 eksempler, på liten som stor skjerm.
+- Kategorier og rekkefølge kommer fra `group`/`NN_`-prefiks i manifestet (som v1).
+
+Kilde til modalen er `ExamplesMenu.groupForMode(manifest, aktivModus)` — samme
+grupperingsfunksjon som v1, nå konsumert av modalen i stedet for dropdownen.
+
+## index.html-endringer (erstatter v1s dropdown-render)
+
+- **Åpning:** `menuExamplesBtn`-klikk åpner modalen (ikke en dropdown). Henter
+  manifestet lat (memoisert), bygger modal-innholdet for aktiv modus, viser
+  modalen.
+- **Generaliser `initWebExamples`** til å ta en gruppert eksempel-liste (fra
+  `groupForMode`) i stedet for kun `web_examples/manifest.json`. Flat modus →
+  én liste; kategorisert → to paneler; begge scrollbare.
+- **Klikk på et eksempel:** gjenbruk `loadExampleFile(file, title, mode)` fra v1
+  (laster fila, bytter modus, lukker modalen).
+- **Fjern:** `menuWebExamples`-knappen, den gamle dropdown-render-koden
+  (`renderExamplesFromManifest` mot `.examples-section`), de hardkodede
+  `.examples-section`-knappene, og web-modalens gamle `web_examples/manifest.json`-
+  lesing. `.examples-section`-containere/`updateExamplesVisibility` utgår.
+- **Grasiøs degradering:** feiler manifest-hentingen, vis en melding i modalen
+  («Kunne ikke laste eksempler — last siden på nytt»). Ingen stille tom modal.
+
+## Utrullingsplan (v2)
+
+Bygger videre på grenen `examples-manifest` (v1 Task 1–3 + generator står; v1s
+dropdown-render fjernes):
+
+1. Generator godtar `// Example:`-markør (+ test).
+2. Flytt `web_examples/<kat>/` → `examples/microdata/<kat>/`; regenerer manifest;
+   verifiser microdata-kategoriene + micropython står.
+3. Modal-render: generaliser `initWebExamples`, åpne på «Eksempler», modus-scoped,
+   adaptiv (flat=liste / kategorisert=to paneler), scrollbar; fjern
+   dropdown-render + `menuWebExamples`-knapp + gammel web-modal-kilde.
+4. Rydd bort `web_examples/` (mappe, generator, manifest) + død dropdown-CSS.
+5. Synk til openstat.
+6. Manuell browser-verifisering (Hans): hver modus viser kun sine egne
+   eksempler; micropython = flat liste; microdata = kategorier, scrollbar;
+   fallback ved blokkert manifest.
+
+## Bevar (migreringsrisiko, v2)
+
+- web-eksemplenes `// Example:`-labels må overleve flyttingen (derav generator-
+  utvidelsen — ikke rør de 50 filenes innhold).
+- Ingen andre modi mister eksempler: kun microdata får web-biblioteket; de
+  øvrige modienes eksempler kommer fra sine egne foldere (brython/duckdb/… må
+  migreres til `examples/<modus>/` for å vises i modalen — se plan; til de er
+  migrert har de ingen modal-eksempler, så migrer alle modi i dette steget eller
+  behold en overgangsliste).
