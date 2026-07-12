@@ -241,7 +241,7 @@
         <div class="export-dropdown-title" data-i18n>Eksporter skriptresultatene</div>
         <button type="button" id="exportCopy" data-i18n>Kopier til utklippstavlen</button>
         <button type="button" id="exportPrint" data-i18n>Skriv ut</button>
-        <button type="button" id="exportPublish" data-mode-only="brython micropython" data-i18n-title title="Last ned en frittstående HTML-fil som kjører dette scriptet automatisk — data hentet via # load bakes inn i siden (virker uten nettverk)." data-i18n>Publiser dashboard (HTML)</button>
+        <button type="button" id="exportPublish" data-mode-only="brython micropython" data-i18n-title title="Last ned en HTML-fil med dette scriptet forhåndsutfylt og satt til å kjøre automatisk — data hentet via # load er bakt inn i fila, så dashboardet ikke trenger datakildene. Fila må likevel ligge i/serveres fra samme app-mappe (f.eks. GitHub Pages) for å fungere; den virker ikke åpnet direkte fra disk (file://) eller kopiert alene til en annen host." data-i18n>Publiser dashboard (HTML)</button>
       </div>
     </div>
     <div class="topbar-theme-wrap">
@@ -2492,56 +2492,34 @@
       });
 
       // «Publiser dashboard (HTML)» — Brython/MicroPython (data-mode-only, se
-      // applyModeVisibility()). Laster ned en frittstående kopi av denne siden
-      // med (1) det aktive scriptet forhåndsutfylt og satt til å kjøre
-      // automatisk ved åpning, og (2) data som scriptets «# load»-linjer
-      // hentet i siste kjøring baked inn som <script type="application/json"
-      // id="brythondata_<navn>"|"mpydata_<navn>">-tags — samme lesekontrakt
-      // som js/brython-engine.js og js/micropython-engine.js sin
-      // buildDatasetSpec() allerede støtter (embedded-data-sporet, Task 3/5).
-      // «# load»-linjene fjernes fra det publiserte scriptet slik at siden
-      // ikke prøver å hente dataene på nytt over nett (kravet: dashboardet
-      // skal virke uten # load-kilder når det åpnes andre steder).
-      function __publishCsvToColumns(csvText) {
-        // Minimal RFC4180-parser (anførselstegn-escaping som i
-        // pandas_mpy/pandas_brython sin _parse_csv_text) — kjører i JS FØR
-        // Python-siden ser dataene, så vi trenger egen parsing her.
-        var rows = [], field = '', row = [], inQuotes = false, i, c;
-        for (i = 0; i < csvText.length; i++) {
-          c = csvText[i];
-          if (inQuotes) {
-            if (c === '"') {
-              if (csvText[i + 1] === '"') { field += '"'; i++; } else inQuotes = false;
-            } else field += c;
-          } else if (c === '"') {
-            inQuotes = true;
-          } else if (c === ',') {
-            row.push(field); field = '';
-          } else if (c === '\n' || c === '\r') {
-            if (c === '\r' && csvText[i + 1] === '\n') i++;
-            row.push(field); field = '';
-            if (row.length > 1 || row[0] !== '') rows.push(row);
-            row = [];
-          } else field += c;
-        }
-        if (field !== '' || row.length) { row.push(field); rows.push(row); }
-        if (!rows.length) return {};
-        var header = rows[0], cols = {};
-        header.forEach(function (h) { cols[h] = []; });
-        for (var r = 1; r < rows.length; r++) {
-          for (var ci = 0; ci < header.length; ci++) {
-            var v = (rows[r][ci] === undefined) ? '' : rows[r][ci];
-            cols[header[ci]].push(v !== '' && !isNaN(v) ? Number(v) : (v === '' ? null : v));
-          }
-        }
-        return cols;
-      }
+      // applyModeVisibility()). Laster ned en kopi av denne siden med (1) det
+      // aktive scriptet forhåndsutfylt og satt til å kjøre automatisk ved
+      // åpning, og (2) data som scriptets «# load»-linjer hentet i siste
+      // kjøring baked inn som <script type="application/json"
+      // id="brythondata_<navn>"|"mpydata_<navn>">-tags. «# load»-linjene
+      // fjernes fra det publiserte scriptet slik at siden ikke prøver å
+      // hente dataene på nytt over nett — men filen refererer fortsatt
+      // js/dash.js, micropython/*.py, pyodide/brython wasm osv. via
+      // relative/CDN-stier, så den må ligge i/serveres fra samme app-mappe
+      // (f.eks. GitHub Pages); den virker IKKE fra file:// eller kopiert
+      // alene til en fremmed host.
+      //
+      // Embed-tag-format (lest av buildDatasetSpec() i
+      // js/brython-engine.js og js/micropython-engine.js):
+      //   {"kind":"csv","payload":"<rå CSV-tekst>"}       — bundet via samme
+      //     read_csv-vei (hel-kolonne-typeinferens) som en levende «# load»
+      //     av en .csv-kilde, for full fidelity med det brukeren testet.
+      //   {"kind":"columns","payload":{<kolonne>: [...]}} — allerede
+      //     kolonneformet (json-/parquet-kilder er kolonner fra
+      //     getLastDatasetSpec()).
+      //   et objekt UTEN "kind"-felt tolkes som rå kolonner (bakoverkompatibelt
+      //   med tags skrevet før dette formatet fantes).
 
       async function publishStandaloneDashboard() {
         var mode = (typeof activeEditorMode !== 'undefined') ? activeEditorMode
           : (window.M2PY && window.M2PY.currentMode && window.M2PY.currentMode().id);
         if (mode !== 'brython' && mode !== 'micropython') {
-          alert(t('Publisering (frittstående HTML) støtter bare Brython- og MicroPython-modus.'));
+          alert(t('Publisering av dashboard (HTML) støtter bare Brython- og MicroPython-modus.'));
           return;
         }
         var engine = mode === 'brython' ? window.BrythonEngine : window.MicroPythonEngine;
@@ -2562,12 +2540,19 @@
         var tags = '';
         for (var name in spec) {
           var entry = spec[name];
-          var cols = entry.kind === 'columns' ? entry.payload
-            : entry.kind === 'csv' ? __publishCsvToColumns(entry.payload)
-            : null;
-          if (cols === null) continue;   // ukjent kind — buildDatasetSpec produserer kun columns/csv
+          var tagPayload;
+          if (entry.kind === 'csv') {
+            // Bak rå CSV-teksten inn med kind-felt slik at leser-siden binder
+            // den via samme read_csv-vei (hel-kolonne-typeinferens) som en
+            // levende «# load» — se kommentaren over for tag-formatet.
+            tagPayload = { kind: 'csv', payload: entry.payload };
+          } else if (entry.kind === 'columns') {
+            tagPayload = entry.payload;   // allerede kolonneformet — ingen wrapper nødvendig
+          } else {
+            continue;   // ukjent kind — buildDatasetSpec produserer kun columns/csv
+          }
           tags += '<script type="application/json" id="' + prefix + name + '">' +
-            JSON.stringify(cols).replace(/</g, '\\u003c') + '<\/script>\n    ';
+            JSON.stringify(tagPayload).replace(/</g, '\\u003c') + '<\/script>\n    ';
         }
 
         var publishedScript = rawScript.replace(/^[ \t]*#[ \t]*load\b.*$/gmi,

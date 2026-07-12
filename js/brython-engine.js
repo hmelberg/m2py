@@ -241,11 +241,24 @@
       }
     }
     // Embedded data blocks (published dashboards): checked after # load so an
-    // explicit load wins over a baked-in copy with the same name.
+    // explicit load wins over a baked-in copy with the same name. A parsed
+    // value with a "kind" field is read explicitly ({kind:'csv',
+    // payload:<csv-text>} binds via the same read_csv path as a live
+    // # load; {kind:'columns', payload:{...}} is already column-shaped). A
+    // value WITHOUT a "kind" field is treated as raw columns —
+    // backward-compatible with tags written before this format.
     var nodes = document.querySelectorAll('script[type="application/json"][id^="brythondata_"]');
     for (i = 0; i < nodes.length; i++) {
       var name = nodes[i].id.slice('brythondata_'.length);
-      if (!spec[name]) spec[name] = { kind: 'columns', payload: JSON.parse(nodes[i].textContent) };
+      if (spec[name]) continue;
+      var parsed = JSON.parse(nodes[i].textContent);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.kind === 'csv') {
+        spec[name] = { kind: 'csv', payload: parsed.payload };
+      } else if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.kind === 'columns') {
+        spec[name] = { kind: 'columns', payload: parsed.payload };
+      } else {
+        spec[name] = { kind: 'columns', payload: parsed };
+      }
     }
     return spec;
   }

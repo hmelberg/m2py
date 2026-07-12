@@ -709,8 +709,8 @@ window.M2PY_I18N.en = {
   "Feil ved henting av kjøringslogg:\n{msg}": "Error fetching the run log:\n{msg}",
 
   // ── Publiser dashboard (HTML) ──
-  "Last ned en frittstående HTML-fil som kjører dette scriptet automatisk — data hentet via # load bakes inn i siden (virker uten nettverk).": "Download a standalone HTML file that runs this script automatically — data fetched via # load is baked into the page (works offline).",
-  "Publisering (frittstående HTML) støtter bare Brython- og MicroPython-modus.": "Publishing (standalone HTML) is only supported in Brython and MicroPython mode.",
+  "Last ned en HTML-fil med dette scriptet forhåndsutfylt og satt til å kjøre automatisk — data hentet via # load er bakt inn i fila, så dashboardet ikke trenger datakildene. Fila må likevel ligge i/serveres fra samme app-mappe (f.eks. GitHub Pages) for å fungere; den virker ikke åpnet direkte fra disk (file://) eller kopiert alene til en annen host.": "Download an HTML file with this script pre-filled and set to run automatically — data fetched via # load is baked into the file, so the dashboard doesn't need the data sources. The file still needs to live in/be served from the same app folder (e.g. GitHub Pages) to work; it will not work opened directly from disk (file://) or copied alone to another host.",
+  "Publisering av dashboard (HTML) støtter bare Brython- og MicroPython-modus.": "Publishing dashboard (HTML) is only supported in Brython and MicroPython mode.",
   "Motoren er ikke lastet ennå — kjør scriptet minst én gang først.": "The engine is not loaded yet — run the script at least once first.",
   "Editoren er tom — ingenting å publisere.": "The editor is empty — nothing to publish.",
   "Scriptet har «# load»-linjer, men ingen data er hentet ennå i denne økten (kjør scriptet først for å bake dem inn). Publisere uten data likevel?": "The script has «# load» lines, but no data has been fetched in this session yet (run the script first to bake them in). Publish without data anyway?",
