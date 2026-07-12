@@ -64,6 +64,56 @@
     return kind === 'number' ? 0 : 1;
   };
 
+  // Number-payload v3 (spec 2026-07-12 §3.1): adapterne sender rå
+  // {value, unit, fmt, ref, bra}; motoren formaterer. Én implementasjon
+  // av norsk tallformat — U+202F tusenskille, komma-desimal, U+2212-minus.
+  var NNBSP = '\u202f';
+  var MINUS = '\u2212';
+
+  function groupInt(intStr) {
+    return intStr.replace(/\B(?=(\d{3})+(?!\d))/g, NNBSP);
+  }
+
+  // fmt: python-format-spec-delmengden [,][.N][f|%]. Ukjent spec → default
+  // (rund til 2 desimaler, strip etternuller, grupper). Kaster aldri.
+  D.formatNumber = function (value, fmt) {
+    if (typeof value !== 'number' || !isFinite(value)) return String(value);
+    var m = (typeof fmt === 'string' && fmt) ? fmt.match(/^(,)?(?:\.(\d+))?(f|%)?$/) : null;
+    var known = !!(m && (m[1] || m[2] != null || m[3]));
+    var group = known ? !!m[1] : true;
+    var pct = known && m[3] === '%';
+    var v = pct ? value * 100 : value;
+    var abs = Math.abs(v);
+    var s;
+    if (known) {
+      var decimals = (m[2] != null) ? +m[2] : (m[3] ? 6 : null); // som pythons format()
+      s = (decimals != null) ? abs.toFixed(decimals) : String(abs);
+    } else {
+      s = String(Math.abs(+v.toFixed(2)));
+    }
+    var parts = s.split('.');
+    if (group) parts[0] = groupInt(parts[0]);
+    s = parts[0] + (parts[1] ? ',' + parts[1] : '');
+    return (v < 0 ? MINUS : '') + s + (pct ? '%' : '');
+  };
+
+  D.computeDelta = function (value, ref, fmt, bra) {
+    if (typeof value !== 'number' || !isFinite(value)) return null;
+    if (typeof ref !== 'number' || !isFinite(ref)) return null;
+    var diff = value - ref;
+    var dir = diff > 0 ? 'opp' : (diff < 0 ? 'ned' : 'flat');
+    var good = dir === 'flat' || dir === (bra || 'opp');
+    return { text: (diff >= 0 ? '+' : MINUS) + D.formatNumber(Math.abs(diff), fmt),
+             dir: dir, good: good };
+  };
+
+  D.payloadCols = function (p) {
+    if (!p) return 0;
+    if (typeof p.cols === 'number') return p.cols;
+    if (p.columns && p.columns.length) return p.columns.length;
+    return 0;
+  };
+
   // K2 (docs/superpowers/plans/2026-07-11-dash-v2-forbedringer.md): URL-state
   // {shared:{navn:råverdi}, cards:{"<n>":{navn:råverdi}}} <-> kompakt JSON i
   // base64url (uten padding). Rene funksjoner, ingen DOM — node-testet.
@@ -127,9 +177,7 @@
   }
 
   function fmtNumber(v) {
-    if (typeof v !== 'number' || !isFinite(v)) return String(v);
-    var x = Number.isInteger(v) ? v : +v.toFixed(2);
-    return x.toLocaleString('nb-NO');
+    return D.formatNumber(v);
   }
 
   function themeColor(name, fallback) {
@@ -205,19 +253,40 @@
     if (kind === 'text') return el('pre', 'dash-text', p.text);
     if (kind === 'number') {
       var k = el('div', 'dash-kpi');
-      var valueText = (p.text != null) ? p.text : fmtNumber(p.value);
-      k.appendChild(el('span', 'dash-kpi-value', valueText));
+      k.appendChild(el('span', 'dash-kpi-value', D.formatNumber(p.value, p.fmt)));
       if (p.unit) k.appendChild(el('span', 'dash-kpi-unit', p.unit));
-      if (p.delta) {
-        var arrow = p.delta.dir === 'opp' ? '▲' : (p.delta.dir === 'ned' ? '▼' : '–');
-        var dcls = 'dash-kpi-delta ' + (p.delta.good ? 'dash-kpi-delta--good' : 'dash-kpi-delta--bad');
-        k.appendChild(el('span', dcls, arrow + ' ' + p.delta.text));
+      var delta = D.computeDelta(p.value, p.ref, p.fmt, p.bra);
+      if (delta) {
+        var arrow = delta.dir === 'opp' ? '▲' : (delta.dir === 'ned' ? '▼' : '–');
+        var dcls = 'dash-kpi-delta ' + (delta.good ? 'dash-kpi-delta--good' : 'dash-kpi-delta--bad');
+        k.appendChild(el('span', dcls, arrow + ' ' + delta.text));
       }
       return k;
     }
     if (kind === 'table') {
       var w = el('div', 'dash-table-wrap');
-      w.innerHTML = p.html;
+      if (p.html != null) {
+        w.innerHTML = p.html;
+        return w;
+      }
+      // strukturert variant (spec 2026-07-12 §3.2) — bygget med textContent,
+      // aldri innerHTML: celleinnhold kan ikke smugle markup.
+      var tbl = el('table');
+      var trh = el('tr');
+      (p.columns || []).forEach(function (c) { trh.appendChild(el('th', null, String(c))); });
+      var thead = el('thead');
+      thead.appendChild(trh);
+      tbl.appendChild(thead);
+      var tbody = el('tbody');
+      (p.rows || []).forEach(function (row) {
+        var tr = el('tr');
+        (row || []).forEach(function (cell) {
+          tr.appendChild(el('td', null, cell == null ? '' : String(cell)));
+        });
+        tbody.appendChild(tr);
+      });
+      tbl.appendChild(tbody);
+      w.appendChild(tbl);
       return w;
     }
     if (kind === 'image') {
@@ -524,13 +593,13 @@
     rec.node.classList.remove('dash-card--loading');
     rec.node.classList.toggle('dash-card--error', p.kind === 'error');
     if (rec.dashId && !rec.placed) {
-      placeCard(_dashes[rec.dashId], rec, p.kind, p.cols || 0);
+      placeCard(_dashes[rec.dashId], rec, p.kind, D.payloadCols(p));
     } else if (rec.provisional) {
       // Punkt 3: første reelle payload for et funksjonskort som ble
       // foreløpig plassert i auto-layout — oppdater span/order til faktisk kind.
       var dash = _dashes[rec.dashId];
       if (dash && !dash.mosaic) {
-        rec.node.style.gridColumn = 'span ' + D.autoSpan(p.kind, p.cols || 0);
+        rec.node.style.gridColumn = 'span ' + D.autoSpan(p.kind, D.payloadCols(p));
         rec.node.style.order = D.autoOrder(p.kind);
       }
       rec.provisional = false;
@@ -559,6 +628,19 @@
     if (_cards[id]) return JSON.stringify(_cards[id].controlValues || {});
     if (_dashes[id]) return JSON.stringify(_dashes[id].sharedValues || {});
     return '{}';
+  };
+
+  // Async-runtimes (dash-webr): slå på loading-shimmer til neste updateCard.
+  D.setBusy = function (cardId) {
+    var rec = _cards[cardId];
+    if (rec) rec.node.classList.add('dash-card--loading');
+  };
+
+  // Lever dashboardet fortsatt i DOM? (pyodide-adapteren rydder proxies
+  // for døde dashboards ved neste dashboard()-kall.)
+  D.isAlive = function (id) {
+    var d = _dashes[id];
+    return !!(d && d.root && d.root.isConnected);
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = D;
