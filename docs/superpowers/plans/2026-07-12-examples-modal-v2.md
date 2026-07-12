@@ -24,7 +24,7 @@
 
 ---
 
-### Task V2-1: Generator godtar `// Example:`-markør
+### Task 1: Generator godtar `// Example:`-markør
 
 **Files:**
 - Modify: `examples/generate_manifest.py`
@@ -81,7 +81,7 @@ git commit -m "feat: generator reads // Example: label marker (for web_examples 
 
 ---
 
-### Task V2-2: Migrer alle modiers eksempler til `examples/<modus>/` + fold web_examples
+### Task 2: Migrer alle modiers eksempler til `examples/<modus>/` + fold web_examples
 
 **Files:**
 - Move: all flat `examples/*.txt` → `examples/<mode>/<file>.txt` (per their `data-mode` in index.html); add `# label:` line to each from the index.html button text.
@@ -172,7 +172,7 @@ git commit -m "feat: migrate all modes' examples into examples/<mode>/ + fold we
 
 ---
 
-### Task V2-3: Generaliser modalen; «Eksempler» åpner den modus-scoped
+### Task 3: Generaliser modalen; «Eksempler» åpner den modus-scoped
 
 **Files:**
 - Modify: `index.html` — the examples-menu init region (`menuExamplesBtn` handler ~1889; the v1 dropdown render funcs `renderExamplesFromManifest`/`ensureExamplesRendered`/`global_ExamplesMenu`; the delegated click listener; the `initWebExamples` modal ~1936; the `.examples-section` markup ~31–121; the `menuWebExamples` button ~122).
@@ -247,7 +247,7 @@ git commit -m "feat: examples menu opens a mode-scoped modal (remove dropdown + 
 
 ---
 
-### Task V2-4: Rydd bort `web_examples/` + død dropdown-CSS + README
+### Task 4: Rydd bort `web_examples/` + død dropdown-CSS + README
 
 **Files:**
 - Delete: `web_examples/generate_manifest.py`, `web_examples/manifest.json`, and the now-empty `web_examples/` scaffolding (any leftover non-category files like `mpy_engine_test.html` — check before deleting; leave non-example assets if still referenced).
@@ -282,7 +282,7 @@ git commit -m "chore: retire web_examples/, drop dead dropdown CSS, update READM
 
 ---
 
-### Task V2-5: Synk til openstat
+### Task 5: Synk til openstat
 
 **Files:**
 - Mirror in `/Users/hom/Documents/GitHub/openstat/` (branch `examples-manifest`): `examples/generate_manifest.py`, `tests/test_examples_manifest.py` (byte-identical from safestat); run the same migration script against openstat; the same `index.html` modal edits; retire openstat's `web_examples/`; README.
@@ -326,7 +326,7 @@ git commit -m "feat: mode-scoped examples modal (sync from safestat)"
 
 ---
 
-### Task V2-6: Manuell browser-verifisering (Hans)
+### Task 6: Manuell browser-verifisering (Hans)
 
 Not a coding task — hand back to Hans with a checklist (controller runs the server):
 
