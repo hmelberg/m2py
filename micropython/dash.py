@@ -21,14 +21,35 @@ Dialektfeller fikset i denne porten:
      '\\n' mellom linjer (samme semantikk som buf.getvalue() ga - linjene
      fjernes ogsaa fra motorens hovedbuffer, saa de lekker ikke ut i
      script-nivaa-teksten). __mpyCaptureEnd() SPLITTER (fjerner) fra
-     bufferen - kan derfor bare kalles EN gang per _run()-kall. Dash._run
-     bruker derfor try/except/else i stedet for try/finally: else-grenen
-     (ingen exception) og except-grenen kaller __mpyCaptureEnd() hver sin
-     ene gang, aldri begge - samme etterkant-posisjon som dagens
-     `sys.stdout = old` i finally, bare gafla i to gjensidig utelukkende
-     grener siden verdien (i motsetning til sys.stdout-referansen) skal
-     BRUKES, ikke bare kastes. `import sys`/`import io` er fjernet -
-     ingenting annet i fila brukte dem.
+     bufferen - kan derfor bare kalles EN gang per _run()-kall.
+
+     RETTET (Task 6 critical review, denne runden): forrige versjon la
+     `_payload(res, ...)`/`_dom_node(res)` i en `else:`-klausul (kjoert kun
+     naar `card["func"](**vals)` IKKE kastet). En `else:`-klausul paa
+     try/except fanges ALDRI av samme try sine except-grener - saa unntak
+     fra `_payload`/`_dom_node` (f.eks. et objekt med en `to_html()` som
+     kaster, eller et pending-SQL-unntak fra duckdb-broen kastet under
+     rendering) propagerte ukontrollert ut av `_run()` i stedet for aa bli
+     et `{"kind": "error", ...}`-kort - stikk i strid med
+     `brython/dash.py`s `_run()`, der HELE `try`-blokka (funksjonskallet OG
+     payload-byggingen) er dekket av EN felles `except BaseException as e`.
+     Fikset ved aa flytte payload-byggingen tilbake INN i try-blokka (samme
+     dekning som originalen), og bruke et NESTET `try/finally` rundt bare
+     selve funksjonskallet for aa garantere at `__mpyCaptureEnd()` kalles
+     NOYAKTIG en gang per `_run()`, uansett om funksjonskallet lykkes eller
+     kaster - analogt med at originalens `sys.stdout = old` alltid kjorer,
+     uansett utfall. (Ren `try/finally` rundt HELE
+     kall+payload-byggingen duger ikke: `__mpyCaptureEnd()` baade LESER og
+     TOMMER bufferen i ett destruktivt kall, mens originalens `buf` kan
+     leses med `buf.getvalue()` naar som helst - ogsaa FOR den formelle
+     "restore"-posisjonen. Siden avgjorelsen "tekst-kort vs.
+     `_payload(res)`" trenger den fangede teksten FOR payload-byggingen (som
+     igjen maa vaere inne i try for aa faa unntaksdekning), maa
+     `__mpyCaptureEnd()` kalles rett etter funksjonskallet, ikke etter hele
+     try-blokka - `_payload`/`_dom_node` skriver uansett aldri til den
+     fangede stroemmen, saa dette bevarer originalens semantikk selv om
+     "restore"-tidspunktet ikke er bokstavelig identisk.) `import
+     sys`/`import io` er fjernet - ingenting annet i fila brukte dem.
 """
 from js import window                # MicroPython: js-modulen (jsffi)
 import json
@@ -347,9 +368,23 @@ class Dash:
         node = None
         window.__mpyCaptureStart()
         try:
-            res = card["func"](**vals)
+            try:
+                res = card["func"](**vals)
+            finally:
+                # __mpyCaptureEnd() splitter (destruktivt) fra motorens
+                # buffer - maa kalles NOYAKTIG en gang. Denne finally
+                # garanterer det uansett om funksjonskallet lykkes eller
+                # kaster, foer resten av try (payload-byggingen) faar
+                # forsoke aa bruke teksten.
+                tekst = window.__mpyCaptureEnd()
+            if res is None and tekst.strip():
+                p = {"kind": "text", "text": tekst.rstrip()}
+            else:
+                p = _payload(res, unit=card["unit"], fmt=card.get("fmt"),
+                             ref=card.get("ref"), bra=card.get("bra", "opp"))
+                if p["kind"] == "node":
+                    node = _dom_node(res)
         except BaseException as e:
-            window.__mpyCaptureEnd()
             if getattr(e, "__brython_pending__", False):
                 # duckdb-broens replay-signal: replay virker bare for hele
                 # script-kjøringer, ikke widget-callbacks. Forhåndskjør
@@ -363,13 +398,4 @@ class Dash:
                 p = {"kind": "error", "message": "%s: %s" % (type(e).__name__, e)}
             else:
                 raise
-        else:
-            tekst = window.__mpyCaptureEnd()
-            if res is None and tekst.strip():
-                p = {"kind": "text", "text": tekst.rstrip()}
-            else:
-                p = _payload(res, unit=card["unit"], fmt=card.get("fmt"),
-                             ref=card.get("ref"), bra=card.get("bra", "opp"))
-                if p["kind"] == "node":
-                    node = _dom_node(res)
         window.Dash.updateCard(cid, json.dumps(p), node)
