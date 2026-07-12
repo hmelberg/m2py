@@ -112,3 +112,66 @@ test('encodeState/decodeState: tomt objekt rundtur', () => {
   assert.match(encoded, /^[A-Za-z0-9_-]+$/);
   assert.deepStrictEqual(D.decodeState(encoded), {});
 });
+
+// ---------- Number-payload v3: formatNumber + computeDelta ----------
+
+test('formatNumber: default — heltall grupperes med U+202F', () => {
+  assert.strictEqual(D.formatNumber(1234567), '1\u202f234\u202f567');
+});
+
+test('formatNumber: default — 2 desimaler uten etternuller, komma', () => {
+  assert.strictEqual(D.formatNumber(3.14159), '3,14');
+  assert.strictEqual(D.formatNumber(2.5), '2,5');
+  assert.strictEqual(D.formatNumber(2.0), '2');
+});
+
+test('formatNumber: negativ bruker ekte minustegn', () => {
+  assert.strictEqual(D.formatNumber(-1234.5), '\u22121\u202f234,5');
+});
+
+test('formatNumber: fmt ",.1f" — gruppert, 1 desimal', () => {
+  assert.strictEqual(D.formatNumber(12345.678, ',.1f'), '12\u202f345,7');
+});
+
+test('formatNumber: fmt ".0f" — ingen gruppering', () => {
+  assert.strictEqual(D.formatNumber(12345.678, '.0f'), '12346');
+});
+
+test('formatNumber: fmt ".1%" — prosent', () => {
+  assert.strictEqual(D.formatNumber(0.1234, '.1%'), '12,3%');
+});
+
+test('formatNumber: ukjent fmt faller tilbake til default (kaster aldri)', () => {
+  assert.strictEqual(D.formatNumber(1234.5, 'kroner'), '1\u202f234,5');
+});
+
+test('formatNumber: ikke-tall passeres som streng', () => {
+  assert.strictEqual(D.formatNumber(NaN), 'NaN');
+  assert.strictEqual(D.formatNumber(Infinity), 'Infinity');
+});
+
+test('computeDelta: retning, fortegn og god/dårlig', () => {
+  const d = D.computeDelta(120, 100, null, 'opp');
+  assert.deepStrictEqual(d, { text: '+20', dir: 'opp', good: true });
+  const n = D.computeDelta(80, 100, null, 'opp');
+  assert.deepStrictEqual(n, { text: '\u221220', dir: 'ned', good: false });
+  const f = D.computeDelta(100, 100, null, 'ned');
+  assert.deepStrictEqual(f, { text: '+0', dir: 'flat', good: true });
+});
+
+test('computeDelta: null/ikke-endelig ref gir null', () => {
+  assert.strictEqual(D.computeDelta(5, null, null, 'opp'), null);
+  assert.strictEqual(D.computeDelta(5, undefined, null, 'opp'), null);
+  assert.strictEqual(D.computeDelta(5, Infinity, null, 'opp'), null);
+});
+
+test('computeDelta: bruker fmt på differansen', () => {
+  const d = D.computeDelta(0.35, 0.30, '.1%', 'opp');
+  assert.strictEqual(d.text, '+5,0%');
+});
+
+test('payloadCols: html-tabell bruker cols, strukturert bruker columns.length', () => {
+  assert.strictEqual(D.payloadCols({ kind: 'table', html: '<table/>', cols: 9 }), 9);
+  assert.strictEqual(D.payloadCols({ kind: 'table', columns: ['a', 'b'], rows: [] }), 2);
+  assert.strictEqual(D.payloadCols({ kind: 'number', value: 1 }), 0);
+});
