@@ -211,10 +211,11 @@ Adapt `initWebExamples` (rename its opener to `openExamplesModal(mode)` and expo
 - `openExamplesModal(mode)`:
   1. `loadExamplesManifest()` then compute `groups = ExamplesMenu.groupForMode(manifest, mode)`.
   2. If `groups.length === 0`: show `.empty-hint` ("Ingen eksempler for denne modusen ennå") in the scripts pane, hide the categories pane, open the overlay.
-  3. If the ONLY group is the null group (flat mode): hide the categories pane (`webExCategories.style.display = 'none'`), render ALL its examples as buttons in the scripts pane; single-click selects + enables Load, double-click loads.
-  4. If there are named categories: show the categories pane (`display = ''`), render one button per group (label = `group.group`); selecting a category renders that group's examples in the scripts pane. If a null group also exists, list it first under a heading like "Ukategorisert".
-  5. On load (Load button or dblclick): call `loadExampleFile(selected.file, selected.label, mode)` (v1 helper — loads the file, switches mode, closes modal). Remove the old `loadSelected` `web_examples/`-path fetch.
+  3. If the ONLY group is the null group (flat mode): hide the categories pane (`webExCategories.style.display = 'none'`), render ALL its examples as buttons in the scripts pane.
+  4. If there are named categories: show the categories pane (`display = ''`), render one button per group (label = `group.group`); clicking a category renders that group's examples in the scripts pane (category click only navigates — it does NOT load). If a null group also exists, list it first under a heading like "Ukategorisert". Auto-select the first category so the scripts pane isn't empty on open.
+  5. **Single-click to load:** clicking a SCRIPT button calls `loadExampleFile(ex.file, ex.label, mode)` immediately (v1 helper — loads the file, switches mode) and closes the modal (`overlay.classList.remove('open')`). No select-then-confirm step. Remove the old `loadSelected` `web_examples/`-path fetch and the selection/`selected`/`loadBtn.disabled` bookkeeping.
   6. On fetch failure: show `.empty-hint` ("Kunne ikke laste eksempler — last siden på nytt") in the scripts pane.
+- **Footer:** remove the «Last inn» button (`#webExLoadBtn`) — single-click loads, so it's redundant. Keep «Avbryt» (`#webExCancelBtn`) to close the modal.
 - Panes stay scrollable (existing CSS `.web-examples-pane{overflow-y:auto}`, `.web-examples-body{max-height:60vh}`) — no CSS change needed for scrolling.
 
 - [ ] **Step 4: Wire «Eksempler» to open the modal; remove the dropdown**
