@@ -42,6 +42,13 @@ def test_label_fallback_to_filename(tmp_path):
     assert gm.label_for(p) == "Csv url"
 
 
+def test_label_priority_label_over_title(tmp_path):
+    """Label line should take priority over #options.title regardless of line order."""
+    p = tmp_path / "example.txt"
+    p.write_text('#options.title = "FraTittel"\n# label: FraLabel\n', encoding="utf-8")
+    assert gm.label_for(p) == "FraLabel"
+
+
 def test_build_manifest_flat_and_categorised(tmp_path):
     root = tmp_path / "examples"
     mp = root / "micropython"

@@ -36,18 +36,28 @@ def folder_label(name: str) -> str:
 def label_for(path: Path) -> str:
     try:
         with path.open(encoding="utf-8") as f:
+            lines = []
             for _ in range(5):
                 line = f.readline()
                 if not line:
                     break
-                m = LABEL_RE.match(line)
-                if m:
-                    return m.group(1)
-                m = TITLE_RE.match(line)
-                if m:
-                    return m.group(1)
-    except OSError:
+                lines.append(line)
+
+        # First pass: check for label-source rules (# label:, -- label:, // label:)
+        for line in lines:
+            m = LABEL_RE.match(line)
+            if m:
+                return m.group(1)
+
+        # Second pass: check for #options.title
+        for line in lines:
+            m = TITLE_RE.match(line)
+            if m:
+                return m.group(1)
+    except (OSError, UnicodeDecodeError):
         pass
+
+    # Fallback: derive from filename
     stem = path.stem
     m = NUM_RE.match(stem)
     return pretty(m.group(2) if m else stem)
