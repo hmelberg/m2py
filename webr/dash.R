@@ -140,25 +140,27 @@ dashboard <- function(title = "", layout = NULL) {
   d$shared <- list()
   .dash$dashes[[di]] <- d
 
-  d$add <- function(x, title = NULL, at = NULL, unit = NULL, fmt = NULL,
+  # Dot-prefiks paa forsteparameteren: brukerens funksjonsparametre kan
+  # hete x (d$add(g, x = 5)) uten aa kollidere med adds egen formelle.
+  d$add <- function(.x, title = NULL, at = NULL, unit = NULL, fmt = NULL,
                     ref = NULL, bra = "opp", ...) {
     kw <- list(...)
     ci <- length(d$cards) + 1
-    if (is.function(x)) {
+    if (is.function(.x)) {
       widgets <- list()
       for (n in names(kw)) widgets[[n]] <- .dash_infer(n, kw[[n]])
-      d$cards[[ci]] <- list(func = x, widgets = widgets,
-                            params = names(formals(x)),
+      d$cards[[ci]] <- list(func = .x, widgets = widgets,
+                            params = names(formals(.x)),
                             title = title, at = at, unit = unit, fmt = fmt,
                             ref = ref, bra = bra)
-    } else if (inherits(x, "ggplot")) {
+    } else if (inherits(.x, "ggplot")) {
       # statiske plott realiseres via samme captureR-sti som funksjonskort
-      d$cards[[ci]] <- list(func = local({ .x <- x; function() .x }),
+      d$cards[[ci]] <- list(func = local({ .gg <- .x; function() .gg }),
                             widgets = list(), params = character(0),
                             title = title, at = at, unit = NULL, fmt = NULL,
                             ref = NULL, bra = "opp")
     } else {
-      d$cards[[ci]] <- list(payload = .dash_payload(x, unit = unit, fmt = fmt,
+      d$cards[[ci]] <- list(payload = .dash_payload(.x, unit = unit, fmt = fmt,
                                                     ref = ref, bra = bra),
                             title = title, at = at)
     }
