@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<!-- Røyktest for MicroPythonEngine uten index.html. Kjør:
+     python3 -m http.server 8901 fra repo-roten, åpne
+     http://localhost:8901/web_examples/mpy_engine_test.html -->
+<html><head><meta charset="utf-8"><title>mpy-engine-test</title>
+<base href="../"></head>
+<body><pre id="out">kjører…</pre>
+<script src="js/micropython-engine.js"></script>
+<script type="module">
+const out = document.getElementById('out');
+const results = [];
+function rec(name, res) {
+  results.push(name + ': ' + (res.error ? 'FEIL — ' + res.error : 'OK — ' + JSON.stringify(res.text).slice(0, 120)));
+  out.textContent = results.join('\n');
+}
+rec('basics', await MicroPythonEngine.run('print("hei")\n1 + 1'));
+await MicroPythonEngine.run('zz = 40');
+rec('state', await MicroPythonEngine.run('zz + 2'));
+rec('feil-traceback', await MicroPythonEngine.run('1/0'));
+rec('scanImports', { text: MicroPythonEngine._scanImports('import duckdb\nimport pandas_mpy').join(','), error: null });
+</script></body></html>
