@@ -148,54 +148,16 @@ def _figure_spec(x):
 
 _IMG_EXT = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")
 
-_NNBSP = " "          # smalt hardt mellomrom (norsk tusenskille)
-_MINUS = "−"          # minustegn (ikke bindestrek), for eksplisitt fortegn
-
-
-def _fmt_norsk(value, fmt):
-    """format(value, fmt) med engelsk gruppering oversatt til norsk:
-    ','->smalt hardt mellomrom (tusenskille), '.'->',' (desimalskille)."""
-    s = format(value, fmt)
-    return s.translate(str.maketrans({",": _NNBSP, ".": ","}))
-
-
-def _fmt_default_norsk(value):
-    """fmtNumber-ekvivalent (js/dash.js sin fmtNumber) naar ingen fmt er oppgitt:
-    heltall vises som heltall, ellers avrundet til 2 desimaler uten
-    unodvendige etternuller - deretter norsk gruppering/desimalskille."""
-    r = round(value, 2)
-    if r == int(r):
-        s = format(int(r), ",")
-    else:
-        s = format(r, ",.2f").rstrip("0").rstrip(".")
-    return s.translate(str.maketrans({",": _NNBSP, ".": ","}))
-
-
-def _delta(value, ref, fmt, bra):
-    # Guard against non-finite ref (nan/inf)
-    if ref != ref or abs(ref) == float("inf"):
-        return None
-    diff = value - ref
-    if diff > 0:
-        direction = "opp"
-    elif diff < 0:
-        direction = "ned"
-    else:
-        direction = "flat"
-    good = (direction == bra) or direction == "flat"
-    text = _fmt_norsk(abs(diff), fmt) if fmt else _fmt_default_norsk(abs(diff))
-    sign = "+" if diff >= 0 else _MINUS
-    return {"text": sign + text, "dir": direction, "good": bool(good)}
-
 
 def _number_payload(value, unit, fmt, ref, bra):
-    return {
-        "kind": "number",
-        "value": value,
-        "unit": unit or "",
-        "text": _fmt_norsk(value, fmt) if fmt else None,
-        "delta": _delta(value, ref, fmt, bra) if ref is not None else None,
-    }
+    """Number-payload v3: raa verdier — js/dash.js formaterer (norsk
+    gruppering, delta). ref saniteres her: json.dumps av nan/inf gir
+    literal NaN/Infinity som knekker JSON.parse i JS."""
+    if ref is not None and (ref != ref or abs(ref) == float("inf")):
+        ref = None
+    return {"kind": "number", "value": value, "unit": unit or "",
+            "fmt": fmt, "ref": ref, "bra": bra}
+
 
 
 def _initial_raw(id_):
