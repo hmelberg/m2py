@@ -27,100 +27,6 @@
         </div>
         <div class="topbar-examples-wrap" style="position:relative">
           <button type="button" id="menuExamplesBtn" data-i18n>Eksempler</button>
-          <div class="examples-dropdown" id="examplesDropdown">
-            <div class="examples-section" data-section-mode="microdata">
-              <button type="button" data-example="01_beskrivende_statistikk.txt" data-mode="microdata" data-i18n>Beskrivende statistikk</button>
-              <button type="button" data-example="02_tabeller_og_kategorier.txt" data-mode="microdata" data-i18n>Tabeller og kategorier</button>
-              <button type="button" data-example="03_visualiseringer.txt" data-mode="microdata" data-i18n>Visualiseringer</button>
-              <button type="button" data-example="04_aggregat_og_generate.txt" data-mode="microdata" data-i18n>Aggregat og nye variabler</button>
-              <button type="button" data-example="05_regresjon.txt" data-mode="microdata" data-i18n>Regresjon</button>
-              <button type="button" data-example="06_avansert_analyse.txt" data-mode="microdata" data-i18n>Avansert analyse</button>
-              <hr style="margin:4px 0;border-color:#334155;">
-            </div>
-            <div class="examples-section" data-section-mode="python">
-              <button type="button" data-example="py01_pandas_basics.txt" data-mode="python" data-i18n>pandas &mdash; basics</button>
-              <button type="button" data-example="py02_pandas_microdata.txt" data-mode="python">pandas + #micro</button>
-              <button type="button" data-example="py03_statsmodels_regression.txt" data-mode="python" data-i18n>statsmodels &mdash; OLS regression</button>
-              <button type="button" data-example="py04_pandas_plot.txt" data-mode="python">matplotlib + #micro</button>
-              <button type="button" data-example="py05_duckdb_block.txt" data-mode="python" data-i18n>pandas + #duckdb (SQL block)</button>
-              <button type="button" data-example="py06_dashboard.txt" data-mode="python" data-i18n>Dashboard &mdash; fordelingsutforsker</button>
-              <button type="button" data-example="ex_csv_iris.txt" data-mode="python" data-i18n>Load a CSV from GitHub</button>
-              <button type="button" data-example="ex_columns_penguins.txt" data-mode="python" data-i18n>Select columns &rarr; focused dataset</button>
-              <button type="button" data-example="ex_api_worldbank.txt" data-mode="python" data-i18n>Live data &mdash; World Bank API</button>
-              <button type="button" data-example="ex_enc_hospital.txt" data-mode="python" data-i18n>Encrypted data &mdash; safe-mode analysis</button>
-              <hr style="margin:4px 0;border-color:#334155;">
-            </div>
-            <div class="examples-section" data-section-mode="r">
-              <button type="button" data-example="r01_base_basics.txt" data-mode="r" data-i18n>base R &mdash; basics</button>
-              <button type="button" data-example="r02_tidyverse_groupby.txt" data-mode="r" data-i18n>tidyverse &mdash; group statistics</button>
-              <button type="button" data-example="r03_tidyverse_microdata.txt" data-mode="r">tidyverse + #micro</button>
-              <button type="button" data-example="r04_ggplot_microdata.txt" data-mode="r">ggplot2 + #micro</button>
-              <button type="button" data-example="r05_dplyr_recode.txt" data-mode="r" data-i18n>dplyr &mdash; recoding (case_when/ifelse)</button>
-              <button type="button" data-example="r06_base_r_idioms.txt" data-mode="r" data-i18n>base R &mdash; subset/transform/aggregate</button>
-              <button type="button" data-example="r07_regresjon.txt" data-mode="r" data-i18n>regression &mdash; lm + glm</button>
-              <button type="button" data-example="r08_across_sample.txt" data-mode="r" data-i18n>dplyr &mdash; across + slice_sample</button>
-              <button type="button" data-example="r09_dashboard.txt" data-mode="r" data-i18n>Dashboard &mdash; fordelingsutforsker</button>
-              <button type="button" data-example="rex_csv_iris.txt" data-mode="r" data-i18n>Load a CSV from GitHub</button>
-              <button type="button" data-example="rex_columns_penguins.txt" data-mode="r" data-i18n>Select columns &rarr; focused dataset</button>
-              <button type="button" data-example="rex_ext_csv.txt" data-mode="r" data-i18n>Read an external CSV</button>
-              <button type="button" data-example="rex_enc_hospital.txt" data-mode="r" data-i18n>Encrypted data &mdash; safe-mode analysis</button>
-              <hr style="margin:4px 0;border-color:#334155;">
-            </div>
-            <div class="examples-section" data-section-mode="statx">
-              <button type="button" data-example="st01_stata_basics.txt" data-mode="statx" data-i18n>Stata &mdash; descriptives</button>
-              <button type="button" data-example="st02_stata_regresjon.txt" data-mode="statx" data-i18n>Stata &mdash; regression</button>
-              <button type="button" data-example="st03_stata_generate.txt" data-mode="statx" data-i18n>Stata &mdash; generate/egen</button>
-              <button type="button" data-example="st04_stata_use.txt" data-mode="statx" data-i18n>Stata &mdash; use (multiple datasets)</button>
-            </div>
-            <div class="examples-section" data-section-mode="duckdb">
-              <button type="button" data-example="sql01_select_basics.txt" data-mode="duckdb" data-i18n>SQL &mdash; basic SELECT</button>
-              <button type="button" data-example="sql02_aggregate_groupby.txt" data-mode="duckdb" data-i18n>SQL &mdash; GROUP BY and aggregation</button>
-              <button type="button" data-example="sql03_join.txt" data-mode="duckdb">SQL &mdash; JOIN</button>
-              <button type="button" data-example="sql04_create_table.txt" data-mode="duckdb" data-i18n>SQL &mdash; CREATE TABLE (build datasets)</button>
-              <button type="button" data-example="sql05_cte_window.txt" data-mode="duckdb" data-i18n>SQL &mdash; CTE + window function</button>
-              <button type="button" data-example="sql06_case_recode.txt" data-mode="duckdb" data-i18n>SQL &mdash; CASE WHEN (recoding)</button>
-              <button type="button" data-example="sql07_multi_statement.txt" data-mode="duckdb" data-i18n>SQL &mdash; multiple statements</button>
-              <button type="button" data-example="sql08_describe_summary.txt" data-mode="duckdb" data-i18n>SQL &mdash; profiling/summary</button>
-              <button type="button" data-example="sql09_micro_then_sql.txt" data-mode="duckdb">SQL &mdash; #micro &rarr; DuckDB (hybrid)</button>
-              <button type="button" data-example="sql10_py_then_sql.txt" data-mode="duckdb">SQL &mdash; #py &rarr; DuckDB (hybrid)</button>
-            </div>
-            <div class="examples-section" data-section-mode="brython">
-              <button type="button" data-example="bry01_pandas_basics.txt" data-mode="brython" data-i18n>pandas_brython &mdash; basics</button>
-              <button type="button" data-example="bry02_plotly_charts.txt" data-mode="brython" data-i18n>plotly_express_brython &mdash; chart gallery</button>
-              <button type="button" data-example="bry03_csv_iris.txt" data-mode="brython" data-i18n>Load a CSV from GitHub</button>
-              <button type="button" data-example="bry04_columns_penguins.txt" data-mode="brython" data-i18n>Select columns &rarr; focused dataset</button>
-              <button type="button" data-example="bry05_connect_load.txt" data-mode="brython" data-i18n>connect + load &mdash; several frames</button>
-              <button type="button" data-example="bry06_api_live.txt" data-mode="brython" data-i18n>Live data &mdash; World Bank API</button>
-              <button type="button" data-example="bry07_value_counts_recode.txt" data-mode="brython" data-i18n>Counting and recoding</button>
-              <button type="button" data-example="bry08_facets_color.txt" data-mode="brython" data-i18n>Facets &mdash; one panel per category</button>
-              <button type="button" data-example="bry09_kpi_indicator.txt" data-mode="brython" data-i18n>KPI cards + pie</button>
-              <button type="button" data-example="bry10_dashboard_iris.txt" data-mode="brython" data-i18n>Dashboard &mdash; iris (interactive)</button>
-              <button type="button" data-example="bry11_dashboard_salg.txt" data-mode="brython" data-i18n>Dashboard &mdash; sales (no external data)</button>
-              <button type="button" data-example="bry12_cheatsheet.txt" data-mode="brython" data-i18n>Cheat sheet &mdash; Brython vs Python</button>
-              <button type="button" data-example="bry13_matplotlib.txt" data-mode="brython" data-i18n>matplotlib &mdash; plt-API (Plotly-rendret)</button>
-              <button type="button" data-example="bry14_scipy_stats.txt" data-mode="brython" data-i18n>scipy.stats &mdash; tester og fordelinger</button>
-              <button type="button" data-example="bry15_regresjon.txt" data-mode="brython" data-i18n>Regresjon &mdash; smf.ols / smf.logit</button>
-              <button type="button" data-example="bry16_numpy.txt" data-mode="brython" data-i18n>numpy &mdash; arrays og tilfeldige tall</button>
-              <button type="button" data-example="bry17_seaborn.txt" data-mode="brython" data-i18n>seaborn &mdash; statistisk grafikk</button>
-              <button type="button" data-example="bry17_dashboard_kostnad.txt" data-mode="brython" data-i18n>Dashboard &mdash; kostnadsmodell</button>
-              <button type="button" data-example="bry18_dashboard_fordeling.txt" data-mode="brython" data-i18n>Dashboard &mdash; fordelingsutforsker</button>
-              <button type="button" data-example="bry19_dashboard_regresjon.txt" data-mode="brython" data-i18n>Dashboard &mdash; regresjon</button>
-              <button type="button" data-example="bry20_dashboard_rapport.txt" data-mode="brython" data-i18n>Dashboard &mdash; rapport</button>
-              <button type="button" data-example="bry21_duckdb.txt" data-mode="brython" data-i18n>duckdb &mdash; SQL i Brython (.sql &rarr; .df)</button>
-<button type="button" data-example="bry22_dashboard_duckdb.txt" data-mode="brython" data-i18n>Dashboard &mdash; DuckDB (SQL)</button>
-              <button type="button" data-example="bry23_sklearn.txt" data-mode="brython" data-i18n>sklearn &mdash; KMeans, PCA, regresjon</button>
-            </div>
-            <div class="examples-section" data-section-mode="micropython">
-              <button type="button" data-example="micropython/01_pandas_basics.txt" data-mode="micropython" data-i18n>pandas_mpy &mdash; basics</button>
-              <button type="button" data-example="micropython/02_plotly.txt" data-mode="micropython" data-i18n>plotly_express_mpy &mdash; grafer</button>
-              <button type="button" data-example="micropython/03_dashboard.txt" data-mode="micropython" data-i18n>Dashboard &mdash; salg</button>
-              <button type="button" data-example="micropython/04_csv_url.txt" data-mode="micropython" data-i18n>Les en CSV fra en URL</button>
-            </div>
-            <div class="examples-section" data-section-mode="safestat">
-              <button type="button" data-example="safestat01_url_csv.txt" data-mode="safestat" data-i18n>SafeStat &mdash; CSV from URL</button>
-            </div>
-            <button type="button" id="menuWebExamples" data-i18n>Flere eksempler</button>
-          </div>
         </div>
         <button type="button" id="menuUploadData" data-i18n-title title="Last opp data" style="display:flex;align-items:center;gap:8px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
@@ -755,7 +661,6 @@
       </div>
       <div class="settings-buttons">
         <button type="button" class="btn btn-secondary" id="webExCancelBtn" data-i18n>Avbryt</button>
-        <button type="button" class="btn btn-primary" id="webExLoadBtn" disabled data-i18n>Last inn</button>
       </div>
     </div>
   </div>
@@ -1820,7 +1725,7 @@
       const plotStatic = document.getElementById('plotStatic');
       const plotSeaborn = document.getElementById('plotSeaborn');
 
-      const examplesDropdown = document.getElementById('examplesDropdown');
+      var openExamplesModal; // hoisted — assigned inside initWebExamples further below
       function updateAdminMenuVisibility() {
         // offlineMenuWrap (Vis offline Python) now lives inside adminMenuSection,
         // so one toggle covers both — no separate offlineWrap display needed.
@@ -1868,7 +1773,6 @@
         dropdown.classList.toggle('open');
         themeDropdown.classList.remove('open');
         exportDropdown.classList.remove('open');
-        if (examplesDropdown) examplesDropdown.classList.remove('open');
         updateAdminMenuVisibility();
         updateLoginMenuVisibility();
         updatePendingRequestsBadge();
@@ -1877,27 +1781,15 @@
         dropdown.classList.remove('open');
         themeDropdown.classList.remove('open');
         exportDropdown.classList.remove('open');
-        if (examplesDropdown) examplesDropdown.classList.remove('open');
       });
       dropdown.addEventListener('click', function(e) { e.stopPropagation(); });
-      function updateExamplesVisibility() {
-        if (!examplesDropdown) return;
-        var mode = (typeof activeEditorMode !== 'undefined') ? activeEditorMode : 'microdata';
-        examplesDropdown.querySelectorAll('.examples-section').forEach(function(sec) {
-          sec.style.display = (sec.getAttribute('data-section-mode') === mode) ? '' : 'none';
-        });
-      }
       document.getElementById('menuExamplesBtn').addEventListener('click', function(e) {
         e.stopPropagation();
-        ensureExamplesRendered();
-        if (examplesDropdown) {
-          updateExamplesVisibility();
-          examplesDropdown.classList.toggle('open');
-        }
+        openExamplesModal(typeof activeEditorMode !== 'undefined' ? activeEditorMode : 'microdata');
+        dropdown.classList.remove('open');
         themeDropdown.classList.remove('open');
         exportDropdown.classList.remove('open');
       });
-      if (examplesDropdown) examplesDropdown.addEventListener('click', function(e) { e.stopPropagation(); });
       function loadExampleFile(file, title, mode) {
         var base = window.location.href.replace(/[^/]+$/, '');
         fetch(base + 'examples/' + file).then(function(r) {
@@ -1915,7 +1807,6 @@
           if (window.mdClearOutput) window.mdClearOutput();
           if (window.mdGithubClearCurrent) window.mdGithubClearCurrent();
           if (window.updateLineNumbers) window.updateLineNumbers();
-          if (examplesDropdown) examplesDropdown.classList.remove('open');
           dropdown.classList.remove('open');
           scriptInput.focus();
           scriptInput.selectionStart = scriptInput.selectionEnd = 0;
@@ -1928,81 +1819,34 @@
         });
       }
 
-      // Delegert klikk: virker for både statiske og dynamisk bygde knapper.
-      if (examplesDropdown) {
-        examplesDropdown.addEventListener('click', function(e) {
-          var btn = e.target && e.target.closest ? e.target.closest('button[data-example]') : null;
-          if (!btn || !examplesDropdown.contains(btn)) return;
-          loadExampleFile(btn.getAttribute('data-example'),
-                          btn.textContent.trim(),
-                          btn.getAttribute('data-mode'));
-        });
+      // Lat, memoisert henting av examples/manifest.json — brukt av eksempel-modalen
+      // (no-store så nye eksempler alltid vises ved neste åpning).
+      var __examplesManifest = null, __examplesManifestP = null;
+      function loadExamplesManifest() {
+        if (__examplesManifest) return Promise.resolve(__examplesManifest);
+        if (!__examplesManifestP) {
+          var base = window.location.href.replace(/[^/]+$/, '');
+          __examplesManifestP = fetch(base + 'examples/manifest.json', { cache: 'no-store' })
+            .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+            .then(function (m) { __examplesManifest = m; return m; })
+            .catch(function (e) { __examplesManifestP = null; throw e; });
+        }
+        return __examplesManifestP;
       }
 
-      // Lat henting av examples/manifest.json ved FØRSTE åpning av menyen.
-      // Bygger seksjonene for modi som finnes i manifestet; modi som mangler
-      // beholder sine statiske knapper (inkrementell migrering). no-store så
-      // nye eksempler alltid vises.
-      var __examplesRendered = false;
-      function renderExamplesFromManifest(manifest) {
-        if (!examplesDropdown || !global_ExamplesMenu()) return;
-        Object.keys(manifest).forEach(function(mode) {
-          var sec = examplesDropdown.querySelector(
-            '.examples-section[data-section-mode="' + mode + '"]');
-          if (!sec) return;
-          sec.innerHTML = '';
-          global_ExamplesMenu().groupForMode(manifest, mode).forEach(function(grp) {
-            if (grp.group) {
-              var h = document.createElement('div');
-              h.className = 'examples-dropdown-title';
-              h.textContent = grp.group;
-              sec.appendChild(h);
-            }
-            grp.examples.forEach(function(ex) {
-              var b = document.createElement('button');
-              b.type = 'button';
-              b.setAttribute('data-example', ex.file);
-              b.setAttribute('data-mode', mode);
-              b.setAttribute('data-i18n', '');
-              b.textContent = ex.label;
-              sec.appendChild(b);
-            });
-          });
-          if (window.applyTranslations) window.applyTranslations(sec);
-        });
-      }
-      function global_ExamplesMenu() {
-        return (typeof ExamplesMenu !== 'undefined') ? ExamplesMenu
-             : (typeof globalThis !== 'undefined' ? globalThis.ExamplesMenu : null);
-      }
-      function ensureExamplesRendered() {
-        if (__examplesRendered) return;
-        var base = window.location.href.replace(/[^/]+$/, '');
-        fetch(base + 'examples/manifest.json', { cache: 'no-store' })
-          .then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-          .then(function(manifest) {
-            renderExamplesFromManifest(manifest);
-            __examplesRendered = true;      // kun ETTER vellykket render → tillat retry ved feil
-            updateExamplesVisibility();     // hold synlighet i takt med aktiv modus
-          })
-          .catch(function(err) {
-            console.warn('examples manifest load failed (statiske knapper beholdes):', err);
-          });
-      }
-
-      // Web-eksempler: to-panels-modal som laster scripts fra web_examples/ via manifest.json
+      // Eksempel-modal: mode-scoped, gruppert via ExamplesMenu.groupForMode(manifest, mode).
+      // Kategorier (venstre panel) navigerer kun; ett klikk på et script (høyre
+      // panel) laster det umiddelbart via loadExampleFile og lukker modalen —
+      // ingen velg-så-bekreft-steg.
       (function initWebExamples() {
         const overlay = document.getElementById('webExamplesOverlay');
         const catPane = document.getElementById('webExCategories');
         const scrPane = document.getElementById('webExScripts');
-        const loadBtn = document.getElementById('webExLoadBtn');
         const cancelBtn = document.getElementById('webExCancelBtn');
-        const openBtn = document.getElementById('menuWebExamples');
-        if (!overlay || !openBtn) return;
+        if (!overlay) return;
 
-        let manifest = null;
-        let selectedCatIdx = -1;
-        let selectedScript = null; // {folder, file, label}
+        let groups = [];
+        let activeMode = null;
 
         function showEmptyHint(pane, text) {
           pane.innerHTML = '<div class="empty-hint">' + text + '</div>';
@@ -2010,109 +1854,90 @@
         function closeOverlay() {
           overlay.classList.remove('open');
         }
-        function renderCategories() {
-          catPane.innerHTML = '';
-          manifest.categories.forEach(function(cat, idx) {
-            const b = document.createElement('button');
-            b.type = 'button';
-            b.textContent = cat.label;
-            b.title = cat.label;
-            b.addEventListener('click', function() { selectCategory(idx); });
-            catPane.appendChild(b);
-          });
-        }
-        function renderScripts(cat) {
+        function renderScripts(grp) {
           scrPane.innerHTML = '';
-          cat.scripts.forEach(function(s) {
+          grp.examples.forEach(function(ex) {
             const b = document.createElement('button');
             b.type = 'button';
-            b.textContent = s.label;
-            b.title = s.label;
+            b.textContent = ex.label;
+            b.title = ex.label;
             b.addEventListener('click', function() {
-              Array.prototype.forEach.call(scrPane.querySelectorAll('button.selected'), function(e) { e.classList.remove('selected'); });
-              b.classList.add('selected');
-              selectedScript = { folder: cat.folder, file: s.file, label: s.label };
-              loadBtn.disabled = false;
-            });
-            b.addEventListener('dblclick', function() {
-              selectedScript = { folder: cat.folder, file: s.file, label: s.label };
-              loadBtn.disabled = false;
-              loadSelected();
+              loadExampleFile(ex.file, ex.label, activeMode);
+              closeOverlay();
             });
             scrPane.appendChild(b);
           });
         }
         function selectCategory(idx) {
-          selectedCatIdx = idx;
-          selectedScript = null;
-          loadBtn.disabled = true;
           Array.prototype.forEach.call(catPane.querySelectorAll('button'), function(b, i) {
             b.classList.toggle('selected', i === idx);
           });
-          renderScripts(manifest.categories[idx]);
+          renderScripts(groups[idx]);
         }
-        function loadSelected() {
-          if (!selectedScript) return;
-          const base = window.location.href.replace(/[^/]+$/, '');
-          const path = base + 'web_examples/' + selectedScript.folder + '/' + selectedScript.file;
-          fetch(path).then(function(r) {
-            if (!r.ok) throw new Error(r.status);
-            return r.text();
-          }).then(function(text) {
-            scriptInput.value = text;
-            scriptName.value = selectedScript.label;
-            if (window.mdClearOutput) window.mdClearOutput();
-            if (window.mdGithubClearCurrent) window.mdGithubClearCurrent();
-            if (window.updateLineNumbers) window.updateLineNumbers();
-            closeOverlay();
-            // Returner fokus til textarea så Tab-autosuggestion virker rett etter lasting.
-            scriptInput.focus();
-            scriptInput.selectionStart = scriptInput.selectionEnd = 0;
-          }).catch(function(err) {
-            if (window.location.protocol === 'file:') {
-              alert(t('Filen er åpnet direkte i nettleseren (file://). Start en lokal webserver og åpne via http://localhost for å laste eksempler.\n\nEks: åpne terminal i m2py-mappen og kjør:\npython -m http.server 8000\n\nÅpne deretter http://localhost:8000/microdata_runner.html'));
-            } else {
-              alert(t('Kunne ikke laste eksempel: {file}\nFeil: {msg}\n\nSjekk at web_examples-mappen ligger i samme mappe som microdata_runner.html og at serveren har tilgang til den.', { file: selectedScript.file, msg: err && err.message ? err.message : String(err) }));
-            }
+        function renderCategories() {
+          catPane.innerHTML = '';
+          groups.forEach(function(grp, idx) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            const label = (grp.group === null) ? t('Ukategorisert') : grp.group;
+            b.textContent = label;
+            b.title = label;
+            b.addEventListener('click', function() { selectCategory(idx); });
+            catPane.appendChild(b);
           });
         }
-        function openOverlay() {
+        // Ordner grupper slik at en eventuell "ukategorisert" (null-gruppe)
+        // alltid listes først, uansett rekkefølge fra groupForMode.
+        function orderGroupsNullFirst(list) {
+          var ordered = list.slice();
+          var nullIdx = -1;
+          for (var i = 0; i < ordered.length; i++) {
+            if (ordered[i].group === null) { nullIdx = i; break; }
+          }
+          if (nullIdx > 0) {
+            var nullGroup = ordered.splice(nullIdx, 1)[0];
+            ordered.unshift(nullGroup);
+          }
+          return ordered;
+        }
+        // Assign (not `function` declare) so this sets the outer-scope
+        // `var openExamplesModal` from initHamburgerAndMenu — a nested
+        // `function openExamplesModal(){}` here would instead create its own
+        // IIFE-local binding that shadows the outer one, leaving the
+        // menuExamplesBtn handler's reference permanently undefined.
+        openExamplesModal = function (mode) {
+          activeMode = mode;
           overlay.classList.add('open');
           dropdown.classList.remove('open');
-          if (manifest) {
-            // Behold forrige utvalg om mulig
-            if (selectedCatIdx >= 0 && selectedCatIdx < manifest.categories.length) {
-              // Re-render for å gjenopprette selected-tilstand
-              renderCategories();
-              selectCategory(selectedCatIdx);
-            }
-            return;
-          }
+          catPane.style.display = '';
           showEmptyHint(catPane, t('Laster…'));
-          showEmptyHint(scrPane, t('Velg en kategori'));
-          loadBtn.disabled = true;
-          const base = window.location.href.replace(/[^/]+$/, '');
-          fetch(base + 'web_examples/manifest.json').then(function(r) {
-            if (!r.ok) throw new Error(r.status);
-            return r.json();
-          }).then(function(data) {
-            manifest = data;
-            renderCategories();
-            showEmptyHint(scrPane, t('Velg en kategori'));
-          }).catch(function(err) {
-            if (window.location.protocol === 'file:') {
-              showEmptyHint(catPane, t('Kunne ikke laste manifest (file://). Start en lokal webserver.'));
-            } else {
-              showEmptyHint(catPane, t('Kunne ikke laste manifest: {msg}', { msg: err && err.message ? err.message : String(err) }));
+          showEmptyHint(scrPane, t('Laster…'));
+          loadExamplesManifest().then(function(manifest) {
+            var raw = (typeof ExamplesMenu !== 'undefined') ? ExamplesMenu.groupForMode(manifest, mode) : [];
+            groups = orderGroupsNullFirst(raw);
+            if (groups.length === 0) {
+              catPane.style.display = 'none';
+              catPane.innerHTML = '';
+              showEmptyHint(scrPane, t('Ingen eksempler for denne modusen ennå'));
+              return;
             }
+            if (groups.length === 1 && groups[0].group === null) {
+              // Flat modus: ingen kategorier å velge mellom.
+              catPane.style.display = 'none';
+              catPane.innerHTML = '';
+              renderScripts(groups[0]);
+              return;
+            }
+            catPane.style.display = '';
+            renderCategories();
+            selectCategory(0); // auto-velg første kategori så scripts-panelet ikke er tomt
+          }).catch(function(err) {
+            catPane.style.display = 'none';
+            catPane.innerHTML = '';
+            showEmptyHint(scrPane, t('Kunne ikke laste eksempler — last siden på nytt'));
           });
-        }
+        };
 
-        openBtn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          openOverlay();
-        });
-        loadBtn.addEventListener('click', loadSelected);
         cancelBtn.addEventListener('click', closeOverlay);
         // Klikk utenfor dialogen lukker
         overlay.addEventListener('click', function(e) {
