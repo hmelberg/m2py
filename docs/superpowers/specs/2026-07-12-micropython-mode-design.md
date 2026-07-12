@@ -41,13 +41,13 @@ Speiler `js/brython-engine.js` tett; samme offentlige kontrakt:
   aliaser, `deps` for modulnivå-imports, `js`-deps som `{url, global}`-objekter
   (dash → `js/dash.js` / `Dash`).
 - Samme DuckDB-replay-bro som Brython: per-run closure
-  `window.__micropythonDuckSync(sql)` med cache/pending-kø, pending-markør,
+  `window.__mpyDuckSync(sql)` med cache/pending-kø, pending-markør,
   `MAX_DUCK_PASSES`-replay med `_snapshot()`/`_rollback()`. Gjenbruker
   `__brythonDuck`-hjelperen i index.html (register/query) uendret.
 - Utdata er embed-marker-tekst (`__micro_transform_start_` …) slik at
   `buildOutputNodes()`/`renderOutput()` i index.html er uendret.
 - Datasett: gjenbruk `buildDatasetSpec`-mønsteret (csv/json/parquet via
-  `__brythonParquetColumns`), pluss embed-tags `micropythondata_<navn>` for
+  `__brythonParquetColumns`), pluss embed-tags `mpydata_<navn>` for
   publiserte dashboards (parallelt med `brythondata_`).
 
 ### Runner — `micropython/micropython_runner.py`
@@ -67,7 +67,7 @@ i stedet for Brythons `runPythonSource`-modulobjekt.
 | pandas_brython.py | pandas_mpy.py | `from browser import window` → `import js`; `import csv` → polyfill/egen parser; `window.__pyapp_assets`-base64-dekoding via `binascii` |
 | plotly_express_brython.py | plotly_express_mpy.py | `from browser import window, document, html` → `js`-ekvivalenter; `datetime`-bruk (linje ~129) sjekkes mot micropython-lib; `re`-bruken (linje ~434) verifiseres mot MicroPythons begrensede re |
 | dash.py | dash.py (kopi) | Ren Python over `Dash`-JS-globalen; forventet nesten uendret |
-| duckdb_brython.py | duckdb_mpy.py | `window.__brythonDuckSync` → `js.__micropythonDuckSync`; JSON-strengkontrakten beholdes |
+| duckdb_brython.py | duckdb_mpy.py | `window.__brythonDuckSync` → `js.__mpyDuckSync`; JSON-strengkontrakten beholdes |
 
 Dialekt-feller dokumenteres i filhodene etter samme stil som Brython-fellene
 (json-floats/null≠None gjelder IKKE MicroPython; nye feller som manglende
@@ -95,7 +95,7 @@ oppdages).
 - **Fase 1:** Motor + runner + pandas-port → tabeller i output.
 - **Fase 2:** plotly express-port → grafer.
 - **Fase 3:** dash + duckdb-bro → raskt dashboard (hovedmålet).
-- **Fase 4:** Eksempler, `micropythondata_`-publisering, felle-dokumentasjon,
+- **Fase 4:** Eksempler, `mpydata_`-publisering, felle-dokumentasjon,
   sync til openstat.
 
 ## Testing
