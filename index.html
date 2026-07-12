@@ -1981,8 +1981,8 @@
         fetch(base + 'examples/manifest.json', { cache: 'no-store' })
           .then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
           .then(function(manifest) {
-            __examplesRendered = true;      // kun ved suksess → tillat retry ved feil
             renderExamplesFromManifest(manifest);
+            __examplesRendered = true;      // kun ETTER vellykket render → tillat retry ved feil
             updateExamplesVisibility();     // hold synlighet i takt med aktiv modus
           })
           .catch(function(err) {

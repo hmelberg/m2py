@@ -71,3 +71,20 @@ def test_build_manifest_flat_and_categorised(tmp_path):
         {"file": "micropython/10_avansert/01_c.txt", "label": "Eksempel C",
          "group": "10 — Avansert"},
     ]
+
+
+def test_build_manifest_skips_unknown_mode_folders(tmp_path):
+    """Only folders whose name is a known mode key should be included; a stray
+    data folder like examples/lsj/ must not pollute the manifest."""
+    root = tmp_path / "examples"
+    mp = root / "micropython"
+    mp.mkdir(parents=True)
+    (mp / "01_a.txt").write_text("# label: Eksempel A\n", encoding="utf-8")
+
+    unknown = root / "lsj"
+    unknown.mkdir()
+    (unknown / "01_x.txt").write_text("# label: Ukjent\n", encoding="utf-8")
+
+    m = gm.build_manifest(root)
+
+    assert list(m.keys()) == ["micropython"]

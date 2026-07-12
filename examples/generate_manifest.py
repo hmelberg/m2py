@@ -19,6 +19,12 @@ NUM_RE = re.compile(r"^(\d+)_(.+)$")
 LABEL_RE = re.compile(r"^\s*(?:#|--|//)\s*label:\s*(.+?)\s*$")
 TITLE_RE = re.compile(r"""^\s*#options\.title\s*=\s*["'](.+?)["']\s*$""")
 SKIP_DIRS = {"tests"}
+# Kjente modus-nøkler (safestat + openstat). Ukjente topp-mapper (f.eks. en
+# datamappe som examples/lsj/) skal IKKE bli med i manifestet.
+KNOWN_MODES = frozenset({
+    "microdata", "python", "r", "statx", "jamovi", "duckdb",
+    "brython", "micropython", "safestat",
+})
 
 
 def pretty(raw: str) -> str:
@@ -74,9 +80,12 @@ def _scripts_in(folder: Path, root: Path, group: str | None) -> list[dict]:
 
 def build_manifest(root: Path = ROOT) -> dict:
     manifest: dict[str, list] = {}
+    # sorted() gir leksikografisk rekkefølge — numeriske prefiks (NN_...) MÅ
+    # være nullpadded (01_, 02_, ..., 10_) for at rekkefølgen skal bli riktig.
     for mode_dir in sorted(p for p in root.iterdir() if p.is_dir()):
         name = mode_dir.name
-        if name.startswith(".") or name.startswith("_") or name in SKIP_DIRS:
+        if (name.startswith(".") or name.startswith("_") or name in SKIP_DIRS
+                or name not in KNOWN_MODES):
             continue
         entries = _scripts_in(mode_dir, root, None)
         for sub in sorted(p for p in mode_dir.iterdir() if p.is_dir()):
