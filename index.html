@@ -803,6 +803,7 @@
   <script src="https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
   <script src="js/brython-engine.js"></script>
+  <script src="js/dash.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/js/tabulator.min.js" defer></script>
   <script src="widgets/forklar-widgets.js"></script>
@@ -818,8 +819,8 @@
     // grådig og ville ellers dratt ";ds=..." inn som del av URL-en.
     // Kjøres synkront her, tidligst mulig under parsing — lenge før 'load'-eventet
     // som openFromFragment venter på, og før senere inline-skript som selv leser
-    // location.hash. dash.js (lastes lazy via LIB_REGISTRY først når et
-    // dashboard-script faktisk kjører) leser den avstrippede verdien fra
+    // location.hash. dash.js (lastes eagert siden fase 2 — pyodide/R trenger
+    // den utenom LIB_REGISTRY) leser den avstrippede verdien fra
     // window.__DASH_DS_INIT__ i stedet for location.hash, siden hashen da alt
     // er renset for ds-suffikset.
     (function () {
@@ -3647,6 +3648,11 @@
       python:    { id: 'python',    label: 'Python', hlConfig: PY_HL_CFG, handleTab: handlePythonTab,
         runDefault: 'pyodide',
         preRun: async function (script, ctx) {
+          // dash-import registreres FØR pakke-sjekkene under — se __ensurePyDash.
+          if (/^\s*(?:import|from)\s+dash\b/m.test(script)) {
+            try { await __ensurePyDash(ctx.py); }
+            catch (e) { console.warn('pyodide/dash.py:', e); }
+          }
           try {
             setStatus(ctx.rightStatus, t('Sjekker pakker…'));
             await ctx.py.loadPackagesFromImports(script, {
@@ -8724,6 +8730,30 @@ json.dumps(out)
         })
         .catch(function (e) { __duckBridgeP = null; throw e; });
       return __duckBridgeP;
+    }
+
+    // ── python-modus: registrer pyodide/dash.py som modulen `dash` (lazy) ──
+    // Samme mønster som __ensureDuckBridge. MÅ kjøres FØR micropip-løkka i
+    // python-modusens preRun — ellers feiler find_spec('dash') og micropip
+    // installerer PyPI-pakken `dash` (plotly sin — feil og diger).
+    var __pyDashP = null;
+    function __ensurePyDash(py) {
+      if (__pyDashP) return __pyDashP;
+      var base = window.location.href.replace(/[^/]+$/, '');
+      __pyDashP = fetch(base + 'pyodide/dash.py?v=' + (window.M2PY_VERSION || '1'))
+        .then(function (r) { if (!r.ok) throw new Error('pyodide/dash.py: ' + r.status); return r.text(); })
+        .then(function (code) {
+          return py.runPythonAsync(
+            'import sys, importlib.util\n' +
+            'def _reg_dash(src):\n' +
+            '    spec = importlib.util.spec_from_loader("dash", loader=None)\n' +
+            '    mod = importlib.util.module_from_spec(spec)\n' +
+            '    sys.modules["dash"] = mod\n' +
+            '    exec(compile(src, "dash.py", "exec"), mod.__dict__)\n' +
+            '_reg_dash(' + JSON.stringify(code) + ')');
+        })
+        .catch(function (e) { __pyDashP = null; throw e; });
+      return __pyDashP;
     }
 
     async function runStatxScript(script, ctx) {
