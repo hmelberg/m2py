@@ -1,4 +1,655 @@
 {
+  "brython": [
+    {
+      "file": "brython/bry01_pandas_basics.txt",
+      "label": "pandas_brython — basics",
+      "group": null
+    },
+    {
+      "file": "brython/bry02_plotly_charts.txt",
+      "label": "plotly_express_brython — chart gallery",
+      "group": null
+    },
+    {
+      "file": "brython/bry03_csv_iris.txt",
+      "label": "Load a CSV from GitHub",
+      "group": null
+    },
+    {
+      "file": "brython/bry04_columns_penguins.txt",
+      "label": "Select columns → focused dataset",
+      "group": null
+    },
+    {
+      "file": "brython/bry05_connect_load.txt",
+      "label": "connect + load — several frames",
+      "group": null
+    },
+    {
+      "file": "brython/bry06_api_live.txt",
+      "label": "Live data — World Bank API",
+      "group": null
+    },
+    {
+      "file": "brython/bry07_value_counts_recode.txt",
+      "label": "Counting and recoding",
+      "group": null
+    },
+    {
+      "file": "brython/bry08_facets_color.txt",
+      "label": "Facets — one panel per category",
+      "group": null
+    },
+    {
+      "file": "brython/bry09_kpi_indicator.txt",
+      "label": "KPI cards + pie",
+      "group": null
+    },
+    {
+      "file": "brython/bry10_dashboard_iris.txt",
+      "label": "Dashboard — iris (interactive)",
+      "group": null
+    },
+    {
+      "file": "brython/bry11_dashboard_salg.txt",
+      "label": "Dashboard — sales (no external data)",
+      "group": null
+    },
+    {
+      "file": "brython/bry12_cheatsheet.txt",
+      "label": "Cheat sheet — Brython vs Python",
+      "group": null
+    },
+    {
+      "file": "brython/bry13_matplotlib.txt",
+      "label": "matplotlib — plt-API (Plotly-rendret)",
+      "group": null
+    },
+    {
+      "file": "brython/bry14_scipy_stats.txt",
+      "label": "scipy.stats — tester og fordelinger",
+      "group": null
+    },
+    {
+      "file": "brython/bry15_regresjon.txt",
+      "label": "Regresjon — smf.ols / smf.logit",
+      "group": null
+    },
+    {
+      "file": "brython/bry16_numpy.txt",
+      "label": "numpy — arrays og tilfeldige tall",
+      "group": null
+    },
+    {
+      "file": "brython/bry17_dashboard_kostnad.txt",
+      "label": "Dashboard — kostnadsmodell",
+      "group": null
+    },
+    {
+      "file": "brython/bry17_seaborn.txt",
+      "label": "seaborn — statistisk grafikk",
+      "group": null
+    },
+    {
+      "file": "brython/bry18_dashboard_fordeling.txt",
+      "label": "Dashboard — fordelingsutforsker",
+      "group": null
+    },
+    {
+      "file": "brython/bry19_dashboard_regresjon.txt",
+      "label": "Dashboard — regresjon",
+      "group": null
+    },
+    {
+      "file": "brython/bry20_dashboard_rapport.txt",
+      "label": "Dashboard — rapport",
+      "group": null
+    },
+    {
+      "file": "brython/bry21_duckdb.txt",
+      "label": "duckdb — SQL i Brython (.sql → .df)",
+      "group": null
+    },
+    {
+      "file": "brython/bry22_dashboard_duckdb.txt",
+      "label": "Dashboard — DuckDB (SQL)",
+      "group": null
+    },
+    {
+      "file": "brython/bry23_sklearn.txt",
+      "label": "sklearn — KMeans, PCA, regresjon",
+      "group": null
+    }
+  ],
+  "duckdb": [
+    {
+      "file": "duckdb/sql01_select_basics.txt",
+      "label": "SQL — basic SELECT",
+      "group": null
+    },
+    {
+      "file": "duckdb/sql02_aggregate_groupby.txt",
+      "label": "SQL — GROUP BY and aggregation",
+      "group": null
+    },
+    {
+      "file": "duckdb/sql03_join.txt",
+      "label": "SQL — JOIN",
+      "group": null
+    },
+    {
+      "file": "duckdb/sql04_create_table.txt",
+      "label": "SQL — CREATE TABLE (build datasets)",
+      "group": null
+    },
+    {
+      "file": "duckdb/sql05_cte_window.txt",
+      "label": "SQL — CTE + window function",
+      "group": null
+    },
+    {
+      "file": "duckdb/sql06_case_recode.txt",
+      "label": "SQL — CASE WHEN (recoding)",
+      "group": null
+    },
+    {
+      "file": "duckdb/sql07_multi_statement.txt",
+      "label": "SQL — multiple statements",
+      "group": null
+    },
+    {
+      "file": "duckdb/sql08_describe_summary.txt",
+      "label": "SQL — profiling/summary",
+      "group": null
+    },
+    {
+      "file": "duckdb/sql09_micro_then_sql.txt",
+      "label": "SQL — #micro → DuckDB (hybrid)",
+      "group": null
+    },
+    {
+      "file": "duckdb/sql10_py_then_sql.txt",
+      "label": "SQL — #py → DuckDB (hybrid)",
+      "group": null
+    }
+  ],
+  "microdata": [
+    {
+      "file": "microdata/01_beskrivende_statistikk.txt",
+      "label": "Beskrivende statistikk",
+      "group": null
+    },
+    {
+      "file": "microdata/02_tabeller_og_kategorier.txt",
+      "label": "Tabeller og kategorier",
+      "group": null
+    },
+    {
+      "file": "microdata/03_visualiseringer.txt",
+      "label": "Visualiseringer",
+      "group": null
+    },
+    {
+      "file": "microdata/04_aggregat_og_generate.txt",
+      "label": "Aggregat og nye variabler",
+      "group": null
+    },
+    {
+      "file": "microdata/05_regresjon.txt",
+      "label": "Regresjon",
+      "group": null
+    },
+    {
+      "file": "microdata/06_avansert_analyse.txt",
+      "label": "Avansert analyse",
+      "group": null
+    },
+    {
+      "file": "microdata/01_grunnleggende_operasjoner/01_opprette_flere_datasett_og_flytte_seg_mellom_dem.txt",
+      "label": "Opprette flere datasett og flytte seg mellom dem",
+      "group": "01 — Grunnleggende operasjoner"
+    },
+    {
+      "file": "microdata/01_grunnleggende_operasjoner/02_opprette_og_endre_et_datasett.txt",
+      "label": "Opprette og endre et datasett",
+      "group": "01 — Grunnleggende operasjoner"
+    },
+    {
+      "file": "microdata/01_grunnleggende_operasjoner/03_hvordan_lage_populasjoner.txt",
+      "label": "Hvordan lage populasjoner",
+      "group": "01 — Grunnleggende operasjoner"
+    },
+    {
+      "file": "microdata/01_grunnleggende_operasjoner/04_fjerning_av_enheter_fra_et_datasett.txt",
+      "label": "Fjerning av enheter fra et datasett",
+      "group": "01 — Grunnleggende operasjoner"
+    },
+    {
+      "file": "microdata/01_grunnleggende_operasjoner/05_trekke_tilfeldige_utvalg_fra_en_totalpopulasjon.txt",
+      "label": "Trekke tilfeldige utvalg fra en totalpopulasjon",
+      "group": "01 — Grunnleggende operasjoner"
+    },
+    {
+      "file": "microdata/01_grunnleggende_operasjoner/06_lage_dummyvariabel.txt",
+      "label": "Lage dummyvariabel",
+      "group": "01 — Grunnleggende operasjoner"
+    },
+    {
+      "file": "microdata/01_grunnleggende_operasjoner/07_lage_dummyvariabel_ved_a_bruke_kommandoen_recode.txt",
+      "label": "Lage dummyvariabel ved å bruke kommandoen recode",
+      "group": "01 — Grunnleggende operasjoner"
+    },
+    {
+      "file": "microdata/01_grunnleggende_operasjoner/08_ulike_mater_a_lage_flerkategorivariabler.txt",
+      "label": "Ulike måter å lage flerkategorivariabler",
+      "group": "01 — Grunnleggende operasjoner"
+    },
+    {
+      "file": "microdata/01_grunnleggende_operasjoner/09_trekke_ut_deler_av_alfanumeriske_verdier.txt",
+      "label": "Trekke ut deler av alfanumeriske verdier",
+      "group": "01 — Grunnleggende operasjoner"
+    },
+    {
+      "file": "microdata/01_grunnleggende_operasjoner/10_trekke_ut_deler_av_numeriske_verdier.txt",
+      "label": "Trekke ut deler av numeriske verdier",
+      "group": "01 — Grunnleggende operasjoner"
+    },
+    {
+      "file": "microdata/01_grunnleggende_operasjoner/11_konvertere_fra_alfanumerisk_til_numerisk_verdiformat.txt",
+      "label": "Konvertere fra alfanumerisk til numerisk verdiformat",
+      "group": "01 — Grunnleggende operasjoner"
+    },
+    {
+      "file": "microdata/01_grunnleggende_operasjoner/12_tilrettelegge_variabler_dummy_og_flerkategorivariabler_funksjoner_labler.txt",
+      "label": "Tilrettelegge variabler - dummy- og flerkategorivariabler - funksjoner - labler",
+      "group": "01 — Grunnleggende operasjoner"
+    },
+    {
+      "file": "microdata/02_sammensatte_operasjoner/01_bruke_funksjoner_for_variabelberegninger.txt",
+      "label": "Bruke funksjoner for variabelberegninger",
+      "group": "02 — Sammensatte operasjoner"
+    },
+    {
+      "file": "microdata/02_sammensatte_operasjoner/02_restrukturere_datasett_fra_wide_til_long_format.txt",
+      "label": "Restrukturere datasett fra wide- til long-format",
+      "group": "02 — Sammensatte operasjoner"
+    },
+    {
+      "file": "microdata/02_sammensatte_operasjoner/03_restrukturere_datasett_fra_long_til_wide_format.txt",
+      "label": "Restrukturere datasett fra long- til wide-format",
+      "group": "02 — Sammensatte operasjoner"
+    },
+    {
+      "file": "microdata/02_sammensatte_operasjoner/04_bruke_bindinger_og_lokker.txt",
+      "label": "Bruke bindinger og løkker",
+      "group": "02 — Sammensatte operasjoner"
+    },
+    {
+      "file": "microdata/02_sammensatte_operasjoner/05_trekke_ut_deler_av_en_hierarkisk_kode_og_lage_verdilabler.txt",
+      "label": "Trekke ut deler av en hierarkisk kode og lage verdilabler",
+      "group": "02 — Sammensatte operasjoner"
+    },
+    {
+      "file": "microdata/03_deskriptiv_statistikk/01_tabeller_tabulate.txt",
+      "label": "Tabeller - tabulate",
+      "group": "03 — Deskriptiv statistikk"
+    },
+    {
+      "file": "microdata/03_deskriptiv_statistikk/02_nokkeltall_summarize_boxplot.txt",
+      "label": "Nøkkeltall - summarize og boxplot",
+      "group": "03 — Deskriptiv statistikk"
+    },
+    {
+      "file": "microdata/03_deskriptiv_statistikk/03_soylediagrammer_histogram_barchart.txt",
+      "label": "Søylediagrammer - histogram og barchart",
+      "group": "03 — Deskriptiv statistikk"
+    },
+    {
+      "file": "microdata/03_deskriptiv_statistikk/04_kakediagram_spredningsdiagram_piechart_hexbin.txt",
+      "label": "Kakediagram og spredningsdiagram - piechart og hexbin",
+      "group": "03 — Deskriptiv statistikk"
+    },
+    {
+      "file": "microdata/03_deskriptiv_statistikk/05_flytdiagram_sankey.txt",
+      "label": "Flytdiagram - sankey",
+      "group": "03 — Deskriptiv statistikk"
+    },
+    {
+      "file": "microdata/03_deskriptiv_statistikk/06_flytdiagram_sankey_med_flere_overganger.txt",
+      "label": "Flytdiagram - sankey med flere overganger",
+      "group": "03 — Deskriptiv statistikk"
+    },
+    {
+      "file": "microdata/04_regresjonsanalyser/01_linear_regresjonsanalyse.txt",
+      "label": "Lineær regresjonsanalyse",
+      "group": "04 — Regresjonsanalyser"
+    },
+    {
+      "file": "microdata/04_regresjonsanalyser/02_bruk_av_instrumentvariabel_i_regresjonsanalyse.txt",
+      "label": "Bruk av instrumentvariabel i regresjonsanalyse",
+      "group": "04 — Regresjonsanalyser"
+    },
+    {
+      "file": "microdata/04_regresjonsanalyser/03_logistisk_regresjonsanalyse.txt",
+      "label": "Logistisk regresjonsanalyse",
+      "group": "04 — Regresjonsanalyser"
+    },
+    {
+      "file": "microdata/04_regresjonsanalyser/04_avansert_logistisk_regresjonsanalyse.txt",
+      "label": "Avansert logistisk regresjonsanalyse",
+      "group": "04 — Regresjonsanalyser"
+    },
+    {
+      "file": "microdata/04_regresjonsanalyser/05_analyse_av_prediksjons_og_residualverdier.txt",
+      "label": "Analyse av prediksjons- og residualverdier",
+      "group": "04 — Regresjonsanalyser"
+    },
+    {
+      "file": "microdata/04_regresjonsanalyser/06_finne_predikert_verdi_for_responsvariabel.txt",
+      "label": "Finne predikert verdi for responsvariabel",
+      "group": "04 — Regresjonsanalyser"
+    },
+    {
+      "file": "microdata/04_regresjonsanalyser/07_paneldata_analyse.txt",
+      "label": "Paneldata-analyse",
+      "group": "04 — Regresjonsanalyser"
+    },
+    {
+      "file": "microdata/04_regresjonsanalyser/08_diff_in_diff_analyse.txt",
+      "label": "Diff-in-diff-analyse",
+      "group": "04 — Regresjonsanalyser"
+    },
+    {
+      "file": "microdata/04_regresjonsanalyser/09_hvordan_tilrettelegge_data_for_overlevelsesanalyse.txt",
+      "label": "Hvordan tilrettelegge data for overlevelsesanalyse",
+      "group": "04 — Regresjonsanalyser"
+    },
+    {
+      "file": "microdata/04_regresjonsanalyser/10_rdd_analyse.txt",
+      "label": "RDD-analyse",
+      "group": "04 — Regresjonsanalyser"
+    },
+    {
+      "file": "microdata/04_regresjonsanalyser/11_flernivaanalyse.txt",
+      "label": "Flernivåanalyse",
+      "group": "04 — Regresjonsanalyser"
+    },
+    {
+      "file": "microdata/05_kursmateriale/01_praktisk_gjennomgang_innforingskurs.txt",
+      "label": "Praktisk gjennomgang – innføringskurs",
+      "group": "05 — Kursmateriale"
+    },
+    {
+      "file": "microdata/05_kursmateriale/02_praktisk_gjennomgang_innforingskurs_for_deg_med_mindre_programmeringserfaring.txt",
+      "label": "Praktisk gjennomgang – innføringskurs for deg med mindre programmeringserfaring",
+      "group": "05 — Kursmateriale"
+    },
+    {
+      "file": "microdata/05_kursmateriale/03_praktisk_gjennomgang_temakurs_om_kontekstuelle_data_del_1_familiedata.txt",
+      "label": "Praktisk gjennomgang – temakurs om kontekstuelle data del 1 - familiedata",
+      "group": "05 — Kursmateriale"
+    },
+    {
+      "file": "microdata/05_kursmateriale/04_praktisk_gjennomgang_temakurs_om_jobbdata_fra_a_ordningen.txt",
+      "label": "Praktisk gjennomgang – temakurs om jobbdata fra A-ordningen",
+      "group": "05 — Kursmateriale"
+    },
+    {
+      "file": "microdata/05_kursmateriale/05_praktisk_gjennomgang_temakurs_om_inntekt_skatt_trygd.txt",
+      "label": "Praktisk gjennomgang – temakurs om inntekt - skatt - trygd",
+      "group": "05 — Kursmateriale"
+    },
+    {
+      "file": "microdata/05_kursmateriale/06_praktisk_gjennomgang_temakurs_om_bygging_av_datasett.txt",
+      "label": "Praktisk gjennomgang – temakurs om bygging av datasett",
+      "group": "05 — Kursmateriale"
+    },
+    {
+      "file": "microdata/06_familieanalyser/01_bruke_forlopsdata_til_a_finne_personer_som_har_skilt_seg_i_lopet_av_et_ar.txt",
+      "label": "Bruke forløpsdata til å finne personer som har skilt seg i løpet av et år",
+      "group": "06 — Familieanalyser"
+    },
+    {
+      "file": "microdata/06_familieanalyser/02_aggregere_data_til_familieniva.txt",
+      "label": "Aggregere data til familienivå",
+      "group": "06 — Familieanalyser"
+    },
+    {
+      "file": "microdata/06_familieanalyser/03_hvordan_bruke_foreldreopplysninger_i_analyser.txt",
+      "label": "Hvordan bruke foreldreopplysninger i analyser",
+      "group": "06 — Familieanalyser"
+    },
+    {
+      "file": "microdata/06_familieanalyser/04_hvordan_bruke_foreldre_og_besteforeldreopplysninger_i_analyser.txt",
+      "label": "Hvordan bruke foreldre- og besteforeldreopplysninger i analyser",
+      "group": "06 — Familieanalyser"
+    },
+    {
+      "file": "microdata/06_familieanalyser/05_lage_datasett_bestaende_av_ektefeller_og_samboere.txt",
+      "label": "Lage datasett bestående av ektefeller og samboere",
+      "group": "06 — Familieanalyser"
+    },
+    {
+      "file": "microdata/06_familieanalyser/06_lage_analyse_av_sosken.txt",
+      "label": "Lage analyse av søsken",
+      "group": "06 — Familieanalyser"
+    },
+    {
+      "file": "microdata/06_familieanalyser/07_finne_andelen_modre_og_alder_ved_forste_fodsel.txt",
+      "label": "Finne andelen mødre og alder ved første fødsel",
+      "group": "06 — Familieanalyser"
+    },
+    {
+      "file": "microdata/06_familieanalyser/08_beregne_antall_barn_uavhengig_av_hvor_barna_bor.txt",
+      "label": "Beregne antall barn uavhengig av hvor barna bor",
+      "group": "06 — Familieanalyser"
+    },
+    {
+      "file": "microdata/06_familieanalyser/09_finne_flyktningebarn_som_kom_til_norge_med_eller_uten_foreldre.txt",
+      "label": "Finne flyktningebarn som kom til Norge med eller uten foreldre",
+      "group": "06 — Familieanalyser"
+    },
+    {
+      "file": "microdata/07_jobb_inntekt/01_gruppere_inntekter_i_prosentiler_desiler_og_kvartiler.txt",
+      "label": "Gruppere inntekter i prosentiler, desiler og kvartiler",
+      "group": "07 — Jobb inntekt"
+    },
+    {
+      "file": "microdata/07_jobb_inntekt/02_koble_sammen_data_om_arbeidsforhold_pa_persondatasett_-_numeriske_opplysninger.txt",
+      "label": "Koble sammen data om arbeidsforhold på persondatasett - numeriske opplysninger",
+      "group": "07 — Jobb inntekt"
+    },
+    {
+      "file": "microdata/07_jobb_inntekt/03_koble_sammen_data_om_arbeidsforhold_pa_persondatasett_-_kategoriske_opplysninger.txt",
+      "label": "Koble sammen data om arbeidsforhold på persondatasett - kategoriske opplysninger",
+      "group": "07 — Jobb inntekt"
+    },
+    {
+      "file": "microdata/07_jobb_inntekt/04_koble_persondata_pa_jobbdatasett.txt",
+      "label": "Koble persondata på jobbdatasett",
+      "group": "07 — Jobb inntekt"
+    },
+    {
+      "file": "microdata/07_jobb_inntekt/05_analysere_hovedjobber.txt",
+      "label": "Analysere hovedjobber",
+      "group": "07 — Jobb inntekt"
+    },
+    {
+      "file": "microdata/07_jobb_inntekt/06_analysere_jobber_med_hoyeste_stillingsprosent.txt",
+      "label": "Analysere jobber med høyeste stillingsprosent",
+      "group": "07 — Jobb inntekt"
+    },
+    {
+      "file": "microdata/07_jobb_inntekt/07_analysere_jobber_som_starter_forst.txt",
+      "label": "Analysere jobber som starter først",
+      "group": "07 — Jobb inntekt"
+    },
+    {
+      "file": "microdata/07_jobb_inntekt/08_analysere_turnusordninger.txt",
+      "label": "Analysere turnusordninger",
+      "group": "07 — Jobb inntekt"
+    },
+    {
+      "file": "microdata/07_jobb_inntekt/09_bruke_outer_join_til_a_fange_opp_personer_som_kommer_i_jobb_i_lopet_av_observasjonsperioden.txt",
+      "label": "Bruke outer join til å fange opp personer som kommer i jobb i løpet av observasjonsperioden",
+      "group": "07 — Jobb inntekt"
+    },
+    {
+      "file": "microdata/07_jobb_inntekt/10_jobbpendling.txt",
+      "label": "Jobbpendling",
+      "group": "07 — Jobb inntekt"
+    },
+    {
+      "file": "microdata/07_jobb_inntekt/11_lage_statistikk_over_ansatte_og_utdanningsniva_innen_yrker_og_naeringer.txt",
+      "label": "Lage statistikk over ansatte og utdanningsnivå innen yrker og næringer",
+      "group": "07 — Jobb inntekt"
+    },
+    {
+      "file": "microdata/08_regionalanalyser/01_omkode_fra_land_til_verdensregion.txt",
+      "label": "Omkode fra land til verdensregion",
+      "group": "08 — Regionalanalyser"
+    },
+    {
+      "file": "microdata/08_regionalanalyser/02_omkode_fra_2019-_til_2020-kommuneinndeling.txt",
+      "label": "Omkode fra 2019- til 2020-kommuneinndeling",
+      "group": "08 — Regionalanalyser"
+    },
+    {
+      "file": "microdata/08_regionalanalyser/03_hvordan_aggregere_og_lage_kontekstuelle_data_pa_kommuneniva.txt",
+      "label": "Hvordan aggregere og lage kontekstuelle data på kommunenivå",
+      "group": "08 — Regionalanalyser"
+    },
+    {
+      "file": "microdata/08_regionalanalyser/04_vise_flyttestrommer_mellom_kommuner_-_2024-2025.txt",
+      "label": "Vise flyttestrømmer mellom kommuner - 2024-2025",
+      "group": "08 — Regionalanalyser"
+    },
+    {
+      "file": "microdata/08_regionalanalyser/05_vise_flyttestrommer_mellom_kommuner_-_2023-2024.txt",
+      "label": "Vise flyttestrømmer mellom kommuner - 2023-2024",
+      "group": "08 — Regionalanalyser"
+    },
+    {
+      "file": "microdata/08_regionalanalyser/06_vise_flyttestrommer_mellom_kommuner_-_2019-2020.txt",
+      "label": "Vise flyttestrømmer mellom kommuner - 2019-2020",
+      "group": "08 — Regionalanalyser"
+    },
+    {
+      "file": "microdata/08_regionalanalyser/07_vise_flyttestrommer_mellom_kommuner_-_2018-2019.txt",
+      "label": "Vise flyttestrømmer mellom kommuner - 2018-2019",
+      "group": "08 — Regionalanalyser"
+    },
+    {
+      "file": "microdata/08_regionalanalyser/08_vise_flyttestrommer_mellom_kommuner_-_2017-2018.txt",
+      "label": "Vise flyttestrømmer mellom kommuner - 2017-2018",
+      "group": "08 — Regionalanalyser"
+    },
+    {
+      "file": "microdata/08_regionalanalyser/09_vise_flyttestrommer_mellom_kommuner_-_2016-2017.txt",
+      "label": "Vise flyttestrømmer mellom kommuner - 2016-2017",
+      "group": "08 — Regionalanalyser"
+    },
+    {
+      "file": "microdata/08_regionalanalyser/10_lage_statistikk_over_boligbytter.txt",
+      "label": "Lage statistikk over boligbytter",
+      "group": "08 — Regionalanalyser"
+    },
+    {
+      "file": "microdata/09_utdanningsanalyser/01_hente_ut_informasjon_om_pagaende_utdanning_i_lopet_av_et_ar.txt",
+      "label": "Hente ut informasjon om pågående utdanning i løpet av et år",
+      "group": "09 — Utdanningsanalyser"
+    },
+    {
+      "file": "microdata/09_utdanningsanalyser/02_hente_ut_informasjon_om_pagaende_utdanning_for_et_gitt_tidspunkt.txt",
+      "label": "Hente ut informasjon om pågående utdanning for et gitt tidspunkt",
+      "group": "09 — Utdanningsanalyser"
+    },
+    {
+      "file": "microdata/09_utdanningsanalyser/03_skoleelever_-_karakterer_i_grunnskolen_og_status_for_videregaende_utdanning.txt",
+      "label": "Skoleelever - karakterer i grunnskolen og status for videregående utdanning",
+      "group": "09 — Utdanningsanalyser"
+    },
+    {
+      "file": "microdata/09_utdanningsanalyser/04_analysere_voksne_under_utdanning.txt",
+      "label": "Analysere voksne under utdanning",
+      "group": "09 — Utdanningsanalyser"
+    },
+    {
+      "file": "microdata/09_utdanningsanalyser/05_lage_statistikk_pa_fullforing_av_videregaende_skole.txt",
+      "label": "Lage statistikk på fullføring av videregående skole",
+      "group": "09 — Utdanningsanalyser"
+    },
+    {
+      "file": "microdata/09_utdanningsanalyser/06_folge_personer_innen_utdanningsforlopet_og_status_etter_endt_utdanning.txt",
+      "label": "Følge personer innen utdanningsforløpet og status etter endt utdanning",
+      "group": "09 — Utdanningsanalyser"
+    },
+    {
+      "file": "microdata/09_utdanningsanalyser/07_finne_studiekoder_for_personer_som_starter_videregaende_utdanning_et_gitt_ar.txt",
+      "label": "Finne studiekoder for personer som starter videregående utdanning et gitt år",
+      "group": "09 — Utdanningsanalyser"
+    },
+    {
+      "file": "microdata/09_utdanningsanalyser/08_lage_statistikk_over_laererutdanninger.txt",
+      "label": "Lage statistikk over lærerutdanninger",
+      "group": "09 — Utdanningsanalyser"
+    },
+    {
+      "file": "microdata/10_sosial_ulikhet/01_analysere_neet-status_for_unge_individer.txt",
+      "label": "Analysere NEET-status for unge individer",
+      "group": "10 — Sosial ulikhet"
+    },
+    {
+      "file": "microdata/10_sosial_ulikhet/02_analysere_arbeidsmarkedsstatus_for_ulike_norskopplaeringskohorter.txt",
+      "label": "Analysere arbeidsmarkedsstatus for ulike norskopplæringskohorter",
+      "group": "10 — Sosial ulikhet"
+    },
+    {
+      "file": "microdata/11_kjoretoy/01_finne_antall_personbiler_per_individ.txt",
+      "label": "Finne antall personbiler per individ",
+      "group": "11 — Kjoretoy"
+    },
+    {
+      "file": "microdata/11_kjoretoy/02_finne_antall_personbiler_per_familie.txt",
+      "label": "Finne antall personbiler per familie",
+      "group": "11 — Kjoretoy"
+    },
+    {
+      "file": "microdata/11_kjoretoy/03_lage_kjoretoystatistikk.txt",
+      "label": "Lage kjøretøystatistikk",
+      "group": "11 — Kjoretoy"
+    },
+    {
+      "file": "microdata/11_kjoretoy/04_analysere_personbiltrender.txt",
+      "label": "Analysere personbiltrender",
+      "group": "11 — Kjoretoy"
+    },
+    {
+      "file": "microdata/11_kjoretoy/05_finne_antall_fossil-_hybrid-_og_elbiler_per_familie.txt",
+      "label": "Finne antall fossil-, hybrid-, og elbiler per familie",
+      "group": "11 — Kjoretoy"
+    },
+    {
+      "file": "microdata/11_kjoretoy/06_lage_statistikk_over_eierskifte.txt",
+      "label": "Lage statistikk over eierskifte",
+      "group": "11 — Kjoretoy"
+    },
+    {
+      "file": "microdata/12_stromdata/01_hvordan_lage_statistikk_over_nasjonalt_og_regionalt_stromforbruk_og_stromproduksjon.txt",
+      "label": "Hvordan lage statistikk over nasjonalt og regionalt strømforbruk og strømproduksjon",
+      "group": "12 — Stromdata"
+    },
+    {
+      "file": "microdata/12_stromdata/02_analysere_sammenheng_mellom_stromforbruk_og_boligtyper.txt",
+      "label": "Analysere sammenheng mellom strømforbruk og boligtyper",
+      "group": "12 — Stromdata"
+    },
+    {
+      "file": "microdata/12_stromdata/03_analysere_stromforbruk_for_primaerboliger.txt",
+      "label": "Analysere strømforbruk for primærboliger",
+      "group": "12 — Stromdata"
+    }
+  ],
   "micropython": [
     {
       "file": "micropython/01_pandas_basics.txt",
@@ -18,6 +669,154 @@
     {
       "file": "micropython/04_csv_url.txt",
       "label": "Les en CSV fra en URL",
+      "group": null
+    }
+  ],
+  "python": [
+    {
+      "file": "python/ex_api_worldbank.txt",
+      "label": "Live data — World Bank API",
+      "group": null
+    },
+    {
+      "file": "python/ex_columns_penguins.txt",
+      "label": "Select columns → focused dataset",
+      "group": null
+    },
+    {
+      "file": "python/ex_csv_iris.txt",
+      "label": "Load a CSV from GitHub",
+      "group": null
+    },
+    {
+      "file": "python/ex_enc_hospital.txt",
+      "label": "Encrypted data — safe-mode analysis",
+      "group": null
+    },
+    {
+      "file": "python/py01_pandas_basics.txt",
+      "label": "pandas — basics",
+      "group": null
+    },
+    {
+      "file": "python/py02_pandas_microdata.txt",
+      "label": "pandas + #micro",
+      "group": null
+    },
+    {
+      "file": "python/py03_statsmodels_regression.txt",
+      "label": "statsmodels — OLS regression",
+      "group": null
+    },
+    {
+      "file": "python/py04_pandas_plot.txt",
+      "label": "matplotlib + #micro",
+      "group": null
+    },
+    {
+      "file": "python/py05_duckdb_block.txt",
+      "label": "pandas + #duckdb (SQL block)",
+      "group": null
+    },
+    {
+      "file": "python/py06_dashboard.txt",
+      "label": "Dashboard — fordelingsutforsker",
+      "group": null
+    }
+  ],
+  "r": [
+    {
+      "file": "r/r01_base_basics.txt",
+      "label": "base R — basics",
+      "group": null
+    },
+    {
+      "file": "r/r02_tidyverse_groupby.txt",
+      "label": "tidyverse — group statistics",
+      "group": null
+    },
+    {
+      "file": "r/r03_tidyverse_microdata.txt",
+      "label": "tidyverse + #micro",
+      "group": null
+    },
+    {
+      "file": "r/r04_ggplot_microdata.txt",
+      "label": "ggplot2 + #micro",
+      "group": null
+    },
+    {
+      "file": "r/r05_dplyr_recode.txt",
+      "label": "dplyr — recoding (case_when/ifelse)",
+      "group": null
+    },
+    {
+      "file": "r/r06_base_r_idioms.txt",
+      "label": "base R — subset/transform/aggregate",
+      "group": null
+    },
+    {
+      "file": "r/r07_regresjon.txt",
+      "label": "regression — lm + glm",
+      "group": null
+    },
+    {
+      "file": "r/r08_across_sample.txt",
+      "label": "dplyr — across + slice_sample",
+      "group": null
+    },
+    {
+      "file": "r/r09_dashboard.txt",
+      "label": "Dashboard — fordelingsutforsker",
+      "group": null
+    },
+    {
+      "file": "r/rex_columns_penguins.txt",
+      "label": "Select columns → focused dataset",
+      "group": null
+    },
+    {
+      "file": "r/rex_csv_iris.txt",
+      "label": "Load a CSV from GitHub",
+      "group": null
+    },
+    {
+      "file": "r/rex_enc_hospital.txt",
+      "label": "Encrypted data — safe-mode analysis",
+      "group": null
+    },
+    {
+      "file": "r/rex_ext_csv.txt",
+      "label": "Read an external CSV",
+      "group": null
+    }
+  ],
+  "safestat": [
+    {
+      "file": "safestat/safestat01_url_csv.txt",
+      "label": "SafeStat — CSV from URL",
+      "group": null
+    }
+  ],
+  "statx": [
+    {
+      "file": "statx/st01_stata_basics.txt",
+      "label": "Stata — descriptives",
+      "group": null
+    },
+    {
+      "file": "statx/st02_stata_regresjon.txt",
+      "label": "Stata — regression",
+      "group": null
+    },
+    {
+      "file": "statx/st03_stata_generate.txt",
+      "label": "Stata — generate/egen",
+      "group": null
+    },
+    {
+      "file": "statx/st04_stata_use.txt",
+      "label": "Stata — use (multiple datasets)",
       "group": null
     }
   ]

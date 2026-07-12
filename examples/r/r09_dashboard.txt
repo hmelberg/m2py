@@ -1,0 +1,29 @@
+# label: Dashboard — fordelingsutforsker
+#options.mode = r
+#options.title = "Dashboard — fordelingsutforsker (R)"
+#options.description = "Samme dashboard som bry18/py06, i R — base-plot fanges som bilde"
+#options.show_commands = False
+d <- dashboard("Normalfordelingen", layout = "
+    kurve kurve kurve over
+    kurve kurve kurve kvantil
+")
+
+d$controls(mu = slider(-5, 5, step = 1, default = 0, label = "Forventning (mu)"),
+           sigma = slider(1, 4, step = 1, label = "Standardavvik (sigma)"),
+           terskel = play(-5, 10, step = 1, label = "Terskel (spill av)"))
+
+tetthet <- function(mu, sigma, terskel) {
+  xs <- seq(mu - 4 * sigma, mu + 4 * sigma, length.out = 121)
+  plot(xs, dnorm(xs, mean = mu, sd = sigma), type = "l",
+       xlab = "", ylab = "", main = "Tetthet")
+  abline(v = terskel, col = "red")
+}
+d$add(tetthet, at = "kurve")
+
+d$add(function(mu, sigma, terskel)
+        round(100 * pnorm(terskel, mean = mu, sd = sigma, lower.tail = FALSE), 1),
+      title = "P(X > terskel)", unit = "%", at = "over")
+
+d$add(function(mu, sigma, terskel)
+        round(qnorm(0.975, mean = mu, sd = sigma), 2),
+      title = "97,5 %-kvantilen", at = "kvantil")

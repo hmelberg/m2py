@@ -1,0 +1,18 @@
+# label: Visualiseringer
+// Eksempel 3: Visualiseringer
+// Søylediagram, histogram, boksplott, spredningsplott og kakediagram.
+require no.ssb.fdb:54 as fd
+
+create-dataset figurer
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/BEFOLKNING_FOEDSELS_AAR_MND as født
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+
+generate alder = 2022-int(født/100)
+
+barchart (count) kjonn
+histogram inntekt
+boxplot inntekt
+boxplot inntekt, over(kjonn)
+piechart kjonn
+hexbin inntekt alder

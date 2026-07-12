@@ -1,0 +1,19 @@
+# label: Stata — use (multiple datasets)
+* Example: Stata – use (switch between datasets)
+* The first block creates two datasets: 'folk' and 'folk2'.
+* The second block demonstrates 'use NAME' to switch the active dataset.
+
+#micro
+require no.ssb.fdb:54 as fd
+create-dataset folk
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+create-dataset folk2
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+
+#stata
+use folk
+summarize inntekt
+use folk2
+tabulate kjonn

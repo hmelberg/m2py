@@ -1,0 +1,15 @@
+# label: Select columns → focused dataset
+# Example: Read a wider CSV and build a FOCUSED dataset from specific columns.
+# load https://raw.githubusercontent.com/hmelberg/safestat/master/data/penguins.csv as penguins
+import pandas_brython as pd
+import plotly_express_brython as pe
+
+# Keep only the columns we need, drop missing values:
+flippers = penguins[["species", "flipper_length_mm"]].dropna()
+
+# Mean flipper length per species (a table):
+show(flippers.groupby("species").mean())
+
+# Distribution per species:
+pe.box(flippers, x="species", y="flipper_length_mm",
+       title="Penguins — flipper length per species")

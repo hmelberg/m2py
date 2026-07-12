@@ -1,0 +1,18 @@
+# label: Beskrivende statistikk
+// Eksempel 1: Beskrivende statistikk
+// Opprett datasett, importer variabler og se nøkkeltall med summarize.
+
+require no.ssb.fdb:54 as fd
+create-dataset beskrivelse
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+import fd/BOSATTEFDT_BOSTED 2022-12-31 as kommune
+
+summarize inntekt
+
+tabulate kjonn
+
+summarize inntekt, gini iqr
+summarize inntekt if kjonn == "1", gini
+
+tabulate kommune, summarize(inntekt) mean rowsort()

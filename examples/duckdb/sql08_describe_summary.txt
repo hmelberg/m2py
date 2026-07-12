@@ -1,0 +1,25 @@
+# label: SQL — profiling/summary
+-- Quick profiling: key figures and quantiles per variable, as one table.
+
+CREATE OR REPLACE TABLE personer AS
+SELECT * FROM (VALUES
+  (1, 25, 450000),
+  (2, 34, 620000),
+  (3, 52, 810000),
+  (4, 41, 530000),
+  (5, 19, 210000),
+  (6, 67, 390000),
+  (7, 45, 720000),
+  (8, 29, 480000)
+) AS t(fnr, alder, inntekt);
+
+SELECT 'inntekt' AS variabel,
+       count(*)                       AS n,
+       min(inntekt)                   AS minimum,
+       quantile_cont(inntekt, 0.25)   AS q1,
+       quantile_cont(inntekt, 0.5)    AS median,
+       round(avg(inntekt))            AS snitt,
+       quantile_cont(inntekt, 0.75)   AS q3,
+       max(inntekt)                   AS maksimum,
+       round(stddev(inntekt))         AS standardavvik
+FROM personer;

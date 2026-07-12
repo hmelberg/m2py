@@ -1,0 +1,33 @@
+# label: Dashboard — iris (interactive)
+#options.mode = brython
+#options.title = "Iris-dashboard (dash v2)"
+#options.description = "Interaktivt dashboard med mosaikk-layout — uten Pyodide"
+# load https://raw.githubusercontent.com/hmelberg/safestat/master/data/iris.csv as iris
+import pandas_brython as pd
+import plotly_express_brython as pe
+import dash
+
+d = dash.dashboard("Iris", layout="""
+    antall snitt  snitt
+    plot   plot   plot
+    plot   plot   plot
+    tabell tabell tabell
+""")
+
+def utvalg(art, min_lengde):
+    sub = iris[iris["species"] == art]
+    return sub[sub["sepal_length"] >= min_lengde]
+
+def fordeling(art, min_lengde):
+    return pe.histogram(utvalg(art, min_lengde), x="sepal_length", title=art)
+
+d.controls(art=["setosa", "versicolor", "virginica"],
+           min_lengde=dash.slider(4, 8, step=1, label="Min. sepal-lengde"))
+
+d.add(lambda art, min_lengde: len(utvalg(art, min_lengde)),
+      title="Antall blomster", at="antall")
+d.add(lambda art, min_lengde: round(utvalg(art, min_lengde)["sepal_length"].mean(), 2),
+      title="Snitt sepal-lengde", unit="cm", at="snitt")
+d.add(fordeling, at="plot")
+d.add(lambda art, min_lengde: utvalg(art, min_lengde).head(8),
+      title="Utvalg", at="tabell")

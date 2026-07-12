@@ -1,0 +1,20 @@
+# label: base R — subset/transform/aggregate
+# Example: base R — subset, transform, aggregate
+# These translate to keep if / generate / collapse.
+
+#micro
+require no.ssb.fdb:54 as fd
+create-dataset folk
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+
+#r
+# use folk
+# Keep only people with positive income
+voksne <- subset(folk, inntekt > 0)
+
+# Create a new variable (income in thousands of kroner)
+voksne <- transform(voksne, inntekt_tusen = inntekt / 1000)
+
+# Mean income per sex
+aggregate(inntekt ~ kjonn, data = voksne, FUN = mean)

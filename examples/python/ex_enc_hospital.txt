@@ -1,0 +1,21 @@
+# label: Encrypted data — safe-mode analysis
+# SafeStat — analyze a SENSITIVE, ENCRYPTED dataset in SAFE MODE.
+# The file is encrypted; it is decrypted locally with the key. Safe-mode analysis
+# releases only AGGREGATES — individual admissions never appear in the output.
+# (In a real deployment the source is REGISTERED as "protected", which ENFORCES
+#  aggregate-only output; here the aggregate-only-ness is by convention.)
+# load https://raw.githubusercontent.com/hmelberg/safestat/master/data/hospital_admissions.enc.json as adm, key("WpwdqNeprpW-TwW7qCeQ9RaQW3cJ8QJQy1hQfNorEjQ"), exec(local)
+
+import pandas as pd, matplotlib.pyplot as plt
+
+# Admissions per ICD-10 chapter (first letter of the code):
+adm["chapter"] = adm["icd10"].str[0]
+adm["chapter"].value_counts().sort_index()
+
+# City × gender crosstab of admissions:
+pd.crosstab(adm["city"], adm["gender"])
+
+# Mean length of stay (days) by department — an aggregate:
+los = (pd.to_datetime(adm["discharge_date"]) - pd.to_datetime(adm["admit_date"])).dt.days
+los.groupby(adm["department"]).mean().round(1).plot.bar(title="Mean length of stay by dept (days)")
+plt.ylabel("days"); plt.show()

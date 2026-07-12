@@ -1,0 +1,16 @@
+# label: connect + load — several frames
+# Example: `# connect` — name a data source once, load several frames from it.
+# connect https://raw.githubusercontent.com/hmelberg/safestat/master/data as gh
+# load gh/iris.csv as iris
+# load gh/penguins.csv as penguins
+import pandas_brython as pd
+import plotly_express_brython as pe
+
+# Both frames are ready:
+show("iris: " + str(len(iris)) + " rader, penguins: " + str(len(penguins)) + " rader")
+
+show(iris[["species", "sepal_length"]].groupby("species").mean())
+
+pinger = penguins[["species", "body_mass_g"]].dropna()
+pe.histogram(pinger, x="body_mass_g", color="species",
+             title="Penguins — body mass per species")

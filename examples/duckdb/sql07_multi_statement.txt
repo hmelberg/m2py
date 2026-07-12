@@ -1,0 +1,24 @@
+# label: SQL — multiple statements
+-- Several statements in one script: create raw data, create a summary dataset,
+-- and finally show a table. The statements run in order.
+
+CREATE OR REPLACE TABLE personer AS
+SELECT * FROM (VALUES
+  (1, 'Mann',   25, 450000, 'Oslo'),
+  (2, 'Kvinne', 34, 620000, 'Bergen'),
+  (3, 'Mann',   52, 810000, 'Oslo'),
+  (4, 'Kvinne', 41, 530000, 'Trondheim'),
+  (5, 'Mann',   19, 210000, 'Bergen'),
+  (6, 'Kvinne', 67, 390000, 'Oslo')
+) AS t(fnr, kjonn, alder, inntekt, kommune);
+
+-- Summary dataset per municipality (appears in the data overview).
+CREATE OR REPLACE TABLE per_kommune AS
+SELECT kommune,
+       count(*)            AS antall,
+       round(avg(inntekt)) AS snitt_inntekt
+FROM personer
+GROUP BY kommune;
+
+-- The final SELECT is shown as a table in the output area.
+SELECT * FROM per_kommune ORDER BY snitt_inntekt DESC;

@@ -1,0 +1,24 @@
+# label: ggplot2 + #micro
+# Example: ggplot2 — histogram and boxplot on a microdata dataset
+# Microdata fetches variables. ggplot2 plots.
+
+#micro
+require no.ssb.fdb:54 as fd
+create-dataset plottdata
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+
+#r
+# use plottdata
+library(ggplot2)
+
+plottdata$inntekt_tusen <- plottdata$inntekt / 1000
+
+ggplot(plottdata, aes(x = inntekt_tusen)) +
+  geom_histogram(bins = 30, fill = "steelblue", colour = "white") +
+  labs(x = "Inntekt (tusen kr)", title = "Fordeling av lønnsinntekt")
+
+ggplot(plottdata, aes(x = kjonn, y = inntekt_tusen, fill = kjonn)) +
+  geom_boxplot() +
+  labs(y = "Inntekt (tusen kr)", title = "Lønnsinntekt etter kjønn") +
+  theme(legend.position = "none")

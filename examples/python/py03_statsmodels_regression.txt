@@ -1,0 +1,16 @@
+# label: statsmodels — OLS regression
+# Example: statsmodels — OLS regression with a formula
+# Microdata fetches variables. statsmodels.formula.api runs OLS.
+
+#micro
+require no.ssb.fdb:54 as fd
+create-dataset reg
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+
+#python
+import statsmodels.formula.api as smf
+
+reg["inntekt_tusen"] = reg["inntekt"] / 1000
+modell = smf.ols("inntekt_tusen ~ C(kjonn)", data=reg).fit()
+modell.summary()

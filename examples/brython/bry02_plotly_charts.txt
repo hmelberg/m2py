@@ -1,0 +1,19 @@
+# label: plotly_express_brython — chart gallery
+# Example: plotly_express_brython — chart gallery
+# pe.* builds interactive Plotly charts from pure Python (no Pyodide needed).
+import pandas_brython as pd
+import plotly_express_brython as pe
+
+df = pd.DataFrame({
+    "aar":     [2020, 2021, 2022, 2023, 2020, 2021, 2022, 2023],
+    "region":  ["Nord", "Nord", "Nord", "Nord", "Sor", "Sor", "Sor", "Sor"],
+    "antall":  [120, 135, 150, 162, 210, 205, 230, 244],
+})
+
+# show() renders each chart in turn:
+show(pe.bar(df, x="aar", y="antall", color="region", title="Antall per år og region"))
+show(pe.line(df, x="aar", y="antall", color="region", title="Utvikling over tid"))
+show(pe.box(df, x="region", y="antall", title="Fordeling per region"))
+
+# The last expression is displayed automatically:
+pe.pie(df, names="region", values="antall", title="Andel per region")

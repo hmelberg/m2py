@@ -1,0 +1,25 @@
+# label: matplotlib + #micro
+# Example: pandas + matplotlib — histogram and boxplot
+# Microdata fetches variables. matplotlib plots directly.
+
+#micro
+require no.ssb.fdb:54 as fd
+create-dataset plottdata
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+
+#python
+import matplotlib.pyplot as plt
+
+plottdata["inntekt_tusen"] = plottdata["inntekt"] / 1000
+
+plottdata["inntekt_tusen"].plot.hist(bins=30, edgecolor="white")
+plt.xlabel("Inntekt (tusen kr)")
+plt.title("Fordeling av lønnsinntekt")
+plt.show()
+
+plottdata.boxplot(column="inntekt_tusen", by="kjonn")
+plt.suptitle("")
+plt.title("Lønnsinntekt etter kjønn")
+plt.ylabel("Inntekt (tusen kr)")
+plt.show()

@@ -1,0 +1,14 @@
+# label: Encrypted data — safe-mode analysis
+# SafeStat — analyze a SENSITIVE, ENCRYPTED dataset in SAFE MODE.
+# Decrypted locally with the key; safe-mode analysis releases only AGGREGATES —
+# individual admissions never appear. (Real deployments REGISTER the source as
+# "protected" to ENFORCE this; here it is by convention.)
+# load https://raw.githubusercontent.com/hmelberg/safestat/master/data/hospital_admissions.enc.json as adm, key("WpwdqNeprpW-TwW7qCeQ9RaQW3cJ8QJQy1hQfNorEjQ"), exec(local)
+
+adm$chapter <- substr(adm$icd10, 1, 1)
+table(adm$chapter)                         # admissions per ICD-10 chapter
+table(adm$city, adm$gender)                # city x gender
+
+los <- as.integer(as.Date(adm$discharge_date) - as.Date(adm$admit_date))
+agg <- aggregate(los, by = list(dept = adm$department), FUN = mean)
+barplot(agg$x, names.arg = agg$dept, main = "Mean length of stay by dept (days)", ylab = "days")

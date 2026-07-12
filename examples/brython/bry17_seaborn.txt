@@ -1,0 +1,32 @@
+# label: seaborn — statistisk grafikk
+# Example: seaborn i Brython-modus — statistisk grafikk på én linje
+# sns-funksjonene tegner i samme figur som plt, akkurat som ekte seaborn.
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
+
+np.random.seed(7)
+data = {
+    "inntekt": np.random.normal(550.0, 80.0, 120).tolist(),
+    "alder":   np.random.uniform(25.0, 60.0, 120).tolist(),
+    "region":  (["Nord", "Sor", "Ost"] * 40),
+}
+
+# Histogram med fargegrupper:
+sns.histplot(data=data, x="inntekt", hue="region", bins=15)
+plt.title("Inntektsfordeling per region")
+plt.show()
+
+# Gjennomsnitt med usikkerhet (som seaborn: mean + CI):
+sns.barplot(data=data, x="region", y="inntekt")
+plt.title("Gjennomsnittsinntekt per region")
+plt.show()
+
+# Spredning med regresjonslinje:
+sns.regplot(data=data, x="alder", y="inntekt")
+plt.title("Inntekt mot alder (OLS-linje)")
+plt.show()
+
+# Fordeling per gruppe:
+sns.boxplot(data=data, x="region", y="inntekt")
+plt.show()

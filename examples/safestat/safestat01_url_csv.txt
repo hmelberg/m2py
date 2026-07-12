@@ -1,0 +1,7 @@
+# label: SafeStat — CSV from URL
+// SafeStat: analyse a CSV from a URL without downloading it to you.
+// Replace the URL with your own .csv (columns incl. a key, e.g. PERSONID_1).
+require https://raw.githubusercontent.com/your/repo/main/income.csv as inc, keys(PERSONID_1)
+use inc
+summarize wage
+histogram wage

@@ -1,0 +1,15 @@
+# label: Stata — generate/egen
+* Example: Stata – generate and egen
+* The first block imports variables via microdata.
+* The second block creates new variables: log income and mean income.
+
+#micro
+require no.ssb.fdb:54 as fd
+create-dataset folk
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+
+#stata
+generate loginnt = log(inntekt)
+egen meaninnt = mean(inntekt)
+summarize loginnt meaninnt

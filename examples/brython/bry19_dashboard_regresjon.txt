@@ -1,0 +1,30 @@
+# label: Dashboard — regresjon
+#options.mode = brython
+#options.title = "Dashboard — regresjon"
+#options.description = "OLS pa iris: velg prediktor, se spredningsplott, koeffisienter og R²"
+# load https://raw.githubusercontent.com/hmelberg/safestat/master/data/iris.csv as iris
+import pandas_brython as pd
+import plotly_express_brython as pe
+import statsmodels.formula.api as smf
+import dash
+
+d = dash.dashboard("Hva forklarer sepal-lengden?", layout="""
+    plott plott r2
+    plott plott tabell
+    plott plott tabell
+""")
+
+d.controls(prediktor=["petal_length", "petal_width", "sepal_width"])
+
+def modell(prediktor):
+    return smf.ols("sepal_length ~ " + prediktor, iris).fit()
+
+d.add(lambda prediktor: pe.scatter(iris, x=prediktor, y="sepal_length",
+                                   color="species", title="sepal_length mot " + prediktor),
+      at="plott")
+
+d.add(lambda prediktor: round(modell(prediktor).rsquared, 3),
+      title="R²", at="r2")
+
+d.add(lambda prediktor: modell(prediktor).summary(),
+      title="OLS-resultat", at="tabell")

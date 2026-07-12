@@ -1,0 +1,33 @@
+# label: Dashboard — sales (no external data)
+#options.mode = brython
+#options.title = "Salgs-dashboard (dash v2)"
+#options.description = "Auto-layout og kontroller per kort — ingen eksterne data"
+import plotly_express_brython as pe
+import dash
+
+mnd = ["jan", "feb", "mar", "apr", "mai", "jun"]
+salg = {"Nord": [120, 135, 150, 160, 172, 190],
+        "Soer": [200, 210, 190, 240, 260, 255]}
+
+d = dash.dashboard("Salg 2026")
+
+d.add("## Salg 2026\nDemo av dash v2 sin auto-layout: KPI-fliser samles "
+      "oeverst, plott faar to kolonner, tekst full bredde.")
+d.add(sum(salg["Nord"]) + sum(salg["Soer"]), title="Totalt salg", unit="stk")
+d.add(max(salg["Soer"]), title="Beste maaned (Soer)", unit="stk")
+
+def kurve(region, kumulativ):
+    verdier = salg[region]
+    if kumulativ:
+        ut, s = [], 0
+        for v in verdier:
+            s += v
+            ut.append(s)
+        verdier = ut
+    return pe.line(x=mnd, y=verdier, title=region)
+
+# kontrollene bor i kortet (spec 4.1/4.2): eksplisitte kwargs til add()
+# blir widgets — region -> nedtrekksmeny, kumulativ -> checkbox.
+d.add(kurve, region=["Nord", "Soer"], kumulativ=False, title="Utvikling")
+d.add(kurve, region=["Nord", "Soer"], kumulativ=False,
+      title="Utvikling (kopi med egne kontroller)")

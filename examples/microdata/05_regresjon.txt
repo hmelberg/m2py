@@ -1,0 +1,21 @@
+# label: Regresjon
+// Eksempel 5: Regresjon og inferens
+// OLS-regresjon, konfidensintervall, korrelasjon.
+require no.ssb.fdb:54 as fd
+
+create-dataset regresjon
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+import fd/BOSATTEFDT_BOSTED 2022-12-31 as kommune
+destring kjonn
+recode kjonn (2 =0)
+rename kjonn menn
+
+generate inntekt_mill = inntekt / 1000000
+ci inntekt_mill menn
+correlate inntekt_mill menn
+correlate inntekt_mill menn, sig
+
+regress inntekt_mill menn
+regress-predict inntekt_mill menn, predicted(pred)
+summarize pred inntekt_mill

@@ -1,0 +1,23 @@
+# label: SQL — basic SELECT
+-- Basic SQL: select, filter, sort, limit.
+-- The examples are self-contained: they first create some demo data with CREATE TABLE
+-- (the dataset then appears in the data overview) and then query it.
+
+CREATE OR REPLACE TABLE personer AS
+SELECT * FROM (VALUES
+  (1, 'Mann',   25, 450000, 'Oslo'),
+  (2, 'Kvinne', 34, 620000, 'Bergen'),
+  (3, 'Mann',   52, 810000, 'Oslo'),
+  (4, 'Kvinne', 41, 530000, 'Trondheim'),
+  (5, 'Mann',   19, 210000, 'Bergen'),
+  (6, 'Kvinne', 67, 390000, 'Oslo'),
+  (7, 'Mann',   45, 720000, 'Trondheim'),
+  (8, 'Kvinne', 29, 480000, 'Bergen')
+) AS t(fnr, kjonn, alder, inntekt, kommune);
+
+-- Adults, sorted by income (highest first), the top 5.
+SELECT fnr, kjonn, alder, inntekt, kommune
+FROM personer
+WHERE alder >= 18
+ORDER BY inntekt DESC
+LIMIT 5;

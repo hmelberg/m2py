@@ -1,0 +1,20 @@
+# label: duckdb — SQL i Brython (.sql → .df)
+# Eksempel: SQL i Brython-modus — duckdb.sql(...) og .df()
+# load https://raw.githubusercontent.com/hmelberg/openstat/main/data/iris.csv as iris
+import duckdb
+import plotly_express_brython as pe
+
+# Datasett lastet med `# load` kan spørres direkte med SQL:
+show(duckdb.sql("""
+    SELECT species,
+           round(avg(sepal_length), 2) AS snitt_lengde,
+           count(*) AS n
+    FROM iris
+    GROUP BY species
+    ORDER BY snitt_lengde DESC
+"""))
+
+# .df() gir en pandas-DataFrame du kan jobbe videre med:
+df = duckdb.sql("SELECT species, sepal_length, petal_length FROM iris").df()
+pe.scatter(df, x="sepal_length", y="petal_length", color="species",
+           title="Iris via SQL → pandas → plotly")

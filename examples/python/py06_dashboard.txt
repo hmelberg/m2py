@@ -1,0 +1,38 @@
+# label: Dashboard — fordelingsutforsker
+#options.mode = python
+#options.title = "Dashboard — fordelingsutforsker (pyodide)"
+#options.description = "scipy.stats i et interaktivt dashboard — normalfordeling med terskel"
+import dash
+import plotly.express as px
+from scipy.stats import norm
+
+d = dash.dashboard("Normalfordelingen", layout="""
+    kurve kurve kurve over
+    kurve kurve kurve kvantil
+""")
+
+def xakse(mu, sigma):
+    lo, hi = mu - 4 * sigma, mu + 4 * sigma
+    n = 120
+    return [lo + i * (hi - lo) / n for i in range(n + 1)]
+
+d.controls(mu=dash.slider(-5, 5, step=1, default=0, label="Forventning (mu)"),
+           sigma=dash.slider(1, 4, step=1, label="Standardavvik (sigma)"),
+           terskel=dash.play(-5, 10, step=1, label="Terskel (spill av)"))
+
+def tetthet(mu, sigma, terskel):
+    xs = xakse(mu, sigma)
+    ys = [float(norm.pdf(x, loc=mu, scale=sigma)) for x in xs]
+    fig = px.line(x=xs, y=ys, title="Tetthet")
+    fig.add_vline(x=terskel)
+    return fig
+
+d.add(tetthet, at="kurve")
+
+d.add(lambda mu, sigma, terskel:
+          round(100 * float(norm.sf(terskel, loc=mu, scale=sigma)), 1),
+      title="P(X > terskel)", unit="%", at="over")
+
+d.add(lambda mu, sigma, terskel:
+          round(float(norm.ppf(0.975, loc=mu, scale=sigma)), 2),
+      title="97,5 %-kvantilen", at="kvantil")

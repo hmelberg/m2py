@@ -1,0 +1,17 @@
+# label: tidyverse — group statistics
+# Example: tidyverse — group statistics with dplyr
+library(dplyr)
+
+df <- tibble(
+  kjonn   = c("Mann", "Kvinne", "Mann", "Kvinne", "Mann", "Kvinne"),
+  inntekt = c(620000, 540000, 710000, 820000, 480000, 610000),
+  alder   = c(34, 41, 29, 52, 38, 45)
+)
+
+df %>%
+  group_by(kjonn) %>%
+  summarise(
+    snitt  = mean(inntekt),
+    median = median(inntekt),
+    antall = n()
+  )

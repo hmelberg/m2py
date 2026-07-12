@@ -1,0 +1,15 @@
+# label: Tabeller og kategorier
+// Eksempel 2: Tabeller og kategorier
+// Frekvenstabeller
+
+require no.ssb.fdb:54 as fd
+create-dataset tabeller
+import fd/BEFOLKNING_KJOENN as kjonn
+import fd/INNTEKT_WLONN 2022-01-01 as inntekt
+import fd/BOSATTEFDT_BOSTED 2022-01-01 as kommune
+
+tabulate kjonn
+tabulate kjonn, cellpct
+tabulate kommune, top(10)
+
+tabulate kommune, summarize(inntekt) rowsort() bottom(15)
