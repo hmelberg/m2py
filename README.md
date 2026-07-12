@@ -67,19 +67,20 @@ CI lives in `.github/workflows/` (pytest + manual scripts, edge).
 ## Examples
 
 Built-in examples live in `examples/<mode>/` — one folder per editor mode
-(`micropython/`, …), with an optional one level of subfolders for categories
-(they render as sub-headings in the menu). Add or remove a `.txt` file, then
-regenerate the manifest:
+(`micropython/`, `microdata/`, …), with an optional one level of `NN_category/`
+subfolders (e.g. `microdata/03_deskriptiv_statistikk/`) that become categories
+in the modal. Add or remove a file, then regenerate the manifest:
 
 ```bash
 # Rebuild examples/manifest.json from the folder tree
 .venv/bin/python examples/generate_manifest.py
 ```
 
-`index.html` builds the Examples menu from `examples/manifest.json` (fetched
-lazily the first time the menu opens — no startup cost). Each example's menu
-label comes from a `# label: <text>` line in the file (else `#options.title`,
-else the filename). No `index.html` edit is needed to add or remove examples.
+The «Eksempler» button opens a mode-scoped modal built from
+`examples/manifest.json` (fetched lazily the first time the modal opens — no
+startup cost). Each example's label comes from a `# label: <text>` line in the
+file (else `#options.title`, else the filename). No `index.html` edit is
+needed to add or remove examples.
 
 ## Deployment
 
