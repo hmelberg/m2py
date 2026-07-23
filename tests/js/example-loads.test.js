@@ -10,8 +10,9 @@ function loadDD() {
   return sandbox.window.DataDirectives;
 }
 const DD = loadDD();
-const FILES = ['ex_csv_iris.txt','ex_columns_penguins.txt','ex_enc_hospital.txt',
-               'rex_csv_iris.txt','rex_columns_penguins.txt','rex_enc_hospital.txt'];
+// examples/ er modus-inndelt siden 1f0e118 (examples/<mode>/<fil>).
+const FILES = ['python/ex_csv_iris.txt','python/ex_columns_penguins.txt','python/ex_enc_hospital.txt',
+               'r/rex_csv_iris.txt','r/rex_columns_penguins.txt','r/rex_enc_hospital.txt'];
 
 for (const f of FILES) {
   test('load directive parses: ' + f, () => {
