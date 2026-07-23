@@ -135,26 +135,34 @@ def build_web_zip(safepy_root: Path, out_path: Path,
                   protect_root: Path | None = None) -> list[str]:
     """Zip the safepy package (GENERATED headers included) for the browser
     strict runner. Members: safepy/<mod>.py + safepy/adapters/<mod>.py +
-    protect.py (safepy delegates result-side suppression to protect)."""
+    protect.py (safepy delegates result-side suppression to protect).
+
+    Deterministisk: hver member får en FAST timestamp. writestr(str, …)
+    stempler ellers byggetidspunktet inn i zip-headerne, så hver bygging ga
+    en byte-ulik fil selv uten kildeendringer — vendor/safepy.zip dukket da
+    opp som «modifisert» i git etter hver pytest-/--apply-kjøring."""
     import zipfile
     h = _generated_header("safepy")
     members = []
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _add(z, name: str, data: bytes) -> None:
+        zi = zipfile.ZipInfo(name, date_time=(2020, 1, 1, 0, 0, 0))
+        zi.compress_type = zipfile.ZIP_DEFLATED
+        zi.external_attr = 0o644 << 16
+        z.writestr(zi, data)
+        members.append(name)
+
     with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as z:
         for p in sorted(safepy_root.glob("*.py")):
-            name = f"safepy/{p.name}"
-            z.writestr(name, _desired_bytes(p, h))
-            members.append(name)
+            _add(z, f"safepy/{p.name}", _desired_bytes(p, h))
         adapters = safepy_root / "adapters"
         if adapters.is_dir():
             for p in sorted(adapters.glob("*.py")):
-                name = f"safepy/adapters/{p.name}"
-                z.writestr(name, _desired_bytes(p, h))
-                members.append(name)
+                _add(z, f"safepy/adapters/{p.name}", _desired_bytes(p, h))
         protect_py = (protect_root or PROTECT_ROOT) / "protect.py"
         if protect_py.is_file():
-            z.writestr("protect.py", _desired_bytes(protect_py, _generated_header("protect")))
-            members.append("protect.py")
+            _add(z, "protect.py", _desired_bytes(protect_py, _generated_header("protect")))
     return members
 
 
@@ -168,13 +176,17 @@ def main(argv=None) -> int:
     ap.add_argument("--protect", default=str(PROTECT_ROOT))
     ap.add_argument("--safepy", default=str(SAFEPY_ROOT))
     ap.add_argument("--dest", default=str(DEST_ROOT))
+    ap.add_argument("--webzip", default=str(WEB_ZIP),
+                    help="output path for the browser zip (tests point this at a "
+                         "temp dir so runs never touch the repo's vendor/safepy.zip)")
     args = ap.parse_args(argv)
+    webzip = Path(args.webzip)
 
     # --web alene: bygg bare browser-zippen. --apply bygger den OGSÅ (safepy
     # endres ett sted, begge kopiene — Anvil + Pyodide — oppdateres i én kommando).
     if args.web:
-        members = build_web_zip(Path(args.safepy), WEB_ZIP)
-        print(f"Built {WEB_ZIP}: {len(members)} member(s)")
+        members = build_web_zip(Path(args.safepy), webzip)
+        print(f"Built {webzip}: {len(members)} member(s)")
         return 0
 
     manifest = build_manifest(Path(args.source), Path(args.protect), Path(args.safepy))
@@ -189,8 +201,8 @@ def main(argv=None) -> int:
     if args.apply:
         copied = apply_sync(statuses)
         print(f"\nApplied: copied {len(copied)} file(s): {', '.join(copied) or '(none)'}")
-        members = build_web_zip(Path(args.safepy), WEB_ZIP)
-        print(f"Built {WEB_ZIP}: {len(members)} member(s)")
+        members = build_web_zip(Path(args.safepy), webzip)
+        print(f"Built {webzip}: {len(members)} member(s)")
     else:
         print(f"\nReport-only. {len(pending)} file(s) would change. "
               f"Re-run with --apply to copy.")

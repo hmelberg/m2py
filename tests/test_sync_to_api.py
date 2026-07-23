@@ -133,7 +133,8 @@ def test_apply_copies_drift_and_missing_only(tmp_path, capsys):
     (dest / "m2py.py").write_text(s.GENERATED_HEADER + "emulator v1\n")
     (dest / "m2py_translate.py").write_text("OLD\n")        # drift
 
-    rc = s.main(["--apply", "--source", str(src), "--protect", str(prot), "--dest", str(dest)])
+    rc = s.main(["--apply", "--source", str(src), "--protect", str(prot), "--dest", str(dest),
+                 "--webzip", str(tmp_path / "safepy.zip")])
     out = capsys.readouterr().out
     assert rc == 0
 
@@ -159,8 +160,26 @@ def test_apply_writes_generated_header(tmp_path, capsys):
     _make_src(src)
     dest = tmp_path / "server_code"; dest.mkdir()
 
-    s.main(["--apply", "--source", str(src), "--protect", str(prot), "--dest", str(dest)])
+    s.main(["--apply", "--source", str(src), "--protect", str(prot), "--dest", str(dest),
+            "--webzip", str(tmp_path / "safepy.zip")])
 
     assert (dest / "protect.py").read_text().startswith(s.GENERATED_HEADER)
     assert (dest / "m2py.py").read_text().startswith(s.GENERATED_HEADER)
+
+
+def test_apply_leaves_repo_vendor_zip_untouched(tmp_path):
+    """--apply med --webzip til temp skal aldri røre repoets vendor/safepy.zip.
+    (Regresjon: testkjøringer bygde zip-en inn i repoet og skitnet til git.)"""
+    src = tmp_path / "m2py"; src.mkdir()
+    prot = tmp_path / "protect"; prot.mkdir()
+    (prot / "protect.py").write_text("protect\n")
+    _make_src(src)
+    dest = tmp_path / "server_code"; dest.mkdir()
+
+    before = s.WEB_ZIP.read_bytes() if s.WEB_ZIP.exists() else None
+    s.main(["--apply", "--source", str(src), "--protect", str(prot), "--dest", str(dest),
+            "--webzip", str(tmp_path / "safepy.zip")])
+    after = s.WEB_ZIP.read_bytes() if s.WEB_ZIP.exists() else None
+    assert before == after
+    assert (tmp_path / "safepy.zip").exists()
     assert (dest / "functions.py").read_text().startswith(s.GENERATED_HEADER)
