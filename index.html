@@ -8625,6 +8625,8 @@ json.dumps(out)
           // R-modus kjører uten Pyodide siden fase 1 (btnRun sender py=null) —
           // microdata-segmenter er unntaket som lazy-laster den her.
           if (!py) py = await loadPyodideAndM2py();
+          try { await ensureMicrodataAssets(py); }
+          catch (e) { console.warn('microdata-assets (r-hybrid):', e); }
           // Build catalog JSON to pass to Python for label application
           var _catJson = (microdataCatalog && microdataCatalog.variables)
             ? JSON.stringify(microdataCatalog.variables) : '{}';
@@ -8848,6 +8850,10 @@ json.dumps(out)
       var rightStatus = ctx && ctx.rightStatus ? ctx.rightStatus : window.rightStatus;
       try {
         const py = await loadPyodideAndM2py();
+        // statx kjører alltid mot m2py-emulatoren (use/katalogvariabler) —
+        // hent microdata-assets ubetinget.
+        try { await ensureMicrodataAssets(py); }
+        catch (e) { console.warn('microdata-assets (statx):', e); }
         await loadPdexplorer(py);
         setStatus(rightStatus, t('Kjører statx…'));
         const segments = parseHybridScript(script, 'stata');
@@ -10165,6 +10171,13 @@ options(width = 200)
         var _remoteDialect = { python: 'python', r: 'r', duckdb: 'duckdb' }[activeEditorMode];
         if (_remoteDialect && _sessionCtx.level === 'he') _remoteDialect = 'he';
         if (_remoteDialect && await maybeRunRemote(effectiveScript, _ctx, _remoteDialect)) return;
+        // Lazy katalog: rutingen server-vs-lokal (maybeRunRemoteMicrodata) og
+        // resten av microdata-stien LESER katalogen — den må være lastet FØR
+        // beslutningen, ellers ruter serverkilde-scripts stille til lokal.
+        if (activeEditorMode === 'microdata') {
+          try { await ensureMicrodataCatalog(); }
+          catch (e) { console.warn('microdata-katalog (ruting):', e); }
+        }
         // Microdata-modus, katalog-først: server-kilder ruter til legacy m2py-motoren
         if (activeEditorMode === 'microdata' && await maybeRunRemoteMicrodata(effectiveScript, _ctx)) return;
         if (_mr.runSelf) { await _mr.runSelf(effectiveScript, _ctx); return; }
@@ -10337,10 +10350,6 @@ options(width = 200)
           await runStrictLocal(effectiveScript, _pyLoads, { level: _lvl, dialect: _dialect, spec: _asmSpec }, _ctx);
           return;
         }
-        const catalogJson = microdataCatalog && microdataCatalog.variables
-          ? JSON.stringify(microdataCatalog.variables)
-          : null;
-        const catalogArg = catalogJson !== null ? JSON.stringify(catalogJson) : 'None';
         const pageBase = window.location.href.replace(/[^/]+$/, '');
         // In Python mode, unmarked code is pyodide; otherwise use the stored runner default
         const runDefault = currentMode().runDefault || getRunnerDefaultMode();
@@ -10370,6 +10379,17 @@ options(width = 200)
           if (_segUse.errors.length) throw new Error(_segUse.errors.join('; '));
           segments = _segUse.segments;
         }
+        // Lazy microdata-assets: hent katalog + mockdata-moduler kun når
+        // dokumentet faktisk kjører microdata-språket (modusen selv, eller
+        // # micro-segmenter i andre moduser).
+        if (activeEditorMode === 'microdata' || segments.some(function (s) { return s.kind === 'microdata'; })) {
+          try { await ensureMicrodataAssets(py); }
+          catch (e) { console.warn('microdata-assets:', e); }
+        }
+        const catalogJson = microdataCatalog && microdataCatalog.variables
+          ? JSON.stringify(microdataCatalog.variables)
+          : null;
+        const catalogArg = catalogJson !== null ? JSON.stringify(catalogJson) : 'None';
         // If any segment is DuckDB SQL, make sure the bridge module is ready
         // before the Pyodide run loop reaches a #duckdb segment.
         if (segments.some(function (s) { return s.kind === 'duckdb'; })) {
@@ -10570,7 +10590,12 @@ async def _m2py_run_segment(_seg_json):
         setStatus(rightStatus, t('Skrittvis kjøring støttes ikke for navngitte kilder (server-kjøring). Bruk Kjør.'), true);
         return;
       }
-      // Microdata-modus: samme vern for serverkilder (m\u00e5l utenfor katalogen)
+      // Microdata-modus: samme vern for serverkilder (m\u00e5l utenfor katalogen).
+      // Lazy katalog: vernet LESER katalogen \u2014 await ensure f\u00f8r sjekken,
+      // ellers slipper serverkilde-scripts stille gjennom til lokal kj\u00f8ring.
+      if (activeEditorMode === 'microdata') {
+        try { await ensureMicrodataCatalog(); } catch (e) {}
+      }
       if (activeEditorMode === 'microdata' && microdataCatalog && microdataCatalog.variables) {
         var _fkRe = /^\s*require\s+(\S+)\s+as\s+\w+/gim, _fkM;
         var _fkBanks = null;
@@ -10862,6 +10887,10 @@ async def _m2py_run_segment(_seg_json):
         const suppress = suppressEmbedded.checked;
         let explainInit = null;
         if (activeEditorMode !== 'r') {
+          if (activeEditorMode === 'microdata' || activeEditorMode === 'statx') {
+            try { await ensureMicrodataAssets(py); }
+            catch (e) { console.warn('microdata-assets (forklar):', e); }
+          }
           const catalogJson = microdataCatalog && microdataCatalog.variables
             ? JSON.stringify(microdataCatalog.variables)
             : null;
