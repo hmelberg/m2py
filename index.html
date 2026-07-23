@@ -2902,27 +2902,31 @@
     let microdataFunctions = [];
     let microdataVariableNames = [];
 
-    (function fetchAutocompleteData() {
-      const base = window.location.href.replace(/[^/]+$/, '');
-      Promise.all([
-        fetch(base + 'variable_metadata.json').then(r => r.ok ? r.json() : {}).catch(() => ({})),
-        fetch(base + 'functions.py').then(r => r.ok ? r.text() : '').catch(() => '')
-      ]).then(([meta, funcCode]) => {
-        if (meta && meta.variables) {
-          microdataVariableNames = Object.keys(meta.variables);
-          microdataCatalog = meta;
-        }
-        if (funcCode) {
-          const names = [];
-          const re = /def\s+(\w+)\s*\(/g;
-          let m;
-          const skip = new Set(['_elementwise', '_safe', '_days_to_dt', 'get_microdata_functions', 'wrapped']);
-          while ((m = re.exec(funcCode)) !== null)
-            if (!skip.has(m[1])) names.push(m[1]);
-          microdataFunctions = [...new Set(names)];
-        }
-      });
-    })();
+    // Lazy katalog (plan 2026-07-23-lazy-microdata-assets): variable_metadata.json
+    // (640 KB) hentes først når microdata-språket faktisk er i spill (microdata-/
+    // statx-modus aktiveres eller bootes inn i, eller en kjøring har microdata-
+    // segmenter) — aldri ubetinget ved sideoppstart. microdataFunctions
+    // (autocomplete) fylles av _loadPyodideAndM2pyImpl, som uansett henter
+    // functions.py. Memo nullstilles ved feil så neste kall prøver på nytt.
+    // NB: i safestat er katalogen også RUTINGKRITISK (maybeRunRemoteMicrodata,
+    // forklar-vernet) — de stiene awaiter ensure før beslutningen.
+    let __microdataCatalogPromise = null;
+    function ensureMicrodataCatalog() {
+      if (!__microdataCatalogPromise) {
+        const base = window.location.href.replace(/[^/]+$/, '');
+        __microdataCatalogPromise = fetch(base + 'variable_metadata.json?v=' + (window.M2PY_VERSION || '1'))
+          .then(r => r.ok ? r.json() : null)
+          .then(meta => {
+            if (meta && meta.variables) {
+              microdataCatalog = meta;
+              microdataVariableNames = Object.keys(meta.variables);
+            }
+            return microdataCatalog;
+          })
+          .catch(() => { __microdataCatalogPromise = null; return null; });
+      }
+      return __microdataCatalogPromise;
+    }
 
     // ── Innstillinger ─────────────────────────────────────────────────────────
     const IMPORT_LIMIT_KEY = 'microdata_import_limit';
@@ -3665,7 +3669,10 @@
     const modeRegistry = {
       // (translate-feltene + Oversett-knappen er fjernet 2026-07-10:
       // oversettelse mellom språkene er microdata-repoens funksjon.)
-      microdata: { id: 'microdata', label: 'Microdata', handleTab: microdataHandleTab },
+      microdata: { id: 'microdata', label: 'Microdata', handleTab: microdataHandleTab,
+        // Lazy katalog: prefetch ved aktivering (boot-landing uten switch
+        // dekkes av det eksplisitte kallet etter restoreEditorMode()).
+        onActivate: function () { ensureMicrodataCatalog(); } },
       python:    { id: 'python',    label: 'Python', hlConfig: PY_HL_CFG, handleTab: handlePythonTab,
         runDefault: 'pyodide',
         preRun: async function (script, ctx) {
@@ -3698,7 +3705,10 @@
       statx: { id: 'statx', label: 'Statx',
         hlConfig: STATA_HL_CFG,
         handleTab: microdataHandleTab,
-        onActivate: function () { if (!pdexplorerReady && !pdexplorerLoading) loadPyodideAndM2py().then(loadPdexplorer); },
+        onActivate: function () {
+          ensureMicrodataCatalog();
+          if (!pdexplorerReady && !pdexplorerLoading) loadPyodideAndM2py().then(loadPdexplorer);
+        },
         runSelf: async function (script, ctx) { await runStatxScript(script, ctx); } },
       duckdb: { id: 'duckdb', label: 'SQL - DuckDB', hlConfig: SQL_HL_CFG, handleTab: microdataHandleTab,
         // Fase 1 (2026-07-11): SQL-modus varmer duckdb-wasm, ikke Pyodide —
@@ -4354,6 +4364,11 @@
       // modus-avhengige elementer matcher modusen fra start.
       applyModeVisibility();
     })();
+    // Lazy katalog: boot som LANDER i microdata/statx uten switch (lagret
+    // modus === init-verdien 'microdata') fyrer ikke onActivate — prefetch
+    // eksplisitt så autocomplete/variabelbrowser/serverruting har katalogen
+    // like tidlig som før.
+    if (activeEditorMode === 'microdata' || activeEditorMode === 'statx') ensureMicrodataCatalog();
 
     // ── Starteksempel og auto-fokus ─────────────────────────────────────────
     // Runs after restoreEditorMode() so activeEditorMode already reflects the
@@ -8610,6 +8625,8 @@ json.dumps(out)
           // R-modus kjører uten Pyodide siden fase 1 (btnRun sender py=null) —
           // microdata-segmenter er unntaket som lazy-laster den her.
           if (!py) py = await loadPyodideAndM2py();
+          try { await ensureMicrodataAssets(py); }
+          catch (e) { console.warn('microdata-assets (r-hybrid):', e); }
           // Build catalog JSON to pass to Python for label application
           var _catJson = (microdataCatalog && microdataCatalog.variables)
             ? JSON.stringify(microdataCatalog.variables) : '{}';
@@ -8833,6 +8850,10 @@ json.dumps(out)
       var rightStatus = ctx && ctx.rightStatus ? ctx.rightStatus : window.rightStatus;
       try {
         const py = await loadPyodideAndM2py();
+        // statx kjører alltid mot m2py-emulatoren (use/katalogvariabler) —
+        // hent microdata-assets ubetinget.
+        try { await ensureMicrodataAssets(py); }
+        catch (e) { console.warn('microdata-assets (statx):', e); }
         await loadPdexplorer(py);
         setStatus(rightStatus, t('Kjører statx…'));
         const segments = parseHybridScript(script, 'stata');
@@ -8934,29 +8955,24 @@ await micropip.install('plotly')
       } catch (e) {
         console.warn('plotly install:', e);
       }
-      setStatus(leftStatus, 'Fetching m2py, functions, mockdata modules and variable_metadata...');
+      setStatus(leftStatus, 'Fetching m2py and functions...');
       const base = window.location.href.replace(/[^/]+$/, '');
       const _cb = '?v=' + (window.M2PY_VERSION || '1');
-      const [m2pyResp, funcResp, metaResp, coreResp, realismResp, protectResp, staticSrcResp, notebookProseResp] = await Promise.all([
+      const [m2pyResp, funcResp, coreResp, protectResp, notebookProseResp] = await Promise.all([
         fetch(base + 'm2py.py' + _cb),
         fetch(base + 'functions.py' + _cb),
-        fetch(base + 'variable_metadata.json' + _cb),
         fetch(base + 'mockdata_core.py' + _cb),
-        fetch(base + 'mockdata_realism.py' + _cb),
         fetch(base + 'protect.py' + _cb).catch(function() { return { ok: false }; }),
-        fetch(base + 'static_source.py' + _cb).catch(function() { return { ok: false }; }),
         fetch(base + 'notebook_prose.py' + _cb).catch(function() { return { ok: false }; })
       ]);
-      if (!m2pyResp.ok || !funcResp.ok) {
-        throw new Error('Could not load m2py.py or functions.py. Run from a local server (e.g. python -m http.server) from the microdata folder.');
+      if (!m2pyResp.ok || !funcResp.ok || !coreResp.ok) {
+        throw new Error('Could not load m2py.py, functions.py or mockdata_core.py. Run from a local server (e.g. python -m http.server) from the microdata folder.');
       }
-      try {
-        microdataCatalog = metaResp.ok ? await metaResp.json() : null;
-        if (microdataCatalog && microdataCatalog.variables)
-          microdataVariableNames = Object.keys(microdataCatalog.variables);
-      } catch (e) {
-        microdataCatalog = null;
-      }
+      // Katalog + de TUNGE microdata-assetene er lazy (plan 2026-07-23-lazy-
+      // microdata-assets): se ensureMicrodataAssets() — kjørestedene awaiter
+      // den når microdata faktisk er involvert. mockdata_core (185 linjer,
+      // delte konstanter) er unntaket: m2py.py importerer den på toppnivå
+      // (m2py.py:1668) og den MÅ registreres før m2py under.
       const m2pyCode = await m2pyResp.text();
       const funcCode = await funcResp.text();
       const funcRe = /def\s+(\w+)\s*\(/g;
@@ -9009,26 +9025,15 @@ exec(compile(np_code, "notebook_prose.py", "exec"), sys.modules["notebook_prose"
           window.__notebookProseLoaded = true;
         } catch (e) { console.warn('notebook_prose register:', e); }
       }
-      // Register mockdata_core and mockdata_realism (used by m2py's realism dispatch).
-      // Load order: mockdata_core (no deps) -> mockdata_realism (depends on core) -> m2py.
-      if (coreResp.ok && realismResp.ok) {
-        const coreCode = await coreResp.text();
-        const realismCode = await realismResp.text();
-        setStatus(leftStatus, 'Registering mockdata_core and mockdata_realism...');
-        await pyodide.runPythonAsync(`
+      // mockdata_core FØR m2py: toppnivå `from mockdata_core import …` i m2py.py.
+      const coreCode = await coreResp.text();
+      setStatus(leftStatus, 'Registering mockdata_core...');
+      await pyodide.runPythonAsync(`
 core_code = ${JSON.stringify(coreCode)}
 spec_c = importlib.util.spec_from_loader("mockdata_core", loader=None)
 sys.modules["mockdata_core"] = importlib.util.module_from_spec(spec_c)
 exec(compile(core_code, "mockdata_core.py", "exec"), sys.modules["mockdata_core"].__dict__)
-
-realism_code = ${JSON.stringify(realismCode)}
-spec_r = importlib.util.spec_from_loader("mockdata_realism", loader=None)
-sys.modules["mockdata_realism"] = importlib.util.module_from_spec(spec_r)
-exec(compile(realism_code, "mockdata_realism.py", "exec"), sys.modules["mockdata_realism"].__dict__)
 `);
-      } else {
-        console.warn('mockdata_core.py or mockdata_realism.py not available; realism dispatch in m2py will fall back.');
-      }
       setStatus(leftStatus, 'Registering m2py...');
       await pyodide.runPythonAsync(`
 m2py_code = ${JSON.stringify(m2pyCode)}
@@ -9036,19 +9041,6 @@ spec2 = importlib.util.spec_from_loader("m2py", loader=None)
 sys.modules["m2py"] = importlib.util.module_from_spec(spec2)
 exec(compile(m2py_code, "m2py.py", "exec"), sys.modules["m2py"].__dict__)
 `);
-      // Register static_source (statisk datakilde via DuckDB-WASM). Valgfri.
-      if (staticSrcResp && staticSrcResp.ok) {
-        try {
-          const staticCode = await staticSrcResp.text();
-          await pyodide.runPythonAsync(`
-static_code = ${JSON.stringify(staticCode)}
-spec_s = importlib.util.spec_from_loader("static_source", loader=None)
-sys.modules["static_source"] = importlib.util.module_from_spec(spec_s)
-exec(compile(static_code, "static_source.py", "exec"), sys.modules["static_source"].__dict__)
-`);
-          window.__staticSourceLoaded = true;
-        } catch (e) { console.warn('static_source register:', e); }
-      }
       // Speile avsløringskontroll-flagget fra localStorage til m2py.M2PY_DISCLOSURE_CONTROL,
       // og UI-språket til m2py.M2PY_LANG (styrer motorens meldingsspråk).
       window.__applyDisclosureControlToPython = async function () {
@@ -9079,6 +9071,65 @@ has and "int" in (m.get_microdata_functions() or {})
       try { await ensureM2pyRuntime(pyodide); } catch (e) { console.warn('m2py_runtime load:', e); }
       setStatus(leftStatus, functionsLoaded ? t('Ready. (functions.py lastet.)') : 'Ready.');
       return pyodide;
+    }
+
+    // ── Lazy microdata-assets (plan 2026-07-23-lazy-microdata-assets) ──────
+    // mockdata_realism og static_source trengs bare når microdata-språket
+    // kjører (statx-modus, microdata-modus/-segmenter): m2py importerer
+    // mockdata_realism lazy (realism-dispatch faller pent tilbake uten den),
+    // og getInterpreterCorePython sjekker selv `'static_source' in
+    // _sys.modules` — så rene python/duckdb-kjøringer er upåvirket av at
+    // modulene mangler. (mockdata_core er derimot en toppnivå-import i
+    // m2py.py og bor i kjernebooten.) Registreringskoden er flyttet uendret
+    // fra _loadPyodideAndM2pyImpl (pluss egne sys/importlib-imports: snuttene
+    // kjører nå frittstående, ikke etter functions-registreringens imports).
+    let __mockdataModulesPromise = null;
+    function ensureMockdataModules(py) {
+      if (!__mockdataModulesPromise) {
+        __mockdataModulesPromise = _ensureMockdataModulesImpl(py).catch(function (e) {
+          __mockdataModulesPromise = null;  // tillat retry etter feil
+          throw e;
+        });
+      }
+      return __mockdataModulesPromise;
+    }
+    async function _ensureMockdataModulesImpl(py) {
+      const base = window.location.href.replace(/[^/]+$/, '');
+      const _cb = '?v=' + (window.M2PY_VERSION || '1');
+      const [realismResp, staticSrcResp] = await Promise.all([
+        fetch(base + 'mockdata_realism.py' + _cb).catch(function () { return { ok: false }; }),
+        fetch(base + 'static_source.py' + _cb).catch(function () { return { ok: false }; })
+      ]);
+      // mockdata_realism depends on mockdata_core, which core boot registered.
+      if (realismResp.ok) {
+        const realismCode = await realismResp.text();
+        await py.runPythonAsync(`
+import sys, importlib.util
+realism_code = ${JSON.stringify(realismCode)}
+spec_r = importlib.util.spec_from_loader("mockdata_realism", loader=None)
+sys.modules["mockdata_realism"] = importlib.util.module_from_spec(spec_r)
+exec(compile(realism_code, "mockdata_realism.py", "exec"), sys.modules["mockdata_realism"].__dict__)
+`);
+      } else {
+        console.warn('mockdata_realism.py not available; realism dispatch in m2py will fall back.');
+      }
+      // static_source (statisk datakilde via DuckDB-WASM). Valgfri.
+      if (staticSrcResp && staticSrcResp.ok) {
+        try {
+          const staticCode = await staticSrcResp.text();
+          await py.runPythonAsync(`
+import sys, importlib.util
+static_code = ${JSON.stringify(staticCode)}
+spec_s = importlib.util.spec_from_loader("static_source", loader=None)
+sys.modules["static_source"] = importlib.util.module_from_spec(spec_s)
+exec(compile(static_code, "static_source.py", "exec"), sys.modules["static_source"].__dict__)
+`);
+          window.__staticSourceLoaded = true;
+        } catch (e) { console.warn('static_source register:', e); }
+      }
+    }
+    function ensureMicrodataAssets(py) {
+      return Promise.all([ensureMicrodataCatalog(), ensureMockdataModules(py)]);
     }
 
     async function loadPdexplorer(py) {
@@ -10120,6 +10171,13 @@ options(width = 200)
         var _remoteDialect = { python: 'python', r: 'r', duckdb: 'duckdb' }[activeEditorMode];
         if (_remoteDialect && _sessionCtx.level === 'he') _remoteDialect = 'he';
         if (_remoteDialect && await maybeRunRemote(effectiveScript, _ctx, _remoteDialect)) return;
+        // Lazy katalog: rutingen server-vs-lokal (maybeRunRemoteMicrodata) og
+        // resten av microdata-stien LESER katalogen — den må være lastet FØR
+        // beslutningen, ellers ruter serverkilde-scripts stille til lokal.
+        if (activeEditorMode === 'microdata') {
+          try { await ensureMicrodataCatalog(); }
+          catch (e) { console.warn('microdata-katalog (ruting):', e); }
+        }
         // Microdata-modus, katalog-først: server-kilder ruter til legacy m2py-motoren
         if (activeEditorMode === 'microdata' && await maybeRunRemoteMicrodata(effectiveScript, _ctx)) return;
         if (_mr.runSelf) { await _mr.runSelf(effectiveScript, _ctx); return; }
@@ -10292,10 +10350,6 @@ options(width = 200)
           await runStrictLocal(effectiveScript, _pyLoads, { level: _lvl, dialect: _dialect, spec: _asmSpec }, _ctx);
           return;
         }
-        const catalogJson = microdataCatalog && microdataCatalog.variables
-          ? JSON.stringify(microdataCatalog.variables)
-          : null;
-        const catalogArg = catalogJson !== null ? JSON.stringify(catalogJson) : 'None';
         const pageBase = window.location.href.replace(/[^/]+$/, '');
         // In Python mode, unmarked code is pyodide; otherwise use the stored runner default
         const runDefault = currentMode().runDefault || getRunnerDefaultMode();
@@ -10325,6 +10379,17 @@ options(width = 200)
           if (_segUse.errors.length) throw new Error(_segUse.errors.join('; '));
           segments = _segUse.segments;
         }
+        // Lazy microdata-assets: hent katalog + mockdata-moduler kun når
+        // dokumentet faktisk kjører microdata-språket (modusen selv, eller
+        // # micro-segmenter i andre moduser).
+        if (activeEditorMode === 'microdata' || segments.some(function (s) { return s.kind === 'microdata'; })) {
+          try { await ensureMicrodataAssets(py); }
+          catch (e) { console.warn('microdata-assets:', e); }
+        }
+        const catalogJson = microdataCatalog && microdataCatalog.variables
+          ? JSON.stringify(microdataCatalog.variables)
+          : null;
+        const catalogArg = catalogJson !== null ? JSON.stringify(catalogJson) : 'None';
         // If any segment is DuckDB SQL, make sure the bridge module is ready
         // before the Pyodide run loop reaches a #duckdb segment.
         if (segments.some(function (s) { return s.kind === 'duckdb'; })) {
@@ -10525,7 +10590,12 @@ async def _m2py_run_segment(_seg_json):
         setStatus(rightStatus, t('Skrittvis kjøring støttes ikke for navngitte kilder (server-kjøring). Bruk Kjør.'), true);
         return;
       }
-      // Microdata-modus: samme vern for serverkilder (m\u00e5l utenfor katalogen)
+      // Microdata-modus: samme vern for serverkilder (m\u00e5l utenfor katalogen).
+      // Lazy katalog: vernet LESER katalogen \u2014 await ensure f\u00f8r sjekken,
+      // ellers slipper serverkilde-scripts stille gjennom til lokal kj\u00f8ring.
+      if (activeEditorMode === 'microdata') {
+        try { await ensureMicrodataCatalog(); } catch (e) {}
+      }
       if (activeEditorMode === 'microdata' && microdataCatalog && microdataCatalog.variables) {
         var _fkRe = /^\s*require\s+(\S+)\s+as\s+\w+/gim, _fkM;
         var _fkBanks = null;
@@ -10817,6 +10887,10 @@ async def _m2py_run_segment(_seg_json):
         const suppress = suppressEmbedded.checked;
         let explainInit = null;
         if (activeEditorMode !== 'r') {
+          if (activeEditorMode === 'microdata' || activeEditorMode === 'statx') {
+            try { await ensureMicrodataAssets(py); }
+            catch (e) { console.warn('microdata-assets (forklar):', e); }
+          }
           const catalogJson = microdataCatalog && microdataCatalog.variables
             ? JSON.stringify(microdataCatalog.variables)
             : null;
