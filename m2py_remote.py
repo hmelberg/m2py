@@ -119,7 +119,13 @@ def run_remote(script, *, datasets, backend="pandas", policy=None, raw=False):
     buf = io.StringIO()
     err = None
     from m2py_runtime import pandas_ops as _ops
+    import m2py as _m2
     _ops.set_release_spec((policy or {}).get("post_suppress"))
+    # Beskyttede kilder: generate/replace/keep-uttrykk når runtime-eval via
+    # pandas_ops (_py_eval_expr) — uten AST-hvitelisten har de full Python med
+    # ekte builtins mot rådata FØR undertrykkingen ser resultatet. Public
+    # (store, åpne data) beholder fri eval — der er det ingenting å beskytte.
+    _m2.set_strict_eval(level != "public")
     try:
         with contextlib.redirect_stdout(buf):
             exec(code, ns)
@@ -127,6 +133,7 @@ def run_remote(script, *, datasets, backend="pandas", policy=None, raw=False):
         err = repr(exc)
     finally:
         _ops.set_release_spec(None)
+        _m2.set_strict_eval(False)
 
     adapter = PandasProtect()
     spec = (policy or {}).get("post_suppress")
