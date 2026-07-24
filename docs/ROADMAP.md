@@ -1,6 +1,6 @@
 # Roadmap — safestat/openstat
 
-*Levende dokument. Oppdatert 2026-07-09 (kveld). Punktene er ikke forpliktelser, men
+*Levende dokument. Oppdatert 2026-07-24. Punktene er ikke forpliktelser, men
 prioritert idéliste. Kilder: designdok/reviews fra jamovi 2.0 fase 1–3
 (docs/PLAN_jamovi_*.md, docs/jamovi-validation.md) + løpende samtaler og Hans' testing.*
 
@@ -109,6 +109,56 @@ prøve fra PyPI eller GitHub. Nivåene:
       micropip-kall (eller vis vennlig melding om at import auto-installerer)
 - [ ] Tydelig feilmelding når en pakke ikke finnes som wasm (med peker til
       hva som faktisk støttes)
+
+## Fjernkjøring (m2py_remote) — sikkerhet for sensitive kilder
+
+*Bakgrunn: `m2py_remote` har to tiltenkte bruk — (a) sensitive data der vi ikke
+skal avsløre noe om enkeltindivider, og (b) åpne data som bare er for store for
+nettleseren. Gatingen er per kilde (server-side registernivå, aldri fra
+skriptet): `public` beholder fri eval; `protected`/`sensitive` får ekstra vern.*
+
+**Ferdig (2026-07-24):** AST-hvitelistet uttrykks-eval. `_py_eval_expr` kjørte
+`eval(expr, {}, env)` med tom globals-dict → CPython injiserte ekte
+`__builtins__`, så et `generate`-uttrykk hadde full Python mot rådata FØR
+undertrykkingslaget. Nå: `set_strict_eval(level != 'public')` i `m2py_remote`,
+AST-hviteliste (aritmetikk/bool/sammenligning, litteraler, kolonnenavn, kjente
+`functions.py`-funksjoner, `np.<fn>`; alt annet avvises høylytt) + eval uten
+builtins. Se `tests/test_remote_strict_eval.py`. Dette er FØRSTE lag — stopper
+uhell og enkle forsøk, ikke en garanti mot en målrettet angriper som finner en
+reell bug i hvitelisten eller en `functions.py`/`np`-bivirkning.
+
+- [ ] **Subprosess-/sandkasse-isolasjon (ANDRE lag, kreves før ekte
+      person-nivå-data kobles på).** Prinsipp: hvitelisten avgjør hva som får
+      *kjøre*; isolasjonen avgjør hva kjørende kode kan *nå* — to uavhengige
+      kontroller, så én som svikter ikke eksponerer data. Kravene til prosessen
+      som gjør `exec` mot en sensitiv kilde:
+      1. **Ingen nettverk** (viktigst): uten socket kan en rad ikke exfiltreres
+         selv om koden får tak i den. Linux: nett-namespace uten interface, eller
+         default-deny egress.
+      2. **Ingen filsystem utover det ene datasettet** (read-only mount). I dag
+         kjører `read_source(location)` i samme prosess og kan lese alt
+         server-brukeren kan — inkl. andre kilders lokasjoner og credentials.
+      3. **Harde ressurstak** (CPU-tid, minne, wall-clock). Dekker samtidig
+         stordata-tilfellet (b), der risikoen er utmatting, ikke avsløring.
+      4. **Ingen persistens mellom kjøringer** — frisk sandkasse per request,
+         revet ned etterpå; ingen tilstandslekkasje mellom forskere.
+- [ ] **Foreldre/arbeider-split.** `run_remote` tar allerede `datasets` inn og
+      returnerer en ren JSON-serialiserbar dict — en ferdig prosessgrense.
+      Arbeider (i sandkassa): fetch + translate + exec + resultat-undertrykking,
+      med serialisert result-dict som ENESTE utkanal. Foreldre (betrodd):
+      validerer request, mounter det ene datasettet, håndhever tak, og
+      **re-verifiserer undertrykking på vei ut** — også JSON-resultatet
+      behandles som utrygt til release-spec er bekreftet, så en kompromittert
+      arbeider ikke kan levere umaskerte tall.
+- [ ] **Mekanisme, økende styrke/kostnad:** (1) `subprocess` + `resource`-tak +
+      seccomp via `nsjail`/`bubblewrap` — letteste, Linux-native, første mål;
+      (2) container per kjøring (gVisor/`runsc`, eller microVM à la Firecracker)
+      når ekte sensitive data faktisk flyter. IKKE in-process-sandkasse
+      (RestrictedPython o.l.) som eneste kontroll — CPython in-process er
+      historisk brytbart og gir falsk trygghet.
+- [ ] Til dette finnes: `m2py_remote` kjøres kun mot public/mock-kilder;
+      sensitive kilder ikke koblet på. (Ligger utenfor disse tre repoene —
+      hører til der `m2py_remote` deployes som tjeneste.)
 
 ## Diverse / uavklart
 
