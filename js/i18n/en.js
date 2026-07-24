@@ -720,4 +720,5 @@ window.M2PY_I18N.en = {
   "Kunne ikke hente siden for publisering (HTTP {code}).": "Could not fetch the page for publishing (HTTP {code}).",
   "Fant ikke </head> eller </body> i siden — publisering avbrutt.": "Could not find </head> or </body> in the page — publishing aborted.",
   "Publisering feilet: {msg}": "Publishing failed: {msg}",
+  "Gjenopprettet ulagret utkast.": "Restored unsaved draft.",
 };

@@ -344,6 +344,8 @@
         const si = $('scriptInput');
         return ghSavedSnapshot != null && si && si.value !== ghSavedSnapshot;
       }
+      // Eksponert for beforeunload-varselet i index.html (autosave 2026-07-24).
+      window.mdGhIsDirty = ghIsDirty;
       function markSaved() {
         const si = $('scriptInput');
         ghSavedSnapshot = si ? si.value : '';

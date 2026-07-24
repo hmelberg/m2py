@@ -757,7 +757,7 @@
     window.t = window.t || function (s) { return s; };
     window.i18nField = window.i18nField || function (obj, field) { return obj && obj[field]; };
 
-    window.M2PY_VERSION = '2026-07-24d';
+    window.M2PY_VERSION = '2026-07-24e';
 
     // One-time migration: remove obsolete localStorage keys from previous milestones
     // Safe to delete this snippet after a few months when most users have re-loaded
@@ -4365,6 +4365,48 @@
     // own content on window 'load' (openFromFragment would just overwrite it).
     var _fragNow = window.NotebookLinks ? window.NotebookLinks.classifyHash(location.hash) : null;
     var _hasFrag = !!(_fragNow && _fragNow.kind !== 'share');
+    // ── Autosave (2026-07-24): utkast per modus i localStorage — lagres kun
+    // lokalt i nettleseren, sendes aldri noe sted. Nøkkelen er namespacet med
+    // app-navn: github.io-prosjektsider deler origin, så uten prefiks ville
+    // søster-appenes utkast kollidert. Gjenoppretting: utkastene seedes inn i
+    // editorContent ved boot, og boot-modusens utkast rett i editoren — et
+    // utkast vinner over starteksempelet, og auto-kjøringen av eksempelet
+    // uteblir naturlig (innholdet matcher ikke lenger eksempelteksten).
+    const DRAFT_PREFIX = 'md_draft_' + (window.M2PY_APP || 'app') + '_';
+    function draftKey(mode) { return DRAFT_PREFIX + mode; }
+    (function restoreDrafts() {
+      try {
+        Object.keys(editorContent).forEach(function (m) {
+          var d = localStorage.getItem(draftKey(m));
+          if (d && d.trim() && !editorContent[m]) editorContent[m] = d;
+        });
+        var bootDraft = localStorage.getItem(draftKey(activeEditorMode));
+        if (bootDraft && bootDraft.trim() && !scriptInput.value.trim()) {
+          scriptInput.value = bootDraft;
+          if (window.updateLineNumbers) window.updateLineNumbers();
+          setStatus(leftStatus, t('Gjenopprettet ulagret utkast.'));
+        }
+      } catch (e) { /* localStorage utilgjengelig — autosave av */ }
+    })();
+    var _draftTimer = null;
+    scriptInput.addEventListener('input', function () {
+      // Fang modus OG innhold ved tastetrykket: et modusbytte i debounce-
+      // vinduet ville ellers lagret NY modus sitt innhold på gammel nøkkel.
+      var _m = activeEditorMode, _v = scriptInput.value;
+      if (_draftTimer) clearTimeout(_draftTimer);
+      _draftTimer = setTimeout(function () {
+        try {
+          if (_v && _v.trim()) localStorage.setItem(draftKey(_m), _v);
+          else localStorage.removeItem(draftKey(_m));
+        } catch (e) { /* full/utilgjengelig — stille */ }
+      }, 800);
+    });
+    // Varsle ved lukking med ulagret GitHub-fil (amber-disketten) — utkastet
+    // er autosavet lokalt, men GitHub-versjonen er det ikke.
+    window.addEventListener('beforeunload', function (e) {
+      if (window.mdGhIsDirty && window.mdGhIsDirty()) { e.preventDefault(); e.returnValue = ''; }
+    });
+
     if (!scriptInput.value.trim() && !_hasFrag && STARTUP_EXAMPLES[activeEditorMode]) {
       scriptInput.value = STARTUP_EXAMPLES[activeEditorMode];
       if (window.updateLineNumbers) window.updateLineNumbers();
