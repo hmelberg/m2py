@@ -431,7 +431,7 @@
       </div>
       <div style="width:1px;height:20px;background:var(--border);margin:0 6px;flex-shrink:0"></div>
       <div class="mode-dropdown-wrap">
-        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg språk (Microdata, Python, R, Statx, Jamovi, SQL - DuckDB, Brython, SafeStat)">
+        <button type="button" class="mode-dropdown-btn" id="editorModeBtn" data-i18n-title title="Velg språk (Microdata, Python, R, Jamovi, SQL - DuckDB, Brython, SafeStat)">
           <span id="editorModeLabel">Microdata</span>
           <span class="chevron">▲</span>
         </button>
@@ -439,7 +439,6 @@
           <button type="button" data-mode="microdata" class="active">Microdata</button>
           <button type="button" data-mode="python">Python</button>
           <button type="button" data-mode="r">R</button>
-          <button type="button" data-mode="statx">Statx</button>
           <button type="button" data-mode="jamovi">Jamovi</button>
           <button type="button" data-mode="duckdb">SQL - DuckDB</button>
           <button type="button" data-mode="brython">Brython</button>
@@ -758,7 +757,7 @@
     window.t = window.t || function (s) { return s; };
     window.i18nField = window.i18nField || function (obj, field) { return obj && obj[field]; };
 
-    window.M2PY_VERSION = '2026-07-24b';
+    window.M2PY_VERSION = '2026-07-24c';
 
     // One-time migration: remove obsolete localStorage keys from previous milestones
     // Safe to delete this snippet after a few months when most users have re-loaded
@@ -1796,7 +1795,7 @@
           if (!r.ok) throw new Error(r.status);
           return r.text();
         }).then(function(text) {
-          if (mode && (mode === 'microdata' || mode === 'python' || mode === 'r' || mode === 'statx' || mode === 'duckdb' || mode === 'brython' || mode === 'micropython')
+          if (mode && (mode === 'microdata' || mode === 'python' || mode === 'r' || mode === 'duckdb' || mode === 'brython' || mode === 'micropython')
               && typeof switchEditorMode === 'function'
               && typeof activeEditorMode !== 'undefined') {
             if (typeof editorContent !== 'undefined') editorContent[mode] = text;
@@ -2798,9 +2797,6 @@
     const R_HL_FN  = new Set(R_FUNCTIONS);
     const PY_HL_CFG = { commentChar: '#', triple: true,  identStart: /[A-Za-z_]/,  identPart: /[A-Za-z0-9_]/,  kw: PY_HL_KW, fn: PY_HL_FN };
     const R_HL_CFG  = { commentChar: '#', triple: false, identStart: /[A-Za-z_.]/, identPart: /[A-Za-z0-9_.]/, kw: R_HL_KW,  fn: R_HL_FN  };
-    const STATA_HL_KW = new Set(['use','clear','summarize','sum','regress','reg','tabulate','tab','generate','gen','replace','egen','collapse','keep','drop','sort','by','bysort','merge','append','describe','list','browse','if','in','rename','label']);
-    const STATA_HL_FN = new Set(['mean','sd','min','max','count','total','r','e']);
-    const STATA_HL_CFG = { commentChar: '*', triple: false, identStart: /[A-Za-z_]/, identPart: /[A-Za-z0-9_]/, kw: STATA_HL_KW, fn: STATA_HL_FN };
     const SQL_HL_KW = new Set(['SELECT','FROM','WHERE','GROUP','BY','ORDER','HAVING','LIMIT','OFFSET',
       'JOIN','LEFT','RIGHT','INNER','OUTER','FULL','CROSS','NATURAL','ON','USING','AS','WITH',
       'CREATE','OR','REPLACE','TABLE','TEMP','TEMPORARY','VIEW','IF','NOT','EXISTS','DROP','ALTER',
@@ -3702,14 +3698,6 @@
         runSelf: async function (script, ctx) {
           await runHybridR(script, ctx.py, { showCommands: ctx.showCommands, profile: ctx.profile });
         } },
-      statx: { id: 'statx', label: 'Statx',
-        hlConfig: STATA_HL_CFG,
-        handleTab: microdataHandleTab,
-        onActivate: function () {
-          ensureMicrodataCatalog();
-          if (!pdexplorerReady && !pdexplorerLoading) loadPyodideAndM2py().then(loadPdexplorer);
-        },
-        runSelf: async function (script, ctx) { await runStatxScript(script, ctx); } },
       duckdb: { id: 'duckdb', label: 'SQL - DuckDB', hlConfig: SQL_HL_CFG, handleTab: microdataHandleTab,
         // Fase 1 (2026-07-11): SQL-modus varmer duckdb-wasm, ikke Pyodide —
         // rene SQL-kjøringer går native (maybeRunDuckNative); hybride faller
@@ -3808,7 +3796,7 @@
     // btnRun/bootstrap/modusbytte ruter alle gjennom runtimeForMode()
     // (plan 2026-07-09: R uten Pyodide, fremtidig brython/subdomene-boot).
     var RUNTIME_FOR_MODE = { python: 'pyodide', microdata: 'pyodide', duckdb: 'duckdb',
-                             jamovi: 'pyodide', statx: 'pyodide',
+                             jamovi: 'pyodide',
                              safestat: 'pyodide', brython: 'brython', micropython: 'micropython', r: 'webr' };
     function runtimeForMode(id) { return RUNTIME_FOR_MODE[id] || 'pyodide'; }  // ukjent → trygt valg
 
@@ -4318,8 +4306,8 @@
     // som avledes av kildene (safepy-he-v1) i hvilken som helst språkmodus —
     // se sesjonskontekst-badgene og js/session-context.js. Eksempel på
     // HE-script ligger i docs/directive-language-examples.md.
-    const editorContent   = { microdata: '', python: '', r: '', statx: '', jamovi: '', duckdb: '', brython: '', micropython: '', safestat: '' };
-    const editorBP        = { microdata: new Set(), python: new Set(), r: new Set(), statx: new Set(), jamovi: new Set(), duckdb: new Set(), brython: new Set(), micropython: new Set(), safestat: new Set() };
+    const editorContent   = { microdata: '', python: '', r: '', jamovi: '', duckdb: '', brython: '', micropython: '', safestat: '' };
+    const editorBP        = { microdata: new Set(), python: new Set(), r: new Set(), jamovi: new Set(), duckdb: new Set(), brython: new Set(), micropython: new Set(), safestat: new Set() };
     // B4/B5 (docs/REVIEW_2026-07-07.md §3): switchEditorMode() persists
     // md_editor_mode but nothing ever read it back, so a reload always
     // landed on 'microdata'. Restore it here, synchronously, as part of this
@@ -4368,7 +4356,7 @@
     // modus === init-verdien 'microdata') fyrer ikke onActivate — prefetch
     // eksplisitt så autocomplete/variabelbrowser/serverruting har katalogen
     // like tidlig som før.
-    if (activeEditorMode === 'microdata' || activeEditorMode === 'statx') ensureMicrodataCatalog();
+    if (activeEditorMode === 'microdata') ensureMicrodataCatalog();
 
     // ── Starteksempel og auto-fokus ─────────────────────────────────────────
     // Runs after restoreEditorMode() so activeEditorMode already reflects the
@@ -4385,7 +4373,6 @@
     scriptInput.selectionStart = scriptInput.selectionEnd = 0;
     scriptInput.focus();
 
-    let pdexplorerReady = false, pdexplorerLoading = false;
     let explainAbortRef = null;
     let explainRunActive = false;
     let forklarPaused = false;
@@ -6815,7 +6802,7 @@ json.dumps(out)
     }
     function parseHybridScript(text, defaultMode) {
       var lines = text.split(/\r?\n/);
-      var mode = defaultMode === 'pyodide' ? 'pyodide' : defaultMode === 'r' ? 'r' : defaultMode === 'stata' ? 'stata' : defaultMode === 'duckdb' ? 'duckdb' : 'microdata';
+      var mode = defaultMode === 'pyodide' ? 'pyodide' : defaultMode === 'r' ? 'r' : defaultMode === 'duckdb' ? 'duckdb' : 'microdata';
       var buf = [];
       var segments = [];
       function flush() {
@@ -8846,57 +8833,6 @@ json.dumps(out)
       return __pyDashP;
     }
 
-    async function runStatxScript(script, ctx) {
-      var rightStatus = ctx && ctx.rightStatus ? ctx.rightStatus : window.rightStatus;
-      try {
-        const py = await loadPyodideAndM2py();
-        // statx kjører alltid mot m2py-emulatoren (use/katalogvariabler) —
-        // hent microdata-assets ubetinget.
-        try { await ensureMicrodataAssets(py); }
-        catch (e) { console.warn('microdata-assets (statx):', e); }
-        await loadPdexplorer(py);
-        setStatus(rightStatus, t('Kjører statx…'));
-        const segments = parseHybridScript(script, 'stata');
-        const microCode = segments.filter(function(s) { return s.kind === 'microdata'; }).map(function(s) { return s.text; }).join('\n');
-        const statxCode = segments.filter(function(s) { return s.kind === 'stata' || s.kind === 'statx'; }).map(function(s) { return s.text; }).join('\n');
-        // Establish the engine (e) and _run_microdata_chunk helper
-        const catalogJson = microdataCatalog && microdataCatalog.variables
-          ? JSON.stringify(microdataCatalog.variables)
-          : null;
-        const catalogArg = catalogJson !== null ? JSON.stringify(catalogJson) : 'None';
-        const pageBase = window.location.href.replace(/[^/]+$/, '');
-        await py.runPythonAsync(getInterpreterCorePython(catalogArg, pageBase, '[]') + `
-_forklar_last_chunk_out = ""
-def _run_microdata_chunk(_code):
-    global result, _forklar_last_chunk_out
-    e.output_log.clear()
-    _code = (_code or "").strip()
-    if not _code:
-        _forklar_last_chunk_out = ""
-        return
-    result = e.run_script(_code)
-    _forklar_last_chunk_out = str(result)
-    print(result)
-    e.sync_datasets_to_globals(_g)
-    _apply_labels_to_globals(_g, catalog)
-    _g["show"] = show
-    _g["to_microdata"] = to_microdata
-`);
-        // Run microdata segments to populate e.datasets
-        if (microCode.trim()) {
-          await py.runPythonAsync('import json\n_run_microdata_chunk(json.loads(' + JSON.stringify(JSON.stringify(microCode)) + '))');
-        }
-        // Run statx commands via statx_runner
-        py.globals.set('_statx_src', statxCode);
-        const out = await py.runPythonAsync('import statx_runner\nstatx_runner.run_statx(e, _statx_src)');
-        renderOutput(String(out || ''), false, false);
-        setStatus(rightStatus, '');
-      } catch (err) {
-        const errMsg = (err && err.message) ? err.message : String(err);
-        renderOutput('Statx-feil:\n' + errMsg, false, false);
-        setStatus(rightStatus, t('statx-feil'), true);
-      }
-    }
 
     let __pyodidePromise = null;
     function loadPyodideAndM2py() {
@@ -9132,42 +9068,6 @@ exec(compile(static_code, "static_source.py", "exec"), sys.modules["static_sourc
       return Promise.all([ensureMicrodataCatalog(), ensureMockdataModules(py)]);
     }
 
-    async function loadPdexplorer(py) {
-      if (pdexplorerReady) return;
-      pdexplorerLoading = true;
-      try {
-        const base = window.location.href.replace(/[^/]+$/, '');
-        setStatus(leftStatus, 'Installing pdexplorer…');
-        // 1) stub the desktop-only modules pdexplorer imports at top level (xlwings pulls
-        //    pywintypes; pynput needs OS input) BEFORE importing — never available in Pyodide
-        // 2) install pdexplorer without its pinned deps; use Pyodide's bundled pandas/statsmodels
-        // 3) install its pure-python import deps
-        await py.runPythonAsync(
-          'import sys, micropip\n' +
-          'from unittest.mock import MagicMock\n' +
-          'for _m in ("pywintypes","xlwings","pynput"):\n' +
-          '    sys.modules.setdefault(_m, MagicMock())\n' +
-          'await micropip.install("pdexplorer", deps=False)\n' +
-          'await micropip.install(["rich","click","requests"])\n' +
-          'import pdexplorer\n'
-        );
-        // load our runner module into Pyodide (mirror exec/compile pattern used for functions.py)
-        setStatus(leftStatus, t('Laster statx_runner…'));
-        const src = await fetch(base + 'statx_runner.py?v=' + (window.M2PY_VERSION || '1'), { cache: 'no-store' }).then(r => r.text());
-        await py.runPythonAsync(
-          'import sys, importlib.util\n' +
-          'src = ' + JSON.stringify(src) + '\n' +
-          'spec = importlib.util.spec_from_loader("statx_runner", loader=None)\n' +
-          'mod = importlib.util.module_from_spec(spec)\n' +
-          'sys.modules["statx_runner"] = mod\n' +
-          'exec(compile(src, "statx_runner.py", "exec"), mod.__dict__)\n'
-        );
-        pdexplorerReady = true;
-        setStatus(leftStatus, t('Klar.'));
-      } finally {
-        pdexplorerLoading = false;
-      }
-    }
 
 
     // Write the m2py_runtime package to the Pyodide FS so it imports normally.
@@ -10386,6 +10286,11 @@ options(width = 200)
           try { await ensureMicrodataAssets(py); }
           catch (e) { console.warn('microdata-assets:', e); }
         }
+        // Statx-modus er fjernet (2026-07-24, som i openstat) — ærlig feil
+        // for ## stata|statx-blokker i stedet for stille no-op.
+        if (segments.some(function (s) { return s.kind === 'stata'; })) {
+          throw new Error(t('Statx/Stata-modus er fjernet — bruk python, R eller microdata.'));
+        }
         const catalogJson = microdataCatalog && microdataCatalog.variables
           ? JSON.stringify(microdataCatalog.variables)
           : null;
@@ -10887,7 +10792,7 @@ async def _m2py_run_segment(_seg_json):
         const suppress = suppressEmbedded.checked;
         let explainInit = null;
         if (activeEditorMode !== 'r') {
-          if (activeEditorMode === 'microdata' || activeEditorMode === 'statx') {
+          if (activeEditorMode === 'microdata') {
             try { await ensureMicrodataAssets(py); }
             catch (e) { console.warn('microdata-assets (forklar):', e); }
           }

@@ -797,27 +797,5 @@
       "label": "SafeStat — CSV from URL",
       "group": null
     }
-  ],
-  "statx": [
-    {
-      "file": "statx/st01_stata_basics.txt",
-      "label": "Stata — descriptives",
-      "group": null
-    },
-    {
-      "file": "statx/st02_stata_regresjon.txt",
-      "label": "Stata — regression",
-      "group": null
-    },
-    {
-      "file": "statx/st03_stata_generate.txt",
-      "label": "Stata — generate/egen",
-      "group": null
-    },
-    {
-      "file": "statx/st04_stata_use.txt",
-      "label": "Stata — use (multiple datasets)",
-      "group": null
-    }
   ]
 }
