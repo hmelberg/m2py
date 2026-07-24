@@ -633,10 +633,14 @@ class MicroParser:
                     arg = m.group('arg')
                     options_dict[m.group('opt')] = arg.strip() if arg else True
 
-        # 2. Skill ut 'if'-betingelse
+        # 2. Skill ut 'if'-betingelse — quote-bevisst (B3, review 2026-07-24):
+        # naiv split rev strenger med ' if ' i (f.eks. define-labels
+        # s 1 'what if scenario') i stykker. Samme scanner som opsjons-splitten.
         condition = None
-        if ' if ' in line:
-            line, condition = line.split(' if ', 1)
+        _if_pos2 = self._scan_top_level(line, ' if ')
+        if _if_pos2 is not None:
+            condition = line[_if_pos2 + 4:]
+            line = line[:_if_pos2]
         if condition is None and _deferred_condition:
             condition = _deferred_condition
 

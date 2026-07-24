@@ -180,22 +180,25 @@ def recode(df, vars, rules, prefix=None):
 # ── row/column shaping ───────────────────────────────────────────────────────
 
 def keep(df, vars=None, cond=None):
+    # Betingelsen FØR kolonnefilteret (emulator-rekkefølgen): `keep x if y == 1`
+    # skal virke selv om y ikke er blant beholdte kolonner.
     out = df
-    if vars:
-        out = out[[c for c in vars if c in out.columns]]
     if cond:
         mask = _py_eval_cond(out, cond)
         out = out.loc[mask]
+    if vars:
+        out = out[[c for c in vars if c in out.columns]]
     return out.reset_index(drop=True).copy()
 
 
 def drop(df, vars=None, cond=None):
+    # Samme rekkefølge som keep: betingelsen kan referere kolonner som droppes.
     out = df
-    if vars:
-        out = out.drop(columns=[c for c in vars if c in out.columns])
     if cond:
         mask = _py_eval_cond(out, cond)
         out = out.loc[~mask]
+    if vars:
+        out = out.drop(columns=[c for c in vars if c in out.columns])
     return out.reset_index(drop=True).copy()
 
 
@@ -624,10 +627,18 @@ def tabulate(df, vars, by=None, missing=False,
     if cellpct:
         denom = out.groupby(grp)["n"].transform("sum") if grp else out["n"].sum()
         out["cellpct"] = 100.0 * out["n"] / denom
+    # Énveis tabell (B2, review 2026-07-24): row/colpct grupperte da på selve
+    # variabelen — hver kategori delt på sin egen sum ga konstant 100.0.
+    # Uten en andre variabel er raden/kolonnen hele tabellen: andel av totalen.
+    _oneway = len(vars) < 2
     if rowpct:
-        out["rowpct"] = 100.0 * out["n"] / out.groupby(grp + [first])["n"].transform("sum")
+        denom = (out.groupby(grp)["n"].transform("sum") if grp else out["n"].sum()) \
+            if _oneway else out.groupby(grp + [first])["n"].transform("sum")
+        out["rowpct"] = 100.0 * out["n"] / denom
     if colpct:
-        out["colpct"] = 100.0 * out["n"] / out.groupby(grp + [second])["n"].transform("sum")
+        denom = (out.groupby(grp)["n"].transform("sum") if grp else out["n"].sum()) \
+            if _oneway else out.groupby(grp + [second])["n"].transform("sum")
+        out["colpct"] = 100.0 * out["n"] / denom
     if chi2 and len(vars) >= 2:
         if grp:
             stats = {k: _chi2_stats(sub, first, second, not missing)
