@@ -1,15 +1,20 @@
 #!/bin/sh
-# sync_check.sh — diff delte kjernefiler mot søsken-repoene openstat og
-# microdata. Kjøres fra safestat-roten (kanonisk repo: motor-fikser lander
-# her først og portes ut). Lister filer som avviker; exit 1 hvis noen gjør
-# det. UI-filer (index.html, js/) er BEVISST utelatt — de drifter fritt.
+# sync_check.sh — diff delte kjernefiler mot søsken-repoen microdata.
+# Kjøres fra safestat-roten (kanonisk repo: motor-fikser lander her først
+# og portes ut). Lister filer som avviker; exit 1 hvis noen gjør det.
+# UI-filer (index.html, js/) er BEVISST utelatt — de drifter fritt.
 #
-#   sh scripts/sync_check.sh            # sjekk begge søsken
-#   sh scripts/sync_check.sh openstat   # sjekk bare én
+# openstat-benet er FJERNET 2026-07-24 (scope B, se openstats
+# docs/PLAN_remove_engine.md): openstat har ikke lenger motoren
+# (m2py m.fl. slettet) og er en selvstendig kodebase. Delingen er nå
+# safestat <-> microdata.
+#
+#   sh scripts/sync_check.sh            # sjekk microdata
+#   sh scripts/sync_check.sh microdata  # eksplisitt
 
 set -u
 here="$(cd "$(dirname "$0")/.." && pwd)"
-siblings="${1:-openstat microdata}"
+siblings="${1:-microdata}"
 
 # Delte kjernefiler/-kataloger (motor + metadata). Hold listen i sync med
 # README-avsnittet om søsken-repoene.

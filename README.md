@@ -58,7 +58,8 @@ cd netlify/edge-functions && deno check *.ts _lib/*.ts && deno test --allow-all 
 # Propagate the engine to the microdata-api (Anvil) copy
 .venv/bin/python sync_to_api.py --apply   # copy; without --apply it only reports drift
 
-# Diff delte kjernefiler mot søsken-repoene (../openstat, ../microdata)
+# Diff delte kjernefiler mot ../microdata (openstat-benet fjernet 2026-07-24 —
+# openstat har ikke lenger motoren og er en selvstendig kodebase)
 sh scripts/sync_check.sh                  # exit 1 ved avvik; UI-filer er bevisst utelatt
 ```
 
