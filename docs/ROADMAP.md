@@ -162,6 +162,13 @@ reell bug i hvitelisten eller en `functions.py`/`np`-bivirkning.
 
 ## Diverse / uavklart
 
+- [ ] **Publiser-flyten og datasett-sidebaren (openstat, Hans tenker):** «Publiser
+      dokument (HTML)» injiserer i dag `#options.view = output-only` automatisk.
+      Skal den også injisere `#options.data_sidebar = False` (nytt direktiv
+      2026-07-24 — skjuler panel + åpne-tab)? Publiserte dokumenter er trolig
+      akkurat tilfellet der sidebaren aldri er ønsket — men avvent Hans'
+      vurdering før auto-injeksjon.
+
 - [ ] Pandas-basert GUI som egen modus (Hans' idé — holdes adskilt fra
       jamovi-modus, som skal forbli tro mot ekte jamovi/R)
 - [ ] «Kjør»-knappen reinitialiserer Python-tolken hver gang (modus-uavhengig,
