@@ -160,6 +160,31 @@ reell bug i hvitelisten eller en `functions.py`/`np`-bivirkning.
       sensitive kilder ikke koblet på. (Ligger utenfor disse tre repoene —
       hører til der `m2py_remote` deployes som tjeneste.)
 
+## Variabel-montering (openstat) — neste steg
+
+*Status 2026-07-24: # connect/create-dataset/import/join virker i ALLE språk
+(DuckDB-wasm som felles motor, pushdown for parquet/csv, synk til pandas/
+pandas_brython/pandas_mpy/arquero/data.frame); format(data.table|tibble) i R;
+«Tilkoblede kilder»-seksjon i sidebaren (DESCRIBE uten nedlasting) + tab etter
+alias/. Se openstats commits 35b7f2d + dd46e58.*
+
+- [ ] **format(duckdb)** — montert datasett som view i DuckDB-katalogen i
+      stedet for å materialiseres i språkets dataframe: null minnekost,
+      spørringer henter fortsatt bare kolonnene de trenger (range requests).
+      Interop finnes allerede (`# use <navn> from duckdb`, FromDuck-sidebar).
+      DEN ENE WRINKELEN: øktene startes ferske per kjøring — trenger et lite
+      JS-register {navn: sql} som re-registrerer viewene ved hver øktstart
+      (begge øktstartpunktene: duck-native begin + _run_duck_sql). Liten økt.
+- [ ] **API-kilder som monteringskilder (SSB Statistikkbanken først)** —
+      nytt connect-kind for PxWeb/JSON-stat: `# connect <tabell> as x,
+      kind(pxweb)`. Metadata-endepunktet gir dimensjoner/mål UTEN nedlasting
+      → mater «Tilkoblede kilder»-seksjonen og tab-fullføringen direkte;
+      `# import x/Folkemengde into panel` bygger API-spørring og leverer
+      kolonneform (alt nedstrøms er ferdig bygget). KREVER composite keys:
+      SSB-data er flerdimensjonale paneler, så `create-dataset` må utvides
+      til `key(region aar)` og kompilatoren til `USING (a, b)` — gjøres
+      ordentlig, egen økt. Eurostat/OECD kan gjenbruke adapterformen etterpå.
+
 ## Diverse / uavklart
 
 - [ ] **Publiser-flyten og datasett-sidebaren (openstat, Hans tenker):** «Publiser
