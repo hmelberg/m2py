@@ -357,6 +357,72 @@ def test_explode():
     assert _norm_series(b) == _norm_series(r)
 
 
+
+
+# ── attrs: fri metadata på frame/serie (2026-07-26, runde 2) ───────────────
+# pandas' attrs er den slotten som er MENT for kildehenvisning, lisens,
+# hentetidspunkt o.l., og den propagerer bedre enn ryktet: den overlever
+# kolonnevalg, copy(), groupby-aggregat og to_frame(), og arves av serier
+# hentet ut av framen. Shimen speiler den oppførselen.
+
+def test_attrs_exists_and_defaults_empty():
+    for pd in (bpd, rpd):
+        df = pd.DataFrame(dict(DATA))
+        assert df.attrs == {}, pd
+        assert pd.Series([1, 2]).attrs == {}, pd
+
+
+def test_attrs_propagates_like_pandas():
+    for pd in (bpd, rpd):
+        df = pd.DataFrame(dict(DATA))
+        df.attrs['kilde'] = 'ssb/07459'
+        assert df.copy().attrs == {'kilde': 'ssb/07459'}, ('copy', pd)
+        assert df[['v', 'w']].attrs == {'kilde': 'ssb/07459'}, ('kolonnevalg', pd)
+        assert df['v'].attrs == {'kilde': 'ssb/07459'}, ('serie arver', pd)
+        assert df['v'].to_frame().attrs == {'kilde': 'ssb/07459'}, ('to_frame', pd)
+        assert df.head(2).attrs == {'kilde': 'ssb/07459'}, ('head', pd)
+        assert df.sort_values('v').attrs == {'kilde': 'ssb/07459'}, ('sort_values', pd)
+
+
+def test_attrs_is_not_shared_between_frames():
+    # Egen dict per objekt — ellers ville metadata lekke mellom datasett.
+    for pd in (bpd, rpd):
+        a, b = pd.DataFrame({'x': [1]}), pd.DataFrame({'x': [1]})
+        a.attrs['kilde'] = 'A'
+        assert b.attrs == {}, pd
+        c = a.copy()
+        c.attrs['kilde'] = 'C'
+        assert a.attrs['kilde'] == 'A', ('kopi deler dict', pd)
+
+
+def test_series_attrs_survives_operations():
+    for pd in (bpd, rpd):
+        s = pd.Series([3, 1, 2], name='v')
+        s.attrs['enhet'] = 'kroner'
+        assert s.copy().attrs == {'enhet': 'kroner'}, pd
+        assert s.sort_values().attrs == {'enhet': 'kroner'}, pd
+        assert s.head(2).attrs == {'enhet': 'kroner'}, pd
+
+
+def test_dataframe_name_survives_copy_and_selection():
+    # DataFrame.name fantes, men forsvant ved copy()/kolonnevalg — den var
+    # dermed ubrukelig som brukermetadata. (pandas har ikke df.name i det
+    # hele tatt, så dette testes bare mot shimen.)
+    df = bpd.DataFrame(dict(DATA))
+    df.name = 'mitt_datasett'
+    assert df.copy().name == 'mitt_datasett'
+    assert df[['v', 'w']].name == 'mitt_datasett'
+
+
+def test_groupby_still_uses_name_for_group_keys():
+    # Regresjonsvakt: GroupBy.loop_func leser df.name som gruppenøkkel.
+    df = bpd.DataFrame(dict(DATA))
+    df.name = 'mitt_datasett'
+    gb = df.groupby('g')
+    assert [d.name for d in gb.dfs] == ['a', 'b', 'c']
+    assert list(gb['v'].sum().index) == ['a', 'b', 'c']
+
+
 if __name__ == '__main__':
     failed = 0
     for name, fn in sorted(globals().items()):

@@ -100,4 +100,23 @@ if _has_datetime:
 else:
     print('  (dato-testene hoppet over — datetime mangler i unix-bygget)')
 
+# attrs (2026-07-26 runde 2): fri metadata på frame/serie. NB dialektrisiko —
+# @property.setter må faktisk virke i MicroPython, ikke bare i CPython.
+_a = pd.DataFrame({'x': [1, 2], 'y': ['a', 'b']})
+assert _a.attrs == {}
+_a.attrs['kilde'] = 'ssb/07459'
+assert _a.copy().attrs == {'kilde': 'ssb/07459'}, 'attrs overlevde ikke copy()'
+assert _a[['x']].attrs == {'kilde': 'ssb/07459'}, 'attrs overlevde ikke kolonnevalg'
+assert _a['x'].attrs == {'kilde': 'ssb/07459'}, 'serien arvet ikke attrs'
+assert _a.head(1).attrs == {'kilde': 'ssb/07459'}, 'attrs overlevde ikke head()'
+_a.attrs = {'bare': 'denne'}          # setteren
+assert _a.attrs == {'bare': 'denne'}, 'property-setteren virker ikke'
+_b = pd.DataFrame({'x': [1]})
+assert _b.attrs == {}, 'attrs lekker mellom framer'
+_a.name = 'mitt_datasett'
+assert _a.copy().name == 'mitt_datasett', 'name overlevde ikke copy()'
+_s = pd.Series([3, 1, 2], name='v')
+_s.attrs['enhet'] = 'kroner'
+assert _s.sort_values().attrs == {'enhet': 'kroner'}, 'serie-attrs overlevde ikke sortering'
+
 print('MPY-PANDAS-PARITET-RØYK OK')

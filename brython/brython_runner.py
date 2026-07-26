@@ -208,6 +208,17 @@ def _bind_datasets(spec_json):
                             for v in vals]
                         for k, vals in d['payload'].items()}
                 _shared_vars[name] = _pd.DataFrame(cols)
+            # `# meta`-direktivene (js/data-directives.js metaByTarget) legges
+            # på framen slik at BRUKERKODEN kan lese kildehenvisning/lisens,
+            # ikke bare sidebaren. Samme nøkkel og form i pyodide-modus, så
+            # skript er portable. df.name settes til aliaset — den overlever
+            # nå copy()/kolonnevalg.
+            _df = _shared_vars[name]
+            _df.name = name
+            _meta = d.get('meta') if hasattr(d, 'get') else None
+            if _meta:
+                _df.attrs['meta'] = _meta
+        return ''
         return ''
     except Exception:
         return traceback.format_exc()

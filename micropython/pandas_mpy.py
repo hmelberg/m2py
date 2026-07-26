@@ -1186,9 +1186,11 @@ class ILocDF:
             view = (_mkslice(0, step), _mkslice(0, len(name)))
 
         if isinstance(index, tuple) and isinstance(name, (str, int)):
-            return self.obj.series_from_data(data, index, name, view)
+            return self.obj.series_from_data(data, index, name, view,
+                                             attrs=self.obj._attrs)
         if isinstance(index, tuple) and isinstance(name, tuple):
-            return self.obj.from_data(data, index, name, view, step)
+            return self.obj.from_data(data, index, name, view, step,
+                                      attrs=self.obj._attrs)
         raise IndexError(
             "Unhandled params in DF .iloc getitem. Perhaps your are not referencing by index"
         )
@@ -1397,7 +1399,8 @@ class ILocSer:
             )
             view = self.obj.bound_slice(item)
             index = self.obj.index[item]
-            return self.obj.from_data(self.obj.data, index, self.obj.name, view)
+            return self.obj.from_data(self.obj.data, index, self.obj.name, view,
+                                      cat=self.obj._cat, attrs=self.obj._attrs)
 
         if isinstance(item, self.ITERABLE_1D + (self.obj.__class__,)):
             if is_bool(item):
@@ -1408,7 +1411,8 @@ class ILocSer:
             data = self.obj.values
             data = [data[i] if i is not None else nan for i in item]
             view = _mkslice(0, len(index), 1)
-            return self.obj.from_data(data, index, self.obj.name, view)
+            return self.obj.from_data(data, index, self.obj.name, view,
+                                      cat=self.obj._cat, attrs=self.obj._attrs)
         return self.obj.values[item]
 
     def __setitem__(self, item, value):
@@ -1637,10 +1641,12 @@ class Series:
     ITERABLE_1D = (list, set, tuple)
 
     @classmethod
-    def from_data(cls, data, index, name=None, view=_mkslice(None, None), cat=None):
+    def from_data(cls, data, index, name=None, view=_mkslice(None, None), cat=None,
+                  attrs=None):
         """
         Creates a Series from data and an index.
-        cat: CategoricalDtype som følger med videre (se _cat).
+        cat:   CategoricalDtype som følger med videre (se _cat).
+        attrs: fri metadata som følger med videre (se attrs-property).
         """
         self = cls()
         self.data = data  # full 1D dataset.
@@ -1650,6 +1656,9 @@ class Series:
         self.iloc = ILocSer(self)
         self.loc = LocSer(self)
         self._cat = cat
+        # KOPI, ikke referanse: to serier som deler dict ville lekket metadata
+        # mellom datasett.
+        self._attrs = dict(attrs) if attrs else None
         return self
 
     def __init__(self, data=None, index=None, name=None):
@@ -1682,6 +1691,7 @@ class Series:
         self.at = AtSer(self)
         self.iat = IAtSer(self)
         self._cat = None          # CategoricalDtype når serien er kategorisk
+        self._attrs = None        # fri metadata, lages ved første aksess
         self._pos = None          # {etikett: posisjon}-cache, se _pos_map()
         self._pos_for = None      # indekstuppelen _pos ble bygget fra
         self._pos_calls = 0       # enkeltoppslag siden sist bygg (se index_of)
@@ -1691,6 +1701,22 @@ class Series:
         if self._cat is not None:
             return self._cat
         return _infer_dtype(self.values)
+
+    @property
+    def attrs(self):
+        """
+        Fri metadata (pandas-semantikk): kildehenvisning, lisens,
+        hentetidspunkt … Følger med gjennom copy(), sortering, head/tail og
+        kolonneuthenting fra en DataFrame, slik pandas' attrs gjør.
+        Lages ved første aksess så tomme serier ikke betaler for en dict.
+        """
+        if self._attrs is None:
+            self._attrs = {}
+        return self._attrs
+
+    @attrs.setter
+    def attrs(self, value):
+        self._attrs = dict(value) if value else {}
 
     @property
     def cat(self):
@@ -1922,7 +1948,7 @@ class Series:
     def copy(self):
         ser = self.from_data(
             self.data[self.view], self.index, self.name, _mkslice(0, len(self.index), 1),
-            cat=self._cat
+            cat=self._cat, attrs=self._attrs
         )
         return ser
 
@@ -2057,7 +2083,8 @@ class Series:
         # Eksplisitt view: from_data-defaulten _mkslice(None, None) har step=None,
         # som knekker iloc-aritmetikken på det sorterte resultatet.
         return self.from_data(list(new_values), new_index, name=self.name,
-                              view=_mkslice(0, len(new_index), 1), cat=self._cat)
+                              view=_mkslice(0, len(new_index), 1), cat=self._cat,
+                              attrs=self._attrs)
 
     def unique(self):
         # Bevarer rekkefølgen verdiene først opptrer i (som pandas.unique) —
@@ -2604,7 +2631,12 @@ class Series:
         col = self.name if name is None else name
         if col is None:
             col = 0
-        return DataFrame({col: list(self.values)}, index=list(self.index))
+        df = DataFrame({col: list(self.values)}, index=list(self.index))
+        if self._attrs:
+            df.attrs = self._attrs
+        if self._cat is not None:
+            df._cats[col] = self._cat
+        return df
 
     def items(self):
         return zip(self.index, self.values)
@@ -3168,6 +3200,7 @@ class DataFrame:
         self.at = AtDF(self)
         self.iat = IAtDF(self)
         self._cats = {}   # {kolonnenavn: CategoricalDtype}
+        self._attrs = None   # fri metadata, lages ved første aksess (attrs)
 
         if data is None:
             return
@@ -3213,13 +3246,16 @@ class DataFrame:
         self.view = (_mkslice(0, self.shape[0]), _mkslice(0, self.shape[1]))
 
     @classmethod
-    def from_data(cls, data, index, columns, view, step):
+    def from_data(cls, data, index, columns, view, step, attrs=None, name=None):
         self = cls()
         self.data = data
         self.columns = columns
         self.index = index
         self.view = view
         self.step = step
+        # KOPI, ikke referanse — se Series.from_data.
+        self._attrs = dict(attrs) if attrs else None
+        self.name = name
         self.shape = (
             self.view[0].stop - self.view[0].start,
             self.view[1].stop - self.view[1].start,
@@ -3234,8 +3270,8 @@ class DataFrame:
         return cls(*args, **kwargs)
 
     @classmethod
-    def series_from_data(cls, *args):
-        return Series.from_data(*args)
+    def series_from_data(cls, *args, **kwargs):
+        return Series.from_data(*args, **kwargs)
 
     def __str__(self):
         try:
@@ -3319,15 +3355,21 @@ class DataFrame:
         res = self.loc[:, cols]
         # Kategori-metadata lever på framen (_cats) og må hektes på serien
         # som leveres ut, ellers mister df['grp'] kategorirekkefølgen.
+        # attrs/name arves på samme sted (pandas: df['a'].attrs == df.attrs).
         cats = self._cats
-        if cats:
-            if isinstance(res, Series):
-                try:
-                    if cols in cats:
-                        res._cat = cats[cols]
-                except TypeError:
-                    pass
-            elif isinstance(res, DataFrame):
+        if isinstance(res, Series):
+            if self._attrs:
+                res._attrs = dict(self._attrs)
+            try:
+                if cats and cols in cats:
+                    res._cat = cats[cols]
+            except TypeError:
+                pass
+        elif isinstance(res, DataFrame):
+            if self._attrs:
+                res._attrs = dict(self._attrs)
+            res.name = self.name
+            if cats:
                 res._cats = dict((c, cats[c]) for c in res.columns if c in cats)
         return res
     
@@ -3607,7 +3649,8 @@ class DataFrame:
         :return:
         """
         df = DataFrame.from_data(
-            self.data, self.index, self.columns, self.view, self.step
+            self.data, self.index, self.columns, self.view, self.step,
+            attrs=self._attrs, name=self.name
         )
         df._trim_to_view()
         df._cats = dict(self._cats)
@@ -3950,7 +3993,7 @@ class DataFrame:
                 return tuple(keys)
 
             order = sorted(range(self.shape[0]), key=key_for_row)
-            return self.iloc[order, :]
+            return self._inherit_meta(self.iloc[order, :])
         else:
             if axis == 0:
                 it = self.itercols
@@ -3970,7 +4013,7 @@ class DataFrame:
             cp = self.class_init(res, columns=cols)
             if axis == 0:
                 cp = cp.transpose()
-            return cp
+            return self._inherit_meta(cp)
 
     def reset_index(self, drop=False):
         cp = self.copy()
@@ -4298,15 +4341,39 @@ class DataFrame:
     def dtypes(self):
         return Series([self[c].dtype for c in self.columns], index=list(self.columns))
 
+    @property
+    def attrs(self):
+        """
+        Fri metadata (pandas-semantikk): kildehenvisning, lisens,
+        hentetidspunkt … Følger med gjennom copy(), kolonnevalg, head/tail og
+        sortering, og ARVES av serier hentet ut av framen — samme oppførsel
+        som pandas' attrs. `# meta`-direktivene legges her under nøkkelen
+        'meta' av runnerens _bind_datasets().
+        """
+        if self._attrs is None:
+            self._attrs = {}
+        return self._attrs
+
+    @attrs.setter
+    def attrs(self, value):
+        self._attrs = dict(value) if value else {}
+
     # ── kolonnevise verb ─────────────────────────────────────────────────
     # Alle disse er «samme Series-metode på hver kolonne»; _colwise holder
     # indeks og kolonnerekkefølge samlet ett sted.
+
+    def _inherit_meta(self, other):
+        """Kopier attrs/name til en avledet frame (pandas beholder attrs)."""
+        if self._attrs:
+            other._attrs = dict(self._attrs)
+        other.name = self.name
+        return other
 
     def _colwise(self, method, *args, **kwargs):
         out = {}
         for c in self.columns:
             out[c] = list(getattr(self[c], method)(*args, **kwargs).values)
-        return DataFrame(out, index=list(self.index))
+        return self._inherit_meta(DataFrame(out, index=list(self.index)))
 
     def shift(self, periods=1, fill_value=None):
         return self._colwise('shift', periods, fill_value)

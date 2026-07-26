@@ -256,3 +256,50 @@ Tre nivåer, alle må være grønne før en oppgave regnes som ferdig:
 I tillegg en **budsjett-test** med romslig tak, slik at vekst i kjernefilene
 blir et synlig og bevisst valg. Taket kan heves når det er riktig — det skal
 begrunnes i commit-meldingen, ikke forsvares.
+
+---
+
+## Runde 2 — metadata (`attrs`, `# meta`, dtypes i UI)
+
+Lagt til etter spørsmål fra Hans om hvorvidt shimen har `.name` og liknende
+metadata-slots. Kartleggingen fant:
+
+- **`Series.name`** fantes og propagerte godt.
+- **`DataFrame.name`** fantes, men forsvant ved `copy()` og kolonnevalg — og
+  slotten er dessuten i bruk av `groupby`, som legger gruppenøkkelen der.
+  Den var altså ikke brukbar som brukermetadata.
+- **`attrs`, `flags`, `index.name`, `columns.name`** manglet helt.
+- **`# meta` brukte ingenting av pandas' metadata.** Direktivet parses av
+  `js/data-directives.js`, flettes av `js/meta-info.js` og rendres i
+  sidebaren — det krysset aldri inn i Python, verken shim eller Pyodide.
+
+### Valg
+
+**`attrs` som fri dict på `Series` og `DataFrame`**, med pandas' propagering
+— verifisert mot ekte pandas 2.3.3, som holder bedre enn dokumentasjonens
+«eksperimentell» tilsier: den overlever kolonnevalg, `copy()`,
+groupby-aggregat og `to_frame()`, og arves av serier hentet ut av framen.
+Dict-en lages ved første aksess og **kopieres** ved avledning — delt
+referanse ville lekket metadata mellom datasett.
+
+`index.name`/`columns.name` er fortsatt utelatt: indeksen er en ren tuple, så
+det krever en Index-innpakning. Egen vurdering hvis behovet melder seg.
+
+**`# meta` kobles inn i `attrs`.** Ny `DataDirectives.metaByTarget(script)`
+former direktivene per alias til `{text, links, variables}`; motorenes
+`buildDatasetSpec()` hekter formen på spec-oppføringen; runnerens
+`_bind_datasets()` legger den på `df.attrs['meta']` og setter `df.name` til
+aliaset. Brukerkoden kan dermed lese kildehenvisningen, ikke bare sidebaren —
+og siden nøkkelen er `attrs`, virker samme skript i Pyodide-modus.
+
+Hektingen er guardet i begge ledd: mangler `DataDirectives` (node-testene) or
+kaster formingen, kjøres datasettet uten metadata. Metadata er pynt og skal
+aldri felle en kjøring.
+
+**Ekte dtyper i UI-et.** `_dataset_info()` returnerte `'dtypes': {}` hardkodet
+fordi shimen ikke hadde dtype-begrep, og `_dataset_rows()` gjettet selv med en
+inferens som bare skilte `float64` fra `object` — og bare over de VISTE radene.
+Begge spør nå shimen. Bieffekt verdt å merke seg: sidebarens ABC/123-merke
+kalte `pandasDtypeIsStringLike('')` for alle variabler i brython/micropython-
+modus, som gir `false` — **alle tekstkolonner var merket som numeriske**. Det
+er rettet av at dtypene nå er ekte.
