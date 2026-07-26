@@ -84,3 +84,23 @@ def test_sklearn_alias():
     assert scan('import sklearn') == ['sklearn_brython']
     assert scan('from sklearn.cluster import KMeans') == ['sklearn_brython']
     assert scan('from sklearn import metrics') == ['sklearn_brython']
+
+
+# ── token-basert lasting (P0-4) ────────────────────────────────────────────
+# `import pandas` skal IKKE lenger dra med seg plotly (144 KB); plotly lastes
+# først når koden faktisk nevner .plot.
+# Spec: docs/superpowers/specs/2026-07-26-pandas-parity-design.md
+
+def test_pandas_alone_does_not_pull_plotly():
+    code = 'import pandas_brython as pd\ndf = pd.DataFrame({"a": [1]})'
+    assert scan(code) == ['pandas_brython']
+
+
+def test_plot_token_pulls_plotly():
+    needed = scan('import pandas_brython as pd\ndf = pd.DataFrame({"a": [1]})\ndf.plot.bar()')
+    assert 'plotly_express_brython' in needed
+    assert 'pandas_brython' in needed
+
+
+def test_plot_token_without_pandas_import():
+    assert 'plotly_express_brython' in scan('ser.plot(kind="bar")')

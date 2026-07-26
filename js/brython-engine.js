@@ -38,8 +38,8 @@
   var LIB_REGISTRY = {
     // pandas_brython.py:15 har en modulnivå try-import av plotly (df.plot);
     // uten deps-oppføringen feiler den stille ved lazy registrering.
-    pandas_brython:         { aliases: [], deps: ['plotly_express_brython'], js: [] },
-    plotly_express_brython: { aliases: [], deps: [], js: [] },
+    pandas_brython:         { aliases: [], deps: [], js: [] },
+    plotly_express_brython: { aliases: [], deps: [], js: [], tokens: ['.plot'] },
     // aliasrekkefølgen er bindende: 'matplotlib' (plain) må registreres før
     // den dottede 'matplotlib.pyplot' (trenger forelderen i sys.modules)
     matplotlib_brython:     { aliases: ['matplotlib', 'matplotlib.pyplot'],
@@ -85,6 +85,16 @@
         }
       }
       if (canonical && needed.indexOf(canonical) === -1) needed.push(canonical);
+    }
+    // Token-trigger: noen biblioteker brukes uten at de importeres ved navn
+    // (df.plot henter plotly). Over-matching er ufarlig — det laster et
+    // bibliotek koden ikke bruker — samme avveining som for importer i strenger.
+    for (var key in LIB_REGISTRY) {
+      var toks = LIB_REGISTRY[key].tokens;
+      if (!toks) continue;
+      for (var ti = 0; ti < toks.length; ti++) {
+        if (code.indexOf(toks[ti]) !== -1) { add(key); break; }
+      }
     }
     var re = /^[ \t]*(?:from[ \t]+([A-Za-z_][A-Za-z0-9_.]*)|import[ \t]+([^#\r\n]+))/gm;
     var m, parts, i, t;

@@ -76,10 +76,15 @@
 #      px` — en ren kopi-feil fra pandas_brython.py, usett i CPython-testene
 #      siden importen er try/except-guardet og ingen test faktisk kaller
 #      `.plot.*`. Nå som Task 5 har levert micropython/plotly_express_mpy.py,
-#      byttet til `import plotly_express_mpy as px` slik at motorens
-#      LIB_REGISTRY-avhengighet (pandas_mpy → plotly_express_mpy, deklarert
-#      i js/micropython-engine.js) faktisk stemmer med hva modulen prøver å
-#      importere.
+#      byttet til plotly_express_mpy. Per 2026-07-26 er importen FLYTTET UT av
+#      modulnivå til den late _px(): pandas_mpy har ikke lenger plotly som
+#      deps i LIB_REGISTRY, og motoren laster plotly på token-treffet '.plot'
+#      i brukerkoden i stedet.
+#  15. (2026-07-26, paritetsarbeidet) MicroPythons re-modul mangler
+#      finditer, fullmatch og .groups/.groupindex på kompilerte mønstre.
+#      .str-metodene går derfor via _re_finditer/_full_match/_group_count,
+#      og datoene via _strptime siden wasm-buildets datetime mangler
+#      strptime. Se docs/superpowers/specs/2026-07-26-pandas-parity-design.md
 #
 # (Se filhode-kommentarene ved hvert enkelt endringspunkt for detaljer.)
 
@@ -157,11 +162,27 @@ import sys
 # MicroPython-felle: _LINESEP finnes ikke (verken unix- eller wasm-bygg).
 _LINESEP = getattr(os, 'linesep', '\n')
 
-try:
-  import plotly_express_mpy as px
-except:
-  print("failed to import plotly_express_mpy")
-  pass
+# plotly importeres IKKE på modulnivå (2026-07-26). Den er 149 KB kilde som
+# før ble hentet på hver eneste `import pandas_mpy`, uansett om brukeren
+# plottet. Motoren laster den nå på token-treff '.plot' i brukerkoden
+# (LIB_REGISTRY.tokens i js/micropython-engine.js), og Plot-metodene henter
+# modulen via _px() ved første kall — da ligger den i sys.modules.
+_px_mod = None
+
+
+def _px():
+    global _px_mod
+    if _px_mod is None:
+        try:
+            import plotly_express_mpy as _m
+        except ImportError:
+            raise RuntimeError(
+                "plott krever plotly_express_mpy, som ikke ble lastet. "
+                "Motoren laster den når koden nevner '.plot' — skriv f.eks. "
+                "df.plot.bar(...) direkte, eller legg til "
+                "'import plotly_express_mpy' øverst.")
+        _px_mod = _m
+    return _px_mod
 try:
     from datetime import datetime
 except ImportError:              # MicroPython (unix-bygg mangler datetime helt)
@@ -352,6 +373,493 @@ class NaN:
 
 
 nan = NaN()
+
+
+# ── dtype-lag ──────────────────────────────────────────────────────────────
+# Spec: docs/superpowers/specs/2026-07-26-pandas-parity-design.md
+#
+# dtype er en VANLIG STRENG, ikke et dtype-objekt: MicroPython kan ikke trygt
+# subklasse str, og alt som betyr noe i praksis (str(s.dtype) == 'int64',
+# s.dtype == 'object') oppfører seg likt. Utledes ved aksess, ikke cachet —
+# det er O(n), samme klasse som sum(), og dtype kalles aldri i indre løkker.
+# Caching ville krevd invalidering på tvers av view/data-delingen.
+
+def _is_na(v):
+    """nan-sentinelen, None, eller en ekte float-nan."""
+    if v is nan or v is None:
+        return True
+    return isinstance(v, float) and v != v
+
+
+def _infer_dtype(values):
+    """Verdiliste → pandas-dtype-navn som streng."""
+    seen_bool = seen_int = seen_float = seen_str = seen_dt = seen_other = False
+    has_na = False
+    n = 0
+    for v in values:
+        n += 1
+        if _is_na(v):
+            has_na = True
+        elif isinstance(v, bool):          # FØR int: bool er subklasse av int
+            seen_bool = True
+        elif isinstance(v, int):
+            seen_int = True
+        elif isinstance(v, float):
+            seen_float = True
+        elif isinstance(v, str):
+            seen_str = True
+        elif datetime is not None and isinstance(v, datetime):
+            seen_dt = True
+        else:
+            seen_other = True
+    if n == 0:
+        return 'object'
+    kinds = 0
+    for flag in (seen_bool, seen_int or seen_float, seen_str, seen_dt, seen_other):
+        if flag:
+            kinds += 1
+    if kinds > 1 or seen_str or seen_other:
+        return 'object'
+    if seen_dt:
+        return 'datetime64[ns]'
+    if seen_bool:
+        return 'object' if has_na else 'bool'
+    if seen_int or seen_float:
+        # pandas promoterer int→float så snart nan er med
+        return 'float64' if (seen_float or has_na) else 'int64'
+    return 'object' if has_na else 'object'
+
+
+# Navn → callable for astype(). 'category' og 'datetime64[ns]' er
+# spesialtilfeller og håndteres i Series.astype, ikke her.
+_ASTYPE = {
+    'int': int, 'int8': int, 'int16': int, 'int32': int, 'int64': int,
+    'uint8': int, 'uint16': int, 'uint32': int, 'uint64': int, 'Int64': int,
+    'float': float, 'float16': float, 'float32': float, 'float64': float,
+    'Float64': float,
+    'str': str, 'string': str, 'unicode': str,
+    'bool': bool, 'boolean': bool,
+    'object': None,          # None = identitet
+}
+
+
+def _astype_fn(dtype):
+    """
+    dtype (callable eller navn) → (callable_eller_None, spesialnøkkel).
+    Kaster TypeError med en tydelig melding for ukjente navn — før
+    2026-07-26 fikk man «'str' object is not callable», som var kryptisk.
+    """
+    if callable(dtype):
+        return dtype, None
+    name = str(dtype)
+    if name == 'category':
+        return None, 'category'
+    if name.startswith('datetime64'):
+        return None, 'datetime'
+    if name in _ASTYPE:
+        return _ASTYPE[name], None
+    raise TypeError(
+        "astype: ukjent dtype %r. Støttede navn: %s, 'category', 'datetime64[ns]'."
+        % (dtype, ', '.join(sorted(_ASTYPE))))
+
+
+# ── Categorical ────────────────────────────────────────────────────────────
+# Kategori-info lagres som METADATA ved siden av verdiene (Series._cat,
+# DataFrame._cats), ikke som codes-heltall: datamodellen er en flat 1-D liste
+# i kolonne-major, og å bytte verdiene med codes ville berørt hele modellen.
+# Verdiene i data forblir etikettene selv. Gevinsten er riktig REKKEFØLGE i
+# sort_values/groupby/value_counts — ikke minne eller fart.
+
+class CategoricalDtype:
+    def __init__(self, categories, ordered=False):
+        self.categories = tuple(categories)
+        self.ordered = bool(ordered)
+
+    def __str__(self):
+        return 'category'
+
+    def __repr__(self):
+        return "CategoricalDtype(categories=%r, ordered=%r)" % (
+            list(self.categories), self.ordered)
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return other == 'category'
+        return (isinstance(other, CategoricalDtype)
+                and self.categories == other.categories
+                and self.ordered == other.ordered)
+
+    def code_of(self, value):
+        """Posisjon i categories, eller -1 for nan/ukjent (som pandas)."""
+        if _is_na(value):
+            return -1
+        try:
+            return self.categories.index(value)
+        except ValueError:
+            return -1
+
+
+class CAT:
+    """.cat-accessoren. Krever at serien har _cat satt."""
+
+    def __init__(self, obj):
+        self.obj = obj
+        if getattr(obj, '_cat', None) is None:
+            raise AttributeError("Can only use .cat accessor with a 'category' dtype")
+
+    @property
+    def categories(self):
+        return self.obj._cat.categories
+
+    @property
+    def ordered(self):
+        return self.obj._cat.ordered
+
+    @property
+    def codes(self):
+        cat = self.obj._cat
+        return self.obj.__class__([cat.code_of(v) for v in self.obj.values],
+                                  self.obj.index)
+
+    def _with(self, dtype):
+        res = self.obj.copy()
+        res._cat = dtype
+        return res
+
+    def rename_categories(self, new):
+        old = self.obj._cat
+        if isinstance(new, dict):
+            mapping = dict(new)
+            names = tuple(mapping.get(c, c) for c in old.categories)
+        else:
+            names = tuple(new)
+            mapping = dict(zip(old.categories, names))
+        res = self.obj.apply(lambda v: v if _is_na(v) else mapping.get(v, v))
+        res._cat = CategoricalDtype(names, old.ordered)
+        return res
+
+    def add_categories(self, new):
+        if not isinstance(new, (list, tuple)):
+            new = [new]
+        old = self.obj._cat
+        return self._with(CategoricalDtype(old.categories + tuple(new), old.ordered))
+
+    def remove_categories(self, drop):
+        if not isinstance(drop, (list, tuple)):
+            drop = [drop]
+        old = self.obj._cat
+        keep = tuple(c for c in old.categories if c not in drop)
+        res = self.obj.apply(lambda v: nan if v in drop else v)
+        res._cat = CategoricalDtype(keep, old.ordered)
+        return res
+
+    def as_ordered(self):
+        return self._with(CategoricalDtype(self.obj._cat.categories, True))
+
+    def as_unordered(self):
+        return self._with(CategoricalDtype(self.obj._cat.categories, False))
+
+    def reorder_categories(self, new, ordered=None):
+        old = self.obj._cat
+        return self._with(CategoricalDtype(
+            new, old.ordered if ordered is None else ordered))
+
+
+def _sort_key(ser):
+    """
+    Sorteringsnøkkel for en serie: kategoriposisjon for kategoriske serier,
+    ellers verdien selv. Uten dette sorteres cut()-etiketter alfabetisk —
+    '(10, 20]' før '(2, 10]', og 'høy' før 'lav'.
+    """
+    cat = getattr(ser, '_cat', None)
+    if cat is None:
+        return None
+    return cat.code_of
+
+
+# ── datohjelpere ───────────────────────────────────────────────────────────
+# Ren aritmetikk, ingen avhengigheter: MicroPython-wasm HAR en datetime-klasse
+# men mangler strptime, og timedelta kan ikke forutsettes. Alt her regner på
+# (år, måned, dag) og proleptiske gregorianske dagnummer i stedet.
+
+_MONTH_NAMES = ('January', 'February', 'March', 'April', 'May', 'June', 'July',
+                'August', 'September', 'October', 'November', 'December')
+_DAY_NAMES = ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday',
+              'Saturday', 'Sunday')
+_MONTH_ABBR = tuple(m[:3] for m in _MONTH_NAMES)
+_DAYS_BEFORE = (0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334)
+
+
+def _is_leap(year):
+    return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+
+
+def _days_in_month(year, month):
+    if month == 2:
+        return 29 if _is_leap(year) else 28
+    return 31 if month in (1, 3, 5, 7, 8, 10, 12) else 30
+
+
+def _day_of_year(year, month, day):
+    n = _DAYS_BEFORE[month - 1] + day
+    if month > 2 and _is_leap(year):
+        n += 1
+    return n
+
+
+def _to_ordinal(year, month, day):
+    """Proleptisk gregoriansk dagnummer (1 == 0001-01-01), som date.toordinal."""
+    y = year - 1
+    return y * 365 + y // 4 - y // 100 + y // 400 + _day_of_year(year, month, day)
+
+
+def _from_ordinal(n):
+    """Invers av _to_ordinal → (år, måned, dag)."""
+    year = (n * 400) // 146097 + 1
+    while _to_ordinal(year, 1, 1) > n:
+        year -= 1
+    while _to_ordinal(year + 1, 1, 1) <= n:
+        year += 1
+    rest = n - _to_ordinal(year, 1, 1) + 1
+    month = 1
+    while month < 12 and rest > _days_in_month(year, month):
+        rest -= _days_in_month(year, month)
+        month += 1
+    return year, month, rest
+
+
+_STRPTIME_WIDTH = {'Y': 4, 'm': 2, 'd': 2, 'H': 2, 'M': 2, 'S': 2, 'y': 2,
+                   'j': 3, 'f': 6}
+
+
+def _strptime(text, fmt):
+    """
+    Minimal strptime for %Y %m %d %H %M %S %y %j %b %B %f og literaler.
+
+    MicroPython-wasm har en datetime-klasse UTEN strptime, så to_datetime var
+    i praksis ute av drift der. Denne brukes når datetime.strptime mangler
+    (og testes mot stdlib-strptime under CPython).
+    """
+    if datetime is None:
+        raise NotImplementedError('_strptime: datetime-klassen mangler i denne bygningen')
+    fields = {'Y': 1900, 'm': 1, 'd': 1, 'H': 0, 'M': 0, 'S': 0, 'f': 0}
+    doy = None
+    si = 0
+    fi = 0
+    n = len(text)
+    while fi < len(fmt):
+        ch = fmt[fi]
+        if ch != '%':
+            if si >= n or text[si] != ch:
+                raise ValueError('time data %r does not match format %r' % (text, fmt))
+            si += 1
+            fi += 1
+            continue
+        fi += 1
+        if fi >= len(fmt):
+            raise ValueError('stray %% in format %r' % fmt)
+        code = fmt[fi]
+        fi += 1
+        if code == '%':
+            if si >= n or text[si] != '%':
+                raise ValueError('time data %r does not match format %r' % (text, fmt))
+            si += 1
+            continue
+        if code in ('b', 'B'):
+            names = _MONTH_ABBR if code == 'b' else _MONTH_NAMES
+            found = None
+            for i, name in enumerate(names):
+                if text[si:si + len(name)].lower() == name.lower():
+                    found = i + 1
+                    si += len(name)
+                    break
+            if found is None:
+                raise ValueError('time data %r does not match format %r' % (text, fmt))
+            fields['m'] = found
+            continue
+        if code not in _STRPTIME_WIDTH:
+            raise ValueError('_strptime: direktivet %%%s støttes ikke' % code)
+        width = _STRPTIME_WIDTH[code]
+        start = si
+        while si < n and si - start < width and text[si].isdigit():
+            si += 1
+        if si == start:
+            raise ValueError('time data %r does not match format %r' % (text, fmt))
+        value = int(text[start:si])
+        if code == 'y':
+            fields['Y'] = value + (2000 if value < 69 else 1900)
+        elif code == 'j':
+            doy = value
+        else:
+            fields[code] = value
+    if si != n:
+        raise ValueError('unconverted data remains: %r' % text[si:])
+    if doy is not None:
+        year, month, day = _from_ordinal(_to_ordinal(fields['Y'], 1, 1) + doy - 1)
+        fields['Y'], fields['m'], fields['d'] = year, month, day
+    return datetime(fields['Y'], fields['m'], fields['d'],
+                    fields['H'], fields['M'], fields['S'], fields['f'])
+
+
+_FREQ_SECONDS = {'D': 86400, 'd': 86400, 'H': 3600, 'h': 3600,
+                 'T': 60, 'min': 60, 'S': 1, 's': 1, 'W': 604800}
+
+
+def _freq_seconds(freq):
+    """pandas-frekvensalias → sekunder. Tall foran aliaset støttes ('15min')."""
+    text = str(freq).strip()
+    num = ''
+    while text and text[0].isdigit():
+        num += text[0]
+        text = text[1:]
+    if text not in _FREQ_SECONDS:
+        raise ValueError(
+            "ukjent frekvens %r. Støttede: %s (evt. med tall foran, f.eks. '15min')"
+            % (freq, ', '.join(sorted(_FREQ_SECONDS))))
+    return int(num or 1) * _FREQ_SECONDS[text]
+
+
+def _parse_dt(text, fmt):
+    """strptime via stdlib når den finnes, ellers _strptime."""
+    native = getattr(datetime, 'strptime', None) if datetime is not None else None
+    if native is not None:
+        return native(text, fmt)
+    return _strptime(text, fmt)
+
+
+# ── regex-hjelpere ─────────────────────────────────────────────────────────
+# MicroPythons re-modul er en delmengde: ingen finditer, ingen fullmatch,
+# ingen .groups/.groupindex på det kompilerte mønsteret, og IGNORECASE
+# mangler i unix-bygget. Alt .str-koden trenger går derfor via disse.
+
+def _ignorecase():
+    return getattr(re, 'IGNORECASE', 0)
+
+
+_RE_BRACES_OK = None
+
+
+def _has_brace_quantifier(pat):
+    """Finnes en {m,n}-kvantor i mønsteret? (Literal { teller ikke.)"""
+    i = pat.find('{')
+    while i != -1:
+        if i + 1 < len(pat) and pat[i + 1].isdigit():
+            return True
+        i = pat.find('{', i + 1)
+    return False
+
+
+def _re_compile(pat, flags=0):
+    """
+    re.compile med vakt mot MicroPythons STILLE regex-hull: {m,n}-kvantorer
+    matcher ingenting i stedet for å feile, så `.str.contains(r'\\d{4}')` ga
+    tomt resultat uten et eneste hint om hvorfor. Vakten koster én probe én
+    gang, og er en no-op i CPython/Brython.
+    """
+    global _RE_BRACES_OK
+    if _RE_BRACES_OK is None:
+        try:
+            _RE_BRACES_OK = re.compile('a{2}').search('aa') is not None
+        except Exception:
+            _RE_BRACES_OK = False
+    if not _RE_BRACES_OK and _has_brace_quantifier(pat):
+        raise ValueError(
+            "regex-mønsteret %r bruker en {m,n}-kvantor, som re-modulen i "
+            "denne kjøremotoren ikke støtter — den ville matchet ingenting. "
+            "Gjenta tegnet i stedet, f.eks. \\d\\d\\d\\d for \\d{4}." % pat)
+    return re.compile(pat, flags)
+
+
+def _re_finditer(rx, text):
+    """
+    Alle treff, som liste av match-objekter. Egen løkke over rx.search på
+    resten av strengen fordi MicroPythons re verken har finditer ELLER
+    .start()/.end() på match-objektet (bekreftet mot unix-bygget v1.28.0).
+    Posisjonen finnes derfor med str.find på selve treffteksten — riktig
+    fordi search alltid gir treffet lengst til venstre.
+    """
+    out = []
+    pos = 0
+    n = len(text)
+    while pos <= n:
+        rest = text[pos:]
+        m = rx.search(rest)
+        if m is None:
+            break
+        out.append(m)
+        matched = m.group(0)
+        at = rest.find(matched)
+        if at < 0:
+            break
+        step = at + len(matched) if matched else at + 1   # tomt treff: flytt én
+        if step <= 0:
+            step = 1
+        pos += step
+    return out
+
+
+def _pad_text(text, width, fillchar, side):
+    """
+    str.rjust/ljust/center finnes ikke i MicroPython — padding gjøres manuelt.
+    'both' følger CPythons center-formel (ekstra tegn til venstre når
+    marg & width er odde), så .str.pad(side='both') er identisk med pandas.
+    """
+    marg = width - len(text)
+    if marg <= 0:
+        return text
+    if side == 'left':
+        return fillchar * marg + text
+    if side == 'right':
+        return text + fillchar * marg
+    left = marg // 2 + (marg & width & 1)
+    return fillchar * left + text + fillchar * (marg - left)
+
+
+def _full_match(rx, text):
+    """
+    re.fullmatch-erstatning (mangler i MicroPython). Sammenlikner treffteksten
+    med hele strengen i stedet for å bruke .end(), som heller ikke finnes.
+    """
+    m = rx.match(text)
+    return m is not None and m.group(0) == text
+
+
+def _count_groups(pat):
+    """
+    Antall fangstgrupper i et mønster. Leses ut av mønsterteksten fordi
+    det kompilerte objektet ikke har .groups i alle dialekter.
+    """
+    n = 0
+    i = 0
+    size = len(pat)
+    while i < size:
+        c = pat[i]
+        if c == '\\':
+            i += 2
+            continue
+        if c == '[':                  # tegnklasse — hopp til lukkende ]
+            i += 1
+            if i < size and pat[i] == '^':
+                i += 1
+            if i < size and pat[i] == ']':
+                i += 1
+            while i < size and pat[i] != ']':
+                if pat[i] == '\\':
+                    i += 1
+                i += 1
+        elif c == '(':
+            nxt = pat[i + 1:i + 2]
+            if nxt != '?':
+                n += 1
+            elif pat[i + 1:i + 4] == '?P<':
+                n += 1
+        i += 1
+    return n
+
+
+def _group_count(rx, pat):
+    got = getattr(rx, 'groups', None)
+    return _count_groups(pat) if got is None else got
 
 
 def is_bool(key):
@@ -1129,9 +1637,10 @@ class Series:
     ITERABLE_1D = (list, set, tuple)
 
     @classmethod
-    def from_data(cls, data, index, name=None, view=_mkslice(None, None)):
+    def from_data(cls, data, index, name=None, view=_mkslice(None, None), cat=None):
         """
-        Creates a Series from data and an index
+        Creates a Series from data and an index.
+        cat: CategoricalDtype som følger med videre (se _cat).
         """
         self = cls()
         self.data = data  # full 1D dataset.
@@ -1140,6 +1649,7 @@ class Series:
         self.view = view  # data[view] = the values
         self.iloc = ILocSer(self)
         self.loc = LocSer(self)
+        self._cat = cat
         return self
 
     def __init__(self, data=None, index=None, name=None):
@@ -1171,6 +1681,20 @@ class Series:
         self.plot = Plot(self)
         self.at = AtSer(self)
         self.iat = IAtSer(self)
+        self._cat = None          # CategoricalDtype når serien er kategorisk
+        self._pos = None          # {etikett: posisjon}-cache, se _pos_map()
+        self._pos_for = None      # indekstuppelen _pos ble bygget fra
+        self._pos_calls = 0       # enkeltoppslag siden sist bygg (se index_of)
+
+    @property
+    def dtype(self):
+        if self._cat is not None:
+            return self._cat
+        return _infer_dtype(self.values)
+
+    @property
+    def cat(self):
+        return CAT(self)
 
     def __setitem__(self, key, value):
         self.loc.__setitem__(key, value)
@@ -1258,34 +1782,74 @@ class Series:
         :return: list, slice, int
         """
         names = self.index
+        pos = None
 
         if isinstance(item, self.ITERABLE_1D + (self.__class__,)):
+            pos = self._pos_map()
 
             items = []
             for i in item:
-                try:
-                    items.append(names.index(i))
-                except ValueError:
-                    if isinstance(item, tuple):
-                        raise KeyError("%s not found in index." % i)
-                    else:
-                        items.append(None)
+                p = pos.get(i, -1)
+                if p >= 0:
+                    items.append(p)
+                elif isinstance(item, tuple):
+                    raise KeyError("%s not found in index." % i)
+                else:
+                    items.append(None)
             return items
         elif isinstance(item, slice):
-            try:
-                start = None if item.start is None else names.index(item.start)
-                stop = None if item.stop is None else names.index(item.stop)
-            except ValueError:
+            pos = self._pos_map()
+            start = None if item.start is None else pos.get(item.start, -1)
+            stop = None if item.stop is None else pos.get(item.stop, -1)
+            if start == -1 or stop == -1:
                 raise KeyError(
                     "At least one of the following values is not in the index: %s %s"
                     % (item.start, item.stop)
                 )
             return _mkslice(start, stop)
         else:
+            # Enkeltoppslag: å bygge et dict over hele indeksen koster mer enn
+            # ETT tuple.index-søk, så kartet brukes bare hvis det alt finnes.
+            # Etter noen oppslag på samme indeks lønner det seg likevel — da
+            # bygges det (typisk `for etikett in ...: s.loc[etikett]`).
+            if self._pos is not None and self._pos_for is names:
+                p = self._pos.get(item, -1)
+                return None if p < 0 else p
+            self._pos_calls += 1
+            if self._pos_calls >= 4:
+                p = self._pos_map().get(item, -1)
+                return None if p < 0 else p
             try:
                 return names.index(item)
             except ValueError:
                 return None
+
+    def _pos_map(self):
+        """
+        {etikett: posisjon}-oppslag, bygget latent og gjenbrukt så lenge
+        self.index er den SAMME tuppelen (identitetssjekk, ikke likhet).
+
+        Uten dette gjør index_of tuple.index() — O(n) per oppslag — og
+        DataFrame.sort_values, som slår opp n etiketter per kolonne, blir
+        kvadratisk: 4x data ga 15x tid før denne endringen.
+
+        Dupliserte etiketter: FØRSTE forekomst vinner, samme som tuple.index.
+        """
+        names = self.index
+        if self._pos_for is not names or self._pos is None:
+            self._pos_calls = 0
+            pos = {}
+            i = 0
+            for label in (names or ()):
+                try:
+                    if label not in pos:
+                        pos[label] = i
+                except TypeError:          # uhashbar etikett (liste o.l.)
+                    pass
+                i += 1
+            self._pos = pos
+            self._pos_for = names
+        return self._pos
 
     @property
     def values(self):
@@ -1357,7 +1921,8 @@ class Series:
 
     def copy(self):
         ser = self.from_data(
-            self.data[self.view], self.index, self.name, _mkslice(0, len(self.index), 1)
+            self.data[self.view], self.index, self.name, _mkslice(0, len(self.index), 1),
+            cat=self._cat
         )
         return ser
 
@@ -1427,8 +1992,24 @@ class Series:
         """
         return [self.bound_int(item) for item in iterable]
 
-    def astype(self, type_name, copy=True):
-        res = self.apply(type_name)
+    def astype(self, dtype, copy=True):
+        """
+        astype(int) OG astype('int') — strengformen er den vanlige i pandas og
+        feilet før 2026-07-26 med «'str' object is not callable», fordi
+        argumentet ble kalt direkte. Se _astype_fn/_ASTYPE.
+        """
+        fn, special = _astype_fn(dtype)
+        if special == 'category':
+            res = self.copy()
+            cats = _sorted_unique([v for v in res.values if not _is_na(v)])
+            res._cat = CategoricalDtype(cats, False)
+            return res
+        if special == 'datetime':
+            res = to_datetime(self)
+        elif fn is None:                    # 'object' = identitet
+            res = self.copy()
+        else:
+            res = self.apply(lambda v: v if _is_na(v) else fn(v))
         if copy:
             return res
         self.iloc[:] = res.values
@@ -1456,9 +2037,15 @@ class Series:
             del new_index[idx - i]
 
         reverse = not ascending
-        new_values, new_index = zip(
-            *sorted(zip(new_values, new_index), reverse=reverse)
-        )
+        keyfn = _sort_key(self)
+        if keyfn is None:
+            pairs = sorted(zip(new_values, new_index), reverse=reverse)
+        else:
+            # Kategorisk: sorter på kategoriposisjon, ikke på etiketten.
+            # Uten dette blir 'lav','middels','høy' til 'høy','lav','middels'.
+            pairs = sorted(zip(new_values, new_index),
+                           key=lambda pair: keyfn(pair[0]), reverse=reverse)
+        new_values, new_index = zip(*pairs)
 
         if na_position == "last":
             new_values = list(new_values) + [nan] * len(nan_index)
@@ -1470,12 +2057,17 @@ class Series:
         # Eksplisitt view: from_data-defaulten _mkslice(None, None) har step=None,
         # som knekker iloc-aritmetikken på det sorterte resultatet.
         return self.from_data(list(new_values), new_index, name=self.name,
-                              view=_mkslice(0, len(new_index), 1))
+                              view=_mkslice(0, len(new_index), 1), cat=self._cat)
 
     def unique(self):
         # Bevarer rekkefølgen verdiene først opptrer i (som pandas.unique) —
         # set() ga vilkårlig rekkefølge og dermed ustabile groupby-resultater.
-        return list(dict.fromkeys(self.values))
+        # Kategoriske serier bruker kategorirekkefølgen, som pandas.
+        vals = list(dict.fromkeys(self.values))
+        keyfn = _sort_key(self)
+        if keyfn is not None:
+            vals = sorted(vals, key=keyfn)
+        return vals
 
     def nunique(self, dropna=True):
         data = self.dropna().values if dropna else self.values
@@ -1686,7 +2278,14 @@ class Series:
         counted = _Counter(values)
         # most_common() gir pandas' synkende sortering; ties beholder
         # innsettingsrekkefølge (samme som pandas' stable sort).
-        items = counted.most_common() if sort else list(counted.items())
+        keyfn = _sort_key(self)
+        if keyfn is not None:
+            # Kategorisk: legg kategorirekkefølgen i bunn først, så bryter
+            # ties på kategori og ikke på tilfeldig innsettingsrekkefølge.
+            ordered = sorted(counted.items(), key=lambda kv: keyfn(kv[0]))
+            items = sorted(ordered, key=lambda kv: -kv[1]) if sort else ordered
+        else:
+            items = counted.most_common() if sort else list(counted.items())
         if sort and ascending:
             items = items[::-1]
         idx = [k for k, _c in items]
@@ -1894,6 +2493,122 @@ class Series:
         cp.data = out
         return cp
 
+    def _cum(self, fn, start):
+        cp = self.copy()
+        acc, out = start, []
+        for v in cp.values:
+            if _is_na(v):
+                out.append(nan)          # pandas: nan forblir, akkumuleringen fortsetter
+            else:
+                acc = v if acc is None else fn(acc, v)
+                out.append(acc)
+        cp.data = out
+        cp._cat = None
+        return cp
+
+    def cumprod(self):
+        return self._cum(lambda a, b: a * b, None)
+
+    def cummax(self):
+        return self._cum(lambda a, b: a if a > b else b, None)
+
+    def cummin(self):
+        return self._cum(lambda a, b: a if a < b else b, None)
+
+    def shift(self, periods=1, fill_value=None):
+        """Flytt verdiene n plasser; hull fylles med nan (eller fill_value)."""
+        vals = list(self.values)
+        n = len(vals)
+        pad = nan if fill_value is None else fill_value
+        if periods > 0:
+            out = [pad] * min(periods, n) + vals[:max(n - periods, 0)]
+        elif periods < 0:
+            k = -periods
+            out = vals[min(k, n):] + [pad] * min(k, n)
+        else:
+            out = vals
+        cp = self.copy()
+        cp.data = out
+        cp._cat = None
+        return cp
+
+    def diff(self, periods=1):
+        prev = self.shift(periods).values
+        out = [nan if (_is_na(a) or _is_na(b)) else a - b
+               for a, b in zip(self.values, prev)]
+        cp = self.copy()
+        cp.data = out
+        cp._cat = None
+        return cp
+
+    def pct_change(self, periods=1):
+        prev = self.shift(periods).values
+        out = []
+        for a, b in zip(self.values, prev):
+            if _is_na(a) or _is_na(b) or b == 0:
+                out.append(nan)
+            else:
+                out.append((a - b) / b)
+        cp = self.copy()
+        cp.data = out
+        cp._cat = None
+        return cp
+
+    def agg(self, func, *args, **kwargs):
+        """
+        agg('mean') | agg(['mean','max']) | agg(callable).
+        Liste gir en Series indeksert på funksjonsnavn, som pandas.
+        """
+        if isinstance(func, (list, tuple)):
+            names, vals = [], []
+            for f in func:
+                names.append(f if isinstance(f, str) else getattr(f, '__name__', str(f)))
+                vals.append(self._agg_one(f, args, kwargs))
+            return Series(vals, index=names)
+        if isinstance(func, dict):
+            raise TypeError('agg: dict støttes bare på DataFrame')
+        return self._agg_one(func, args, kwargs)
+
+    def _agg_one(self, func, args=(), kwargs=None):
+        kwargs = kwargs or {}
+        if isinstance(func, str):
+            return getattr(self, func)(*args, **kwargs)
+        return func(self, *args, **kwargs)
+
+    aggregate = agg
+
+    def transform(self, func, *args, **kwargs):
+        """Elementvis når func er callable, ellers navnet på en Series-metode."""
+        if isinstance(func, str):
+            return getattr(self, func)(*args, **kwargs)
+        return self.apply(func, *args, **kwargs)
+
+    def explode(self):
+        """Lister i cellene → én rad per element (nan for tomme lister)."""
+        out, idx = [], []
+        for label, v in zip(self.index, self.values):
+            if isinstance(v, (list, tuple)):
+                if len(v) == 0:
+                    out.append(nan)
+                    idx.append(label)
+                else:
+                    for item in v:
+                        out.append(item)
+                        idx.append(label)
+            else:
+                out.append(v)
+                idx.append(label)
+        return Series(out, index=idx, name=self.name)
+
+    def to_frame(self, name=None):
+        col = self.name if name is None else name
+        if col is None:
+            col = 0
+        return DataFrame({col: list(self.values)}, index=list(self.index))
+
+    def items(self):
+        return zip(self.index, self.values)
+
     def rank(self, method='average', ascending=True):
         vals = list(self.values)
         order = sorted((i for i, v in enumerate(vals) if v is not nan),
@@ -1990,7 +2705,7 @@ class STR:
                     # re.IGNORECASE finnes (CPython/Brython/wasm-bygg med
                     # støtte) — bruk ekte flagg, samme oppførsel som
                     # pandas_brython.py.
-                    rx = re.compile(pat, _IC)
+                    rx = _re_compile(pat, _IC)
                     return self._map(lambda v: rx.search(v) is not None)
                 # MicroPython-felle #10: re.IGNORECASE finnes ikke (unix-
                 # bygget, bekreftet). Fallback: småbokstav-normaliser mønster
@@ -1998,9 +2713,9 @@ class STR:
                 # tilnærming, ikke identisk med ekte IGNORECASE (f.eks.
                 # unicode-kanttilfeller), og gjelder KUN denne fallbacken —
                 # ikke case=True-grenen.
-                rx = re.compile(pat.lower())
+                rx = _re_compile(pat.lower())
                 return self._map(lambda v: rx.search(v.lower()) is not None)
-            rx = re.compile(pat)
+            rx = _re_compile(pat)
             return self._map(lambda v: rx.search(v) is not None)
         if not case:
             p = pat.lower()
@@ -2030,7 +2745,7 @@ class STR:
 
     def replace(self, pat, repl, regex=False):
         if regex:
-            rx = re.compile(pat)
+            rx = _re_compile(pat)
             return self._map(lambda v: rx.sub(repl, v))
         return self._map(lambda v: v.replace(pat, repl))
 
@@ -2045,9 +2760,202 @@ class STR:
     def slice(self, start=None, stop=None, step=None):
         return self._map(lambda v: v[start:stop:step])
 
+    # ── pandas-egne strengmetoder ────────────────────────────────────────
+    # Alt som finnes på Pythons str (zfill, isdigit, …) dekkes av
+    # __getattr__-fallbacken nederst; her ligger det pandas har i tillegg.
+
+    def extract(self, pat, flags=0, expand=True):
+        """
+        Regex-grupper → DataFrame (én kolonne per gruppe), eller Series når
+        expand=False og mønsteret har nøyaktig én gruppe. Ingen treff → nan.
+        """
+        rx = _re_compile(pat, flags)
+        groups = _group_count(rx, pat)
+        if groups == 0:
+            raise ValueError('extract: mønsteret må ha minst én gruppe')
+        names = {}
+        # MicroPython-felle: kompilerte mønstre har ikke groupindex
+        for name, num in (getattr(rx, 'groupindex', None) or {}).items():
+            names[num - 1] = name
+        cols = [[] for _i in range(groups)]
+        for v in self.obj.values:
+            m = None if (_is_na(v) or not isinstance(v, str)) else rx.search(v)
+            for gi in range(groups):
+                cols[gi].append(nan if m is None or m.group(gi + 1) is None
+                                else m.group(gi + 1))
+        if groups == 1 and not expand:
+            return Series(cols[0], index=list(self.obj.index), name=self.obj.name)
+        out = {}
+        for gi in range(groups):
+            out[names.get(gi, gi)] = cols[gi]
+        return DataFrame(out, index=list(self.obj.index))
+
+    def extractall(self, pat, flags=0):
+        """Alle treff per element → DataFrame med (indeks, match)-tupler."""
+        rx = _re_compile(pat, flags)
+        ngroups = _group_count(rx, pat)
+        groups = ngroups or 1
+        rows = []
+        idx = []
+        for label, v in zip(self.obj.index, self.obj.values):
+            if _is_na(v) or not isinstance(v, str):
+                continue
+            for mi, m in enumerate(_re_finditer(rx, v)):
+                vals = [m.group(gi + 1) for gi in range(groups)] if ngroups \
+                    else [m.group(0)]
+                rows.append([nan if x is None else x for x in vals])
+                idx.append((label, mi))
+        cols = {}
+        for gi in range(groups):
+            cols[gi] = [r[gi] for r in rows]
+        return DataFrame(cols, index=idx)
+
+    def match(self, pat, case=True, flags=0):
+        rx = _re_compile(pat, flags if case else (flags | _ignorecase()))
+        return self._map(lambda v: rx.match(v) is not None)
+
+    def fullmatch(self, pat, case=True, flags=0):
+        rx = _re_compile(pat, flags if case else (flags | _ignorecase()))
+        return self._map(lambda v: _full_match(rx, v))
+
+    def findall(self, pat, flags=0):
+        rx = _re_compile(pat, flags)
+        return self._map(lambda v: [m.group(0) for m in _re_finditer(rx, v)])
+
+    def count(self, pat, flags=0):
+        rx = _re_compile(pat, flags)
+        return self._map(lambda v: len(_re_finditer(rx, v)))
+
+    def pad(self, width, side='left', fillchar=' '):
+        if side not in ('left', 'right', 'both'):
+            raise ValueError("pad: side må være 'left', 'right' eller 'both'")
+        return self._map(lambda v: _pad_text(v, width, fillchar, side))
+
+    def center(self, width, fillchar=' '):
+        return self.pad(width, 'both', fillchar)
+
+    def ljust(self, width, fillchar=' '):
+        return self.pad(width, 'right', fillchar)
+
+    def rjust(self, width, fillchar=' '):
+        return self.pad(width, 'left', fillchar)
+
+    def zfill(self, width):
+        # str.zfill mangler i MicroPython; negativt fortegn holdes først
+        def _z(v):
+            if v.startswith('-') or v.startswith('+'):
+                return v[0] + _pad_text(v[1:], width - 1, '0', 'left')
+            return _pad_text(v, width, '0', 'left')
+        return self._map(_z)
+
+    def cat(self, others=None, sep=None, na_rep=None):
+        """
+        others=None: slå sammen alle verdiene til ÉN streng (nan hoppes over
+        med mindre na_rep er satt) — pandas-semantikk.
+        """
+        joiner = '' if sep is None else sep
+        if others is None:
+            parts = []
+            for v in self.obj.values:
+                if _is_na(v) or not isinstance(v, str):
+                    if na_rep is None:
+                        continue
+                    parts.append(na_rep)
+                else:
+                    parts.append(v)
+            return joiner.join(parts)
+        other_vals = list(others.values) if isinstance(others, Series) else list(others)
+        out = []
+        for v, o in zip(self.obj.values, other_vals):
+            if _is_na(v) or _is_na(o):
+                out.append(na_rep if na_rep is not None else nan)
+            else:
+                out.append(str(v) + joiner + str(o))
+        return Series(out, index=list(self.obj.index), name=self.obj.name)
+
+    def repeat(self, repeats):
+        if isinstance(repeats, (list, tuple, Series)):
+            counts = list(repeats.values) if isinstance(repeats, Series) else list(repeats)
+            out = []
+            for v, c in zip(self.obj.values, counts):
+                out.append(nan if (_is_na(v) or not isinstance(v, str)) else v * c)
+            return Series(out, index=list(self.obj.index), name=self.obj.name)
+        return self._map(lambda v: v * repeats)
+
+    def slice_replace(self, start=None, stop=None, repl=''):
+        s0 = 0 if start is None else start
+        return self._map(lambda v: v[:s0] + repl + (v[stop:] if stop is not None else ''))
+
+    def wrap(self, width):
+        def _wrap(v):
+            words = v.split()
+            lines = []
+            cur = ''
+            for w in words:
+                if cur and len(cur) + 1 + len(w) > width:
+                    lines.append(cur)
+                    cur = w
+                else:
+                    cur = w if not cur else cur + ' ' + w
+            if cur:
+                lines.append(cur)
+            return '\n'.join(lines)
+        return self._map(_wrap)
+
+    def join(self, sep):
+        return self._map(lambda v: sep.join(v))
+
+    def partition(self, sep=' ', expand=True):
+        return self._partition(sep, expand, False)
+
+    def rpartition(self, sep=' ', expand=True):
+        return self._partition(sep, expand, True)
+
+    def _partition(self, sep, expand, from_right):
+        rows = []
+        for v in self.obj.values:
+            if _is_na(v) or not isinstance(v, str):
+                rows.append([nan, nan, nan])
+            else:
+                rows.append(list(v.rpartition(sep) if from_right else v.partition(sep)))
+        if not expand:
+            return Series([tuple(r) for r in rows], index=list(self.obj.index))
+        return DataFrame({0: [r[0] for r in rows], 1: [r[1] for r in rows],
+                          2: [r[2] for r in rows]}, index=list(self.obj.index))
+
+    def get_dummies(self, sep='|'):
+        """Strenger med skilletegn → 0/1-kolonner, én per unik del."""
+        split_vals = []
+        for v in self.obj.values:
+            split_vals.append([] if (_is_na(v) or not isinstance(v, str))
+                              else v.split(sep))
+        keys = []
+        for parts in split_vals:
+            for p in parts:
+                if p not in keys:
+                    keys.append(p)
+        keys = sorted(keys)
+        out = {}
+        for k in keys:
+            out[k] = [1 if k in parts else 0 for parts in split_vals]
+        return DataFrame(out, index=list(self.obj.index))
+
+    def removeprefix(self, prefix):
+        return self._map(lambda v: v[len(prefix):] if v.startswith(prefix) else v)
+
+    def removesuffix(self, suffix):
+        return self._map(
+            lambda v: v[:len(v) - len(suffix)] if suffix and v.endswith(suffix) else v)
+
     def __getattr__(self, item):
         # Fallback for øvrige str-metoder — med nan-vakt, ulikt den gamle.
-        str_fn = getattr(str, item)
+        # Ukjente navn ga før «type object 'str' has no attribute 'extract'»,
+        # som pekte helt feil sted; nå navngis accessoren.
+        str_fn = getattr(str, item, None)
+        if str_fn is None:
+            raise AttributeError(
+                "'.str'-accessoren har ingen metode %r (verken pandas-egen "
+                "eller en str-metode)" % item)
         def _call(*args, **kwargs):
             return self.obj.apply(
                 lambda v: nan if v is nan or not isinstance(v, str)
@@ -2100,6 +3008,121 @@ class DT:
     def date(self):
         return self._map(lambda v: v.date())
 
+    @property
+    def microsecond(self):
+        return self._map(lambda v: v.microsecond)
+
+    @property
+    def time(self):
+        return self._map(lambda v: v.time())
+
+    @property
+    def quarter(self):
+        return self._map(lambda v: (v.month - 1) // 3 + 1)
+
+    @property
+    def dayofyear(self):
+        return self._map(lambda v: _day_of_year(v.year, v.month, v.day))
+
+    day_of_year = dayofyear
+
+    @property
+    def day_of_week(self):
+        return self._map(lambda v: v.weekday())
+
+    @property
+    def days_in_month(self):
+        return self._map(lambda v: _days_in_month(v.year, v.month))
+
+    daysinmonth = days_in_month
+
+    @property
+    def is_leap_year(self):
+        return self._map(lambda v: _is_leap(v.year))
+
+    @property
+    def is_month_start(self):
+        return self._map(lambda v: v.day == 1)
+
+    @property
+    def is_month_end(self):
+        return self._map(lambda v: v.day == _days_in_month(v.year, v.month))
+
+    @property
+    def is_quarter_start(self):
+        return self._map(lambda v: v.day == 1 and v.month in (1, 4, 7, 10))
+
+    @property
+    def is_quarter_end(self):
+        return self._map(
+            lambda v: v.month in (3, 6, 9, 12) and v.day == _days_in_month(v.year, v.month))
+
+    @property
+    def is_year_start(self):
+        return self._map(lambda v: v.month == 1 and v.day == 1)
+
+    @property
+    def is_year_end(self):
+        return self._map(lambda v: v.month == 12 and v.day == 31)
+
+    def day_name(self):
+        # engelske navn, som pandas' standard-locale
+        return self._map(lambda v: _DAY_NAMES[v.weekday()])
+
+    def month_name(self):
+        return self._map(lambda v: _MONTH_NAMES[v.month - 1])
+
+    def normalize(self):
+        return self._map(lambda v: datetime(v.year, v.month, v.day))
+
+    def isocalendar(self):
+        """DataFrame med year/week/day, som pandas."""
+        rows = {'year': [], 'week': [], 'day': []}
+        for v in self.obj.values:
+            if _is_na(v):
+                rows['year'].append(nan)
+                rows['week'].append(nan)
+                rows['day'].append(nan)
+                continue
+            iso_day = v.weekday() + 1
+            # torsdagen i samme uke bestemmer ISO-året
+            thursday = _to_ordinal(v.year, v.month, v.day) + (4 - iso_day)
+            iso_year = _from_ordinal(thursday)[0]
+            jan4 = _to_ordinal(iso_year, 1, 4)
+            week1_monday = jan4 - ((jan4 - 1) % 7)
+            rows['year'].append(iso_year)
+            rows['week'].append((thursday - week1_monday) // 7 + 1)
+            rows['day'].append(iso_day)
+        return DataFrame(rows, index=list(self.obj.index))
+
+    def _round_to(self, freq, mode):
+        secs = _freq_seconds(freq)
+
+        def _apply(v):
+            total = (_to_ordinal(v.year, v.month, v.day) * 86400
+                     + v.hour * 3600 + v.minute * 60 + v.second)
+            rest = total % secs
+            if rest:
+                if mode == 'ceil':
+                    total += secs - rest
+                elif mode == 'floor':
+                    total -= rest
+                else:
+                    total += (secs - rest) if rest * 2 >= secs else -rest
+            days, rem = total // 86400, total % 86400
+            y, m, d = _from_ordinal(days)
+            return datetime(y, m, d, rem // 3600, (rem % 3600) // 60, rem % 60)
+        return self._map(_apply)
+
+    def floor(self, freq):
+        return self._round_to(freq, 'floor')
+
+    def ceil(self, freq):
+        return self._round_to(freq, 'ceil')
+
+    def round(self, freq):
+        return self._round_to(freq, 'round')
+
     def strftime(self, fmt):
         return self._map(lambda v: v.strftime(fmt))
 
@@ -2144,12 +3167,16 @@ class DataFrame:
         self.plot = Plot(self)
         self.at = AtDF(self)
         self.iat = IAtDF(self)
+        self._cats = {}   # {kolonnenavn: CategoricalDtype}
 
         if data is None:
             return
         if hasattr(data, 'tolist') and not isinstance(data, (Series, DataFrame)):
             data = data.tolist()          # numpy_brython-ndarray o.l. -> lister
         if isinstance(data, dict):
+            for _k, _v in data.items():
+                if isinstance(_v, Series) and _v._cat is not None:
+                    self._cats[_k] = _v._cat
             data = {k: (v.tolist() if hasattr(v, 'tolist')
                         and not isinstance(v, (Series, DataFrame)) else v)
                     for k, v in data.items()}
@@ -2289,7 +3316,20 @@ class DataFrame:
             return self.loc[cols]
         elif isinstance(cols, slice) or is_bool(cols) or is_2d_bool(cols):
             return self.loc[cols, :]
-        return self.loc[:, cols]
+        res = self.loc[:, cols]
+        # Kategori-metadata lever på framen (_cats) og må hektes på serien
+        # som leveres ut, ellers mister df['grp'] kategorirekkefølgen.
+        cats = self._cats
+        if cats:
+            if isinstance(res, Series):
+                try:
+                    if cols in cats:
+                        res._cat = cats[cols]
+                except TypeError:
+                    pass
+            elif isinstance(res, DataFrame):
+                res._cats = dict((c, cats[c]) for c in res.columns if c in cats)
+        return res
     
     def __getattr__(self, name):
         if name in self.columns:
@@ -2315,7 +3355,8 @@ class DataFrame:
             self.loc[:, key] = value
 
     def __delitem__(self, cols):
-        self.drop(cols)
+        # del df['kol'] SKAL mutere (som pandas) — derfor _drop_inplace, ikke drop()
+        self._drop_inplace(cols, 1)
 
     def __lt__(self, other):
         df = self.copy()
@@ -2437,15 +3478,36 @@ class DataFrame:
         except Exception:
             return None
 
-    def drop(self, labels=None, axis=1):
+    def drop(self, labels=None, axis=0, index=None, columns=None):
         """
-        Drop labels along the given axis. If labels is None, trim the DataFrame to
-        its current view (legacy behavior used internally).
+        Drop labels along the given axis and return a NEW DataFrame — mottakeren
+        blir IKKE endret (pandas-semantikk; shimmen muterte fram til
+        2026-07-26, så `df.drop('kol', axis=1)` ødela brukerens frame).
 
-        axis: 0/'index' to drop rows, 1/'columns' to drop columns
+        axis: 0/'index' for rader (pandas-default), 1/'columns' for kolonner.
+        index=/columns= er alternativet til labels+axis, som i pandas.
+
+        Kall UTEN labels/index/columns beholder den interne view-trimmingen og
+        muterer fortsatt — den grenen kalles bare på ferske objekter (copy(),
+        add_empty_series, LocDF). Intern kode som vil droppe etiketter på
+        stedet skal bruke _drop_inplace().
         """
-        # Legacy: trim to current view when labels is None
-        if labels is None:
+        if labels is None and index is None and columns is None:
+            return self._trim_to_view()
+        if index is not None or columns is not None:
+            cp = self.copy()
+            if index is not None:
+                cp._drop_inplace(index, 0)
+            if columns is not None:
+                cp._drop_inplace(columns, 1)
+            return cp
+        cp = self.copy()
+        cp._drop_inplace(labels, axis)
+        return cp
+
+    def _trim_to_view(self):
+        """Trimmer datasettet til gjeldende view. Muterer self."""
+        if True:
             to_delete = self.view[1].stop
             num = 0
 
@@ -2476,6 +3538,12 @@ class DataFrame:
             self.step = len(self.index)
             return self
 
+    def _drop_inplace(self, labels, axis=1):
+        """
+        Dropper etiketter og MUTERER self. Intern motor for drop(); brukes
+        direkte av __delitem__, groupby og set_index, som alle trenger
+        på-stedet-semantikk.
+        """
         # Normalize axis
         if axis in ["columns", "column", "col", 1]:
             axis = 1
@@ -2535,13 +3603,14 @@ class DataFrame:
 
     def copy(self):
         """
-        Creates a copy of the dataframe and trims the data with self.drop
+        Creates a copy of the dataframe and trims the data with _trim_to_view
         :return:
         """
         df = DataFrame.from_data(
             self.data, self.index, self.columns, self.view, self.step
         )
-        df.drop()
+        df._trim_to_view()
+        df._cats = dict(self._cats)
         return df
 
     def equals(self, other):
@@ -2932,14 +4001,26 @@ class DataFrame:
         gb.by = by
 
         multi = isinstance(by, (list, tuple))
+        keyfns = None
         if multi:
             key_cols = [list(self[b].values) for b in by]
             keys = list(dict.fromkeys(zip(*key_cols)))
+            keyfns = [_sort_key(self[b]) for b in by]
+            if not any(f is not None for f in keyfns):
+                keyfns = None
         else:
             keys = self[by].unique()
+            keyfns = _sort_key(self[by])
         if sort:
             try:
-                keys = sorted(keys)
+                if keyfns is None:
+                    keys = sorted(keys)
+                elif multi:
+                    # kategoriske nøkkelkolonner sorteres på kategoriposisjon
+                    keys = sorted(keys, key=lambda k: tuple(
+                        (f(v) if f is not None else v) for f, v in zip(keyfns, k)))
+                else:
+                    keys = sorted(keys, key=keyfns)
             except TypeError:
                 pass  # blandede typer: behold opptredensrekkefølge
 
@@ -2952,11 +4033,11 @@ class DataFrame:
                 df = self.loc[mask, :]
                 df.name = item
                 for b in by:
-                    df.drop(b)
+                    df._drop_inplace(b, 1)
             else:
                 df = self.loc[self[by] == item, :]
                 df.name = item
-                df.drop(by)
+                df._drop_inplace(by, 1)
             gb.dfs.append(df)
         return gb
 
@@ -3198,12 +4279,168 @@ class DataFrame:
                 ser = cp.loc[:, col]
                 ser2 = ser.astype(dt)
                 cp.iloc[:, cp.columns.index(col)] = ser2.values
+                if ser2._cat is not None:
+                    cp._cats[col] = ser2._cat
+                elif col in cp._cats:
+                    del cp._cats[col]
         else:
             for j, col in enumerate(cp.columns):
                 ser = cp.iloc[:, j]
                 ser2 = ser.astype(dtype)
                 cp.iloc[:, j] = ser2.values
+                if ser2._cat is not None:
+                    cp._cats[col] = ser2._cat
+                elif col in cp._cats:
+                    del cp._cats[col]
         return cp
+
+    @property
+    def dtypes(self):
+        return Series([self[c].dtype for c in self.columns], index=list(self.columns))
+
+    # ── kolonnevise verb ─────────────────────────────────────────────────
+    # Alle disse er «samme Series-metode på hver kolonne»; _colwise holder
+    # indeks og kolonnerekkefølge samlet ett sted.
+
+    def _colwise(self, method, *args, **kwargs):
+        out = {}
+        for c in self.columns:
+            out[c] = list(getattr(self[c], method)(*args, **kwargs).values)
+        return DataFrame(out, index=list(self.index))
+
+    def shift(self, periods=1, fill_value=None):
+        return self._colwise('shift', periods, fill_value)
+
+    def diff(self, periods=1):
+        return self._colwise('diff', periods)
+
+    def pct_change(self, periods=1):
+        return self._colwise('pct_change', periods)
+
+    def cumsum(self):
+        return self._colwise('cumsum')
+
+    def cumprod(self):
+        return self._colwise('cumprod')
+
+    def cummax(self):
+        return self._colwise('cummax')
+
+    def cummin(self):
+        return self._colwise('cummin')
+
+    def round(self, decimals=0):
+        return self._colwise('round', decimals)
+
+    def agg(self, func=None, *args, **kwargs):
+        """
+        agg('sum') → Series per kolonne. agg(['sum','mean']) → DataFrame med
+        én rad per funksjon. agg({'kol': 'sum'}) → Series over de kolonnene.
+        """
+        if isinstance(func, dict):
+            names, vals = [], []
+            for col, f in func.items():
+                names.append(col)
+                vals.append(self[col]._agg_one(f))
+            return Series(vals, index=names)
+        if isinstance(func, (list, tuple)):
+            rows = {}
+            row_names = []
+            for f in func:
+                row_names.append(f if isinstance(f, str)
+                                 else getattr(f, '__name__', str(f)))
+            for c in self.columns:
+                rows[c] = [self[c]._agg_one(f) for f in func]
+            return DataFrame(rows, index=row_names)
+        return Series([self[c]._agg_one(func, args, kwargs) for c in self.columns],
+                      index=list(self.columns))
+
+    aggregate = agg
+
+    def transform(self, func, *args, **kwargs):
+        return self._colwise('transform', func, *args, **kwargs)
+
+    def isin(self, values):
+        if isinstance(values, dict):
+            out = {}
+            for c in self.columns:
+                allowed = values.get(c, [])
+                out[c] = [v in allowed for v in self[c].values]
+            return DataFrame(out, index=list(self.index))
+        allowed = list(values.values) if isinstance(values, Series) else list(values)
+        out = {}
+        for c in self.columns:
+            out[c] = [v in allowed for v in self[c].values]
+        return DataFrame(out, index=list(self.index))
+
+    def mode(self):
+        cols = {}
+        longest = 0
+        for c in self.columns:
+            vals = list(self[c].mode().values)
+            cols[c] = vals
+            longest = max(longest, len(vals))
+        for c in self.columns:
+            cols[c] = cols[c] + [nan] * (longest - len(cols[c]))
+        return DataFrame(cols, index=list(range(longest)))
+
+    def any(self, axis=0):
+        if axis == 0:
+            return Series([any(bool(v) for v in self[c].values) for c in self.columns],
+                          index=list(self.columns))
+        return Series([any(bool(v) for v in row) for row in self.values],
+                      index=list(self.index))
+
+    def all(self, axis=0):
+        if axis == 0:
+            return Series([all(bool(v) for v in self[c].values) for c in self.columns],
+                          index=list(self.columns))
+        return Series([all(bool(v) for v in row) for row in self.values],
+                      index=list(self.index))
+
+    def items(self):
+        for c in self.columns:
+            yield c, self[c]
+
+    def itertuples(self, index=True, name='Pandas'):
+        """Tupler per rad. Navngitte tupler finnes ikke i alle dialekter, så
+        det returneres vanlige tupler — feltrekkefølgen er den samme."""
+        for label, row in zip(self.index, self.values):
+            yield tuple([label] + list(row)) if index else tuple(row)
+
+    _NUMERIC_DTYPES = ('int64', 'float64', 'bool')
+
+    def select_dtypes(self, include=None, exclude=None):
+        def _match(dtype, spec):
+            if spec is None:
+                return None
+            names = spec if isinstance(spec, (list, tuple)) else [spec]
+            for want in names:
+                want = str(want)
+                if want in ('number', 'numeric'):
+                    if dtype in ('int64', 'float64'):
+                        return True
+                elif want == dtype:
+                    return True
+            return False
+        keep = []
+        for c in self.columns:
+            dtype = str(self[c].dtype)
+            inc = _match(dtype, include)
+            exc = _match(dtype, exclude)
+            if (inc is None or inc) and not exc:
+                keep.append(c)
+        return self.loc[:, keep]
+
+    def info(self):
+        lines = ['<class \'pandas_shim.DataFrame\'>',
+                 'RangeIndex: %d entries' % len(self.index),
+                 'Data columns (total %d columns):' % len(self.columns)]
+        for c in self.columns:
+            ser = self[c]
+            non_null = len([v for v in ser.values if not _is_na(v)])
+            lines.append(' %-20s %d non-null  %s' % (str(c), non_null, ser.dtype))
+        print('\n'.join(lines))
 
     def sort_index(self, axis=0, ascending=True):
         if axis in ["columns", "column", 1]:
@@ -3279,7 +4516,7 @@ class DataFrame:
         ser = cp.loc[:, keys]
         cp.index = tuple(ser.values)
         if drop:
-            cp.drop(keys, axis=1)
+            cp._drop_inplace(keys, 1)
         return cp
 
     def assign(self, **kwargs):
@@ -3563,7 +4800,7 @@ class Plot:
         if y is None:
           y="values"
           data["values"]=self.data.values
-        return px.area(data=data, x=x, y=y, **kwargs)
+        return _px().area(data=data, x=x, y=y, **kwargs)
     def bar(self,x=None, y=None, **kwargs):
         kwargs = self._apply_common_kwargs(kwargs)
         #print("bardata1", self.data.index)
@@ -3582,7 +4819,7 @@ class Plot:
             data["index"]=self.data.index
           x="index"
 
-        return px.bar(data=data, x=x, y=y, **kwargs)
+        return _px().bar(data=data, x=x, y=y, **kwargs)
 
     def box(self,x=None, y=None, **kwargs):
         kwargs = self._apply_common_kwargs(kwargs)
@@ -3593,16 +4830,16 @@ class Plot:
         if y is None:
           y="values"
           data["values"]=self.data.values
-        return px.box(data=data, x=x, y=y, **kwargs)
+        return _px().box(data=data, x=x, y=y, **kwargs)
         
     def choropleth(self, **kwargs):
         kwargs = self._apply_common_kwargs(kwargs)
         data= self.data.to_dict()
-        return px.choropleth(data=data, **kwargs)
+        return _px().choropleth(data=data, **kwargs)
     def map(self, **kwargs):
         kwargs = self._apply_common_kwargs(kwargs)
         data= self.data.to_dict()
-        return px.choropleth(data=data, **kwargs)
+        return _px().choropleth(data=data, **kwargs)
 
     def histogram(self,x=None, y=None, **kwargs):
         kwargs = self._apply_common_kwargs(kwargs)
@@ -3618,7 +4855,7 @@ class Plot:
         elif x is None:
           x = "index"
           data["index"] = self.data.index
-        return px.histogram(data=data, x=x, y=y, **kwargs)
+        return _px().histogram(data=data, x=x, y=y, **kwargs)
 
 
     def line(self,x=None, y=None, **kwargs):
@@ -3636,7 +4873,7 @@ class Plot:
             y=data.keys()
             y=[k for k in y if k!=x]
             #print("y", y)
-        return px.line(data=data, x=x, y=y, **kwargs)
+        return _px().line(data=data, x=x, y=y, **kwargs)
     def scatter(self, x=None, y=None, **kwargs):
         kwargs = self._apply_common_kwargs(kwargs)
         data= self.data.to_dict()
@@ -3646,7 +4883,7 @@ class Plot:
         if y is None:
           y="values"
           data["values"]=self.data.values
-        return px.scatter(data=data, x=x, y=y, **kwargs)
+        return _px().scatter(data=data, x=x, y=y, **kwargs)
     def violin(self, x=None, y=None, **kwargs):
         kwargs = self._apply_common_kwargs(kwargs)
         data= self.data.to_dict()
@@ -3656,7 +4893,7 @@ class Plot:
         if y is None:
           y="values"
           data["values"]=self.data.values
-        return px.violin(data=data, x=x, y=y, **kwargs)
+        return _px().violin(data=data, x=x, y=y, **kwargs)
     def __call__(self, x=None, y=None, **kwargs):
         # pandas-like kind routing
         kind = kwargs.get('kind')
@@ -3674,7 +4911,7 @@ class Plot:
                     data_dict['values'] = self.data.values
                 data_dict['names'] = list(range(len(data_dict['values']))) if self.data.index is None else self.data.index
                 kwargs = self._apply_common_kwargs(kwargs)
-                return px.pie(data_dict, values='values', names='names', **kwargs)
+                return _px().pie(data_dict, values='values', names='names', **kwargs)
         kwargs = self._apply_common_kwargs(kwargs)
         data = self.data.to_dict()
         if x is None:
@@ -3688,7 +4925,7 @@ class Plot:
             # Otherwise, plot all columns except the x-axis
             keys = list(data.keys())
             y = [k for k in keys if k != x]
-        return px.line(data=data, x=x, y=y, **kwargs)
+        return _px().line(data=data, x=x, y=y, **kwargs)
 
     # aliases
     def hist(self, x=None, y=None, **kwargs):
@@ -3702,7 +4939,7 @@ class Plot:
             data_dict['values'] = self.data.values
         data_dict['names'] = list(range(len(data_dict['values']))) if self.data.index is None else self.data.index
         kwargs = self._apply_common_kwargs(kwargs)
-        return px.pie(data_dict, values='values', names='names', **kwargs)
+        return _px().pie(data_dict, values='values', names='names', **kwargs)
 
 
 
@@ -4167,7 +5404,7 @@ def to_datetime(arg, format=None, errors='raise'):
         s = str(v)
         for f in ([format] if format else common):
             try:
-                return datetime.strptime(s, f)
+                return _parse_dt(s, f)
             except (ValueError, TypeError):
                 pass
         if errors == 'coerce':
@@ -4179,6 +5416,44 @@ def to_datetime(arg, format=None, errors='raise'):
     if isinstance(arg, (list, tuple)):
         return Series([parse(v) for v in arg])
     return parse(arg)
+
+
+def date_range(start=None, end=None, periods=None, freq='D'):
+    """
+    Datoserie mellom start/end eller start + periods steg.
+
+    Regner i sekunder på proleptiske dagnummer i stedet for timedelta —
+    timedelta kan ikke forutsettes i MicroPython-bygget.
+    """
+    step = _freq_seconds(freq)
+
+    def _secs(v):
+        d = to_datetime(v) if isinstance(v, str) else v
+        return (_to_ordinal(d.year, d.month, d.day) * 86400
+                + d.hour * 3600 + d.minute * 60 + d.second)
+
+    def _dt(total):
+        days, rem = total // 86400, total % 86400
+        y, m, d = _from_ordinal(days)
+        return datetime(y, m, d, rem // 3600, (rem % 3600) // 60, rem % 60)
+
+    if start is None:
+        if end is None or periods is None:
+            raise ValueError('date_range: oppgi start, eller end sammen med periods')
+        last = _secs(end)
+        return Series([_dt(last - step * i) for i in range(periods - 1, -1, -1)])
+    first = _secs(start)
+    if periods is not None:
+        return Series([_dt(first + step * i) for i in range(periods)])
+    if end is None:
+        raise ValueError('date_range: oppgi enten end eller periods')
+    stop = _secs(end)
+    out = []
+    cur = first
+    while cur <= stop:
+        out.append(_dt(cur))
+        cur += step
+    return Series(out)
 
 
 def get_dummies(data, prefix=None, prefix_sep='_'):
@@ -4201,7 +5476,10 @@ def _fmt_edge(v):
 def cut(x, bins, labels=None, right=True, include_lowest=False):
     """
     Verdier → intervaller. bins: liste av kanter eller antall (int).
-    labels=None gir '(a, b]'-strenger (ingen Categorical — bevisst).
+    labels=None gir '(a, b]'-strenger. Resultatet er ORDNET kategorisk
+    (Series._cat), så sort_values/groupby/value_counts følger bin-rekkefølgen
+    og ikke alfabetet — før 2026-07-26 ga cut(bins=[0,2,10,20]).sort_values()
+    rekkefølgen (0, 2] , (10, 20] , (2, 10].
     Verdier utenfor kantene blir nan, som i pandas.
     """
     vals = list(x.values) if isinstance(x, Series) else list(x)
@@ -4236,11 +5514,15 @@ def cut(x, bins, labels=None, right=True, include_lowest=False):
         return nan
 
     out = [place(v) for v in vals]
+    cat = CategoricalDtype([label(i) for i in range(len(edges) - 1)], True)
     if isinstance(x, Series):
         cp = x.copy()
         cp.data = out
+        cp._cat = cat
         return cp
-    return Series(out)
+    res = Series(out)
+    res._cat = cat
+    return res
 
 
 def qcut(x, q, labels=None):
