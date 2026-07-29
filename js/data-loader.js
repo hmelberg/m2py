@@ -317,7 +317,10 @@
     var resolved = DD.resolve(parsedLoads, registry);
     var descriptors = {};
     resolved.forEach(function (r) {
-      if (r.error || r.anvil || r.federated) return; // protected/anvil/federert/error: aldri pushdown-kandidater
+      // protected/anvil/federert/error: aldri pushdown-kandidater. Relative
+      // stier heller ikke — duckdb-wasm-workeren har ikke sidens base-URL,
+      // så de går via vanlig fetch (som håndterer relative fint).
+      if (r.error || r.anvil || r.federated || r.relative) return;
       // .csv-sniff siden trinn B: bare .parquet/.csv-endelser gjenkjennes uten
       // eksplisitt kind() — alt annet er 'other' og aldri pushdown-kandidat.
       descriptors[r.alias] = { url: r.url,

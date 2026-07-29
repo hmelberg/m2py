@@ -131,7 +131,19 @@
       var head = slash > 0 ? l.target.slice(0, slash) : l.target;
       var rest = slash > 0 ? l.target.slice(slash + 1) : '';
       var conn = byAlias[head];
-      if (!conn) return { alias: l.alias, url: '', viaProxy: false, error: 'ukjent kilde-alias «' + head + '» (mangler connect-linje?)' };
+      if (!conn) {
+        // Relativ sti (2026-07-30): «load static_data/person.parquet as df»
+        // uten connect-linje er en fil relativt til appen, ikke et alias.
+        // Regel: ./-prefiks, ELLER ukjent alias der siste segment har
+        // filendelse → relativ URL. Uten endelse (load helse/tabell) beholdes
+        // den tydelige alias-feilen — det er nesten alltid en glemt connect.
+        var lastSeg = l.target.slice(l.target.lastIndexOf('/') + 1);
+        if (l.target.charAt(0) === '.' || lastSeg.indexOf('.') > 0) {
+          return { alias: l.alias, url: l.target, viaProxy: false,
+                   key: lopts.key, exec: lopts.exec, kind: lopts.kind, relative: true };
+        }
+        return { alias: l.alias, url: '', viaProxy: false, error: 'ukjent kilde-alias «' + head + '» (mangler connect-linje?)' };
+      }
       var copts = conn.options || {};
       // Fase 0 federert: inline federert(...)-connect ELLER register-oppslag
       // med kind:'federated' — begge gir ETT item med federated-liste som
