@@ -16,6 +16,12 @@
   var CONNECT_RE = /^[ \t]*(?:#|--|\/\/)[ \t]*connect[ \t]+(\S+)(?:[ \t]+as[ \t]+([A-Za-z_]\w*))?((?:[ \t]*,[ \t]*\w+\([^)]*\))*)[ \t]*$/gim;
   var LOAD_RE = /^[ \t]*(?:#|--|\/\/)[ \t]*(load|require)[ \t]+(\S+)[ \t]+as[ \t]+([A-Za-z_]\w*)((?:[ \t]*,[ \t]*\w+\([^)]*\))*)[ \t]*$/gim;
 
+  // Fase 0 federert (spec 2026-07-29-federated-sources-design §3):
+  //   # connect federert(<medlem>[, <medlem>...]) as alias [, key(...)][, kind(...)]
+  // Medlem = URL eller register-id. Må matches FØR CONNECT_RE (uten mellomrom
+  // i listen ville CONNECT_RE ellers slukt hele "federert(a,b)" som target).
+  var CONNECT_FED_RE = /^[ \t]*(?:#|--|\/\/)[ \t]*connect[ \t]+federert\(([^)]*)\)(?:[ \t]+as[ \t]+([A-Za-z_]\w*))?((?:[ \t]*,[ \t]*\w+\([^)]*\))*)[ \t]*$/gim;
+
   // Project A (variable-level assembly): create-dataset/import/join/load ->
   // AssemblySpec. See docs/superpowers/plans/2026-07-05-variable-level-assembly.md.
   var CREATE_RE = /^[ \t]*(?:#|--|\/\/)[ \t]*create-dataset[ \t]+([A-Za-z_]\w*)[ \t]*,[ \t]*key\(\s*([A-Za-z_]\w*)\s*\)[ \t]*$/gim;
@@ -47,8 +53,16 @@
 
   function parse(script) {
     var connects = [], loads = [], errors = [], m;
+    CONNECT_FED_RE.lastIndex = 0;
+    while ((m = CONNECT_FED_RE.exec(script)) !== null) {
+      var members = m[1].split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      if (!members.length) { errors.push('federert() krever minst ett medlem: ' + m[0].trim()); continue; }
+      if (!m[2]) { errors.push('connect federert(...) krever "as <alias>"'); continue; }
+      connects.push({ target: null, federated: members, alias: m[2], options: parseOptions(m[3]) });
+    }
     CONNECT_RE.lastIndex = 0;
     while ((m = CONNECT_RE.exec(script)) !== null) {
+      if (/^federert\(/i.test(m[1])) continue;   // eies av CONNECT_FED_RE (også feiltilfellene)
       var target = m[1];
       var alias = m[2] || (isUrlish(target) ? null : target); // register-id/navn: alias = id
       if (!alias) { errors.push('connect med URL krever "as <alias>": ' + target); continue; }
