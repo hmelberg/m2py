@@ -41,6 +41,17 @@ def get_release_spec():
     return getattr(_release_ctx, "spec", None)
 
 
+def set_federated(flag):
+    """Fase 1 federert (spec 2026-07-29 §5): når satt, legger regress ved
+    sufficient statistics i result.attrs['fedstats'] så en node kan frigi
+    kombinerbare aggregater i stedet for bare koeffisienttabellen."""
+    _release_ctx.federated = bool(flag)
+
+
+def get_federated():
+    return getattr(_release_ctx, "federated", False)
+
+
 def _released_counts(counts, drop=True):
     """Counts (Series) -> suppressed (< min_n masked) + rounded per the active
     release spec; unchanged when no spec is active. drop=True removes masked
@@ -1020,6 +1031,21 @@ def _coef_table(model):
 
 def regress(df, dep, indep, noconstant=False):
     """OLS coefficient table ``[term, coef, se, t, p]``."""
+    if get_federated():
+        model, X, Y, idx = _fit_model(df, "regress", dep, indep, noconstant,
+                                      return_design=True)
+        out = _coef_table(model)
+        Xa = np.asarray(X, dtype=float)
+        Ya = np.asarray(Y, dtype=float)
+        out.attrs["fedstats"] = {
+            "terms": [str(c) for c in X.columns],
+            "xtx": (Xa.T @ Xa).tolist(),
+            "xty": (Xa.T @ Ya).tolist(),
+            "yty": float(Ya @ Ya),
+            "n": int(len(Ya)),
+            "at_risk": [int(v) for v in (Xa != 0).sum(axis=0)],
+        }
+        return out
     return _coef_table(_fit_model(df, "regress", dep, indep, noconstant))
 
 
