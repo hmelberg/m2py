@@ -133,5 +133,7 @@
     return { attachStatements: att.statements, datasetStatements: datasetStatements };
   }
 
-  global.AssemblyDuckdb = { canPushdown: canPushdown, compile: compile };
+  // CSV_OPTS eksporteres så federate.js leser medlems-CSV med nøyaktig samme
+  // NA/typeregler som monteringsveien (fase 0 federert, spec 2026-07-29 §4).
+  global.AssemblyDuckdb = { canPushdown: canPushdown, compile: compile, CSV_OPTS: CSV_OPTS };
 })(typeof window !== 'undefined' ? window : globalThis);
