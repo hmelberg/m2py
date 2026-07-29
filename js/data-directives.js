@@ -142,6 +142,12 @@
       } else if (!isUrlish(conn.target)) {
         var srcMaybe = findRegistrySource(registry, conn.target);
         if (srcMaybe && (srcMaybe.kind === 'federated' || srcMaybe.members)) {
+          // Fase 1: node-medlemmer har ingen url å pulle — de kjøres federert
+          // (require i microdata-modus), aldri via load-fanout.
+          var nodeMember = (srcMaybe.members || []).some(function (mm) { return mm.tier === 'node'; });
+          if (nodeMember) {
+            return { alias: l.alias, error: 'kilden «' + conn.target + '» har node-medlemmer — den kjøres federert i microdata-modus (require), ikke via load' };
+          }
           fedTargets = (srcMaybe.members || []).map(function (mm) { return { target: mm.url || mm.id, member: mm }; });
           fedMeta = srcMaybe;
         }

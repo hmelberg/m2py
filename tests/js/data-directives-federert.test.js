@@ -110,6 +110,14 @@ test('resolve: register-medlemmer med relative url-er behandles som URL, ikke re
   assert.equal(items[0].federated[0].id, 'nord');
 });
 
+test('resolve: node-medlemmer (tier node, uten url) nektes i pull-veien', () => {
+  const reg = [{ id: 'fed-node', navn: 'N', kind: 'federated',
+    members: [{ id: 'nord', tier: 'node', api: 'http://localhost:9301', source: 'person' }] }];
+  const items = DD.resolve(DD.parse('# connect fed-node as h\n# load h as df'), reg);
+  assert.ok(items[0].error);
+  assert.ok(items[0].error.indexOf('node') >= 0);
+});
+
 test('resolve: connect-nivå key() arves av medlemmene', () => {
   const items = resolveScript('# connect federert(https://a.no/d, https://b.no/d) as h, key(hemmelig)\n# load h/t.enc as df');
   assert.equal(items[0].federated[0].key, 'hemmelig');

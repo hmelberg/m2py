@@ -757,7 +757,7 @@
     window.t = window.t || function (s) { return s; };
     window.i18nField = window.i18nField || function (obj, field) { return obj && obj[field]; };
 
-    window.M2PY_VERSION = '2026-07-26b';
+    window.M2PY_VERSION = '2026-07-29a';
 
     // One-time migration: remove obsolete localStorage keys from previous milestones
     // Safe to delete this snippet after a few months when most users have re-loaded
@@ -9160,7 +9160,7 @@ exec(compile(static_code, "static_source.py", "exec"), sys.modules["static_sourc
     async function ensureM2pyRuntime(py) {
       if (m2pyRuntimeReady) return;
       const base = window.location.href.replace(/[^/]+$/, '');
-      const rtMods = ['__init__', 'keys', 'manifest', 'sources', 'profile', 'exprcompile', 'pandas_ops', 'polars_ops'];
+      const rtMods = ['__init__', 'keys', 'manifest', 'sources', 'profile', 'exprcompile', 'pandas_ops', 'polars_ops', 'federate'];
       const rtSrcs = await Promise.all(rtMods.map(function(m) {
         return fetch(base + 'm2py_runtime/' + m + '.py?v=' + window.M2PY_VERSION).then(function(r) {
           if (!r.ok) throw new Error('m2py_runtime/' + m + '.py'); return r.text();
@@ -9661,6 +9661,57 @@ exec(compile(static_code, "static_source.py", "exec"), sys.modules["static_sourc
     // runSafeStatRemote uten dialect). Katalog-kjente kilder og scripts uten
     // require kjører lokalt på den syntetiske motoren som før (require er
     // no-op lokalt). Returnerer true når kjøringen er håndtert.
+    // Fase 1 federert (spec 2026-07-29 §5): require-mål som er en federert
+    // registerkilde med node-medlemmer -> fan-out til hver node (kun
+    // SDC-gatede aggregater kommer tilbake), kombiner i Pyodide
+    // (m2py_runtime.federate — samme kode som pytest dekker), render.
+    async function maybeRunFederatedMicrodata(script, ctx) {
+      var re = /^\s*require\s+(\S+)\s+as\s+\w+/gim;
+      var targets = [], m;
+      while ((m = re.exec(script)) !== null) targets.push(m[1]);
+      if (!targets.length) return false;
+      var registry = [];
+      try { registry = await (await fetch('data/data-sources.json')).json(); } catch (e) {}
+      function fedEntry(t) {
+        var src = null;
+        for (var i = 0; i < registry.length; i++) if (registry[i].id === t) { src = registry[i]; break; }
+        return (src && src.kind === 'federated' && (src.members || []).some(function (mm) { return mm.tier === 'node'; })) ? src : null;
+      }
+      var fedTargets = targets.filter(fedEntry);
+      if (!fedTargets.length) return false;
+      if (targets.length > 1) {
+        outputArea.innerHTML = '<pre class="error">' + t('Federert kjøring støtter ett require-mål per skript (ennå).') + '</pre>';
+        return true;
+      }
+      var entry = fedEntry(fedTargets[0]);
+      var derived = await deriveSafeStatExecutor(script);
+      if (derived.error) { outputArea.innerHTML = '<pre class="error">' + escapeHtmlOutput(derived.error) + '</pre>'; return true; }
+      var alias = derived.sources[0] && derived.sources[0].alias;
+      var nodes = entry.members.filter(function (mm) { return mm.tier === 'node'; }).map(function (mm) {
+        return { id: mm.id, api: mm.api,
+                 body: { script: derived.cleanScript, sources: [{ alias: alias, source_id: mm.source }],
+                         backend: 'pandas', federated: true } };
+      });
+      outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('Federert: kjører på {n} noder…', { n: nodes.length }) + '</div>';
+      try {
+        var nodeResults = await window.Federate.runNodes(nodes, {});
+        var badErr = nodeResults.map(function (r) { return r.result && r.result.err ? ('medlem «' + r.id + '»: ' + r.result.err) : null; }).filter(Boolean);
+        if (badErr.length) { outputArea.innerHTML = '<pre class="error">' + escapeHtmlOutput(badErr.join('; ')) + '</pre>'; return true; }
+        var payload = nodeResults.map(function (r) { return { member: r.id, stats: (r.result && r.result.stats) || [] }; });
+        var py = await loadPyodideAndM2py();
+        py.globals.set('__fed_payload', JSON.stringify({ per_node: payload, overlap: entry.overlap || null }));
+        var resJson = py.runPython(
+          'import json\n' +
+          'from m2py_runtime.federate import combine_and_render\n' +
+          '_p = json.loads(__fed_payload)\n' +
+          'json.dumps(combine_and_render(_p["per_node"], overlap=_p["overlap"]))');
+        renderSafeStatResult(JSON.parse(resJson), script, ctx, t('federert ({n} noder)', { n: nodes.length }));
+      } catch (e) {
+        outputArea.innerHTML = '<pre class="error">' + escapeHtmlOutput(String(e && e.message || e)) + '</pre>';
+      }
+      return true;
+    }
+
     async function maybeRunRemoteMicrodata(script, ctx) {
       if (!microdataCatalog || !microdataCatalog.variables) return false; // uten katalog: lokal som før
       var re = /^\s*require\s+(\S+)\s+as\s+\w+/gim;
@@ -10161,6 +10212,7 @@ options(width = 200)
           catch (e) { console.warn('microdata-katalog (ruting):', e); }
         }
         // Microdata-modus, katalog-først: server-kilder ruter til legacy m2py-motoren
+        if (activeEditorMode === 'microdata' && await maybeRunFederatedMicrodata(effectiveScript, _ctx)) return;
         if (activeEditorMode === 'microdata' && await maybeRunRemoteMicrodata(effectiveScript, _ctx)) return;
         if (_mr.runSelf) { await _mr.runSelf(effectiveScript, _ctx); return; }
         if (_mr.preRun)  await _mr.preRun(effectiveScript, _ctx);
