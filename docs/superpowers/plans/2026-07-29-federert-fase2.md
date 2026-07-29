@@ -33,7 +33,7 @@
   - fed_round β → same placeholder with `attrs["fedstats"] = {"model": "logit_round", "terms", "grad": [float], "hess": [[float]], "loglik": float, "n", "at_risk"}` computed at β (p=sigmoid(Xβ), grad=Xᵀ(y−p), hess=XᵀWX, W=p(1−p)).
   - Regress's existing fedstats dict stays keyless (`"model"` absent ⇒ regress).
 
-- [ ] **Step 1: Failing tests** — append to `tests/test_federate_stats.py`:
+- [x] **Step 1: Failing tests** — append to `tests/test_federate_stats.py`:
 
 ```python
 def _logit_df(n=40, seed=5):
@@ -67,9 +67,9 @@ def test_logit_federated_round_computes_grad_hess_at_beta():
     assert np.allclose(fs["hess"], (X * (p * (1 - p))[:, None]).T @ X)
 ```
 
-- [ ] **Step 2:** Run `python3 -m pytest tests/test_federate_stats.py -q` → the two new tests FAIL (`set_fed_round` missing / fedstats absent).
+- [x] **Step 2:** Run `python3 -m pytest tests/test_federate_stats.py -q` → the two new tests FAIL (`set_fed_round` missing / fedstats absent).
 
-- [ ] **Step 3: Implement.** In the flag block after `get_federated()` add:
+- [x] **Step 3: Implement.** In the flag block after `get_federated()` add:
 
 ```python
 def set_fed_round(beta):
@@ -126,9 +126,9 @@ def logit(df, dep, indep, noconstant=False):
     return _coef_table(_fit_model(df, "logit", dep, indep, noconstant))
 ```
 
-- [ ] **Step 4:** `python3 -m pytest tests/test_federate_stats.py -q` → pass; `python3 -m pytest tests/ -q` → all pass (guards the `_design` factoring).
+- [x] **Step 4:** `python3 -m pytest tests/test_federate_stats.py -q` → pass; `python3 -m pytest tests/ -q` → all pass (guards the `_design` factoring).
 
-- [ ] **Step 5: Commit** `feat(federert): logit emits per-round gradient/Hessian behind fed_round`.
+- [x] **Step 5: Commit** `feat(federert): logit emits per-round gradient/Hessian behind fed_round`.
 
 ---
 
@@ -141,7 +141,7 @@ def logit(df, dep, indep, noconstant=False):
 **Interfaces:**
 - Produces: fedstats with `model == "logit"` → `{"kind": "logit_init", ...base}`; `model == "logit_round"` → `{"kind": "logit_round", ...}`; missing model key → `{"kind": "regress", ...}` (unchanged). Same min_n gate for all three (n and at_risk).
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
 
 ```python
 def test_extract_logit_init_and_round_kinds():
@@ -163,9 +163,9 @@ def test_extract_logit_below_threshold_refused():
     assert federate.extract_stats(ns, SPEC)[0]["kind"] == "refused"
 ```
 
-- [ ] **Step 2:** Run → FAIL (kind comes back "regress"/passes gate wrongly).
+- [x] **Step 2:** Run → FAIL (kind comes back "regress"/passes gate wrongly).
 
-- [ ] **Step 3: Implement** — replace the fedstats branch in `extract_stats`:
+- [x] **Step 3: Implement** — replace the fedstats branch in `extract_stats`:
 
 ```python
         if isinstance(r, pd.DataFrame) and "fedstats" in r.attrs:
@@ -183,9 +183,9 @@ def test_extract_logit_below_threshold_refused():
             continue
 ```
 
-- [ ] **Step 4:** `python3 -m pytest tests/test_federate_stats.py -q` → pass; full suite green.
+- [x] **Step 4:** `python3 -m pytest tests/test_federate_stats.py -q` → pass; full suite green.
 
-- [ ] **Step 5: Commit** `feat(federert): extract logit init/round payloads with SDC gate`.
+- [x] **Step 5: Commit** `feat(federert): extract logit init/round payloads with SDC gate`.
 
 ---
 
@@ -204,7 +204,7 @@ def test_extract_logit_below_threshold_refused():
     - `.step(per_node_round)` → `{"beta": [float], "converged": bool, "max_delta": float}` — sums grad/hess across nodes at position `index`, Newton-updates internal β (singular Hessian → `{"error": "..."}`), max 25 steps tracked internally, convergence at `max|Δβ| < 1e-8`.
     - `.render()` → same dict shape as `combine_and_render`, where the logit position renders the final `[term, coef, se, t, p]` frame (se from inv(H) at final β, z-stats, normal p) — or a refusal if never converged.
 
-- [ ] **Step 1: Failing test** — the full driver loop against pooled statsmodels, simulating fan-out with `run_remote_from_sources`:
+- [x] **Step 1: Failing test** — the full driver loop against pooled statsmodels, simulating fan-out with `run_remote_from_sources`:
 
 ```python
 def test_federated_logit_driver_matches_pooled(tmp_path):
@@ -261,9 +261,9 @@ def test_combine_stats_refuses_stray_logit():
 
 (This test also depends on Task 4's `fed_round` kwarg — implement Tasks 3+4 together before running it; the `combine_stats` test runs standalone.)
 
-- [ ] **Step 2:** Run `python3 -m pytest tests/test_federate_combine.py -q` → new tests FAIL.
+- [x] **Step 2:** Run `python3 -m pytest tests/test_federate_combine.py -q` → new tests FAIL.
 
-- [ ] **Step 3: Implement** in `m2py_runtime/federate.py`. In `combine_stats`'s dispatch add before the `else`:
+- [x] **Step 3: Implement** in `m2py_runtime/federate.py`. In `combine_stats`'s dispatch add before the `else`:
 
 ```python
         elif kind in ("logit_init", "logit_round"):
@@ -372,9 +372,9 @@ class FederatedDriver:
         return res
 ```
 
-- [ ] **Step 4:** After Task 4, run `python3 -m pytest tests/test_federate_combine.py -q` → all pass.
+- [x] **Step 4:** After Task 4, run `python3 -m pytest tests/test_federate_combine.py -q` → all pass.
 
-- [ ] **Step 5: Commit** (with Task 4) `feat(federert): Newton driver for federated logit`.
+- [x] **Step 5: Commit** (with Task 4) `feat(federert): Newton driver for federated logit`.
 
 ---
 
@@ -387,7 +387,7 @@ class FederatedDriver:
 **Interfaces:**
 - Produces: `run_remote(..., federated=False, fed_round=None)` and `run_remote_from_sources(..., federated=False, fed_round=None)`; when `fed_round` is a dict, `pandas_ops.set_fed_round(fed_round.get("beta"))` wraps the exec (cleared in `finally`). Node servers forward `req.get("fed_round")`.
 
-- [ ] **Step 1: Implement** — in `run_remote`, extend the flag block:
+- [x] **Step 1: Implement** — in `run_remote`, extend the flag block:
 
 ```python
     _ops.set_federated(federated)
@@ -403,9 +403,9 @@ and in `finally`: `_ops.set_fed_round(None)`. Both signatures gain `fed_round=No
                                   fed_round=req.get("fed_round"))}
 ```
 
-- [ ] **Step 2:** `python3 -m pytest tests/test_federate_combine.py tests/test_run_remote_from_sources.py -q` → all pass (driver test now green). Full suite green.
+- [x] **Step 2:** `python3 -m pytest tests/test_federate_combine.py tests/test_run_remote_from_sources.py -q` → all pass (driver test now green). Full suite green.
 
-- [ ] **Step 3: Commit** together with Task 3.
+- [x] **Step 3: Commit** together with Task 3.
 
 ---
 
@@ -419,7 +419,7 @@ and in `finally`: `_ops.set_fed_round(None)`. Both signatures gain `fed_round=No
 **Interfaces:**
 - Produces: `safestat-node --config node.json` or `safestat-node --port 9301 --source id=path [--level L] [--token T]`; config JSON `{"port": int, "level": str, "token": str|absent, "sources": {id: path}}` (CLI flags win over config). With a token configured, every request (except OPTIONS) must carry `Authorization: Bearer <token>` → else 401. `server.create_server(config) -> ThreadingHTTPServer` (bindable to port 0 for tests); `server.main()` is the console entry point. Engine imports resolve from `safestat_node/_engine/` when present (pip install), else from the repo root (checkout). `scripts/build_node_package.py` copies the engine set into `_engine/`.
 
-- [ ] **Step 1: Failing tests** — `tests/test_safestat_node.py`:
+- [x] **Step 1: Failing tests** — `tests/test_safestat_node.py`:
 
 ```python
 """safestat-node-serveren (fase 2): config, token-auth, run_extended."""
@@ -478,9 +478,9 @@ def test_run_extended_with_token(running_node):
     assert st["result"]["stats"][0]["kind"] == "tabulate"
 ```
 
-- [ ] **Step 2:** Run `python3 -m pytest tests/test_safestat_node.py -q` → FAIL (`No module named 'safestat_node'`).
+- [x] **Step 2:** Run `python3 -m pytest tests/test_safestat_node.py -q` → FAIL (`No module named 'safestat_node'`).
 
-- [ ] **Step 3: Implement.** `node/pyproject.toml`:
+- [x] **Step 3: Implement.** `node/pyproject.toml`:
 
 ```toml
 [build-system]
@@ -674,9 +674,9 @@ print("vendored:", len(FILES) + len(list((ENGINE / 'm2py_runtime').glob('*.py'))
 
 Delete `scripts/dev_federert_node.py`. If the vendored set is missing an import at runtime, the Task 6 venv smoke reveals it — extend `FILES` there, not speculatively.
 
-- [ ] **Step 4:** `python3 -m pytest tests/test_safestat_node.py -q` → 2 passed. Full pytest suite green.
+- [x] **Step 4:** `python3 -m pytest tests/test_safestat_node.py -q` → 2 passed. Full pytest suite green.
 
-- [ ] **Step 5: Commit** `feat(federert): safestat-node package with config and bearer-token auth`.
+- [x] **Step 5: Commit** `feat(federert): safestat-node package with config and bearer-token auth`.
 
 ---
 
@@ -686,7 +686,7 @@ Delete `scripts/dev_federert_node.py`. If the vendored set is missing an import 
 - Modify: `index.html` (`maybeRunFederatedMicrodata`: members with `"auth": "bearer"` prompt for a token via `mdPromptKey` and send it as the node's headers)
 - Verification: throwaway venv in the scratchpad dir.
 
-- [ ] **Step 1: Vendor + install + CLI smoke**
+- [x] **Step 1: Vendor + install + CLI smoke**
 
 ```bash
 python3 scripts/build_node_package.py
@@ -702,7 +702,7 @@ curl -s -X POST localhost:9301/_/api/run_extended -H 'Authorization: Bearer t1' 
 
 Expected: `401`, then a task_id; status poll (with token) → completed tabulate. Kill the node. If imports fail inside the venv, add the missing module to `FILES` in `build_node_package.py`, re-run vendor+install, retry.
 
-- [ ] **Step 2: Browser token wiring** — in `maybeRunFederatedMicrodata`, the `nodes` mapping becomes:
+- [x] **Step 2: Browser token wiring** — in `maybeRunFederatedMicrodata`, the `nodes` mapping becomes:
 
 ```js
       var nodeMembers = entry.members.filter(function (mm) { return mm.tier === 'node'; });
@@ -723,7 +723,7 @@ Expected: `401`, then a task_id; status poll (with token) → completed tabulate
 
 (`runNodes` already forwards `node.headers` on submit and poll — phase 1.)
 
-- [ ] **Step 3:** `node --test tests/js/*.test.js` green; commit `feat(federert): venv-verified node install and bearer-token browser support`.
+- [x] **Step 3:** `node --test tests/js/*.test.js` green; commit `feat(federert): venv-verified node install and bearer-token browser support`.
 
 ---
 
@@ -736,7 +736,7 @@ Expected: `401`, then a task_id; status poll (with token) → completed tabulate
 **Interfaces:**
 - Consumes: `FederatedDriver` (Task 3) via Pyodide (state persists between `py.runPython` calls), `Federate.runNodes` (existing), `fed_round` body field (Task 4).
 
-- [ ] **Step 1: Implement** — replace the block from `var py = await loadPyodideAndM2py();` through `renderSafeStatResult(...)` with:
+- [x] **Step 1: Implement** — replace the block from `var py = await loadPyodideAndM2py();` through `renderSafeStatResult(...)` with:
 
 ```js
         var py = await loadPyodideAndM2py();
@@ -772,13 +772,13 @@ Expected: `401`, then a task_id; status poll (with token) → completed tabulate
 
 Note `render()` returns DataFrames rendered to HTML inside Python — JSON-safe already.
 
-- [ ] **Step 2:** `node --test tests/js/*.test.js` + full pytest green (no logic moved, only wiring). Commit `feat(federert): browser Newton-round driver for federated logit`.
+- [x] **Step 2:** `node --test tests/js/*.test.js` + full pytest green (no logic moved, only wiring). Commit `feat(federert): browser Newton-round driver for federated logit`.
 
 ---
 
 ### Task 8: E2E smoke + docs + status + merge
 
-- [ ] **Step 1:** Two package nodes (no tokens, so the browser flow stays unprompted): `PYTHONPATH=node python3 -m safestat_node --port 9301 --source person=static_data/federert/nord/person.parquet` and 9302 with vest; app on 8127. In microdata mode run:
+- [x] **Step 1:** Two package nodes (no tokens, so the browser flow stays unprompted): `PYTHONPATH=node python3 -m safestat_node --port 9301 --source person=static_data/federert/nord/person.parquet` and 9302 with vest; app on 8127. In microdata mode run:
 
 ```
 require demo-federert-node as person
@@ -789,11 +789,11 @@ logit kvinne BEFOLKNING_INNALDER
 
 (First verify that exact script works through `run_remote_from_sources` in a REPL, and that `generate`'s comparison syntax is right — adjust the smoke script to whatever the DSL accepts, e.g. `generate kvinne = (BEFOLKNING_KJOENN == 2)`.) Expected: converged coef table; verify coef against pooled statsmodels on the concatenated parquet in a one-liner.
 
-- [ ] **Step 2:** Negative: rerun with node 9302 down → error naming «vest».
+- [x] **Step 2:** Negative: rerun with node 9302 down → error naming «vest».
 
-- [ ] **Step 3:** Docs: `docs/directive-language-examples.md` §14 node paragraph gains logit + the `safestat-node` install line (`pip install ./node`, `safestat-node --config node.json`, token support). Spec §6/status: safestat-node + logit implemented; trusted-hub + overlap still deferred. Tick this plan + execution log. Update `node/README`? No — pyproject description suffices (YAGNI).
+- [x] **Step 3:** Docs: `docs/directive-language-examples.md` §14 node paragraph gains logit + the `safestat-node` install line (`pip install ./node`, `safestat-node --config node.json`, token support). Spec §6/status: safestat-node + logit implemented; trusted-hub + overlap still deferred. Tick this plan + execution log. Update `node/README`? No — pyproject description suffices (YAGNI).
 
-- [ ] **Step 4:** Suites green → merge `federert-fase2` to master, delete branch. No push.
+- [x] **Step 4:** Suites green → merge `federert-fase2` to master, delete branch. No push.
 
 ---
 
@@ -802,3 +802,27 @@ logit kvinne BEFOLKNING_INNALDER
 - Spec §6 coverage: safestat-node (T5–T6), logistic via iterative rounds (T1–T4, T7–T8); trusted-hub + overlap explicitly deferred with reasons (header).
 - Type consistency: `fedstats["model"]` values "logit"/"logit_round" (T1) ↔ extract kinds "logit_init"/"logit_round" (T2) ↔ driver consumption (T3); `fed_round: {beta}` shape identical in T3-test/T4/T7; config dict keys identical in T5 code/tests/T6 smoke.
 - The engine vendoring list is intentionally minimal-with-arbiter (venv smoke) rather than speculative-complete — noted in T5/T6.
+
+---
+
+## Execution log (2026-07-29)
+
+All 8 tasks executed on branch `federert-fase2`. Deviations from plan:
+
+- **M2PY_VERSION must bump whenever m2py_runtime changes** — bit us live: the
+  browser served the phase-1 `federate.py` (no `FederatedDriver`) until the
+  bump to 2026-07-29b. The version string is the ONLY cache-bust for
+  `ensureM2pyRuntime`'s fetches.
+- The driver-equality test compares `drv._logit_frame()` (exact), not the
+  HTML render (rounded to 4 decimals — `atol=1e-5` fails against it).
+- `node/safestat_node/_engine/`, `node/build/`, `node/safestat_node.egg-info/`
+  are generated → .gitignore; `scripts/build_node_package.py` regenerates the
+  vendored engine before `pip install ./node`. Vendored set (16 files incl.
+  mockdata_core/functions) was sufficient — venv smoke passed with --no-deps.
+- E2E: venv-installed `safestat-node` → 401 without token, completed tabulate
+  with; browser with two `python -m safestat_node` nodes: logit converged and
+  matched pooled statsmodels EXACTLY (const −0.0417, alder 0.0006); the
+  string-typed `BEFOLKNING_KJOENN == 2` (all-False outcome) exercised the
+  25-round non-convergence guard, which rendered its clean Norwegian error —
+  the smoke script needs `== '2'` (Overraskelsesprinsippet: string columns
+  stay strings).

@@ -256,10 +256,23 @@ summarize BEFOLKNING_INNALDER
 regress INNTEKT_LONN BEFOLKNING_INNALDER
 ```
 
-Supported verbs: `tabulate`, `summarize`, `regress` (others are refused with a
-clear message). Raw rows never leave a node; a member that is down or refuses
-fails the whole run, naming the member. Local dev nodes:
-`python3 scripts/dev_federert_node.py --port 9301 --source person=<parquet>`.
+Supported verbs: `tabulate`, `summarize`, `regress`, and `logit` (fase 2 —
+iterative Newton rounds driven by the browser; each round releases only
+gradient/Hessian aggregates; one `logit` per script). Others are refused with
+a clear message. Raw rows never leave a node; a member that is down or refuses
+fails the whole run, naming the member.
+
+Running a node (fase 2 — `safestat-node`):
+
+    python3 scripts/build_node_package.py     # vendor the engine
+    pip install ./node
+    safestat-node --config node.json          # {"port","level","token","sources":{id:path}}
+    # or: safestat-node --port 9301 --source person=data/person.parquet --token X
+
+With a token configured every request needs `Authorization: Bearer <token>`;
+registry members declare `"auth": "bearer"` and the app prompts per run.
+From a checkout, `PYTHONPATH=node python3 -m safestat_node ...` works without
+installing.
 
 ---
 
