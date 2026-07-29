@@ -141,13 +141,14 @@ def test_federated_logit_driver_matches_pooled(tmp_path):
             break
     assert st["converged"]
     res = drv.render()
-    import io
-    got = pd.read_html(io.StringIO(res["results"][1 + spec["index"]]))[0]
+    assert "<table" in res["results"][1 + spec["index"]]
+    got = drv._logit_frame().set_index("term")
     import statsmodels.api as sm
     X = sm.add_constant(df[["x"]])
     want = sm.Logit(df["y"], X).fit(disp=0)
     assert np.allclose(got["coef"].to_numpy(), want.params.to_numpy(), atol=1e-5)
     assert np.allclose(got["se"].to_numpy(), want.bse.to_numpy(), atol=1e-5)
+    assert np.allclose(got["p"].to_numpy(), want.pvalues.to_numpy(), atol=1e-5)
 
 
 def test_combine_stats_refuses_stray_logit():
