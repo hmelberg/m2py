@@ -85,6 +85,35 @@
     return null;
   }
 
+  // Fase 0: gjør ett federert medlem om til et sub-item for fetch-laget.
+  // rest = valgfri sti fra load-linjen — appendes når medlemmet er en base
+  // (samme relative layout hos hver dataholder er det naturlige for
+  // horisontal federering). level 'sensitive' nektes her (spec §3: pull-
+  // tier er aldri nok for sensitive — krever node, som er fase 1).
+  function resolveFederatedMember(target, idx, rest, opts, registry) {
+    var sub = { id: 'm' + (idx + 1), url: '', viaProxy: false,
+                key: opts.key, kind: opts.kind };
+    var level = null;
+    if (isUrlish(target)) {
+      sub.url = target;
+    } else {
+      var src = findRegistrySource(registry, target);
+      if (!src) return { error: 'ukjent federert medlem «' + target + '» (ikke i registeret, og ikke en URL)' };
+      if (src.kind === 'federated' || src.members) return { error: 'federert medlem «' + target + '» er selv federert — nesting støttes ikke' };
+      sub.id = src.id;
+      sub.url = src.base_url;
+      sub.viaProxy = !!src.auth || src.cors === false;
+      level = src.level || null;
+    }
+    if (level === 'sensitive') return { error: 'federert medlem «' + target + '» er sensitivt — pull-federering (fase 0) er ikke lov; krever node-medlem (fase 1)' };
+    if (level) sub.level = level;
+    if (rest) {
+      if (sub.url.charAt(sub.url.length - 1) !== '/') sub.url += '/';
+      sub.url += rest;
+    }
+    return sub;
+  }
+
   function resolve(parsed, registry) {
     var byAlias = {};
     parsed.connects.forEach(function (c) { byAlias[c.alias] = c; });
@@ -101,6 +130,40 @@
       var conn = byAlias[head];
       if (!conn) return { alias: l.alias, url: '', viaProxy: false, error: 'ukjent kilde-alias «' + head + '» (mangler connect-linje?)' };
       var copts = conn.options || {};
+      // Fase 0 federert: inline federert(...)-connect ELLER register-oppslag
+      // med kind:'federated' — begge gir ETT item med federated-liste som
+      // fetch-laget fanner ut og unionerer (spec 2026-07-29 §3–4).
+      var fedTargets = null, fedMeta = {};
+      if (conn.federated) {
+        fedTargets = conn.federated.map(function (t) { return { target: t }; });
+      } else if (!isUrlish(conn.target)) {
+        var srcMaybe = findRegistrySource(registry, conn.target);
+        if (srcMaybe && (srcMaybe.kind === 'federated' || srcMaybe.members)) {
+          fedTargets = (srcMaybe.members || []).map(function (mm) { return { target: mm.url || mm.id, member: mm }; });
+          fedMeta = srcMaybe;
+        }
+      }
+      if (fedTargets) {
+        var mopts = { key: lopts.key || copts.key, kind: lopts.kind || copts.kind };
+        var subs = [], fedErr = null;
+        fedTargets.forEach(function (ft, fi) {
+          if (fedErr) return;
+          var sub = resolveFederatedMember(ft.target, fi, rest, mopts, registry);
+          if (sub.error) { fedErr = sub.error; return; }
+          if (ft.member) {
+            if (ft.member.id) sub.id = ft.member.id;
+            if (ft.member.kind) sub.kind = ft.member.kind;
+            if (ft.member.level === 'sensitive') { fedErr = 'federert medlem «' + sub.id + '» er sensitivt — pull-federering (fase 0) er ikke lov; krever node-medlem (fase 1)'; return; }
+            if (ft.member.level) sub.level = ft.member.level;
+          }
+          subs.push(sub);
+        });
+        if (fedErr) return { alias: l.alias, error: fedErr };
+        var fedItem = { alias: l.alias, federated: subs };
+        if (fedMeta.overlap) fedItem.overlap = fedMeta.overlap;
+        if (fedMeta.entity) fedItem.entity = fedMeta.entity;
+        return fedItem;
+      }
       var key = lopts.key || copts.key, exec = lopts.exec || copts.exec, kind = lopts.kind || copts.kind;
       var base, viaProxy = false;
       if (isUrlish(conn.target)) {

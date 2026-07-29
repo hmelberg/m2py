@@ -38,3 +38,68 @@ test('parse: federert krever alias', () => {
   assert.equal(r.connects.length, 0);
   assert.equal(r.errors.length, 1);
 });
+
+const REG = [
+  { id: 'reg-a', navn: 'A', base_url: 'https://a.no/data', cors: true },
+  { id: 'reg-auth', navn: 'B', base_url: 'https://b.no/data', auth: { type: 'apikey' } },
+  { id: 'reg-sens', navn: 'S', base_url: 'https://s.no/data', level: 'sensitive' },
+  { id: 'demo-fed', navn: 'Demo', kind: 'federated', overlap: 'possible', entity: 'person_id',
+    members: [
+      { id: 'nord', url: 'https://nord.no/person.parquet' },
+      { id: 'vest', url: 'https://vest.no/person.parquet' },
+    ] },
+  { id: 'fed2', navn: 'F2', kind: 'federated', members: [{ id: 'x', url: 'https://x.no/f.csv' }] },
+];
+
+function resolveScript(script) {
+  return DD.resolve(DD.parse(script), REG);
+}
+
+test('resolve: inline federert med URL-medlemmer og sti-appending', () => {
+  const items = resolveScript('# connect federert(https://a.no/d, https://b.no/d) as h\n# load h/person.parquet as df');
+  assert.equal(items.length, 1);
+  assert.equal(items[0].alias, 'df');
+  assert.equal(items[0].federated.length, 2);
+  assert.equal(items[0].federated[0].url, 'https://a.no/d/person.parquet');
+  assert.equal(items[0].federated[0].id, 'm1');
+  assert.equal(items[0].federated[1].id, 'm2');
+});
+
+test('resolve: inline federert med register-id-medlemmer', () => {
+  const items = resolveScript('# connect federert(reg-a, reg-auth) as h\n# load h/t.csv as df');
+  assert.equal(items[0].federated[0].url, 'https://a.no/data/t.csv');
+  assert.equal(items[0].federated[0].id, 'reg-a');
+  assert.equal(items[0].federated[1].viaProxy, true);
+});
+
+test('resolve: register-definert federert kilde, load uten sti', () => {
+  const items = resolveScript('# connect demo-fed as h\n# load h as df');
+  assert.equal(items[0].federated.length, 2);
+  assert.equal(items[0].federated[0].url, 'https://nord.no/person.parquet');
+  assert.equal(items[0].federated[0].id, 'nord');
+  assert.equal(items[0].overlap, 'possible');
+  assert.equal(items[0].entity, 'person_id');
+});
+
+test('resolve: sensitive-medlem nektes (fase 0-tier)', () => {
+  const items = resolveScript('# connect federert(reg-a, reg-sens) as h\n# load h/t.csv as df');
+  assert.ok(items[0].error);
+  assert.ok(items[0].error.indexOf('reg-sens') >= 0);
+});
+
+test('resolve: ukjent register-id som medlem gir feil (ingen stille anvil)', () => {
+  const items = resolveScript('# connect federert(reg-a, finnes-ikke) as h\n# load h/t.csv as df');
+  assert.ok(items[0].error);
+  assert.ok(items[0].error.indexOf('finnes-ikke') >= 0);
+});
+
+test('resolve: nestet federert medlem gir feil', () => {
+  const items = resolveScript('# connect federert(reg-a, fed2) as h\n# load h/t.csv as df');
+  assert.ok(items[0].error);
+});
+
+test('resolve: connect-nivå key() arves av medlemmene', () => {
+  const items = resolveScript('# connect federert(https://a.no/d, https://b.no/d) as h, key(hemmelig)\n# load h/t.enc as df');
+  assert.equal(items[0].federated[0].key, 'hemmelig');
+  assert.equal(items[0].federated[1].key, 'hemmelig');
+});
