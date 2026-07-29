@@ -151,7 +151,36 @@
       }
       return _bufCache[k];
     }
+    var LEVEL_ORDER = { public: 0, protected: 1, sensitive: 2 };
+    function maxLevel(members) {
+      var lv = null;
+      members.forEach(function (m) {
+        if (m.level && (!lv || LEVEL_ORDER[m.level] > LEVEL_ORDER[lv])) lv = m.level;
+      });
+      return lv;
+    }
     return Promise.all(localItems.map(async function (item) {
+      if (item.federated) {
+        // Fase 0 federert (spec 2026-07-29 §4): hvert medlem gjennom samme
+        // fetch/decrypt/cache-vei som et vanlig load-item, deretter union via
+        // injisert executor (index.html = duckdb-wasm; tester = fake).
+        if (!deps.unionExec) throw new Error('federert kilde «' + item.alias + '» krever union-motoren (unionExec mangler)');
+        var memberLoads = await Promise.all(item.federated.map(async function (mem) {
+          var mf = await fetchBytes(mem);
+          var mfmt = sniffFormat(mf.resp, mem.url, mem.kind);
+          var mdec = await maybeDecrypt(mem, mf.buf, mfmt, deps);
+          return { id: mem.id, bytes: mdec.bytes, format: mdec.format };
+        }));
+        var fedMeta = {};
+        if (item.overlap) fedMeta.overlap = item.overlap;
+        if (item.entity) fedMeta.entity = item.entity;
+        var merged = await deps.unionExec(item.alias, memberLoads, fedMeta);
+        var fedOut = { alias: item.alias, bytes: merged.bytes, format: 'parquet', federated: true };
+        if (item.overlap) fedOut.overlap = item.overlap;
+        var fedLv = maxLevel(item.federated);
+        if (fedLv) fedOut.level = fedLv;
+        return fedOut;
+      }
       var fetched = await fetchBytes(item);
       var format = sniffFormat(fetched.resp, item.url, item.kind);
       var dec = await maybeDecrypt(item, fetched.buf, format, deps);
@@ -288,7 +317,7 @@
     var resolved = DD.resolve(parsedLoads, registry);
     var descriptors = {};
     resolved.forEach(function (r) {
-      if (r.error || r.anvil) return; // protected/anvil/error sources are never pushdown-eligible
+      if (r.error || r.anvil || r.federated) return; // protected/anvil/federert/error: aldri pushdown-kandidater
       // .csv-sniff siden trinn B: bare .parquet/.csv-endelser gjenkjennes uten
       // eksplisitt kind() — alt annet er 'other' og aldri pushdown-kandidat.
       descriptors[r.alias] = { url: r.url,
