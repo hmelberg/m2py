@@ -180,5 +180,30 @@
         "url": "static_data/federert/sor/person.parquet"
       }
     ]
+  },
+  {
+    "id": "demo-federert-node",
+    "navn": "Demo (lokal dev): federert node-kjøring (2 noder)",
+    "utgiver": "safestat",
+    "tillit": "demo",
+    "tilgang": "node",
+    "kind": "federated",
+    "partition": "horizontal",
+    "entity": "unit_id",
+    "overlap": "none",
+    "members": [
+      {
+        "id": "nord",
+        "tier": "node",
+        "api": "http://localhost:9301",
+        "source": "person"
+      },
+      {
+        "id": "vest",
+        "tier": "node",
+        "api": "http://localhost:9302",
+        "source": "person"
+      }
+    ]
   }
 ]
