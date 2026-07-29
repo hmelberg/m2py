@@ -77,6 +77,37 @@ def test_extract_unknown_and_figures_unsupported():
     assert stats[0]["kind"] == "unsupported"
 
 
+def _logit_df(n=40, seed=5):
+    rng = np.random.default_rng(seed)
+    x = rng.normal(size=n)
+    p = 1 / (1 + np.exp(-(0.5 + 1.5 * x)))
+    return pd.DataFrame({"y": (rng.random(n) < p).astype(float), "x": x})
+
+
+def test_logit_federated_init_emits_terms_no_fit():
+    ops.set_federated(True)
+    out = ops.logit(_logit_df(), "y", ["x"])
+    fs = out.attrs["fedstats"]
+    assert fs["model"] == "logit" and fs["terms"] == ["const", "x"]
+    assert fs["n"] == 40 and "grad" not in fs
+
+
+def test_logit_federated_round_computes_grad_hess_at_beta():
+    df = _logit_df()
+    ops.set_federated(True)
+    ops.set_fed_round([0.0, 0.0])
+    try:
+        fs = ops.logit(df, "y", ["x"]).attrs["fedstats"]
+    finally:
+        ops.set_fed_round(None)
+    assert fs["model"] == "logit_round"
+    X = np.column_stack([np.ones(40), df["x"].to_numpy()])
+    y = df["y"].to_numpy()
+    p = np.full(40, 0.5)                      # sigmoid(0)
+    assert np.allclose(fs["grad"], X.T @ (y - p))
+    assert np.allclose(fs["hess"], (X * (p * (1 - p))[:, None]).T @ X)
+
+
 def test_regress_attaches_fedstats_only_when_federated():
     df = _df()
     plain = ops.regress(df, "y", ["x"])
