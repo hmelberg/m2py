@@ -42,5 +42,41 @@
     }
   }
 
-  global.Federate = { planUnion: planUnion, checkSchemas: checkSchemas };
+  // Fase 1 (spec §5): fan-out av run_extended til N noder + polling. Ren
+  // orkestrering — fetch injiseres (tester bruker fake; index.html ekte).
+  // ETT medlems feil feiler HELE kjøringen (delresultater presentert som
+  // helheten er en korrekthetsfelle, spec §5).
+  function runNodes(nodes, opts) {
+    opts = opts || {};
+    var fetchImpl = opts.fetchImpl || (typeof fetch !== 'undefined' ? fetch.bind(global) : null);
+    var pollMs = opts.pollMs || 1500;
+    var maxPolls = opts.maxPolls || 80;
+    function runOne(node) {
+      var headers = Object.assign({ 'Content-Type': 'application/json' }, node.headers || {});
+      return fetchImpl(node.api + '/_/api/run_extended', {
+        method: 'POST', headers: headers, body: JSON.stringify(node.body)
+      }).then(function (r) {
+        if (!r.ok) throw new Error('federert medlem «' + node.id + '»: HTTP ' + r.status);
+        return r.json();
+      }).then(function (sub) {
+        if (!sub || !sub.task_id) throw new Error('federert medlem «' + node.id + '»: ' + ((sub && sub.error) || 'uventet svar'));
+        var polls = 0;
+        function poll() {
+          if (polls++ >= maxPolls) throw new Error('federert medlem «' + node.id + '»: tidsavbrudd');
+          return new Promise(function (res) { setTimeout(res, pollMs); }).then(function () {
+            return fetchImpl(node.api + '/_/api/run_extended_status?task_id=' + encodeURIComponent(sub.task_id),
+              { headers: node.headers || {} });
+          }).then(function (r) { return r.json(); }).then(function (st) {
+            if (st && st.status === 'completed') return st.result;
+            if (st && st.status === 'failed') throw new Error('federert medlem «' + node.id + '»: ' + (st.error || 'kjøring feilet'));
+            return poll();
+          });
+        }
+        return poll();
+      }).then(function (result) { return { id: node.id, result: result }; });
+    }
+    return Promise.all(nodes.map(runOne));
+  }
+
+  global.Federate = { planUnion: planUnion, checkSchemas: checkSchemas, runNodes: runNodes };
 })(typeof window !== 'undefined' ? window : globalThis);
