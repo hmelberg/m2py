@@ -205,6 +205,103 @@ def _member_totals(per_node):
     return out
 
 
+class FederatedDriver:
+    """Koordinatortilstand for iterative verb (v1: én logit). Lever i Pyodide
+    mellom fan-outs — JS er bare løkka. Runde 0-payload gis i konstruktøren;
+    step() mater hver påfølgende runde; render() gir sluttresultatet der
+    logit-posisjonen er byttet ut med den konvergerte tabellen."""
+
+    MAX_ROUNDS = 25
+    TOL = 1e-8
+
+    def __init__(self, per_node, members=None, overlap=None):
+        self._round0 = per_node
+        self._members = members
+        self._overlap = overlap
+        self._logit = None
+        idxs = [i for i, s in enumerate(per_node[0]["stats"])
+                if s["kind"] == "logit_init"] if per_node else []
+        if len(idxs) > 1:
+            raise ValueError("én logit per federert skript (ennå) — "
+                             "skriptet har " + str(len(idxs)))
+        if idxs:
+            i = idxs[0]
+            column = [node["stats"][i] for node in self._round0]
+            if any(s["kind"] != "logit_init" for s in column):
+                self._logit = {"index": i, "error":
+                               "medlemmene returnerte ulike resultattyper for logit-setningen"}
+            elif any(s["terms"] != column[0]["terms"] for s in column):
+                self._logit = {"index": i, "error":
+                               "medlemmene har ulike logit-termer — samme "
+                               "modellspesifikasjon kreves hos alle"}
+            else:
+                self._logit = {"index": i, "terms": column[0]["terms"],
+                               "beta": [0.0] * len(column[0]["terms"]),
+                               "hess": None, "rounds": 0, "converged": False,
+                               "error": None, "n": sum(s["n"] for s in column)}
+
+    def logit_spec(self):
+        if not self._logit or self._logit.get("error"):
+            return None
+        return {"index": self._logit["index"], "terms": self._logit["terms"],
+                "beta": list(self._logit["beta"])}
+
+    def step(self, per_node_round):
+        import numpy as np
+        L = self._logit
+        i = L["index"]
+        column = [node["stats"][i] for node in per_node_round]
+        bad = next((s for s in column if s["kind"] != "logit_round"), None)
+        if bad is not None:
+            L["error"] = bad.get("reason", "uventet rundesvar fra et medlem")
+            return {"error": L["error"]}
+        grad = sum(np.asarray(s["grad"], dtype=float) for s in column)
+        hess = sum(np.asarray(s["hess"], dtype=float) for s in column)
+        try:
+            delta = np.linalg.solve(hess, grad)
+        except np.linalg.LinAlgError:
+            L["error"] = "kombinert Hessian er singulær — modellen kan ikke poolgjøres"
+            return {"error": L["error"]}
+        L["beta"] = (np.asarray(L["beta"]) + delta).tolist()
+        L["hess"] = hess
+        L["rounds"] += 1
+        md = float(np.max(np.abs(delta)))
+        L["converged"] = md < self.TOL
+        if L["rounds"] >= self.MAX_ROUNDS and not L["converged"]:
+            L["error"] = ("logit konvergerte ikke innen " + str(self.MAX_ROUNDS)
+                          + " runder")
+        return {"beta": list(L["beta"]), "converged": L["converged"],
+                "max_delta": md}
+
+    def _logit_frame(self):
+        import numpy as np
+        import pandas as pd
+        L = self._logit
+        hinv = np.linalg.inv(L["hess"])
+        se = np.sqrt(np.maximum(np.diag(hinv), 0.0))
+        beta = np.asarray(L["beta"])
+        with np.errstate(divide="ignore", invalid="ignore"):
+            z = beta / se
+        pvals = [math.erfc(abs(v) / math.sqrt(2)) for v in z]
+        return pd.DataFrame({"term": L["terms"], "coef": beta, "se": se,
+                             "t": z, "p": pvals})
+
+    def render(self):
+        res = combine_and_render(self._round0, members=self._members,
+                                 overlap=self._overlap)
+        L = self._logit
+        if L:
+            pos = 1 + L["index"]   # results[0] er fed-noten
+            if L.get("error"):
+                res["results"][pos] = "<pre class=\"error\">" + L["error"] + "</pre>"
+            elif L["converged"]:
+                res["results"][pos] = _render_frame(self._logit_frame())
+            else:
+                res["results"][pos] = ("<pre class=\"error\">logit ble aldri "
+                                       "kjørt ferdig (ingen runder)</pre>")
+        return res
+
+
 def combine_and_render(per_node, members=None, overlap=None):
     """N noders stats -> renderSafeStatResult-formet dict (index.html)."""
     members = members or [node["member"] for node in per_node]
@@ -253,6 +350,10 @@ def combine_stats(per_node):
             out.append(_combine_summarize(stats))
         elif kind == "regress":
             out.append(_combine_regress(stats))
+        elif kind in ("logit_init", "logit_round"):
+            out.append({"kind": "refused", "reason":
+                        "logit krever iterative runder — kjøres via den "
+                        "federerte driveren"})
         else:
             out.append({"kind": "unsupported", "reason":
                         "ukjent statistikk-type «" + kind + "»"})

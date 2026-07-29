@@ -77,7 +77,7 @@ def _raw_plot_verbs_used(script):
 
 
 def run_remote(script, *, datasets, backend="pandas", policy=None, raw=False,
-               federated=False):
+               federated=False, fed_round=None):
     level = (policy or {}).get("level", "public")
     if level != "public":
         raw = False   # print_results echoes raw result objects to stdout
@@ -125,6 +125,7 @@ def run_remote(script, *, datasets, backend="pandas", policy=None, raw=False,
     # Fase 1 federert (spec 2026-07-29 §5): regress legger ved sufficient
     # statistics i attrs så extract_stats kan frigi kombinerbare aggregater.
     _ops.set_federated(federated)
+    _ops.set_fed_round((fed_round or {}).get("beta") if federated else None)
     # Beskyttede kilder: generate/replace/keep-uttrykk når runtime-eval via
     # pandas_ops (_py_eval_expr) — uten AST-hvitelisten har de full Python med
     # ekte builtins mot rådata FØR undertrykkingen ser resultatet. Public
@@ -138,6 +139,7 @@ def run_remote(script, *, datasets, backend="pandas", policy=None, raw=False,
     finally:
         _ops.set_release_spec(None)
         _ops.set_federated(False)
+        _ops.set_fed_round(None)
         _m2.set_strict_eval(False)
 
     adapter = PandasProtect()
@@ -177,7 +179,7 @@ def run_remote(script, *, datasets, backend="pandas", policy=None, raw=False,
 
 
 def run_remote_from_sources(script, sources, *, backend="pandas", raw=False,
-                            federated=False):
+                            federated=False, fed_round=None):
     """Fetch each registered source into a DataFrame, resolve the protection
     policy (most-restrictive across sources), and run the script.
 
@@ -187,4 +189,5 @@ def run_remote_from_sources(script, sources, *, backend="pandas", raw=False,
     datasets = {s["alias"]: read_source(s["location"]) for s in sources}
     policy = resolve_policy([s.get("level", "public") for s in sources])
     return run_remote(script, datasets=datasets, backend=backend,
-                      policy=policy, raw=raw, federated=federated)
+                      policy=policy, raw=raw, federated=federated,
+                      fed_round=fed_round)

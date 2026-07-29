@@ -103,3 +103,55 @@ def test_combine_and_render_refusal_is_error_block():
     nodes = [{"member": "a", "stats": [{"kind": "refused", "reason": "for spredt"}]}]
     res = federate.combine_and_render(nodes)
     assert "error" in res["results"][1] and "for spredt" in res["results"][1]
+
+
+def test_federated_logit_driver_matches_pooled(tmp_path):
+    from m2py_remote import run_remote_from_sources
+    rng = np.random.default_rng(11)
+    x = rng.normal(size=120)
+    p = 1 / (1 + np.exp(-(0.4 + 1.2 * x)))
+    df = pd.DataFrame({"y": (rng.random(120) < p).astype(int), "x": x})
+    parts = {"nord": df.iloc[:50], "vest": df.iloc[50:]}
+    paths = {}
+    for name, part in parts.items():
+        pth = tmp_path / f"{name}.csv"
+        part.to_csv(pth, index=False)
+        paths[name] = str(pth)
+    script = "create-dataset demo\nlogit y x"
+
+    def fan_out(fed_round):
+        out = []
+        for name, pth in paths.items():
+            res = run_remote_from_sources(
+                script, [{"alias": "demo", "location": pth, "level": "public"}],
+                federated=True, fed_round=fed_round)
+            assert res["err"] is None, res["err"]
+            out.append({"member": name, "stats": res["stats"]})
+        return out
+
+    drv = federate.FederatedDriver(fan_out(None))
+    spec = drv.logit_spec()
+    assert spec is not None and spec["terms"] == ["const", "x"]
+    beta = spec["beta"]
+    for _ in range(25):
+        st = drv.step(fan_out({"beta": beta}))
+        assert "error" not in st, st
+        beta = st["beta"]
+        if st["converged"]:
+            break
+    assert st["converged"]
+    res = drv.render()
+    import io
+    got = pd.read_html(io.StringIO(res["results"][1 + spec["index"]]))[0]
+    import statsmodels.api as sm
+    X = sm.add_constant(df[["x"]])
+    want = sm.Logit(df["y"], X).fit(disp=0)
+    assert np.allclose(got["coef"].to_numpy(), want.params.to_numpy(), atol=1e-5)
+    assert np.allclose(got["se"].to_numpy(), want.bse.to_numpy(), atol=1e-5)
+
+
+def test_combine_stats_refuses_stray_logit():
+    nodes = [{"member": "a", "stats": [{"kind": "logit_init", "terms": ["const"],
+                                        "n": 10, "at_risk": [10]}]}]
+    out = federate.combine_stats(nodes)
+    assert out[0]["kind"] == "refused" and "iterative" in out[0]["reason"]
