@@ -195,6 +195,7 @@
   <a href="#python">Python (Pyodide)</a>
   <a href="#r">R (WebR)</a>
   <a href="#hybrid">Hybrid scripts</a>
+  <a href="#strict">Restricted language (strict)</a>
   <a href="#federert">Federated sources</a>
   <div class="nav-section">Reference</div>
   <a href="#tab-full">Tab autocomplete (detail)</a>
@@ -773,6 +774,27 @@ df %>% group_by(kjonn) %>%
   summarise(snitt = mean(inntekt, na.rm = TRUE))</code></pre>
 
     <p>The datasets from the microdata section are automatically transferred to Python as pandas DataFrames and to R as data frames.</p>
+  </section>
+
+  <section id="strict">
+    <h2>Restricted language (strict) — analyzing protected data</h2>
+    <p>SafeStat ships a restricted variant of real analysis languages (the safepy engine): you write ordinary pandas, R or SQL, but the code runs against a safe facade that only releases <strong>suppressed aggregates</strong> — never a row, an extreme value, or anything that could identify an individual. Enable it with <code># options.profile = strict</code> at the top of the script (python, r or duckdb mode); protected sources force strict automatically.</p>
+    <h3>Two profiles</h3>
+    <p><strong>OPEN</strong> (public data): real pandas with a deny-list. <strong>STRICT</strong> (protected/sensitive): the facade only — <code>df.head()</code> and other raw views <em>do not exist</em>; safe by construction.</p>
+    <h3>Three dialects, one release core</h3>
+    <pre><code># python mode
+df.groupby("kjonn")["alder"].mean()
+df[df["alder"] &gt;= 40]["lonn"].median()
+smf.ols("lonn ~ alder + C(kjonn)", data=df).fit().summary()
+
+# r mode (translated — never executed directly)
+df |&gt; group_by(kjonn) |&gt; summarise(m = mean(lonn), n = n())
+
+-- duckdb mode (locked engine, AST-gated)
+SELECT kjonn, avg(lonn) AS m, count(*) AS n FROM df GROUP BY kjonn</code></pre>
+    <h3>What the facade offers</h3>
+    <p><strong>Pandas:</strong> selection and boolean masks, <code>groupby</code>/<code>agg</code>, reducers (mean/median/std/quantile/nunique/…), <code>value_counts</code>, <code>crosstab</code>/<code>pivot_table</code>, data shaping (merge, rename, fillna, dropna, sort_values, melt/pivot, assign, <code>.str</code>/<code>.dt</code>), tests (ttest, anova, chisq, correlation), models (ols/logit/poisson formulas, cox/kaplan_meier/logrank, feols/iv, propensity/ATE) and aggregate plots (hist, boxplot). <strong>R:</strong> filter, mutate, group_by, summarise, select, arrange, count, distinct, rename, pivot_longer/wider, *_join, lm/glm. <strong>SQL:</strong> SELECT/GROUP BY where every item is a key or a safe aggregate.</p>
+    <p><strong>Deliberately missing:</strong> head/iloc/printing rows, export, arbitrary imports, and anything that could leak individual values. See the examples menu ("Strict — …" in python, r and duckdb mode). Thresholds and rounding match the rest of the app (min&nbsp;5, round to 10).</p>
   </section>
 
   <section id="federert">

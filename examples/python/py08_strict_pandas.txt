@@ -1,0 +1,11 @@
+# label: Strict — begrenset pandas mot beskyttede data
+# Restriktivt språk (safepy STRICT): du skriver vanlig pandas, men df er en
+# SafeFrame — rå rader finnes ikke (df.head() eksisterer ikke), og alt som
+# frigis er undertrykte aggregater. Skru på med options-linjen under.
+# options.profile = strict
+# load static_data/person.parquet as df
+
+df = df.rename(columns={"BEFOLKNING_INNALDER": "alder", "BEFOLKNING_KJOENN": "kjonn"})
+df.groupby("kjonn")["alder"].mean()
+df[df["alder"] >= 40]["alder"].median()
+df["kjonn"].value_counts()

@@ -1,0 +1,8 @@
+# label: Strict — regresjon med formel (smf.ols)
+# Formel-API-et i det restriktive språket: statsmodels-formler mot en
+# SafeFrame. Koeffisienter med få bidragsytere undertrykkes automatisk.
+# options.profile = strict
+# load static_data/person.parquet as df
+
+df = df.rename(columns={"BEFOLKNING_INNALDER": "alder", "BEFOLKNING_KJOENN": "kjonn"})
+smf.ols("alder ~ C(kjonn)", data=df).fit().summary()

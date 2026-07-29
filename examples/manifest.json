@@ -171,6 +171,11 @@
       "file": "duckdb/sql10_py_then_sql.txt",
       "label": "SQL — #py → DuckDB (hybrid)",
       "group": null
+    },
+    {
+      "file": "duckdb/sql11_strict.txt",
+      "label": "Strict — SQL i låst motor mot beskyttede data",
+      "group": null
     }
   ],
   "microdata": [
@@ -732,6 +737,16 @@
       "file": "python/py07_federert_pull.txt",
       "label": "Federert kilde — tre regioner som ett datasett",
       "group": null
+    },
+    {
+      "file": "python/py08_strict_pandas.txt",
+      "label": "Strict — begrenset pandas mot beskyttede data",
+      "group": null
+    },
+    {
+      "file": "python/py09_strict_formel.txt",
+      "label": "Strict — regresjon med formel (smf.ols)",
+      "group": null
     }
   ],
   "r": [
@@ -798,6 +813,11 @@
     {
       "file": "r/rex_ext_csv.txt",
       "label": "Read an external CSV",
+      "group": null
+    },
+    {
+      "file": "r/rex_strict_dplyr.txt",
+      "label": "Strict — begrenset R (dplyr) mot beskyttede data",
       "group": null
     }
   ],

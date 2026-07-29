@@ -1,0 +1,13 @@
+# label: Strict — SQL i låst motor mot beskyttede data
+-- Restriktiv SQL (safepy STRICT): spørringen AST-portvoktes og kjøres i en
+-- låst DuckDB-motor (ingen fil- eller nettverkstilgang); hvert SELECT-ledd må
+-- være en GROUP BY-nøkkel eller et trygt aggregat (avg/sum/count/median/...),
+-- og resultatet frigis gjennom samme undertrykker som pandas/R-dialektene.
+-- options.profile = strict
+-- load static_data/kommune.csv as df
+
+SELECT fylke_nr,
+       avg(befolkning) AS snitt_befolkning,
+       count(*) AS n
+FROM df
+GROUP BY fylke_nr

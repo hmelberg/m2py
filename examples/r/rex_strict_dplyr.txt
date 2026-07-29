@@ -1,0 +1,11 @@
+# label: Strict — begrenset R (dplyr) mot beskyttede data
+# Restriktivt R (safepy STRICT): en dplyr/base-R-delmengde som OVERSETTES til
+# den sikre kjernen — R-koden kjøres aldri direkte. Verb: filter, mutate,
+# group_by, summarise, select, arrange, count, distinct, rename,
+# pivot_longer/wider, *_join, lm/glm. Reduksjoner: mean, sum, median, sd, var.
+# options.profile = strict
+# load static_data/person.parquet as df
+
+df |> rename(alder = BEFOLKNING_INNALDER, kjonn = BEFOLKNING_KJOENN) |>
+  group_by(kjonn) |>
+  summarise(snitt = mean(alder), n = n())

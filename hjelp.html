@@ -195,6 +195,7 @@
   <a href="#python">Python (Pyodide)</a>
   <a href="#r">R (WebR)</a>
   <a href="#hybrid">Hybrid-skript</a>
+  <a href="#strict">Restriktivt språk (strict)</a>
   <a href="#federert">Federerte kilder</a>
   <div class="nav-section">Referanse</div>
   <a href="#tab-full">Tab-autocomplete (detalj)</a>
@@ -776,6 +777,27 @@ df %>% group_by(kjonn) %>%
   </section>
 
   <!-- ── TAB FULL ── -->
+  <section id="strict">
+    <h2>Restriktivt språk (strict) — analyser beskyttede data</h2>
+    <p>SafeStat har en begrenset variant av ekte analysespråk (safepy-motoren): du skriver vanlig pandas, R eller SQL, men koden kjører mot en sikker fasade som bare frigir <strong>undertrykte aggregater</strong> — aldri en rad, et ekstremverdi eller noe som kan avsløre enkeltpersoner. Skru på med <code># options.profile = strict</code> øverst i skriptet (python-, r- eller duckdb-modus); beskyttede kilder tvinger strict automatisk.</p>
+    <h3>To profiler</h3>
+    <p><strong>OPEN</strong> (offentlige data): ekte pandas med vaktliste. <strong>STRICT</strong> (beskyttet/sensitivt): kun fasaden — <code>df.head()</code> og andre råvisninger <em>finnes ikke</em>; trygt per konstruksjon.</p>
+    <h3>Tre dialekter, samme frigivelseskjerne</h3>
+    <pre><code># python-modus
+df.groupby("kjonn")["alder"].mean()
+df[df["alder"] &gt;= 40]["lonn"].median()
+smf.ols("lonn ~ alder + C(kjonn)", data=df).fit().summary()
+
+# r-modus (oversettes — kjøres aldri direkte)
+df |&gt; group_by(kjonn) |&gt; summarise(m = mean(lonn), n = n())
+
+-- duckdb-modus (låst motor, AST-portvoktet)
+SELECT kjonn, avg(lonn) AS m, count(*) AS n FROM df GROUP BY kjonn</code></pre>
+    <h3>Hva fasaden kan</h3>
+    <p><strong>Pandas:</strong> seleksjon og boolske masker, <code>groupby</code>/<code>agg</code>, reduksjoner (mean/median/std/quantile/nunique/…), <code>value_counts</code>, <code>crosstab</code>/<code>pivot_table</code>, dataforming (merge, rename, fillna, dropna, sort_values, melt/pivot, assign, <code>.str</code>/<code>.dt</code>), tester (ttest, anova, chisq, korrelasjon), modeller (ols/logit/poisson-formler, cox/kaplan_meier/logrank, feols/iv, propensity/ATE) og aggregerte plott (hist, boxplot). <strong>R:</strong> filter, mutate, group_by, summarise, select, arrange, count, distinct, rename, pivot_longer/wider, *_join, lm/glm. <strong>SQL:</strong> SELECT/GROUP BY der hvert ledd er nøkkel eller trygt aggregat.</p>
+    <p><strong>Bevisst utelatt:</strong> head/iloc/utskrift av rader, eksport, vilkårlige imports og alt som kan lekke enkeltverdier. Se eksempelmenyen («Strict — …» i python-, r- og duckdb-modus). Terskler og avrunding er de samme som ellers (min&nbsp;5, runding til 10).</p>
+  </section>
+
   <section id="federert">
     <h2>Federerte kilder</h2>
     <p>En federert kilde er ett datasett som ligger delt hos flere dataholdere (samme variabler, ulike personer — f.eks. én fil per region). Du skriver skriptet som om dataene var samlet; SafeStat gjør resten. To nivåer:</p>
