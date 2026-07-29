@@ -9689,11 +9689,22 @@ exec(compile(static_code, "static_source.py", "exec"), sys.modules["static_sourc
       var entry = fedEntry(fedReqs[0].target);
       var alias = fedReqs[0].alias;
       var cleanScript = script.replace(new RegExp(re.source, 'gim'), '').replace(/^\s*\n/gm, '');
-      var nodes = entry.members.filter(function (mm) { return mm.tier === 'node'; }).map(function (mm) {
-        return { id: mm.id, api: mm.api,
-                 body: { script: cleanScript, sources: [{ alias: alias, source_id: mm.source }],
-                         backend: 'pandas', federated: true } };
-      });
+      var nodeMembers = entry.members.filter(function (mm) { return mm.tier === 'node'; });
+      var nodes = [];
+      for (var ni = 0; ni < nodeMembers.length; ni++) {
+        var mm = nodeMembers[ni];
+        var hdrs = undefined;
+        if (mm.auth === 'bearer') {
+          // Token-beskyttet node (safestat-node --token): spør per kjøring,
+          // samme mønster som key(ask) — aldri lagret i script eller register.
+          var tok = await mdPromptKey('token for «' + mm.id + '»');
+          if (!tok) { outputArea.innerHTML = '<pre class="error">' + t('federert medlem «{id}» krever token', { id: mm.id }) + '</pre>'; return true; }
+          hdrs = { 'Authorization': 'Bearer ' + tok };
+        }
+        nodes.push({ id: mm.id, api: mm.api, headers: hdrs,
+                     body: { script: cleanScript, sources: [{ alias: alias, source_id: mm.source }],
+                             backend: 'pandas', federated: true } });
+      }
       outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('Federert: kjører på {n} noder…', { n: nodes.length }) + '</div>';
       try {
         var nodeResults = await window.Federate.runNodes(nodes, {});
