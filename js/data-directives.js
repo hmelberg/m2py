@@ -90,11 +90,14 @@
   // (samme relative layout hos hver dataholder er det naturlige for
   // horisontal federering). level 'sensitive' nektes her (spec §3: pull-
   // tier er aldri nok for sensitive — krever node, som er fase 1).
-  function resolveFederatedMember(target, idx, rest, opts, registry) {
+  // explicitUrl: medlemmet kommer fra en register-definert members-liste der
+  // url-feltet ALLTID er en URL (også relativ, f.eks. static_data/...) — den
+  // skal aldri tolkes som register-id.
+  function resolveFederatedMember(target, idx, rest, opts, registry, explicitUrl) {
     var sub = { id: 'm' + (idx + 1), url: '', viaProxy: false,
                 key: opts.key, kind: opts.kind };
     var level = null;
-    if (isUrlish(target)) {
+    if (explicitUrl || isUrlish(target)) {
       sub.url = target;
     } else {
       var src = findRegistrySource(registry, target);
@@ -148,7 +151,7 @@
         var subs = [], fedErr = null;
         fedTargets.forEach(function (ft, fi) {
           if (fedErr) return;
-          var sub = resolveFederatedMember(ft.target, fi, rest, mopts, registry);
+          var sub = resolveFederatedMember(ft.target, fi, rest, mopts, registry, !!(ft.member && ft.member.url));
           if (sub.error) { fedErr = sub.error; return; }
           if (ft.member) {
             if (ft.member.id) sub.id = ft.member.id;

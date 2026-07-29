@@ -98,6 +98,18 @@ test('resolve: nestet federert medlem gir feil', () => {
   assert.ok(items[0].error);
 });
 
+test('resolve: register-medlemmer med relative url-er behandles som URL, ikke register-id', () => {
+  const reg = [{ id: 'demo-rel', navn: 'Rel', kind: 'federated',
+    members: [
+      { id: 'nord', url: 'static_data/federert/nord/person.parquet' },
+      { id: 'vest', url: 'static_data/federert/vest/person.parquet' },
+    ] }];
+  const items = DD.resolve(DD.parse('# connect demo-rel as h\n# load h as df'), reg);
+  assert.ok(!items[0].error, items[0].error);
+  assert.equal(items[0].federated[0].url, 'static_data/federert/nord/person.parquet');
+  assert.equal(items[0].federated[0].id, 'nord');
+});
+
 test('resolve: connect-nivå key() arves av medlemmene', () => {
   const items = resolveScript('# connect federert(https://a.no/d, https://b.no/d) as h, key(hemmelig)\n# load h/t.enc as df');
   assert.equal(items[0].federated[0].key, 'hemmelig');

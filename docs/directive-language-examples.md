@@ -216,6 +216,31 @@ same assembly:
 # import db/demographics.age, db/demographics.sex into combined
 ```
 
+## 14. Federated sources — `federert(...)` (phase 0, pull)
+
+Three regions, same table, analyzed as one dataset. The automatic `__member`
+column shows which region each row came from.
+
+```
+# connect demo-federert as helse
+# load helse as personer
+print(len(personer))
+print(personer["__member"].value_counts())
+```
+
+Custom, inline (members are full URLs or registry ids; a path after the alias
+is appended to every member — same relative layout at each holder):
+
+```
+# connect federert(https://a.no/data, https://b.no/data) as h
+# load h/person.parquet as df
+```
+
+Member schemas must agree (column names; order is free) or the run is refused
+with a message naming the drifting member. Members with `level: sensitive` are
+refused in pull-federation — they require node members (phase 1). See
+`docs/superpowers/specs/2026-07-29-federated-sources-design.md`.
+
 ---
 
 **Source:** grammar and resolution order from
