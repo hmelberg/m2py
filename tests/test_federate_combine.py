@@ -57,3 +57,49 @@ def test_combine_refusal_names_member():
     out = federate.combine_stats(nodes)
     assert out[0]["kind"] == "refused"
     assert "vest" in out[0]["reason"]
+
+
+def _regress_nodes():
+    rng = np.random.default_rng(3)
+    x = rng.normal(size=60)
+    df = pd.DataFrame({"y": 1 + 2 * x + rng.normal(scale=0.5, size=60), "x": x})
+    parts = [df.iloc[:20], df.iloc[20:45], df.iloc[45:]]
+    ops.set_federated(True)
+    try:
+        per_node = []
+        for i, part in enumerate(parts):
+            ns = {"result_1": ops.regress(part, "y", ["x"])}
+            per_node.append({"member": f"m{i}",
+                             "stats": federate.extract_stats(ns, None)})
+    finally:
+        ops.set_federated(False)
+    return df, per_node
+
+
+def test_combine_regress_matches_pooled_ols():
+    df, per_node = _regress_nodes()
+    combined = federate.combine_stats(per_node)[0]
+    assert combined["kind"] == "regress"
+    pooled = ops.regress(df, "y", ["x"])
+    got = combined["frame"].set_index("term")
+    want = pooled.set_index("term")
+    for col in ("coef", "se", "t", "p"):
+        assert np.allclose(got[col].to_numpy(dtype=float),
+                           want[col].to_numpy(dtype=float), atol=1e-6), col
+
+
+def test_combine_and_render_shape_and_notes():
+    _, per_node = _regress_nodes()
+    res = federate.combine_and_render(per_node, members=["m0", "m1", "m2"],
+                                      overlap="possible")
+    assert set(res) >= {"code", "out", "html", "n", "err", "figs", "results",
+                        "datasetInfo"}
+    assert res["err"] is None
+    assert "m0" in res["results"][0] and "overlappe" in res["results"][0]
+    assert "<table" in res["results"][1]
+
+
+def test_combine_and_render_refusal_is_error_block():
+    nodes = [{"member": "a", "stats": [{"kind": "refused", "reason": "for spredt"}]}]
+    res = federate.combine_and_render(nodes)
+    assert "error" in res["results"][1] and "for spredt" in res["results"][1]

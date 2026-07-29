@@ -151,7 +151,77 @@ def _combine_summarize(stats):
 
 
 def _combine_regress(stats):
-    return {"kind": "unsupported", "reason": "regress-kombinering kommer i Task 4"}
+    import numpy as np
+    import pandas as pd
+    terms = stats[0]["terms"]
+    if any(s["terms"] != terms for s in stats):
+        return {"kind": "refused", "reason":
+                "medlemmene har ulike regresjonstermer — samme modellspesifikasjon "
+                "kreves hos alle"}
+    xtx = sum(np.asarray(s["xtx"], dtype=float) for s in stats)
+    xty = sum(np.asarray(s["xty"], dtype=float) for s in stats)
+    yty = sum(float(s["yty"]) for s in stats)
+    n = sum(int(s["n"]) for s in stats)
+    p = len(terms)
+    try:
+        xtx_inv = np.linalg.inv(xtx)
+    except np.linalg.LinAlgError:
+        return {"kind": "refused", "reason":
+                "kombinert designmatrise er singulær — modellen kan ikke poolgjøres"}
+    beta = xtx_inv @ xty
+    dof = n - p
+    sigma2 = max(yty - beta @ xty, 0.0) / dof if dof > 0 else float("nan")
+    se = np.sqrt(np.maximum(np.diag(xtx_inv) * sigma2, 0.0))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        t = beta / se
+    try:
+        from scipy import stats as _st
+        pvals = 2 * _st.t.sf(np.abs(t), dof)
+    except Exception:
+        pvals = np.array([math.erfc(abs(tv) / math.sqrt(2)) for tv in t])
+    return {"kind": "regress", "frame": pd.DataFrame(
+        {"term": terms, "coef": beta, "se": se, "t": t, "p": pvals})}
+
+
+def _render_frame(frame):
+    idx = getattr(frame.index, "name", None) is not None
+    return frame.round(4).to_html(border=0, classes="output-table", index=idx)
+
+
+def _member_totals(per_node):
+    """Per-medlem total-n fra første tabulate-stat, der synlig (None ellers)."""
+    out = []
+    for node in per_node:
+        tab = next((s for s in node["stats"] if s.get("kind") == "tabulate"), None)
+        if tab is None:
+            out.append((node["member"], None))
+            continue
+        vals = [r["n"] for r in tab["records"]]
+        out.append((node["member"],
+                    None if any(v is None for v in vals) else sum(vals)))
+    return out
+
+
+def combine_and_render(per_node, members=None, overlap=None):
+    """N noders stats -> renderSafeStatResult-formet dict (index.html)."""
+    members = members or [node["member"] for node in per_node]
+    combined = combine_stats(per_node)
+    totals = _member_totals(per_node)
+    note = ("<div class=\"fed-note\" style=\"opacity:.75;margin-bottom:6px\">"
+            "Federert: kombinert fra " + str(len(members)) + " medlemmer (" +
+            ", ".join(m + (" n=" + str(t) if t is not None else "")
+                      for m, t in totals) + ").")
+    if overlap == "possible":
+        note += " NB: medlemmer kan overlappe — tellinger er episodenivå."
+    note += "</div>"
+    results = [note]
+    for c in combined:
+        if c["kind"] in ("refused", "unsupported"):
+            results.append("<pre class=\"error\">" + c["reason"] + "</pre>")
+        else:
+            results.append(_render_frame(c["frame"]))
+    return {"code": "", "out": "", "html": "", "n": None, "err": None,
+            "figs": [], "results": results, "datasetInfo": {}}
 
 
 def combine_stats(per_node):
