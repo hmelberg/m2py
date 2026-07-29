@@ -9711,13 +9711,37 @@ exec(compile(static_code, "static_source.py", "exec"), sys.modules["static_sourc
         var badErr = nodeResults.map(function (r) { return r.result && r.result.err ? ('medlem «' + r.id + '»: ' + r.result.err) : null; }).filter(Boolean);
         if (badErr.length) { outputArea.innerHTML = '<pre class="error">' + escapeHtmlOutput(badErr.join('; ')) + '</pre>'; return true; }
         var payload = nodeResults.map(function (r) { return { member: r.id, stats: (r.result && r.result.stats) || [] }; });
+        // Fase 2: stateful driver i Pyodide (FederatedDriver) — logit krever
+        // Newton-runder der hver runde er en ny fan-out med gjeldende β.
+        // JS er bare løkka; all matematikk (og tilstand) bor i Python.
         var py = await loadPyodideAndM2py();
         py.globals.set('__fed_payload', JSON.stringify({ per_node: payload, overlap: entry.overlap || null }));
-        var resJson = py.runPython(
+        var specJson = py.runPython(
           'import json\n' +
-          'from m2py_runtime.federate import combine_and_render\n' +
+          'from m2py_runtime.federate import FederatedDriver\n' +
           '_p = json.loads(__fed_payload)\n' +
-          'json.dumps(combine_and_render(_p["per_node"], overlap=_p["overlap"]))');
+          '__fed_driver = FederatedDriver(_p["per_node"], overlap=_p["overlap"])\n' +
+          'json.dumps(__fed_driver.logit_spec())');
+        var fedSpec = JSON.parse(specJson);
+        if (fedSpec) {
+          var fedBeta = fedSpec.beta;
+          for (var fedRound = 0; fedRound < 25; fedRound++) {
+            outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('Federert logit: runde {r}…', { r: fedRound + 1 }) + '</div>';
+            var roundNodes = nodes.map(function (nd) {
+              return { id: nd.id, api: nd.api, headers: nd.headers,
+                       body: Object.assign({}, nd.body, { fed_round: { beta: fedBeta } }) };
+            });
+            var roundResults = await window.Federate.runNodes(roundNodes, {});
+            var roundPayload = roundResults.map(function (r) { return { member: r.id, stats: (r.result && r.result.stats) || [] }; });
+            py.globals.set('__fed_round', JSON.stringify(roundPayload));
+            var stJson = py.runPython('json.dumps(__fed_driver.step(json.loads(__fed_round)))');
+            var st = JSON.parse(stJson);
+            if (st.error) break;
+            fedBeta = st.beta;
+            if (st.converged) break;
+          }
+        }
+        var resJson = py.runPython('json.dumps(__fed_driver.render())');
         renderSafeStatResult(JSON.parse(resJson), script, ctx, t('federert ({n} noder)', { n: nodes.length }));
       } catch (e) {
         outputArea.innerHTML = '<pre class="error">' + escapeHtmlOutput(String(e && e.message || e)) + '</pre>';
