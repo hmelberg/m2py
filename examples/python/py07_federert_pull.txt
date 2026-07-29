@@ -1,0 +1,10 @@
+# label: Federert kilde — tre regioner som ett datasett
+# Federert kilde (pull): tre regioner hostes hver for seg, men analyseres som
+# ETT datasett. __member-kolonnen viser hvilken region hver rad kom fra.
+
+# connect demo-federert as helse
+# load helse as personer
+
+print(len(personer))
+print(personer["__member"].value_counts())
+personer.groupby("__member")["BEFOLKNING_INNALDER"].describe()

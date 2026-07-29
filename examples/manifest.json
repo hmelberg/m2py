@@ -205,6 +205,11 @@
       "group": null
     },
     {
+      "file": "microdata/07_federert_noder.txt",
+      "label": "Federert node-kjøring (krever lokale noder)",
+      "group": null
+    },
+    {
       "file": "microdata/01_grunnleggende_operasjoner/01_opprette_flere_datasett_og_flytte_seg_mellom_dem.txt",
       "label": "Opprette flere datasett og flytte seg mellom dem",
       "group": "01 — Grunnleggende operasjoner"
@@ -721,6 +726,11 @@
     {
       "file": "python/py06_dashboard.txt",
       "label": "Dashboard — fordelingsutforsker",
+      "group": null
+    },
+    {
+      "file": "python/py07_federert_pull.txt",
+      "label": "Federert kilde — tre regioner som ett datasett",
       "group": null
     }
   ],

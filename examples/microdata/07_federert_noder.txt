@@ -1,0 +1,14 @@
+# label: Federert node-kjøring (krever lokale noder)
+// Ekte federering: skriptet sendes til hver node, dataene blir der, og bare
+// SDC-beskyttede aggregater kommer tilbake og kombineres eksakt.
+// Krever to lokale noder — start dem i terminalen først:
+//   PYTHONPATH=node python3 -m safestat_node --port 9301 --source person=static_data/federert/nord/person.parquet
+//   PYTHONPATH=node python3 -m safestat_node --port 9302 --source person=static_data/federert/vest/person.parquet
+// Støttede verb: tabulate, summarize, regress, logit (Newton-runder).
+
+require demo-federert-node as person
+create-dataset person
+tabulate BEFOLKNING_KJOENN
+summarize BEFOLKNING_INNALDER
+generate kvinne = BEFOLKNING_KJOENN == '2'
+logit kvinne BEFOLKNING_INNALDER

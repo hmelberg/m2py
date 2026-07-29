@@ -195,6 +195,7 @@
   <a href="#python">Python (Pyodide)</a>
   <a href="#r">R (WebR)</a>
   <a href="#hybrid">Hybrid scripts</a>
+  <a href="#federert">Federated sources</a>
   <div class="nav-section">Reference</div>
   <a href="#tab-full">Tab autocomplete (detail)</a>
 </nav>
@@ -772,6 +773,24 @@ df %>% group_by(kjonn) %>%
   summarise(snitt = mean(inntekt, na.rm = TRUE))</code></pre>
 
     <p>The datasets from the microdata section are automatically transferred to Python as pandas DataFrames and to R as data frames.</p>
+  </section>
+
+  <section id="federert">
+    <h2>Federated sources</h2>
+    <p>A federated source is one dataset split across several data holders (same variables, different people — e.g. one file per region). You write the script as if the data were pooled; SafeStat does the rest. Two tiers:</p>
+    <h3>Pull — files are fetched and unioned</h3>
+    <p>Members are ordinary (optionally encrypted) files. They are fetched, auto-unioned, and the <code>__member</code> column shows which member each row came from. Works in every mode:</p>
+    <pre><code># connect demo-federert as helse
+# load helse as personer
+print(personer["__member"].value_counts())</code></pre>
+    <p>Custom: <code># connect federert(https://a.no/data, https://b.no/data) as h</code> + <code># load h/person.parquet as df</code>. Column names must agree across members or the run is refused. Sensitive members are refused in pull — they require nodes.</p>
+    <h3>Nodes — the script travels, the data stays</h3>
+    <p>Members with <code>tier: "node"</code> run the script locally and release only SDC-protected aggregates; the browser combines them exactly (microdata mode). Supported verbs: <code>tabulate</code>, <code>summarize</code>, <code>regress</code> and <code>logit</code> (iterative rounds). Other verbs are refused with a clear message, and one member being down fails the whole run.</p>
+    <pre><code>require demo-federert-node as person
+create-dataset person
+tabulate BEFOLKNING_KJOENN
+logit kvinne BEFOLKNING_INNALDER</code></pre>
+    <p>A data holder starts their own node with <code>pip install ./node</code> and <code>safestat-node --config node.json</code> (optional token; the app then prompts per run). See the examples menu for runnable examples in python and microdata mode.</p>
   </section>
 
   <!-- ── TAB FULL ── -->
