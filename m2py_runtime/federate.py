@@ -42,13 +42,16 @@ def extract_stats(ns, spec):
         r = ns[k]
         if isinstance(r, pd.DataFrame) and "fedstats" in r.attrs:
             fs = r.attrs["fedstats"]
+            kind = {"logit": "logit_init", "logit_round": "logit_round"}.get(
+                fs.get("model"), "regress")
             min_n = (spec or {}).get("min_n")
             if min_n and (fs["n"] < min_n or any(a < min_n for a in fs["at_risk"])):
                 stats.append({"kind": "refused", "reason":
                               "Personvern: for få enheter hos denne noden til å "
                               f"frigi regresjonsstatistikk (krever minst {min_n})."})
             else:
-                stats.append(dict(fs, kind="regress"))
+                stats.append({k: v for k, v in dict(fs, kind=kind).items()
+                              if k != "model"})
             continue
         if isinstance(r, pd.DataFrame) and "n" in r.columns:
             sup = adapter.suppress(r, spec)

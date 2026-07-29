@@ -71,6 +71,25 @@ def test_extract_regress_below_threshold_refused():
     assert "for få" in stats[0]["reason"]
 
 
+def test_extract_logit_init_and_round_kinds():
+    ops.set_federated(True)
+    ns = {"result_1": ops.logit(_logit_df(), "y", ["x"])}
+    assert federate.extract_stats(ns, None)[0]["kind"] == "logit_init"
+    ops.set_fed_round([0.0, 0.0])
+    try:
+        ns = {"result_1": ops.logit(_logit_df(), "y", ["x"])}
+    finally:
+        ops.set_fed_round(None)
+    s = federate.extract_stats(ns, None)[0]
+    assert s["kind"] == "logit_round" and "hess" in s
+
+
+def test_extract_logit_below_threshold_refused():
+    ops.set_federated(True)
+    ns = {"result_1": ops.logit(_logit_df(n=4), "y", ["x"])}
+    assert federate.extract_stats(ns, SPEC)[0]["kind"] == "refused"
+
+
 def test_extract_unknown_and_figures_unsupported():
     ns = {"result_1": "just a string", "fig_1": object()}
     stats = federate.extract_stats(ns, None)
