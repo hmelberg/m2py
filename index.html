@@ -3057,6 +3057,44 @@
       }
       return __duckdbPromise;
     }
+    // Fase 0 federert (spec 2026-07-29-federated-sources-design §4): den ENE
+    // virkelige unionExec — medlemsbytes inn, én parquet ut, med __member-
+    // kolonne og skjemasjekk. Ren plan fra js/federate.js; kjøres her mot
+    // duckdb-wasm-singletonen. Injiseres som deps.unionExec ved alle
+    // resolveAndFetchLoads/fetchResolvedItems-kall.
+    async function __federatedUnion(alias, members, meta) {
+      var db = await __ensureDuckDB();
+      var conn = await db.connect();
+      var files = members.map(function (m, i) {
+        return { id: m.id, format: m.format, fileName: 'fed_' + alias + '_' + i + '.' + m.format };
+      });
+      try {
+        for (var i = 0; i < members.length; i++) {
+          await db.registerFileBuffer(files[i].fileName, members[i].bytes);
+        }
+        var plan = window.Federate.planUnion(files);
+        var schemas = [];
+        for (var j = 0; j < plan.describes.length; j++) {
+          var dres = await conn.query(plan.describes[j].sql);
+          schemas.push({ id: plan.describes[j].id,
+            columns: dres.toArray().map(function (row) { return row.column_name; }) });
+        }
+        window.Federate.checkSchemas(schemas);
+        if (meta && meta.overlap === 'possible') {
+          console.info('federert «' + alias + '»: medlemmer kan overlappe — tellinger er episodenivå');
+        }
+        var outName = 'fed_' + alias + '_union.parquet';
+        await conn.query("COPY (" + plan.unionSql + ") TO '" + outName + "' (FORMAT PARQUET)");
+        var bytes = await db.copyFileToBuffer(outName);
+        try { await db.dropFile(outName); } catch (e) { /* best-effort */ }
+        return { bytes: bytes, format: 'parquet' };
+      } finally {
+        for (var k = 0; k < files.length; k++) {
+          try { await db.dropFile(files[k].fileName); } catch (e) { /* best-effort */ }
+        }
+        await conn.close();
+      }
+    }
     // Convert an Arrow Decimal/HUGEINT value (4×uint32, little-endian two's
     // complement) to a JS Number, applying the column scale. DuckDB returns
     // Decimal128 for sum()/HUGEINT, which arrow-js .toArray() would otherwise
@@ -3709,7 +3747,7 @@
         runSelf: async function (script, ctx) {
           setStatus(ctx.rightStatus, t('Laster Brython…'));
           var _dl = await window.DataLoader.resolveAndFetchLoads(script,
-            { anthropicKey: getAnthropicKey(), promptKey: mdPromptKey });
+            { anthropicKey: getAnthropicKey(), promptKey: mdPromptKey, unionExec: __federatedUnion });
           setStatus(ctx.rightStatus, t('Kjører…'));
           // dash v2 (js/dash.js) skriver DOM direkte til #outputArea MENS
           // scriptet kjører (window.Dash.create/addCard) — helt utenom
@@ -3741,7 +3779,7 @@
         runSelf: async function (script, ctx) {
           setStatus(ctx.rightStatus, t('Laster MicroPython…'));
           var _dl = await window.DataLoader.resolveAndFetchLoads(script,
-            { anthropicKey: getAnthropicKey(), promptKey: mdPromptKey });
+            { anthropicKey: getAnthropicKey(), promptKey: mdPromptKey, unionExec: __federatedUnion });
           setStatus(ctx.rightStatus, t('Kjører…'));
           // Samme dash v2-forbehold som Brython-raden over: js/dash.js skriver
           // DOM direkte til #outputArea under kjøring — tøm FØR, ikke etter.
@@ -7829,7 +7867,7 @@ async def _run_duck_sql(_sql):
       }
       var _deps = {
         authToken: getAuthToken(), anthropicKey: getAnthropicKey(),
-        apiBase: getMdApiBase(), promptKey: mdPromptKey,
+        apiBase: getMdApiBase(), promptKey: mdPromptKey, unionExec: __federatedUnion,
         authorizeStrict: function (ids) { return mdAuthorizeStrictRun(ids, script); } };
       var _res = await resolveAssemblyOrLoads(script, _deps);
       // Montering: DuckDB-pushdown (fase 2-planen 2026-07-09) returnerer
@@ -8485,7 +8523,7 @@ json.dumps(out)
       // FØR koden kjører (ingen-op når scriptet ikke har direktiver).
       var _rDeps = {
         authToken: getAuthToken(), anthropicKey: getAnthropicKey(),
-        apiBase: getMdApiBase(), promptKey: mdPromptKey,
+        apiBase: getMdApiBase(), promptKey: mdPromptKey, unionExec: __federatedUnion,
         authorizeStrict: function (ids) { return mdAuthorizeStrictRun(ids, src); } };
       // Project A: monteringsverb i R-modus — deler resolveAssemblyOrLoads
       // (pushdown-forsøk først, så full montering) med python/duckdb-modus
@@ -9688,7 +9726,7 @@ exec(compile(static_code, "static_source.py", "exec"), sys.modules["static_sourc
         if (_reqItems.length) {
           outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('SafeStat: henter {n} datakilde(r)…', { n: _reqItems.length }) + '</div>';
           var _reqLoads = await window.DataLoader.fetchResolvedItems(_reqItems, {
-            authToken: getAuthToken(), anthropicKey: getAnthropicKey(), promptKey: mdPromptKey });
+            authToken: getAuthToken(), anthropicKey: getAnthropicKey(), promptKey: mdPromptKey, unionExec: __federatedUnion });
           py.FS.mkdirTree('/home/pyodide/_safestat');
           _reqLoads.forEach(function (l, idx) {
             var path = '/home/pyodide/_safestat/' + l.alias + '.' + l.format;
@@ -10154,7 +10192,7 @@ options(width = 200)
           // connect/load-bane (bakoverkompatibelt).
           var _dlDeps = {
             authToken: getAuthToken(), anthropicKey: getAnthropicKey(),
-            apiBase: getMdApiBase(), promptKey: mdPromptKey,
+            apiBase: getMdApiBase(), promptKey: mdPromptKey, unionExec: __federatedUnion,
             authorizeStrict: function (ids) { return mdAuthorizeStrictRun(ids, effectiveScript); } };
           var _resolved = _duckPreResolved || await resolveAssemblyOrLoads(effectiveScript, _dlDeps);
           _asmSpec = _resolved.asmSpec;
@@ -11035,6 +11073,7 @@ def _run_microdata_chunk(_code):
   <script src="js/enc-crypto.js"></script>
   <script src="js/data-loader.js"></script>
   <script src="js/assembly-duckdb.js"></script>
+  <script src="js/federate.js"></script>
   <script src="js/duckdb-native.js"></script>
   <script src="js/ai-chat.js"></script>
   <script src="js/github-storage.js"></script>
