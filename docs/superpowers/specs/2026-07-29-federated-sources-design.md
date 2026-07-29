@@ -1,7 +1,7 @@
 # Federated data sources — design
 
 **Date:** 2026-07-29
-**Status:** Approved design, not yet implemented
+**Status:** Approved. Phase 0 implemented 2026-07-29 (plan `docs/superpowers/plans/2026-07-29-federert-fase0.md`); phases 1–2 not started.
 **Scope decision:** Horizontal partitioning first; browser-as-coordinator; three trust tiers; phases 0 → 1 → 2.
 
 ## 1. Problem
