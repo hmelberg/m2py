@@ -31,7 +31,7 @@
 **Interfaces:**
 - Produces: `DataDirectives.parse(script).connects[i]` gains an optional `federated: string[]` field (member targets, trimmed). `target` is `null` for federated connects. Task 2's `resolve()` consumes this.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/js/data-directives-federert.test.js`:
 
@@ -78,12 +78,12 @@ test('parse: federert krever alias', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `node --test tests/js/data-directives-federert.test.js`
 Expected: FAIL (federated undefined / connects mismatch — plain CONNECT_RE mis-parses these lines today).
 
-- [ ] **Step 3: Implement parsing**
+- [x] **Step 3: Implement parsing**
 
 In `js/data-directives.js`, add below `LOAD_RE` (line 17):
 
@@ -113,12 +113,12 @@ And in the existing `CONNECT_RE` loop, skip lines the federated regex owns (firs
       if (/^federert\(/i.test(m[1])) continue;   // eies av CONNECT_FED_RE (også feiltilfellene)
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `node --test tests/js/data-directives-federert.test.js` → PASS (5/5).
 Also run the full suite to catch regressions: `node --test tests/js/` → all PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add js/data-directives.js tests/js/data-directives-federert.test.js
@@ -139,7 +139,7 @@ git commit -m "feat(federert): parse connect federert(...) member lists"
   `{ alias, federated: [{ id, url, viaProxy, kind, key }...], overlap?, entity? }`
   or `{ alias, error }`. Registry entries with `kind: "federated"` and `members: [{id, url, level?, kind?}]` expand the same way. Task 4 consumes `item.federated`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/js/data-directives-federert.test.js`:
 
@@ -210,12 +210,12 @@ test('resolve: connect-nivå key() arves av medlemmene', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `node --test tests/js/data-directives-federert.test.js`
 Expected: new tests FAIL («ukjent kilde-alias» / no `federated` on items).
 
-- [ ] **Step 3: Implement resolution**
+- [x] **Step 3: Implement resolution**
 
 In `js/data-directives.js`, add a helper above `resolve()`:
 
@@ -291,12 +291,12 @@ In `resolve()`'s map callback, after `var conn = byAlias[head];` and the missing
 
 (The existing `var copts = conn.options || {};` line is replaced by this block's first line — don't duplicate it.)
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `node --test tests/js/data-directives-federert.test.js` → PASS (12/12).
 Run: `node --test tests/js/` → all PASS (no regressions in use/segment tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add js/data-directives.js tests/js/data-directives-federert.test.js
@@ -318,7 +318,7 @@ git commit -m "feat(federert): resolve inline and registry federated sources wit
   - `Federate.planUnion(files)` — `files: [{id, format('csv'|'parquet'), fileName}]` → `{ describes: [{id, sql}], unionSql }`. `unionSql` selects `*, '<id>' AS __member` per member joined with `UNION ALL BY NAME`.
   - `Federate.checkSchemas(schemas)` — `schemas: [{id, columns: string[]}]`; throws a Norwegian error naming the drifting member and its missing/extra columns; returns undefined when consistent (column ORDER may differ — only the name sets are compared).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/js/federate.test.js`:
 
@@ -374,12 +374,12 @@ test('checkSchemas: drift nevner medlem og kolonner', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `node --test tests/js/federate.test.js`
 Expected: FAIL — `Cannot find module '../../js/federate.js'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `js/assembly-duckdb.js` line 136, change the export to:
 
@@ -438,11 +438,11 @@ Create `js/federate.js`:
 })(typeof window !== 'undefined' ? window : globalThis);
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `node --test tests/js/federate.test.js` → PASS (5/5). Full suite: `node --test tests/js/` → PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add js/federate.js js/assembly-duckdb.js tests/js/federate.test.js
@@ -461,7 +461,7 @@ git commit -m "feat(federert): pure union planner with schema-drift check"
 - Consumes: Task 2's `item.federated` subitems (`{id, url, viaProxy, kind, key, level}`); existing `fetchBytes`/`sniffFormat`/`maybeDecrypt` internals.
 - Produces: `fetchResolvedItems` handles federated items by fetching every member through the shared cache/decrypt path, then calling `deps.unionExec(alias, memberLoads, meta)` where `memberLoads: [{id, bytes, format}]` and `meta: {overlap?, entity?}`; it must return `{bytes: Uint8Array, format: 'parquet'}`. The final load object is `{alias, bytes, format: 'parquet', federated: true, overlap?, level?}` (level = most restrictive member level, orden `public < protected < sensitive`). Missing `deps.unionExec` → Norwegian error. `resolveSourcesOnly` skips federated items in `descriptors` (so `canPushdown` is false and assembly falls back to full materialization).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/js/data-loader-federert.test.js`:
 
@@ -539,12 +539,12 @@ test('federert: sensitive medlem stoppes allerede i resolve-laget', async () => 
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `node --test tests/js/data-loader-federert.test.js`
 Expected: FAIL (federated items fall through the normal single-fetch path / no unionExec handling).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `js/data-loader.js`, inside `fetchResolvedItems`, add a helper before the final `return Promise.all(...)` and a federated branch at the top of its map callback:
 
@@ -591,11 +591,11 @@ In `resolveSourcesOnly` (line ~291), extend the descriptor guard:
       if (r.error || r.anvil || r.federated) return; // aldri pushdown-kandidater
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `node --test tests/js/data-loader-federert.test.js` → PASS (3/3). Full suite: `node --test tests/js/` → PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add js/data-loader.js tests/js/data-loader-federert.test.js
@@ -614,12 +614,12 @@ git commit -m "feat(federert): member fan-out fetch and injected unionExec in da
 - Consumes: `Federate.planUnion`/`checkSchemas` (Task 3), `__ensureDuckDB()` (existing), `deps.unionExec` contract (Task 4).
 - Produces: `__federatedUnion(alias, members, meta)` available to every mode's deps.
 
-- [ ] **Step 1: Find the wiring points**
+- [x] **Step 1: Find the wiring points**
 
 Run: `grep -n "authorizeStrict:" index.html` and `grep -n "__ensureDuckDB" index.html | head -3`.
 Expected: ~4–6 deps sites (python/duckdb ~3711/3743, R ~8486, safestat-require ~9690, possibly AI/preview paths) plus the `__ensureDuckDB` definition.
 
-- [ ] **Step 2: Implement the executor**
+- [x] **Step 2: Implement the executor**
 
 Below `__ensureDuckDB`'s definition add (adjust `db.connect()`/`copyFileToBuffer` calls to exactly match how `resolveAssemblyOrLoads` at `index.html:8427-8440` uses the singleton — same API, same cleanup style):
 
@@ -662,19 +662,19 @@ Below `__ensureDuckDB`'s definition add (adjust `db.connect()`/`copyFileToBuffer
     }
 ```
 
-- [ ] **Step 3: Inject into every deps site**
+- [x] **Step 3: Inject into every deps site**
 
 At each deps object found in Step 1, add one line: `unionExec: __federatedUnion,` (respect each site's naming — some use `_deps`, `_rDeps` etc.). Also add the script tag `<script src="js/federate.js"></script>` immediately after the `assembly-duckdb.js` one.
 
 If `__federatedUnion` is defined in a different scope than a deps site (check!), hoist it to the same top-level scope as `__ensureDuckDB` — both must be reachable from all mode runners.
 
-- [ ] **Step 4: Static check + full JS suite**
+- [x] **Step 4: Static check + full JS suite**
 
 Run: `node --test tests/js/` → PASS.
 Run: `node -e "const s=require('fs').readFileSync('index.html','utf8'); if(!/js\/federate\.js/.test(s)) throw new Error('script tag missing'); console.log('unionExec sites:', (s.match(/unionExec: __federatedUnion/g)||[]).length)"`
 Expected: prints the same count as deps sites found in Step 1.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add index.html
@@ -695,7 +695,7 @@ git commit -m "feat(federert): duckdb-wasm union executor wired into all mode de
 - Consumes: `static_data/person.parquet` (existing synthetic table — verify its id column name with `python3 -c "import pandas as pd; print(pd.read_parquet('static_data/person.parquet').columns.tolist())"` and use the real id column for `entity`).
 - Produces: registry id `demo-federert` usable as `# connect demo-federert as h` + `# load h as df`.
 
-- [ ] **Step 1: Write the split script**
+- [x] **Step 1: Write the split script**
 
 Create `scripts/build_federert_demo.py`:
 
@@ -720,7 +720,7 @@ for name, a, b in zip(["nord", "vest", "sor"], cuts, cuts[1:]):
 print(f"totalt: {n} rader")
 ```
 
-- [ ] **Step 2: Run it and verify the invariant**
+- [x] **Step 2: Run it and verify the invariant**
 
 Run: `python3 scripts/build_federert_demo.py`
 Expected: three member counts summing to the total.
@@ -731,7 +731,7 @@ full = pd.read_parquet('static_data/person.parquet')
 assert len(parts) == len(full), (len(parts), len(full))
 print('OK', len(full))"`
 
-- [ ] **Step 3: Registry entry**
+- [x] **Step 3: Registry entry**
 
 Append to the array in `data/data-sources.json` (match the file's existing field style; NO keys/secrets — public file):
 
@@ -754,7 +754,7 @@ Append to the array in `data/data-sources.json` (match the file's existing field
 
 (`<REAL_ID_COLUMN>` = the id column found in this task's Interfaces check.) Validate: `python3 -c "import json; json.load(open('data/data-sources.json')); print('json ok')"`.
 
-- [ ] **Step 4: Docs example**
+- [x] **Step 4: Docs example**
 
 Add to `docs/directive-language-examples.md` (follow the file's existing section format):
 
@@ -775,7 +775,7 @@ Skjemaene må stemme overens (kolonnenavn), ellers nektes kjøringen.
 Sensitive medlemmer nektes i pull-federering — de krever node-medlemmer (fase 1).
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/build_federert_demo.py static_data/federert data/data-sources.json docs/directive-language-examples.md
@@ -788,12 +788,12 @@ git commit -m "feat(federert): demo federated source split from synthetic person
 
 **Files:** none (verification only; fix-forward anything found, as its own commits)
 
-- [ ] **Step 1: Full test suites**
+- [x] **Step 1: Full test suites**
 
 Run: `node --test tests/js/` → all PASS.
 Run: `python3 -m pytest tests/ -x -q` → all PASS (nothing python-side changed; guard against accidental breakage from the registry/demo files).
 
-- [ ] **Step 2: Serve and smoke in browser**
+- [x] **Step 2: Serve and smoke in browser**
 
 Serve the repo root: `python3 -m http.server 8123` (plain static server is enough — the demo members are same-origin relative URLs; no proxy needed). In Chrome (hard reload with cache ignored — known Chrome-caches-js/ trap): open `http://localhost:8123/`, in **python mode** run:
 
@@ -806,11 +806,11 @@ print(sorted(personer["__member"].unique()))
 
 Expected: row count equals the unsplit `person.parquet` count from Task 6 Step 2, and members `['nord', 'sor', 'vest']`.
 
-- [ ] **Step 3: Negative smoke**
+- [x] **Step 3: Negative smoke**
 
 Same page, run a script with a schema-drifting inline source (e.g. `# connect federert(static_data/federert/nord/person.parquet, static_data/fylke.parquet) as h` + `# load h as df`): expected Norwegian schema-drift error naming the member, not a crash.
 
-- [ ] **Step 4: Mark plan complete**
+- [x] **Step 4: Mark plan complete**
 
 Update this plan's checkboxes; note any deviations at the bottom of the file. Commit:
 
@@ -826,3 +826,19 @@ git commit -m "docs(federert): mark phase 0 plan executed"
 - Spec §4 coverage: directive expansion (T1–T2), auto-union with `__member` (T3, T5), duckdb-native multi-URL path (not needed as a special case — union covers all modes uniformly; pushdown explicitly disabled for federated in T4), encrypted members (reuse of `maybeDecrypt` in T4's member loop), tier/level enforcement from day one (T2 + T4 test).
 - Spec §3 overlap footnote: Phase 0 carries `overlap` on the load object and logs a console note (T5); the result-level footnote is Phase 1 rendering work — noted as a deliberate deferral.
 - Type consistency: `federated` subitem shape `{id, url, viaProxy, kind, key, level}` produced in T2 and consumed as such in T4; `unionExec(alias, members, meta)` contract identical in T4 (fake) and T5 (real); `planUnion(files)` takes `{id, format, fileName}` in both T3 and T5.
+
+---
+
+## Execution log (2026-07-29)
+
+All 7 tasks executed on branch `federert-fase0`. Deviations from plan:
+
+- **Node 26**: `node --test tests/js/` (dir form) errors — use `node --test tests/js/*.test.js`.
+- **Relative registry-member URLs** (found in Task 6): members from a registry
+  `members:` list were routed through the registry-id lookup and failed for
+  relative urls like `static_data/...`. Fixed with an `explicitUrl` flag in
+  `resolveFederatedMember` + regression test.
+- **Smoke** ran on port 8127 (8123 was occupied by an unrelated dev server).
+  Positive: python mode, `demo-federert` → 16667 rows (== unsplit person.parquet),
+  members `['nord','sor','vest']`. Negative: inline federert with fylke.parquet →
+  Norwegian schema-drift error naming «m2», no crash.
