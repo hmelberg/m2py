@@ -31,7 +31,7 @@
 **Interfaces:**
 - Produces: `pandas_ops.set_federated(flag)` / `pandas_ops.get_federated()` (thread-local, mirrors `set_release_spec`). When federated, `regress(df, dep, indep, noconstant=False)` returns the usual `[term, coef, se, t, p]` DataFrame with `df.attrs["fedstats"] = {"terms": [str], "xtx": [[float]], "xty": [float], "yty": float, "n": int, "at_risk": [int]}` attached. Task 2 reads `attrs["fedstats"]`; Task 4 consumes the same dict shape.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/test_federate_stats.py`:
 
@@ -71,12 +71,12 @@ def test_regress_attaches_fedstats_only_when_federated():
     assert fs["at_risk"][0] == 20
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python3 -m pytest tests/test_federate_stats.py -q`
 Expected: FAIL — `AttributeError: ... has no attribute 'set_federated'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `m2py_runtime/pandas_ops.py`, right after `get_release_spec()` (line ~41) add:
 
@@ -117,12 +117,12 @@ def regress(df, dep, indep, noconstant=False):
 
 (Verify `_fit_model(..., return_design=True)` returns `(model, X, Y, idx)` — it does for `_binary_predict` at line ~1038; if the tuple shape differs for "regress", adapt the unpacking to what `_fit_model` actually returns and keep the attrs dict shape EXACTLY as above.)
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python3 -m pytest tests/test_federate_stats.py -q` → 1 passed.
 Guard: `python3 -m pytest tests/ -q` → all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add m2py_runtime/pandas_ops.py tests/test_federate_stats.py
@@ -147,7 +147,7 @@ git commit -m "feat(federert): regress emits sufficient statistics behind set_fe
   - `{"kind": "unsupported", "reason": str}` (anything else, incl. figures noted once)
   All values JSON-safe (floats/ints/strings/None). Tasks 3–5 consume this list.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/test_federate_stats.py`:
 
@@ -212,12 +212,12 @@ def test_extract_unknown_and_figures_unsupported():
     assert stats[0]["kind"] == "unsupported"
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `python3 -m pytest tests/test_federate_stats.py -q`
 Expected: FAIL — `ImportError: cannot import name 'federate'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `m2py_runtime/federate.py`:
 
@@ -305,11 +305,11 @@ def extract_stats(ns, spec):
     return stats
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `python3 -m pytest tests/test_federate_stats.py -q` → all pass. Full: `python3 -m pytest tests/ -q`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add m2py_runtime/federate.py tests/test_federate_stats.py
@@ -332,7 +332,7 @@ git commit -m "feat(federert): node-side stat extraction with per-node SDC gatin
   - `{"kind": "refused"|"unsupported", "reason": str}` (a refusal on ANY node poisons that position, reason names the member)
   Rule: absent category = 0 contribution; `None` (suppressed) anywhere → combined cell None. Task 4 adds regress; Task 5 renders.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/test_federate_combine.py`:
 
@@ -392,12 +392,12 @@ def test_combine_refusal_names_member():
     assert "vest" in out[0]["reason"]
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `python3 -m pytest tests/test_federate_combine.py -q`
 Expected: FAIL — `AttributeError: ... 'combine_stats'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `m2py_runtime/federate.py`:
 
@@ -522,11 +522,11 @@ def _combine_regress(stats):
     return {"kind": "unsupported", "reason": "regress-kombinering kommer i Task 4"}
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `python3 -m pytest tests/test_federate_combine.py tests/test_federate_stats.py -q` → all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add m2py_runtime/federate.py tests/test_federate_combine.py
@@ -547,7 +547,7 @@ git commit -m "feat(federert): exact combine for tabulate and summarize with nul
   - `_combine_regress(stats)` → `{"kind": "regress", "frame": DataFrame[term, coef, se, t, p]}` — pooled OLS from summed sufficient statistics; identical to running `ops.regress` on the pooled data (t-dist p via scipy when importable, else normal approx).
   - `combine_and_render(per_node, members=None, overlap=None)` → dict in the exact shape `renderSafeStatResult` (index.html) consumes: `{"code": "", "out": "", "html": "", "n": None, "err": None|str, "figs": [], "results": [html...], "datasetInfo": {}}`. `results[0]` is a note div naming members (+ per-member total n for the first tabulate stat, where visible) and the overlap footnote when `overlap == "possible"`. Refused/unsupported positions render as `<pre class="error">`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/test_federate_combine.py`:
 
@@ -598,12 +598,12 @@ def test_combine_and_render_refusal_is_error_block():
     assert "error" in res["results"][1] and "for spredt" in res["results"][1]
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `python3 -m pytest tests/test_federate_combine.py -q`
 Expected: new tests FAIL (stub returns unsupported / combine_and_render missing).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Replace the `_combine_regress` stub and append rendering in `m2py_runtime/federate.py`:
 
@@ -682,11 +682,11 @@ def combine_and_render(per_node, members=None, overlap=None):
             "figs": [], "results": results, "datasetInfo": {}}
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `python3 -m pytest tests/test_federate_combine.py -q` → all pass. Full suite green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add m2py_runtime/federate.py tests/test_federate_combine.py
@@ -705,7 +705,7 @@ git commit -m "feat(federert): pooled OLS combine and renderer-shaped output"
 - Consumes: `federate.extract_stats` (Task 2), `pandas_ops.set_federated` (Task 1).
 - Produces: `run_remote(script, *, datasets, backend="pandas", policy=None, raw=False, federated=False)` and `run_remote_from_sources(script, sources, *, backend="pandas", raw=False, federated=False)` — when `federated=True`, the result dict additionally carries `"stats": [...]` (Task 2 shape). Task 7's dev node and the Anvil server pass `federated` straight through.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/test_run_remote_from_sources.py`:
 
@@ -739,12 +739,12 @@ def test_federated_protected_stats_are_suppressed(tmp_path):
     assert by[9] is None and by[1] == 10
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `python3 -m pytest tests/test_run_remote_from_sources.py -q`
 Expected: FAIL — `TypeError: ... unexpected keyword argument 'federated'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `m2py_remote.py`: change both signatures to accept `federated=False` and pass it through. In `run_remote`, around the exec block (line ~123-136), set the flag alongside the release spec:
 
@@ -775,11 +775,11 @@ At the end of `run_remote`, before `return`, add:
 
 (Refactor the existing `return {...}` into this `out` variable.) `run_remote_from_sources` just forwards: `return run_remote(script, datasets=datasets, backend=backend, policy=policy, raw=raw, federated=federated)`.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `python3 -m pytest tests/test_run_remote_from_sources.py -q` → all pass. Full suite green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add m2py_remote.py tests/test_run_remote_from_sources.py
@@ -798,7 +798,7 @@ git commit -m "feat(federert): run_remote federated mode returns combineable sta
 - Consumes: nothing new (pure orchestration; injected fetch).
 - Produces: `Federate.runNodes(nodes, opts)` → Promise of `[{id, result}]` in input order. `nodes: [{id, api, body, headers?}]`; `opts: {fetchImpl?, pollMs? (default 1500), maxPolls? (default 80)}`. Per node: POST `api + '/_/api/run_extended'` with JSON body → `{task_id}` → poll GET `api + '/_/api/run_extended_status?task_id=...'` until `status === 'completed'` (resolve `st.result`) or `'failed'`/HTTP error/poll exhaustion (reject with Norwegian error naming the member). ANY node failure rejects the whole promise (spec §5 fail-the-run).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/js/federate.test.js`:
 
@@ -843,12 +843,12 @@ test('runNodes: én node feiler -> hele kjøringen feiler med medlemsnavn', asyn
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `node --test tests/js/federate.test.js`
 Expected: FAIL — `F.runNodes is not a function`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `js/federate.js` (inside the IIFE, before the export line; extend the export):
 
@@ -890,11 +890,11 @@ Append to `js/federate.js` (inside the IIFE, before the export line; extend the 
 
 Export: `global.Federate = { planUnion: planUnion, checkSchemas: checkSchemas, runNodes: runNodes };`
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `node --test tests/js/*.test.js` → all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add js/federate.js tests/js/federate.test.js
@@ -913,7 +913,7 @@ git commit -m "feat(federert): runNodes fan-out and poll orchestration"
 - Consumes: `run_remote_from_sources(..., federated=True)` (Task 5).
 - Produces: `python3 scripts/dev_federert_node.py --port 9301 --source person=static_data/federert/nord/person.parquet [--level public]` — an HTTP node implementing POST `/_/api/run_extended` (body `{script, sources: [{alias, source_id}], federated}` → `{task_id}`, runs synchronously) and GET `/_/api/run_extended_status?task_id=...` (→ `{status: 'completed', result}`), with permissive CORS (`Access-Control-Allow-Origin: *`, OPTIONS preflight OK). Registry entry members carry `{id, tier: "node", api, source}` — Task 8's browser wiring reads exactly these fields.
 
-- [ ] **Step 1: Write the dev node**
+- [x] **Step 1: Write the dev node**
 
 Create `scripts/dev_federert_node.py`:
 
@@ -1012,7 +1012,7 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 2: Verify the node end-to-end from the shell**
+- [x] **Step 2: Verify the node end-to-end from the shell**
 
 ```bash
 python3 scripts/dev_federert_node.py --port 9301 --source person=static_data/federert/nord/person.parquet &
@@ -1025,7 +1025,7 @@ kill %1
 
 Expected: `completed tabulate`.
 
-- [ ] **Step 3: Registry entry**
+- [x] **Step 3: Registry entry**
 
 Append to `data/data-sources.json` (same style as `demo-federert`):
 
@@ -1050,7 +1050,7 @@ Append to `data/data-sources.json` (same style as `demo-federert`):
 Validate: `python3 -c "import json; json.load(open('data/data-sources.json')); print('json ok')"`.
 Note: `resolve()` in data-directives ignores members without `url` for the pull path — Task 8 verifies pull-loading this entry yields a clear error, not a crash.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add scripts/dev_federert_node.py data/data-sources.json
@@ -1070,7 +1070,7 @@ git commit -m "feat(federert): local dev node implementing run_extended protocol
 - Consumes: `Federate.runNodes` (Task 6), `deriveSafeStatExecutor(script)` (existing — `{cleanScript, sources: [{alias, source_id}], error}`), `loadPyodideAndM2py()` (existing), `renderSafeStatResult(res)` (existing), registry entry shape from Task 7.
 - Produces: in microdata mode, a script whose single `require <target> as <alias>` target is a registry entry with `kind: "federated"` and node members fans out to every member, combines via Pyodide (`m2py_runtime.federate.combine_and_render`), renders. Mixed-target and multi-source scripts refuse with a clear message.
 
-- [ ] **Step 1: Pull-path guard test (data-directives)**
+- [x] **Step 1: Pull-path guard test (data-directives)**
 
 Append to `tests/js/data-directives-federert.test.js`:
 
@@ -1086,7 +1086,7 @@ test('resolve: node-medlemmer (tier node, uten url) nektes i pull-veien', () => 
 
 Run: `node --test tests/js/data-directives-federert.test.js` → new test FAILS (node member has no `url`; today `mm.url || mm.id` falls back to a registry-id lookup error — assert the message mentions node, which it doesn't yet).
 
-- [ ] **Step 2: Implement the guard**
+- [x] **Step 2: Implement the guard**
 
 In `js/data-directives.js`, in the registry-compound branch of `resolve()` (the `fedTargets = (srcMaybe.members || []).map(...)` line), map node members to an explicit error instead:
 
@@ -1103,7 +1103,7 @@ In `js/data-directives.js`, in the registry-compound branch of `resolve()` (the 
 
 Wait — this early-return sits inside the map callback for a LOAD line, where `l` is in scope; place it exactly there (it already is: the branch is inside `parsed.loads.map`). Run: `node --test tests/js/*.test.js` → all pass.
 
-- [ ] **Step 3: Implement `maybeRunFederatedMicrodata` in index.html**
+- [x] **Step 3: Implement `maybeRunFederatedMicrodata` in index.html**
 
 Add above `maybeRunRemoteMicrodata` (line ~9660):
 
@@ -1166,12 +1166,12 @@ Then find the dispatch site (`grep -n "maybeRunRemoteMicrodata(" index.html`) an
 
 (Copy the exact surrounding statement pattern — whatever the existing call does on `true` (return/skip), mirror it.)
 
-- [ ] **Step 4: Static checks + suites**
+- [x] **Step 4: Static checks + suites**
 
 Run: `node --test tests/js/*.test.js` and `python3 -m pytest tests/ -q` → green.
 Run: `node -e "const s=require('fs').readFileSync('index.html','utf8'); console.log('fed fn:', /maybeRunFederatedMicrodata/.test(s))"` → `fed fn: true`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add index.html js/data-directives.js tests/js/data-directives-federert.test.js
@@ -1184,7 +1184,7 @@ git commit -m "feat(federert): browser fan-out to node members with Pyodide comb
 
 **Files:** none (verification; fix-forward as own commits). Also: update spec status + this plan's execution log; docs example in `docs/directive-language-examples.md` §14 gains a node-federation paragraph.
 
-- [ ] **Step 1: Start two nodes + static server**
+- [x] **Step 1: Start two nodes + static server**
 
 ```bash
 python3 scripts/dev_federert_node.py --port 9301 --source person=static_data/federert/nord/person.parquet &
@@ -1192,7 +1192,7 @@ python3 scripts/dev_federert_node.py --port 9302 --source person=static_data/fed
 python3 -m http.server 8127 --directory . &
 ```
 
-- [ ] **Step 2: Browser smoke (microdata mode, hard reload)**
+- [x] **Step 2: Browser smoke (microdata mode, hard reload)**
 
 Open `http://localhost:8127/index.html`, microdata mode, run:
 
@@ -1203,11 +1203,11 @@ tabulate BEFOLKNING_KJOENN
 
 Expected: one combined tabulate whose per-category counts equal `nord+vest` (verify against `python3 -c "import pandas as pd; print(pd.concat([pd.read_parquet('static_data/federert/nord/person.parquet'), pd.read_parquet('static_data/federert/vest/person.parquet')])['BEFOLKNING_KJOENN'].value_counts())"`), preceded by the fed-note naming both members with n.
 
-- [ ] **Step 3: Negative smokes**
+- [x] **Step 3: Negative smokes**
 
 (a) Stop node 9302; rerun → error naming «vest», no partial result. (b) Restart 9302 with `--level protected`; rerun → combined counts show rounding/suppression semantics (mixed public+protected nodes). (c) Run `summarize` and `regress` scripts; `boxplot`-style verbs → unsupported message.
 
-- [ ] **Step 4: Docs + status, final commit**
+- [x] **Step 4: Docs + status, final commit**
 
 Add to `docs/directive-language-examples.md` §14 a "Node-federering (fase 1)" paragraph with the require-script above and one sentence: only aggregates leave each node; supported verbs tabulate/summarize/regress. Update spec Status line to "Phases 0–1 implemented". Tick this plan's checkboxes + execution log. Commit:
 
@@ -1223,3 +1223,28 @@ git commit -m "docs(federert): phase 1 executed"
 - Spec §5 coverage: per-node SDC before emission (T2, T5), sufficient-stats gate (T2), positional combine with exact rules (T3–T4), browser coordinator + run_extended protocol (T6–T8), fail-on-any-node (T6), annotations incl. per-member n + overlap footnote (T4), verb refusals (T2/T3). Mixed-tier pull+node combine deferred (documented v1 scope cut; spec allows phasing).
 - Sync: `m2py_runtime/federate.py` auto-syncs to the Anvil server via `sync_to_api.py`'s `m2py_runtime/*.py` glob (verified line 73–76); no sync changes needed.
 - Type consistency: fedstats dict keys identical in T1/T2/T4; stat `kind` strings identical across T2–T5; `runNodes` node/result shapes identical in T6/T8; dev-node protocol (T7) matches `runNodes` (T6) URL paths and status fields.
+
+---
+
+## Execution log (2026-07-29)
+
+All 9 tasks executed on branch `federert-fase1`. Deviations from plan:
+
+- **`maybeRunFederatedMicrodata` does NOT use `deriveSafeStatExecutor`** (plan
+  said it would): that helper resolves require-targets against server grants
+  and rejects federated registry ids («ukjent kilde»). The dispatch parses
+  require-lines itself (target + alias) and strips them for cleanScript.
+  Federated scripts follow the extended-DSL shape: `require <id> as <alias>` +
+  `create-dataset <alias>` + verbs.
+- **`runNodes` wraps network-level fetch failures** so a downed node reports
+  «federert medlem 'x': nåes ikke (…)» instead of a bare "Failed to fetch"
+  (smoke-found; regression test added).
+- **`ensureM2pyRuntime`'s rtMods list** gained `federate`; `M2PY_VERSION`
+  bumped to 2026-07-29a (pandas_ops changed).
+- Summarize's `by` parameter is a STRING (`by='grp'`), not a list — one plan
+  test adjusted.
+- E2E smoke (two dev nodes 9301 public + 9302, app on 8127): tabulate combined
+  5634/5477 == pooled exact; with 9302 restarted `--level protected`, combined
+  showed per-node rounding (5632/5473, vest n=5550) — the documented
+  suppress-then-combine semantics; summarize and regress combined across the
+  mixed pair; node-down failed the whole run naming the member.

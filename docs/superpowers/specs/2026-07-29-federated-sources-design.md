@@ -1,7 +1,7 @@
 # Federated data sources — design
 
 **Date:** 2026-07-29
-**Status:** Approved. Phase 0 implemented 2026-07-29 (plan `docs/superpowers/plans/2026-07-29-federert-fase0.md`); phases 1–2 not started.
+**Status:** Approved. Phase 0 implemented 2026-07-29 (plan `docs/superpowers/plans/2026-07-29-federert-fase0.md`). Phase 1 implemented 2026-07-29 (plan `docs/superpowers/plans/2026-07-29-federert-fase1.md`; combine layer in Python/`m2py_runtime/federate.py` rather than JS — runs in Pyodide; v1 scope: one require-target per script, verbs tabulate/summarize/regress). Phase 2 not started.
 **Scope decision:** Horizontal partitioning first; browser-as-coordinator; three trust tiers; phases 0 → 1 → 2.
 
 ## 1. Problem

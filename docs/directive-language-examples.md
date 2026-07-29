@@ -241,6 +241,26 @@ with a message naming the drifting member. Members with `level: sensitive` are
 refused in pull-federation — they require node members (phase 1). See
 `docs/superpowers/specs/2026-07-29-federated-sources-design.md`.
 
+### Node-federering (fase 1, microdata-modus)
+
+A federated registry source whose members have `tier: "node"` runs
+compute-to-data: the script is sent to every node, each node runs it against
+its own data and releases only SDC-gated aggregates, and the browser combines
+them exactly (sum cells, pool moments, pool XᵀX/Xᵀy):
+
+```
+require demo-federert-node as person
+create-dataset person
+tabulate BEFOLKNING_KJOENN
+summarize BEFOLKNING_INNALDER
+regress INNTEKT_LONN BEFOLKNING_INNALDER
+```
+
+Supported verbs: `tabulate`, `summarize`, `regress` (others are refused with a
+clear message). Raw rows never leave a node; a member that is down or refuses
+fails the whole run, naming the member. Local dev nodes:
+`python3 scripts/dev_federert_node.py --port 9301 --source person=<parquet>`.
+
 ---
 
 **Source:** grammar and resolution order from
