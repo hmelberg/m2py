@@ -9267,9 +9267,11 @@ exec(compile(static_code, "static_source.py", "exec"), sys.modules["static_sourc
         bodyHtml += '<div class="plotly-container" id="' + _id + '" style="margin-top:8px"></div>';
       });
       if (!bodyHtml) bodyHtml = '<pre style="opacity:.6">' + t('(ingen output)') + '</pre>';
-      outputArea.innerHTML = head + bodyHtml
-        + '<details style="margin-top:8px"><summary style="cursor:pointer;opacity:.7">' + t('Generert Python (pandas)') + '</summary><pre class="offline-code"></pre></details>';
-      outputArea.querySelector('details pre').textContent = res.code;
+      // «Generert Python (pandas)»-blokken er fjernet fra output (2026-07-30):
+      // i python-strict er res.code bare et ekko av skriptet, i R/strict er
+      // det intern oversettelse, og for microdata-DSL finnes den dedikerte
+      // meny-knappen (menuOfflineBtn, «Oversett … til frittstående Python»).
+      outputArea.innerHTML = head + bodyHtml;
       try { window.lastDatasetInfo = res.datasetInfo || {}; updateSidebarDatasets(res.datasetInfo || {}); } catch (e) { console.warn('safestat sidebar', e); }
       _figIds.forEach(function(_f){
         try {
