@@ -73,7 +73,12 @@
           });
         }
         return poll();
-      }).then(function (result) { return { id: node.id, result: result }; });
+      }).then(function (result) { return { id: node.id, result: result }; })
+        .catch(function (e) {
+          var msg = String((e && e.message) || e);
+          if (msg.indexOf('federert medlem') === 0) throw e;
+          throw new Error('federert medlem «' + node.id + '»: nåes ikke (' + msg + ')');
+        });
     }
     return Promise.all(nodes.map(runOne));
   }

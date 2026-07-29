@@ -9666,10 +9666,13 @@ exec(compile(static_code, "static_source.py", "exec"), sys.modules["static_sourc
     // SDC-gatede aggregater kommer tilbake), kombiner i Pyodide
     // (m2py_runtime.federate — samme kode som pytest dekker), render.
     async function maybeRunFederatedMicrodata(script, ctx) {
-      var re = /^\s*require\s+(\S+)\s+as\s+\w+/gim;
-      var targets = [], m;
-      while ((m = re.exec(script)) !== null) targets.push(m[1]);
-      if (!targets.length) return false;
+      // Egen require-parsing (IKKE deriveSafeStatExecutor — den slår opp mot
+      // server-grants og kjenner ikke federerte registerkilder): målet og
+      // aliaset står i require-linjen; cleanScript er scriptet uten dem.
+      var re = /^[ \t]*require[ \t]+(\S+)[ \t]+as[ \t]+(\w+)[ \t]*$/gim;
+      var reqs = [], m;
+      while ((m = re.exec(script)) !== null) reqs.push({ target: m[1], alias: m[2] });
+      if (!reqs.length) return false;
       var registry = [];
       try { registry = await (await fetch('data/data-sources.json')).json(); } catch (e) {}
       function fedEntry(t) {
@@ -9677,19 +9680,18 @@ exec(compile(static_code, "static_source.py", "exec"), sys.modules["static_sourc
         for (var i = 0; i < registry.length; i++) if (registry[i].id === t) { src = registry[i]; break; }
         return (src && src.kind === 'federated' && (src.members || []).some(function (mm) { return mm.tier === 'node'; })) ? src : null;
       }
-      var fedTargets = targets.filter(fedEntry);
-      if (!fedTargets.length) return false;
-      if (targets.length > 1) {
+      var fedReqs = reqs.filter(function (r) { return fedEntry(r.target); });
+      if (!fedReqs.length) return false;
+      if (reqs.length > 1) {
         outputArea.innerHTML = '<pre class="error">' + t('Federert kjøring støtter ett require-mål per skript (ennå).') + '</pre>';
         return true;
       }
-      var entry = fedEntry(fedTargets[0]);
-      var derived = await deriveSafeStatExecutor(script);
-      if (derived.error) { outputArea.innerHTML = '<pre class="error">' + escapeHtmlOutput(derived.error) + '</pre>'; return true; }
-      var alias = derived.sources[0] && derived.sources[0].alias;
+      var entry = fedEntry(fedReqs[0].target);
+      var alias = fedReqs[0].alias;
+      var cleanScript = script.replace(new RegExp(re.source, 'gim'), '').replace(/^\s*\n/gm, '');
       var nodes = entry.members.filter(function (mm) { return mm.tier === 'node'; }).map(function (mm) {
         return { id: mm.id, api: mm.api,
-                 body: { script: derived.cleanScript, sources: [{ alias: alias, source_id: mm.source }],
+                 body: { script: cleanScript, sources: [{ alias: alias, source_id: mm.source }],
                          backend: 'pandas', federated: true } };
       });
       outputArea.innerHTML = '<div style="padding:8px;opacity:.6">' + t('Federert: kjører på {n} noder…', { n: nodes.length }) + '</div>';

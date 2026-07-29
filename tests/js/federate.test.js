@@ -76,6 +76,13 @@ test('runNodes: samler resultater i inputrekkefølge', async () => {
   assert.deepEqual(res[0].result.stats, ['a']);
 });
 
+test('runNodes: nettverksfeil (fetch kaster) navngir medlemmet', async () => {
+  await assert.rejects(
+    F.runNodes([{ id: 'nord', api: 'https://nord.no', body: {} }],
+      { fetchImpl: async () => { throw new TypeError('Failed to fetch'); }, pollMs: 1 }),
+    /«nord».*Failed to fetch/);
+});
+
 test('runNodes: én node feiler -> hele kjøringen feiler med medlemsnavn', async () => {
   await assert.rejects(
     F.runNodes(
