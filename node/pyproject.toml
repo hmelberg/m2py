@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "safestat-node"
+version = "0.1.0"
+description = "Selvbetjent federert SafeStat-node: kjør m2py-skript mot lokale data, frigi kun SDC-gatede aggregater"
+requires-python = ">=3.11"
+dependencies = ["pandas", "numpy", "statsmodels", "pyarrow", "scipy"]
+
+[project.scripts]
+safestat-node = "safestat_node.server:main"
+
+[tool.setuptools]
+packages = ["safestat_node"]
+
+[tool.setuptools.package-data]
+safestat_node = ["_engine/*.py", "_engine/m2py_runtime/*.py"]
