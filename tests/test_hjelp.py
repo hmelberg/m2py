@@ -29,7 +29,8 @@ def read(fil: str) -> str:
 
 
 class _Grab(HTMLParser):
-    """Plukker ut title, første h1, nav-logo, lead og alle section-id-er.
+    """Plukker ut title, første h1, nav-logo, lead, alle section-id-er,
+    overskrift-id-er og interne href="#..."-mål.
     Bruker stdlib — bs4 er ikke installert og skal ikke installeres."""
 
     def __init__(self):
@@ -39,6 +40,8 @@ class _Grab(HTMLParser):
         self.nav_logo = None
         self.lead = None
         self.section_ids = []
+        self.heading_ids = set()
+        self.hrefs = set()
         self._want = None
 
     def handle_starttag(self, tag, attrs):
@@ -53,6 +56,11 @@ class _Grab(HTMLParser):
             self._want = "lead"
         elif tag == "section" and a.get("id"):
             self.section_ids.append(a["id"])
+        if tag in ("h1", "h2", "h3", "h4", "h5", "h6") and a.get("id"):
+            self.heading_ids.add(a["id"])
+        href = a.get("href")
+        if href and href.startswith("#") and len(href) > 1:
+            self.hrefs.add(href[1:])
 
     def handle_data(self, data):
         if self._want and data.strip():
@@ -119,3 +127,17 @@ def test_denne_siden_dekker_tabell():
     m = re.search(r'<section id="intro".*?</section>', text, re.DOTALL)
     assert m, "fant ikke intro-seksjonen"
     assert 'class="overview"' in m.group(0), "intro mangler oversiktstabell"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="Tasks 5-7 legger til #tillit, #kilder, #strict-py, #strict-r",
+)
+def test_ingen_hengende_interne_lenker():
+    """Hver href="#x" skal treffe en seksjon eller overskrift som finnes.
+    Fanger at en senere task omdøper eller dropper en seksjon som lag 0
+    allerede lenker til."""
+    g = grab("hjelp.html")
+    mal = set(g.section_ids) | g.heading_ids
+    hengende = g.hrefs - mal
+    assert not hengende, f"hengende interne lenker (mangler id): {sorted(hengende)}"
