@@ -159,7 +159,8 @@
       });
       return lv;
     }
-    return Promise.all(localItems.map(async function (item) {
+    function fetchAll() {
+      return Promise.all(localItems.map(async function (item) {
       if (item.federated) {
         // Fase 0 federert (spec 2026-07-29 §4): hvert medlem gjennom samme
         // fetch/decrypt/cache-vei som et vanlig load-item, deretter union via
@@ -202,7 +203,28 @@
         out.level = item.grant.level || 'protected';
       }
       return out;
-    }));
+      }));
+    }
+    // Kjøringsomfang (spec 2026-07-30 §3.3): finn secret-navnene lastelisten
+    // trenger og be om hovedpassordet ÉN gang for hele kjøringen. Strict-items
+    // holdes utenfor — de bruker aldri lagrede nøkler, og en RENT strict
+    // lasteliste rører ikke engang lager-objektet (testen håndhever det).
+    var nonStrict = localItems.filter(function (it) {
+      return !(it.grant && it.grant.local_profile === 'strict');
+    });
+    if (nonStrict.length) {
+      var KS = deps.keys || global.Keys;
+      var secretNames = [];
+      if (KS && typeof KS.policy === 'function') {
+        nonStrict.forEach(function (it) {
+          if (it.key && it.key !== 'ask' && KS.policy(it.key) === 'secret' && secretNames.indexOf(it.key) === -1)
+            secretNames.push(it.key);
+        });
+      }
+      if (KS && typeof KS.runScope === 'function' && secretNames.length)
+        return KS.runScope(secretNames, fetchAll);
+    }
+    return fetchAll();
   }
 
   function fetchSourceAccess(item, deps, fetchImpl) {
@@ -248,7 +270,14 @@
       key = (item.grant && item.grant.key) || (item.key && item.key !== 'ask' ? item.key : null);
       if (!key) throw new Error('«' + item.alias + '»: kjøringen ble ikke autorisert med nøkkel — strict-kilder bruker aldri lagrede/spurte nøkler; prøv igjen eller bruk key(<nøkkel>)');
     } else {
-      key = (item.key && item.key !== 'ask') ? item.key
+      // key(<navn>) (spec 2026-07-30 §3.3): treffer literalen et lagret
+      // nøkkelnavn, er den en REFERANSE — slå opp via nøkkellageret (som
+      // selv håndterer policy: open/locked/secret). Ellers literal som før.
+      // Strict-greinen over rører bevisst ALDRI lageret.
+      var K = deps.keys || global.Keys;
+      var isName = !!(K && typeof K.policy === 'function' && item.key && item.key !== 'ask' && K.policy(item.key));
+      key = isName ? await K.resolve(item.key, item.alias)
+          : (item.key && item.key !== 'ask') ? item.key
           : (item.grant && item.grant.key) ? item.grant.key
           : deps.promptKey ? await deps.promptKey(item.alias)
           : null;
