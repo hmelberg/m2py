@@ -5,7 +5,8 @@
       var T = window.t || function (s, p) { return p ? s.replace(/\{(\w+)\}/g, function (m, k) { return k in p ? p[k] : m; }) : s; };
       const LS_KEY_BASE = 'md_ai_api_base';
       const LS_KEY_APIKEY = 'md_ai_api_key';
-      const LS_KEY_ANTHROPIC = 'md_anthropic_key';   // BYOK: brukerens egen Anthropic-nøkkel
+      // BYOK Anthropic-nøkkelen bor i nøkkellageret (js/keys.js, «anthropic»)
+      // — gammel md_anthropic_key migreres dit ved lasting.
       const LS_KEY_AIMODE = 'md_ai_mode';   // 'fast' | 'anvil'
       const DEFAULT_BASE = 'https://mdataapi.anvil.app';
 
@@ -21,7 +22,7 @@
         history: [],   // {role, html|text, raw}
         get apiBase() { return (localStorage.getItem(LS_KEY_BASE) || DEFAULT_BASE).replace(/\/+$/, ''); },
         get apiKey()  { return localStorage.getItem(LS_KEY_APIKEY) || ''; },
-        get anthropicKey() { return localStorage.getItem(LS_KEY_ANTHROPIC) || ''; },
+        get anthropicKey() { return (window.Keys && window.Keys.get('anthropic')) || ''; },
         // AI mode: 'fast' = rask edge-funksjon, 'anvil' = full vurdering via
         // Anvil-API. Web (agentisk web-søk + generering; admin-only,
         // python/r/duckdb) is NOT part of this menu cycle — it has its own
@@ -1570,8 +1571,12 @@
         localStorage.setItem(LS_KEY_BASE, base);
         localStorage.setItem(LS_KEY_APIKEY, key);
         const akey = dom.aiCfgAnthropicKey ? dom.aiCfgAnthropicKey.value.trim() : '';
-        if (akey) localStorage.setItem(LS_KEY_ANTHROPIC, akey);
-        else localStorage.removeItem(LS_KEY_ANTHROPIC);
+        if (window.Keys) {
+          // Policy beholdes ved oppdatering (Keys.set-default); prompt kan
+          // dukke opp hvis posten er låst — feil vises, lagringen ellers ok.
+          if (akey) window.Keys.set('anthropic', akey).catch((e) => alert(e.message));
+          else window.Keys.remove('anthropic');
+        }
         // BYOK-nøkkelen påvirker Web-knappens synlighet (webModeEligible).
         if (window.mdSyncWebBtnVisibility) window.mdSyncWebBtnVisibility();
         closeSettings();
@@ -1616,7 +1621,7 @@
         }
         if (dom.aiCfgByokRemove) {
           dom.aiCfgByokRemove.addEventListener('click', () => {
-            localStorage.removeItem(LS_KEY_ANTHROPIC);
+            if (window.Keys) window.Keys.remove('anthropic');
             if (dom.aiCfgAnthropicKey) dom.aiCfgAnthropicKey.value = '';
             if (dom.aiCfgByokStored) dom.aiCfgByokStored.style.display = 'none';
             if (window.mdSyncWebBtnVisibility) window.mdSyncWebBtnVisibility();

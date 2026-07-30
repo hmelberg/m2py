@@ -1162,7 +1162,7 @@
       try {
         // Get Anvil session token from mdAuth module; BYOK-nøkkel som alternativ.
         const token = window.mdAuth && window.mdAuth.token;
-        const anthropicKey = localStorage.getItem('md_anthropic_key') || '';
+        const anthropicKey = (window.Keys && window.Keys.get('anthropic')) || '';
         if (!token && !anthropicKey) {
           status.textContent = t('Du må være logget inn eller ha lagt inn egen Anthropic-nøkkel (AI-innstillinger) for å bruke dataminimering.');
           cancelBtn.disabled = true;
@@ -2263,7 +2263,7 @@
 
       window.mdHasStoredSecret = function () {
         try {
-          if (localStorage.getItem('md_anthropic_key')) return true;
+          if (window.Keys && window.Keys.registered().length) return true;
           if (localStorage.getItem('m2py_github_pat')) return true;
           var p = localStorage.getItem('m2py_github_profiles');
           if (p && /"pat"\s*:\s*"[^"]/.test(p)) return true;
@@ -2965,7 +2965,7 @@
     // BYOK-nøkkel (samme localStorage-nøkkel som ai-chat.js) — brukes av
     // data-loaderen mot /api/hent når brukeren ikke er innlogget.
     function getAnthropicKey() {
-      return localStorage.getItem('md_anthropic_key') || null;
+      return (window.Keys && window.Keys.get('anthropic')) || null;
     }
     // API-base for /source_access m.m. — samme kilde som login.js.
     function getMdApiBase() {
