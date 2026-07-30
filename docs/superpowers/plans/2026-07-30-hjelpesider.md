@@ -2095,11 +2095,33 @@ Ingen test her; dette er den manuelle kontrollen som fanger det tester
 ikke ser — at siden faktisk er lesbar og at scrollspy, filter og
 kopier-knapp virker.
 
-- [ ] **Step 1: Start en lokal server**
+- [ ] **Step 1: Start en lokal server — på riktig port, og bekreft riktig repo**
+
+Naken `netlify dev` tar port 8888. Kjører et søskenrepo allerede der, serverer
+den *dets* filer, og hele sjekklista under verifiserer feil app uten å si fra.
+Det skjedde under utviklingen av denne planen: 8888 var opptatt av openstat, og
+`hjelp.html` derfra har tittelen «OpenStat – Dokumentasjon».
+
+Bruk én port per repo:
+
+| Repo | Port |
+|---|---|
+| safestat | 8890 |
+| openstat | 8891 |
+| askstat | 8892 |
+| microdata | 8893 |
 
 ```bash
-netlify dev
+netlify dev --port <port> &
+sleep 12
+curl -s "http://localhost:<port>/hjelp.html?cb=$(date +%s)" -H 'Cache-Control: no-cache' \
+  | grep -oE '<title>[^<]*'
 ```
+
+**Tittelen som kommer ut må være dette repoets.** Er den ikke det, serverer
+noe annet på porten — finn det med `lsof -nP -iTCP:<port> -sTCP:LISTEN` og velg
+en ledig port framfor å drepe en prosess du ikke startet.
+
 
 Verifiseringsfellen gjelder: Chrome cacher `js/` over HTTP, og
 `netlify dev` cacher edge-TS-moduler. Bruk hard-reload med ignoreCache.
