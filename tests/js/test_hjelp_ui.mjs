@@ -13,7 +13,7 @@ assert.ok(m, 'fant ikke felles-js-blokken i hjelp.html');
 const fakeWindow = {};
 new Function('window', m[1])(fakeWindow);
 assert.ok(fakeWindow.HjelpUI, 'blokken hengte ikke HjelpUI på window');
-const { matchNav } = fakeWindow.HjelpUI;
+const { matchNav, pickActiveId } = fakeWindow.HjelpUI;
 
 test('tom query viser alt', () => {
   assert.deepEqual(matchNav('', ['Editor', 'Moduser', 'Strict']), [0, 1, 2]);
@@ -51,4 +51,24 @@ test('matcher norske bokstaver æøå, uavhengig av store bokstaver', () => {
     matchNav('ØRING', ['Avsløringskontroll', 'Spørsmålsløkka']),
     [0]
   );
+});
+
+// pickActiveId: scrollspyens beslutningsfunksjon, trukket ut som ren
+// funksjon nettopp for å kunne testes uten IntersectionObserver/DOM.
+// Task 10 (browser-verifisering) fant at det gamle mønsteret — fjern
+// highlight ubetingelet, sett den betinget — tømte highlighten hver gang
+// ingenting overlappet det smale observasjonsbåndet (typisk øverst og
+// nederst på siden). Fikset ved å beholde forrige aktive id når ingenting
+// intersecter nå.
+
+test('ingenting intersecter nå: beholder forrige aktive', () => {
+  assert.equal(pickActiveId('tillit', []), 'tillit');
+});
+
+test('ny intersection: flytter til den (første i observatørens rekkefølge)', () => {
+  assert.equal(pickActiveId('tillit', ['kilder', 'strict-py']), 'kilder');
+});
+
+test('aller første kall, ingenting intersecter ennå: returnerer ingenting', () => {
+  assert.equal(pickActiveId(null, []), null);
 });

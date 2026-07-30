@@ -1322,6 +1322,18 @@ fed.summarize("lonn", by="kjonn")</code></pre>
     return out;
   }
 
+  // Ren funksjon — node-testet i tests/js/test_hjelp_ui.mjs.
+  // Velger hvilken seksjon scrollspyen skal markere som aktiv: første id i
+  // `intersectingIds` (observatørens egen rekkefølge, dvs. dokumentrekkefølge)
+  // hvis noe faktisk er synlig nå, ellers den forrige aktive — ALDRI tomt,
+  // bortsett fra første kall før noe seksjon i det hele tatt har vært synlig.
+  // Uten dette blir highlighten borte hver gang ingen seksjon overlapper det
+  // smale observasjonsbåndet (typisk øverst og nederst på siden).
+  function pickActiveId(prevId, intersectingIds) {
+    if (intersectingIds.length) return intersectingIds[0];
+    return prevId || null;
+  }
+
   function navLinks() {
     return Array.prototype.slice.call(document.querySelectorAll('nav a[href^="#"]'));
   }
@@ -1364,11 +1376,17 @@ fed.summarize("lonn", by="kjonn")</code></pre>
       .filter(Boolean);
     if (!targets.length || !w.IntersectionObserver) return;
     var seen = Object.create(null);
+    var activeId = null;
     var obs = new w.IntersectionObserver(function (entries) {
       entries.forEach(function (e) { seen[e.target.id] = e.isIntersecting; });
-      var active = targets.filter(function (t) { return seen[t.id]; })[0];
+      var intersecting = targets
+        .filter(function (t) { return seen[t.id]; })
+        .map(function (t) { return t.id; });
+      var next = pickActiveId(activeId, intersecting);
+      if (next === activeId) return;
+      activeId = next;
       links.forEach(function (a) { a.classList.remove('nav-active'); });
-      if (active && byId[active.id]) byId[active.id].classList.add('nav-active');
+      if (activeId && byId[activeId]) byId[activeId].classList.add('nav-active');
     }, { rootMargin: '-80px 0px -70% 0px' });
     targets.forEach(function (t) { obs.observe(t); });
   }
@@ -1404,6 +1422,7 @@ fed.summarize("lonn", by="kjonn")</code></pre>
 
   w.HjelpUI = {
     matchNav: matchNav,
+    pickActiveId: pickActiveId,
     initNavFilter: initNavFilter,
     initScrollspy: initScrollspy,
     initCopyButtons: initCopyButtons,
