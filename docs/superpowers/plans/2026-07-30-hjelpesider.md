@@ -35,6 +35,15 @@
 - **Ikke bryt linjer inne i en `<pre class="result">`.** Teksten sammenlignes ordrett mot harnessens outputfil, så en linjedeling for lesbarhetens skyld gjør at testen feiler. `.example-result pre` har `overflow-x: auto` — lange linjer ruller, og det er meningen.
 - **Resultatverdiene i denne planen er målt 2026-07-30** mot `vendor/safepy.zip` slik den var da. Avviker en outputfil fra planen, er **filen** som har rett — planens verdier er en hjelp, ikke en autoritet.
 - **Rekkefølge er bindende:** safestat (Task 1–10) → openstat (11–12) → askstat (13–14) → microdata (15–16) → sluttverifisering (17). Fellesseksjonene kopieres *fra safestat*, aldri omvendt.
+- **Python-kommando per repo.** Bare safestat har `.venv`. De tre søsknene bruker systemets `python3`, som har pandas, numpy og pytest (verifisert 2026-07-30):
+
+  | Repo | Kommando |
+  |---|---|
+  | safestat | `.venv/bin/python` |
+  | openstat, askstat, microdata | `python3` |
+
+  Står det `.venv/bin/python` i en task som gjelder et søskenrepo, er det en feil i planen — bruk `python3`.
+- **De fire repoene må ligge side om side** i samme foreldermappe. `scripts/hjelp_sync_check.sh` slår opp søsknene relativt til sin egen plassering (`$HERE/..`, overstyrbart med `HJELP_SYNC_ROOT`), og taskene bruker stier som `../openstat`. Et git-worktree som flytter et repo ut av `~/Documents/GitHub/` brekker begge.
 
 ---
 
@@ -627,6 +636,7 @@ Opprett `tests/test_hjelp_sync.py`:
 De fire repoene har hver sin hjelp.html. Fellesseksjonene skal være
 byte-identiske; dagens tilstand er beviset på at de ellers driver fra
 hverandre (askstat sin het «OpenStat» i to måneder)."""
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -667,16 +677,30 @@ def test_skriptet_gir_exit_0_naar_alt_stemmer():
     assert r.returncode == 0, f"exit {r.returncode}\n{r.stdout}\n{r.stderr}"
 
 
-def test_skriptet_fanger_innfort_avvik():
-    """Sabotér en blokk i en kopi og se at uttrekket skiller de to."""
+def test_skriptet_gir_exit_1_ved_avvik(tmp_path):
+    """Bygg et falskt søskenrepo med en sabotert blokk og se at skriptet
+    faktisk går til exit 1. Uten denne kunne skriptet returnert 0 alltid og
+    synk-disiplinen vært en illusjon."""
     text = (REPO / "hjelp.html").read_text(encoding="utf-8")
-    blokk = extract_block(text, "felles-editor")
-    assert blokk is not None
-    saboterte = text.replace(blokk, blokk + "\n<!-- avvik -->", 1)
-    assert saboterte != text
-    # Skriptet sammenligner mot søskenrepoer; her verifiserer vi bare at
-    # uttrekket faktisk skiller de to variantene fra hverandre.
-    assert extract_block(saboterte, "felles-editor") != blokk
+    blokk = extract_block(text, "felles-css")
+    assert blokk is not None, "felles-css mangler i hjelp.html"
+
+    falsk = tmp_path / "faksesosken"
+    falsk.mkdir()
+    saboterte = text.replace(blokk, blokk + "\n.sabotasje { color: red; }", 1)
+    assert saboterte != text, "sabotasjen endret ingenting"
+    (falsk / "hjelp.html").write_text(saboterte, encoding="utf-8")
+    (falsk / "hjelp.en.html").write_text(
+        (REPO / "hjelp.en.html").read_text(encoding="utf-8"), encoding="utf-8")
+
+    r = subprocess.run(
+        ["sh", str(SCRIPT)], cwd=REPO, capture_output=True, text=True,
+        env={**os.environ,
+             "HJELP_SYNC_ROOT": str(tmp_path),
+             "HJELP_SYNC_SIBLINGS": "faksesosken"})
+    assert r.returncode == 1, (
+        f"skriptet godtok et avvik (exit {r.returncode})\n{r.stdout}\n{r.stderr}")
+    assert "felles-css" in r.stderr, "feilmeldingen navngir ikke blokken"
 ```
 
 - [ ] **Step 2: Kjør testen for å se at den feiler**
@@ -697,10 +721,15 @@ Opprett `scripts/hjelp_sync_check.sh`:
 # (kjernen) er repo-spesifikke og med vilje utenfor sjekken.
 #
 # Exit 1 ved avvik. Søsken som ikke er sjekket ut lokalt hoppes over.
+#
+# HJELP_SYNC_ROOT og HJELP_SYNC_SIBLINGS kan overstyres — testen bruker det for
+# å bygge et falskt søsken med en sabotert blokk og bekrefte at exit 1 faktisk
+# inntreffer. Uten overstyring er standarden søskenrepoene ved siden av dette.
 set -eu
 
 HERE=$(cd "$(dirname "$0")/.." && pwd)
-SIBLINGS="openstat askstat microdata"
+ROOT="${HJELP_SYNC_ROOT:-$HERE/..}"
+SIBLINGS="${HJELP_SYNC_SIBLINGS:-openstat askstat microdata}"
 BLOCKS="felles-css felles-js felles-editor felles-sidebar felles-lagre
         felles-forklar felles-widgets felles-ai felles-eksempler
         felles-referanse-snarveier felles-referanse-tab"
@@ -722,7 +751,7 @@ extract() {
 for f in $FILES; do
   [ -f "$HERE/$f" ] || { echo "hopper over $f (finnes ikke her)"; continue; }
   for sib in $SIBLINGS; do
-    sibfile="$HERE/../$sib/$f"
+    sibfile="$ROOT/$sib/$f"
     if [ ! -f "$sibfile" ]; then
       echo "hopper over $sib/$f (ikke sjekket ut)"
       continue
@@ -1921,7 +1950,7 @@ def test_motormatrise_dekker_alle_moduser_i_registeret():
 
 - [ ] **Step 2: Kjør testen for å se at den feiler**
 
-Run: `cd ../openstat && .venv/bin/python -m pytest tests/test_hjelp.py -v`
+Run: `cd ../openstat && python3 -m pytest tests/test_hjelp.py -v`
 Expected: FAIL — `openstat dokumenterer fortsatt microdata-modus`
 
 - [ ] **Step 3: Kopier fellesdelen fra safestat**
@@ -2031,7 +2060,7 @@ grep -n 'class="nav-logo"' hjelp.html hjelp.en.html
 
 Run:
 ```bash
-.venv/bin/python -m pytest tests/test_hjelp.py -v
+python3 -m pytest tests/test_hjelp.py -v
 node --test tests/js/test_hjelp_ui.mjs
 sh scripts/hjelp_sync_check.sh
 ```
@@ -2133,7 +2162,7 @@ def test_readme_heter_askstat():
 
 - [ ] **Step 2: Kjør testen for å se at den feiler**
 
-Run: `cd ../askstat && .venv/bin/python -m pytest tests/test_hjelp.py -v`
+Run: `cd ../askstat && python3 -m pytest tests/test_hjelp.py -v`
 Expected: FAIL — `hjelp.html inneholder fortsatt «OpenStat»`
 
 - [ ] **Step 3: Kopier fellesdelen fra safestat**
@@ -2322,7 +2351,7 @@ forklar dem på engelsk, men behold navnene.
 
 Run:
 ```bash
-.venv/bin/python -m pytest tests/test_hjelp.py -v
+python3 -m pytest tests/test_hjelp.py -v
 node --test tests/js/test_hjelp_ui.mjs
 sh scripts/hjelp_sync_check.sh
 ```
@@ -2453,7 +2482,7 @@ def test_statx_er_dokumentert():
 
 - [ ] **Step 2: Kjør testen for å se at den feiler**
 
-Run: `cd ../microdata && .venv/bin/python -m pytest tests/test_hjelp.py -v`
+Run: `cd ../microdata && python3 -m pytest tests/test_hjelp.py -v`
 Expected: FAIL — `hjelp.html inneholder fortsatt «Microdata Script Runner»`
 
 - [ ] **Step 3: Kopier fellesdelen fra safestat**
@@ -2466,7 +2495,7 @@ Reglene skal ikke skrives fra hukommelsen. Hent dem:
 
 ```bash
 grep -noE "(min_pop|MIN_POP|1000|winsor|percentile|suppress)[A-Za-z_]*" m2py.py | head -30
-.venv/bin/python -m pytest tests/ -k "protect or disclosure or profile" -v 2>&1 | tail -20
+python3 -m pytest tests/ -k "protect or disclosure or profile" -v 2>&1 | tail -20
 ```
 
 Bygg tabellen «terskel → effekt» fra det du finner, og oppgi de faktiske
@@ -2592,7 +2621,7 @@ Hent oversetterdekningen fra testene, som er den eneste pålitelige kilden til
 hva som faktisk oversettes:
 
 ```bash
-.venv/bin/python -m pytest py2m/tests/ -q 2>&1 | tail -5
+python3 -m pytest py2m/tests/ -q 2>&1 | tail -5
 Rscript r2m/test_r2m.R 2>&1 | tail -10
 ```
 
@@ -2605,7 +2634,7 @@ oversettes ikke.
 
 Run:
 ```bash
-.venv/bin/python -m pytest tests/test_hjelp.py -v
+python3 -m pytest tests/test_hjelp.py -v
 node --test tests/js/test_hjelp_ui.mjs
 sh scripts/hjelp_sync_check.sh
 ```
@@ -2672,7 +2701,7 @@ Expected: fire ganger «fellesseksjonene stemmer», exit 0 hver gang.
 ```bash
 for r in safestat openstat askstat microdata; do
   echo "── $r ──"
-  (cd ~/Documents/GitHub/$r && .venv/bin/python -m pytest tests/test_hjelp.py tests/test_hjelp_sync.py -q \
+  (cd ~/Documents/GitHub/$r && python3 -m pytest tests/test_hjelp.py tests/test_hjelp_sync.py -q \
      && node --test tests/js/test_hjelp_ui.mjs)
 done
 ```
@@ -2714,7 +2743,7 @@ eller erstatt den med kjørt output.
 ```bash
 for r in safestat openstat askstat microdata; do
   echo "── $r ──"
-  (cd ~/Documents/GitHub/$r && .venv/bin/python -m pytest tests/ -q 2>&1 | tail -5)
+  (cd ~/Documents/GitHub/$r && python3 -m pytest tests/ -q 2>&1 | tail -5)
 done
 ```
 Expected: samme resultat som før planen startet. Nye feil er regresjoner og
