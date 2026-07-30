@@ -988,7 +988,7 @@ Erstatt `<section id="intro">` (linje ~212–227) med:
         <tr><td><a href="#strict-py">Restricted Python</a></td><td>Hva du kan skrive, hva som ikke finnes, og hvorfor</td></tr>
         <tr><td><a href="#strict-r">Restricted R</a></td><td>Samme frigivelseskjerne, R-syntaks</td></tr>
         <tr><td><a href="#federert">Federerte kilder</a></td><td>Analyser flere noder uten å samle dataene</td></tr>
-        <tr><td><a href="#modes">Moduser</a></td><td>De ni språkene, og når du velger hvilket</td></tr>
+        <tr><td><a href="#modes">Moduser</a></td><td>De sju språkene, og når du velger hvilket</td></tr>
         <tr><td><a href="#tab-full">Referanse</a></td><td>Snarveier, direktiver, Tab-autocomplete</td></tr>
       </tbody>
     </table>
@@ -1832,7 +1832,7 @@ awk -v s="$ln" 'NR>=s && NR<=s+400' index.html | grep -E "^\s{6}[a-z]+:\s*\{"
 ```html
 <section id="modes">
   <h2>Moduser</h2>
-  <p>Samme editor, samme datasett — ni språk. Modusen bestemmer hvilken motor som kjører koden, og hvilke knapper som vises.</p>
+  <p>Samme editor, samme datasett — sju språk. Modusen bestemmer hvilken motor som kjører koden, og hvilke knapper som vises.</p>
   <table class="doc-table">
     <thead><tr><th>Modus</th><th>Motor</th><th>Bruk den når</th></tr></thead>
     <tbody>
