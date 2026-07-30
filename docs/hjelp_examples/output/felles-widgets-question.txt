@@ -1,0 +1,11 @@
+{
+  "name": "question",
+  "payload": {
+    "q": "Hva er p-verdien?",
+    "options": [
+      "<0.05",
+      ">0.05"
+    ],
+    "answer": 0
+  }
+}

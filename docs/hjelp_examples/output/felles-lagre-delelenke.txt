@@ -1,0 +1,3 @@
+{"v":1,"name":"","lang":"python","script":"print(sum(range(1, 101)))"}
+
+https://din-adresse.example/app/#s=H4sIAAAAAAAAE6tWKlOyMtRRykvMTVWyUlLSUcpJzEsHsgoqSzLy84D84uSizIISkEhRZl6JRnFprkYRUEmqhqGOgqGBoaamplItAIhdxIZGAAAA

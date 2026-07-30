@@ -1,0 +1,7 @@
+{
+  "name": "title",
+  "payload": {
+    "text": "Kapittel 1",
+    "size": "full"
+  }
+}

@@ -358,6 +358,21 @@ df.groupby("kjonn")["lonn"].mean()</code></pre>
     <div class="callout tip">
       <strong>Skru på selv:</strong> <code># options.profile = strict</code> øverst i skriptet, i python-, r- eller duckdb-modus. Beskyttede kilder tvinger strict uansett hva du skriver.
     </div>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Selvvalgt STRICT på offentlige data <span class="badge badge-py">py</span></span>
+        <pre><code># options.profile = strict
+df.groupby("kjonn")["lonn"].mean()</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat</span>
+        <pre class="result">kjonn  mean(lonn)
+1  520 790
+2  518 450</pre>
+      </div>
+    </div>
+    <p>Samme kode og samme motor som i <a href="#strict-py">Restricted Python</a> — direktivet er det eneste som er nytt. Uten det ville <code>public</code>-nivå kjørt i OPEN, med ekte pandas.</p>
   </section>
 
   <!-- ── KILDER ── -->
@@ -674,6 +689,57 @@ generate hoy = (inntekt &gt; maks)</code></pre>
       <li><strong>Winsorisering 1/99 %.</strong> Numeriske variabler kuttes ved 1- og 99-persentilen før visning av gjennomsnitt og standardavvik i <code>summarize</code>, og før plotting i <code>histogram</code>, <code>scatter</code> og <code>boxplot</code>. Median og kvartiler er ikke påvirket. Regresjon og collapse bruker rå data.</li>
     </ul>
 
+    <h3>Reglene i praksis</h3>
+    <p>Kjørt mot et testdatasett (5 000 enheter, samme frø som resten av siden) med avsløringskontroll slått PÅ — appens standard.</p>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Genererer og aggregerer <span class="badge badge-micro">micro</span></span>
+        <pre><code>generate lonn_1000 = lonn / 1000
+collapse (mean) lonn_1000 -&gt; snittlonn_1000, by(kjonn)</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat</span>
+        <pre class="result">Genererte lonn_1000 med 5 000 enheter
+Aggregerte testdata gruppert på kjonn til 2 verdier</pre>
+      </div>
+    </div>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Populasjon under 1000 <span class="badge badge-micro">micro</span></span>
+        <pre><code>keep if alder &gt; 68</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat</span>
+        <pre class="result">FEIL: keep ville redusere populasjonen til 109 enheter. microdata.no krever minst 1000 enheter per populasjon. Datasettet er uendret.</pre>
+      </div>
+    </div>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Endring på 1–9 enheter <span class="badge badge-micro">micro</span></span>
+        <pre><code>generate hoyeste = 1 if lonn &gt; 933381</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat</span>
+        <pre class="result">FEIL: generate 'hoyeste' påvirker bare 7 av 5000 enheter. microdata.no tillater ikke endringer som påvirker færre enn 10 enheter (unntak: alle eller ingen).</pre>
+      </div>
+    </div>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Pseudonym i uttrykk <span class="badge badge-micro">micro</span></span>
+        <pre><code>generate BEFOLKNING_MOR_FNR = alder
+generate test = BEFOLKNING_MOR_FNR + 1</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat</span>
+        <pre class="result">Genererte BEFOLKNING_MOR_FNR med 5 000 enheter
+FEIL: BEFOLKNING_MOR_FNR er en pseudonymvariabel og kan ikke brukes i generate-uttrykk. Pseudonymer kan kun brukes som nøkkel i collapse(by) eller merge(on).</pre>
+      </div>
+    </div>
+
     <h4>Per-script-overstyring</h4>
     <p>Du kan også styre avsløringskontroll fra selve scriptet med et magisk direktiv øverst i koden. Direktivet er en vanlig kommentar (<code>//</code>) som ignoreres av microdata.no-produksjon, men leses av m2py før kjøring og slås tilbake igjen etterpå (påvirker ikke andre script):</p>
     <pre><code>// m2py: disclosure-control=off
@@ -822,6 +888,20 @@ summarize kjonn</code></pre>
       <li>Passer for scripts opp til noen tusen tegn. Er scriptet for stort for en URL, får du beskjed — bruk «Last ned kode» (fil) eller GitHub i stedet.</li>
     </ul>
 
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Script i editoren <span class="badge">url</span></span>
+        <pre><code>print(sum(range(1, 101)))</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat — det «Del»-knappen lager</span>
+        <pre class="result">{"v":1,"name":"","lang":"python","script":"print(sum(range(1, 101)))"}
+
+https://din-adresse.example/app/#s=H4sIAAAAAAAAE6tWKlOyMtRRykvMTVWyUlLSUcpJzEsHsgoqSzLy84D84uSizIISkEhRZl6JRnFprkYRUEmqhqGOgqGBoaamplItAIhdxIZGAAAA</pre>
+      </div>
+    </div>
+    <p>Adressen foran <code>#</code> er din egen (vist som placeholder over); alt fra <code>#s=</code> er ekte — scriptet, pakket i JSON, gzip-komprimert og base64url-kodet inn i selve lenken.</p>
+
     <h3>Åpne fra URL</h3>
     <p>Lim inn en <strong>direkte lenke</strong> til en tekstfil, så hentes innholdet inn i editoren. De siste URL-ene du har brukt huskes lokalt for rask gjenåpning.</p>
     <ul>
@@ -879,6 +959,56 @@ df["alder"] = 2024 - df["fodselsar"]
 # Dette er neste blokk
 df.groupby("kjonn")["lonn"].mean()
 # Denne kommentaren leses etter at resultatet vises</code></pre>
+
+    <p>Slik tolker Kjør skrittvis akkurat dette scriptet — to blokker, én foranstilt og én etterhengt kommentar:</p>
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Samme script <span class="badge badge-py">py</span></span>
+        <pre><code># Denne kommentaren leses OPP før koden kjøres
+df["alder"] = 2024 - df["fodselsar"]
+
+# Dette er neste blokk
+df.groupby("kjonn")["lonn"].mean()
+# Denne kommentaren leses etter at resultatet vises</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat — blokkstrukturen</span>
+        <pre class="result">[
+  {
+    "code": "df[\"alder\"] = 2024 - df[\"fodselsar\"]",
+    "codeTrim": "df[\"alder\"] = 2024 - df[\"fodselsar\"]",
+    "commentItems": [
+      {
+        "silent": false,
+        "text": "Denne kommentaren leses OPP før koden kjøres",
+        "kwargs": {}
+      }
+    ],
+    "postCommentItems": [],
+    "skipCodeSpeech": false
+  },
+  {
+    "code": "df.groupby(\"kjonn\")[\"lonn\"].mean()",
+    "codeTrim": "df.groupby(\"kjonn\")[\"lonn\"].mean()",
+    "commentItems": [
+      {
+        "silent": false,
+        "text": "Dette er neste blokk",
+        "kwargs": {}
+      }
+    ],
+    "postCommentItems": [
+      {
+        "silent": false,
+        "text": "Denne kommentaren leses etter at resultatet vises",
+        "kwargs": {}
+      }
+    ],
+    "skipCodeSpeech": false
+  }
+]</pre>
+      </div>
+    </div>
 
     <h3>Kommentarsyntaks</h3>
     <table class="doc-table">
@@ -954,6 +1084,47 @@ df.groupby("kjonn")["lonn"].mean()
         </tr>
       </tbody>
     </table>
+
+    <h3>Slik tolkes en widget-linje</h3>
+    <p>Kommentarlinja er JSON etter widget-navnet. Det appen faktisk bygger av linja:</p>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Kode</span>
+        <pre><code>//widget title {"text":"Kapittel 1","size":"full"}</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat — tolket som</span>
+        <pre class="result">{
+  "name": "title",
+  "payload": {
+    "text": "Kapittel 1",
+    "size": "full"
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Kode</span>
+        <pre><code>//widget question {"q":"Hva er p-verdien?","options":["&lt;0.05","&gt;0.05"],"answer":0}</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat — tolket som</span>
+        <pre class="result">{
+  "name": "question",
+  "payload": {
+    "q": "Hva er p-verdien?",
+    "options": [
+      "&lt;0.05",
+      "&gt;0.05"
+    ],
+    "answer": 0
+  }
+}</pre>
+      </div>
+    </div>
 
     <div class="callout">
       Alle widgets støtter <code>speak="tekst"</code> for parallell taleopplesning mens widgeten vises, og <code>auto_advance_ms=3000</code> for automatisk lukking etter angitt tid.
@@ -1053,6 +1224,20 @@ df.groupby("kjonn")["lonn"].mean()
       </tbody>
     </table>
     <p>Restriktiv kjøring gjelder Python, R og SQL — se <a href="#strict-py">Restricted Python</a>.</p>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">microdata-modus <span class="badge badge-micro">micro</span></span>
+        <pre><code>generate lonn_1000 = lonn / 1000
+collapse (mean) lonn_1000 -&gt; snittlonn_1000, by(kjonn)</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat</span>
+        <pre class="result">Genererte lonn_1000 med 5 000 enheter
+Aggregerte testdata gruppert på kjonn til 2 verdier</pre>
+      </div>
+    </div>
+    <p>Samme meldinger som du ville sett i microdata.no selv — se <a href="#microdata">Microdata-kommandoer</a> for flere, inkludert avvisningene.</p>
   </section>
 
   <!-- ── PYTHON ── -->
@@ -1125,7 +1310,10 @@ plt.tight_layout()
 show(plt.gcf())</code></pre>
 
     <h3>Eksempel: microdata + R</h3>
-    <pre><code># microdata
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Kode <span class="badge badge-micro">micro</span> + <span class="badge badge-r">r</span></span>
+        <pre><code># microdata
 require no.ssb.fdb:52 as db
 create-dataset df
 import db/BEFOLKNING_KJOENN as kjonn
@@ -1135,8 +1323,17 @@ import db/INNTEKT_WLONN 2022-01-01 as inntekt
 library(dplyr)
 df %>% group_by(kjonn) %>%
   summarise(snitt = mean(inntekt, na.rm = TRUE))</code></pre>
-
-    <p>Datasettene fra microdata-seksjonen overføres automatisk til Python som pandas DataFrames og til R som data frames.</p>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat <span class="illustration-tag">illustrasjon</span></span>
+        <pre class="result illustration"># A tibble: 2 × 2
+  kjonn   snitt
+   &lt;dbl&gt;   &lt;dbl&gt;
+1     1 468203.
+2     2 421187.</pre>
+      </div>
+    </div>
+    <p>Blokken over er en <strong>illustrasjon</strong>: <code>require no.ssb.fdb:52</code> henter ekte registerdata fra SSB, som denne siden ikke har tilgang til å kjøre mot. Datasettene fra microdata-seksjonen overføres automatisk til Python som pandas DataFrames og til R som data frames.</p>
   </section>
 
   <section id="federert">

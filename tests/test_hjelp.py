@@ -241,7 +241,7 @@ def test_ikke_kjorte_resultater_er_merket():
     'illustration' OG ordet «illustrasjon» synlig for leseren. Ellers ser
     oppdiktede tall ut som kjørt output."""
     text = read("hjelp.html")
-    for m in re.finditer(r'<section id="(federert|nokler)".*?</section>',
+    for m in re.finditer(r'<section id="(federert|nokler|hybrid)".*?</section>',
                          text, re.DOTALL):
         seksjon = m.group(0)
         for res in re.findall(r'<pre class="result([^"]*)">', seksjon):
@@ -250,6 +250,88 @@ def test_ikke_kjorte_resultater_er_merket():
         if 'class="result illustration"' in seksjon:
             assert "illustrasjon" in seksjon.lower(), (
                 f"#{m.group(1)} mangler synlig «illustrasjon»-merking")
+
+
+# ── Task 12b: eksempler med ekte resultater ────────────────────────────────
+# safestat sine eksempler kommer fra to harnesser: safepy/m2py kjørt fra
+# docs/hjelp_examples/run_examples.py (Python), og et lite knippe rene
+# klientfunksjoner (delelenke-komprimering, blokksplitting, widget-parsing)
+# kjørt headless i Node via docs/hjelp_examples/run_examples_js.mjs. Begge
+# skriver til docs/hjelp_examples/output/.
+
+MICRODATA_HARNESS_EXPECTED = {
+    "microdata-generer-og-aggreger": (
+        "Genererte lonn_1000 med 5 000 enheter\n"
+        "Aggregerte testdata gruppert på kjonn til 2 verdier"
+    ),
+    "microdata-avvist-populasjon": (
+        "FEIL: keep ville redusere populasjonen til 109 enheter. microdata.no "
+        "krever minst 1000 enheter per populasjon. Datasettet er uendret."
+    ),
+    "microdata-avvist-liten-endring": (
+        "FEIL: generate 'hoyeste' påvirker bare 7 av 5000 enheter. microdata.no "
+        "tillater ikke endringer som påvirker færre enn 10 enheter (unntak: "
+        "alle eller ingen)."
+    ),
+    "microdata-avvist-pseudonym": (
+        "Genererte BEFOLKNING_MOR_FNR med 5 000 enheter\n"
+        "FEIL: BEFOLKNING_MOR_FNR er en pseudonymvariabel og kan ikke brukes i "
+        "generate-uttrykk. Pseudonymer kan kun brukes som nøkkel i "
+        "collapse(by) eller merge(on)."
+    ),
+}
+
+
+def test_microdata_harness_gir_forventet_tekst():
+    """Låser innholdet i de fire #microdata-eksemplene til harnessen sin
+    faktiske output — ikke bare determinisme, men de RIKTIGE ordene."""
+    import sys as _sys
+    harness_dir = REPO / "docs" / "hjelp_examples"
+    _sys.path.insert(0, str(harness_dir))
+    import run_examples
+
+    df = run_examples.build_frame()
+    for ex in run_examples.MICRODATA_EXAMPLES:
+        expected = MICRODATA_HARNESS_EXPECTED[ex["id"]]
+        actual = run_examples.run_microdata_example(ex, df)
+        assert actual == expected, (
+            f"{ex['id']}: uventet tekst.\n"
+            f"--- forventet ---\n{expected}\n--- fikk ---\n{actual}"
+        )
+
+
+def test_microdata_seksjonen_har_alle_fire_eksemplene():
+    """#microdata var 1172 ord uten et eneste eksempel (Task 12b-gapet). Nå
+    skal alle fire harness-eksemplene finnes ordrett i seksjonen."""
+    outdir = REPO / "docs" / "hjelp_examples" / "output"
+    text = read("hjelp.html")
+    m = re.search(r'<section id="microdata".*?</section>', text, re.DOTALL)
+    assert m, "fant ikke #microdata-seksjonen"
+    blokker = re.findall(r'<pre class="result">(.*?)</pre>', m.group(0), re.DOTALL)
+    import html as _html
+    ren = [_html.unescape(b).strip() for b in blokker]
+    for ex_id, expected in MICRODATA_HARNESS_EXPECTED.items():
+        assert expected in ren, f"#microdata mangler resultatblokka for {ex_id}"
+
+
+def test_alle_resultatblokker_har_harness_fil_eller_illustrasjon():
+    """Enhver <pre class="result"> uten 'illustration' skal finnes ordrett i
+    docs/hjelp_examples/output/ — ellers er den limt inn for hånd. Dekker
+    HELE siden, ikke bare enkeltseksjoner, slik at nye eksempler ikke kan
+    snike forbi kravet om ekte, harness-genererte resultater."""
+    outdir = REPO / "docs" / "hjelp_examples" / "output"
+    kjort = {f.read_text(encoding="utf-8").strip() for f in outdir.glob("*.txt")}
+    assert kjort, "fant ingen harness-outputfiler"
+    import html as _html
+    for fil in ("hjelp.html", "hjelp.en.html"):
+        text = read(fil)
+        blokker = re.findall(r'<pre class="result">(.*?)</pre>', text, re.DOTALL)
+        assert blokker, f"fant ingen resultatblokker i {fil}"
+        for b in blokker:
+            ren = _html.unescape(b).strip()
+            assert ren in kjort, (
+                f"{fil}: resultatblokk uten harness-fil og uten "
+                f"illustrasjon-merking:\n{ren[:200]}")
 
 
 def test_federert_og_nokler_finnes():

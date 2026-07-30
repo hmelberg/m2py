@@ -1,0 +1,2 @@
+Genererte lonn_1000 med 5 000 enheter
+Aggregerte testdata gruppert på kjonn til 2 verdier

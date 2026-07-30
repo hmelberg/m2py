@@ -1,0 +1,2 @@
+Genererte BEFOLKNING_MOR_FNR med 5 000 enheter
+FEIL: BEFOLKNING_MOR_FNR er en pseudonymvariabel og kan ikke brukes i generate-uttrykk. Pseudonymer kan kun brukes som nøkkel i collapse(by) eller merge(on).

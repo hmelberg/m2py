@@ -1,0 +1,1 @@
+FEIL: generate 'hoyeste' påvirker bare 7 av 5000 enheter. microdata.no tillater ikke endringer som påvirker færre enn 10 enheter (unntak: alle eller ingen).

@@ -1,0 +1,1 @@
+FEIL: keep ville redusere populasjonen til 109 enheter. microdata.no krever minst 1000 enheter per populasjon. Datasettet er uendret.

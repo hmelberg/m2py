@@ -1,0 +1,34 @@
+[
+  {
+    "code": "df[\"alder\"] = 2024 - df[\"fodselsar\"]",
+    "codeTrim": "df[\"alder\"] = 2024 - df[\"fodselsar\"]",
+    "commentItems": [
+      {
+        "silent": false,
+        "text": "Denne kommentaren leses OPP før koden kjøres",
+        "kwargs": {}
+      }
+    ],
+    "postCommentItems": [],
+    "skipCodeSpeech": false
+  },
+  {
+    "code": "df.groupby(\"kjonn\")[\"lonn\"].mean()",
+    "codeTrim": "df.groupby(\"kjonn\")[\"lonn\"].mean()",
+    "commentItems": [
+      {
+        "silent": false,
+        "text": "Dette er neste blokk",
+        "kwargs": {}
+      }
+    ],
+    "postCommentItems": [
+      {
+        "silent": false,
+        "text": "Denne kommentaren leses etter at resultatet vises",
+        "kwargs": {}
+      }
+    ],
+    "skipCodeSpeech": false
+  }
+]

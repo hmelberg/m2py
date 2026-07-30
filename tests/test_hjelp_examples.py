@@ -92,3 +92,113 @@ def test_harness_skriver_alle_outputfiler():
         f = OUTDIR / f"{ex['id']}.txt"
         assert f.exists(), f"mangler output for {ex['id']}"
         assert f.read_text(encoding="utf-8").strip(), f"tom output for {ex['id']}"
+
+
+# ── Task 12b: #microdata kjørt headless via MicroInterpreter ───────────────
+
+def test_microdata_harness_er_deterministisk():
+    """Samme mønster som test_harness_er_deterministisk, for microdata-
+    eksemplene: to kjøringer på et ferskt datasett gir identisk tekst."""
+    sys.path.insert(0, str(HARNESS.parent))
+    import run_examples
+
+    df1 = run_examples.build_frame()
+    df2 = run_examples.build_frame()
+    for ex in run_examples.MICRODATA_EXAMPLES:
+        a = run_examples.run_microdata_example(ex, df1)
+        b = run_examples.run_microdata_example(ex, df2)
+        assert a == b, f"{ex['id']} er ikke deterministisk"
+
+
+def test_microdata_avvisning_gir_ekte_feilmelding():
+    """Et avvist microdata-eksempel skal bære m2py sin faktiske FEIL-tekst,
+    ikke en omskrevet eller oppdiktet variant."""
+    sys.path.insert(0, str(HARNESS.parent))
+    import run_examples
+
+    df = run_examples.build_frame()
+    ex = next(e for e in run_examples.MICRODATA_EXAMPLES
+              if e["id"] == "microdata-avvist-populasjon")
+    out = run_examples.run_microdata_example(ex, df)
+    assert "FEIL" in out
+    assert "krever minst 1000 enheter per populasjon" in out
+
+
+def test_microdata_disclosure_control_gjenopprettes():
+    """run_microdata_example skal ikke la M2PY_DISCLOSURE_CONTROL lekke ut i
+    modulen etter kjøring — ellers ville rekkefølgen andre tester kjører i
+    påvirke resultatet deres (delt modul-global)."""
+    sys.path.insert(0, str(HARNESS.parent))
+    import run_examples
+    import m2py
+
+    had_attr_before = hasattr(m2py, "M2PY_DISCLOSURE_CONTROL")
+    value_before = getattr(m2py, "M2PY_DISCLOSURE_CONTROL", None)
+
+    df = run_examples.build_frame()
+    run_examples.run_microdata_example(run_examples.MICRODATA_EXAMPLES[0], df)
+
+    assert hasattr(m2py, "M2PY_DISCLOSURE_CONTROL") == had_attr_before
+    assert getattr(m2py, "M2PY_DISCLOSURE_CONTROL", None) == value_before
+
+
+def test_harness_skriver_microdata_outputfiler():
+    subprocess.run([sys.executable, str(HARNESS)], cwd=REPO, check=True)
+    sys.path.insert(0, str(HARNESS.parent))
+    import run_examples
+
+    for ex in run_examples.MICRODATA_EXAMPLES:
+        f = OUTDIR / f"{ex['id']}.txt"
+        assert f.exists(), f"mangler output for {ex['id']}"
+        assert f.read_text(encoding="utf-8").strip(), f"tom output for {ex['id']}"
+
+
+# ── Task 12b: felles-lagre/felles-forklar/felles-widgets kjørt via Node ────
+
+NODE_HARNESS = REPO / "docs" / "hjelp_examples" / "run_examples_js.mjs"
+NODE_IDS = [
+    "felles-widgets-title",
+    "felles-widgets-question",
+    "felles-forklar-blokker",
+    "felles-lagre-delelenke",
+]
+
+
+def _node_available() -> bool:
+    import shutil as _shutil
+    return _shutil.which("node") is not None
+
+
+def test_node_harness_finnes_og_er_selvstendig_kjorbar():
+    import shutil as _shutil
+    assert NODE_HARNESS.exists(), "docs/hjelp_examples/run_examples_js.mjs mangler"
+    node = _shutil.which("node")
+    if node is None:
+        import pytest as _pytest
+        _pytest.skip("node ikke i PATH i dette miljøet")
+    r = subprocess.run([node, str(NODE_HARNESS)], cwd=REPO,
+                       capture_output=True, text=True)
+    assert r.returncode == 0, f"node-harnessen feilet:\n{r.stdout}\n{r.stderr}"
+    for id_ in NODE_IDS:
+        f = OUTDIR / f"{id_}.txt"
+        assert f.exists(), f"mangler output for {id_}"
+        assert f.read_text(encoding="utf-8").strip(), f"tom output for {id_}"
+
+
+def test_node_harness_er_deterministisk_pa_tvers_av_prosesser():
+    """Kjør node-harnessen to ganger som separate prosesser og se at hver
+    outputfil er byte-identisk begge ganger — spesielt viktig for
+    delelenka, siden gzip generelt kan bære tidsstempler (CompressionStream
+    gjør det ikke, men det er nettopp det denne testen skal fange hvis det
+    endrer seg)."""
+    import shutil as _shutil
+    node = _shutil.which("node")
+    if node is None:
+        import pytest as _pytest
+        _pytest.skip("node ikke i PATH i dette miljøet")
+
+    r1 = subprocess.run([node, str(NODE_HARNESS)], cwd=REPO, check=True)
+    snap1 = {id_: (OUTDIR / f"{id_}.txt").read_text(encoding="utf-8") for id_ in NODE_IDS}
+    r2 = subprocess.run([node, str(NODE_HARNESS)], cwd=REPO, check=True)
+    snap2 = {id_: (OUTDIR / f"{id_}.txt").read_text(encoding="utf-8") for id_ in NODE_IDS}
+    assert snap1 == snap2, "node-harnessen er ikke deterministisk på tvers av prosesser"
