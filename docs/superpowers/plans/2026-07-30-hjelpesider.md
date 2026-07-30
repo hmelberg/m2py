@@ -246,8 +246,9 @@ EXAMPLES = [
         # ORDER BY kjonn er IKKE kosmetikk: uten den svinger DuckDB sin
         # radrekkefølge tilfeldig mellom kjøringer i samme prosess (målt ~35/65
         # over 20 kall, 2026-07-30), og både harness-testen og hjelpesidenes
-        # resultatsammenligning blir flaky. ORDER BY på et aggregat er lovlig i
-        # strict SQL — verifisert.
+        # resultatsammenligning blir flaky. ORDER BY på en GRUPPENØKKEL er lovlig
+        # i strict SQL (kjonn er en her); ORDER BY på et aggregat avvises med
+        # «ORDER BY may only reference GROUP BY keys». Verifisert 2026-07-30.
         "code": ("SELECT kjonn, avg(lonn) AS m, count(*) AS n "
                  "FROM df GROUP BY kjonn ORDER BY kjonn"),
     },
@@ -1506,10 +1507,10 @@ FROM df GROUP BY kjonn ORDER BY kjonn</code></pre>
       <tr><td><code>SELECT … GROUP BY</code> med aggregatfunksjoner</td><td>Ja</td></tr>
       <tr><td><code>WHERE</code>-filtre</td><td>Ja</td></tr>
       <tr><td><code>JOIN</code> mellom kilder på samme nivå</td><td>Ja</td></tr>
-      <tr><td><code>ORDER BY</code> på et aggregat</td><td>Ja — og verdt å bruke: uten den er radrekkefølgen tilfeldig</td></tr>
-      <tr><td><code>SELECT *</code> uten aggregering</td><td>Nei — det er rader</td></tr>
-      <tr><td><code>LIMIT</code> som utvalgsmekanisme</td><td>Nei</td></tr>
-      <tr><td><code>ORDER BY</code> etterfulgt av radhenting</td><td>Nei</td></tr>
+      <tr><td><code>ORDER BY</code> på en <strong>gruppenøkkel</strong></td><td>Ja — og verdt å bruke: uten den er radrekkefølgen tilfeldig</td></tr>
+      <tr><td><code>ORDER BY</code> på et <strong>aggregat</strong></td><td>Nei — «ORDER BY may only reference GROUP BY keys». Å sortere på verdi er en rangering, og rangering er stengt av samme grunn som <code>rank</code> i Python</td></tr>
+      <tr><td><code>SELECT *</code> uten aggregering</td><td>Nei — hvert felt må være en gruppenøkkel eller et trygt aggregat</td></tr>
+      <tr><td><code>LIMIT</code> på en gyldig aggregatspørring</td><td>Ja — men den kan ikke hente ut rå rader, siden rå rader alt er stengt</td></tr>
     </tbody>
   </table>
 </section>
