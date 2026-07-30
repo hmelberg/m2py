@@ -1823,6 +1823,16 @@ et språk* — `hjelp.html` sammenlignes mot søsknenes `hjelp.html`, og
 I `tests/test_hjelp_sync.py`, avkommenter blokknavnene i `BLOCK_NAMES`
 som ble satt på vent i Task 3.
 
+**Og redd `test_streng_modus_avviser_manglende_enkeltblokk` fra å bli tom.**
+Den bygger i dag sitt testtilfelle ved å velge et blokknavn safestat *ikke*
+har. Når du fyller inn alle elleve, finnes ikke et slikt navn lenger, og
+testen selv-skipper — den mister altså dekning nøyaktig når blokkene den
+skal vokte endelig eksisterer. Bygg den om: lag det manglende tilfellet ved
+å *fjerne* en blokk fra en kopi av `hjelp.html`, og fjerne den samme fra det
+falske søskenet, i stedet for å lete etter en som allerede mangler. Kjør
+`.venv/bin/python -m pytest tests/test_hjelp_sync.py -v` og bekreft at den
+kjører — ikke skipper.
+
 - [ ] **Step 9: Kjør alt**
 
 Run:
