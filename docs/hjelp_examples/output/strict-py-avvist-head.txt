@@ -1,0 +1,1 @@
+Avvist (attribute): 'head' is not allowed: it can reveal individual rows or run arbitrary code

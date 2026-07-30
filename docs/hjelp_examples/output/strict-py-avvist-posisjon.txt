@@ -1,0 +1,1 @@
+Avvist (subscript): positional indexing (df[<int>]) is not allowed; select by column name or boolean mask
