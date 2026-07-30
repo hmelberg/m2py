@@ -350,7 +350,9 @@
       </div>
     </div>
   </div>
-  <div class="ai-modal-backdrop" id="pwPromptBackdrop">
+  <!-- z-index over .ai-modal-backdrop (300): passordprompten må ligge OVER
+       nøkkelmodalen (og alt annet) som utløser den. -->
+  <div class="ai-modal-backdrop" id="pwPromptBackdrop" style="z-index:310;">
     <div class="ai-modal" style="max-width:420px;">
       <h3 id="pwPromptTitle" data-i18n>Hovedpassord</h3>
       <div class="ai-modal-help" id="pwPromptMsg" style="margin-bottom:10px;"></div>
