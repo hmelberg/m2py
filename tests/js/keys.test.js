@@ -168,3 +168,71 @@ test('resetEncrypted: sletter krypterte poster + kdf, beholder open', async () =
   assert.ok(!doc.kdf && !doc.verifier);
   assert.equal(K.status().hasPassword, false);
 });
+
+test('secret: én prompt per runScope; ingen caching etterpå', async () => {
+  const ls = makeLocalStorage();
+  const log = [];
+  const K = loadKeys(ls, promptStub('pw', log));
+  await K.set('dataset1', 'D1', 'secret');
+  await K.set('dataset2', 'D2', 'secret');
+  log.length = 0;
+  const got = [];
+  await K.runScope(['dataset1', 'dataset2'], async () => {
+    got.push(await K.resolve('dataset1'));
+    got.push(await K.resolve('dataset2'));
+    got.push(await K.resolve('dataset1'));            // gjenbruk innen scopet
+  });
+  assert.deepEqual(got, ['D1', 'D2', 'D1']);
+  assert.equal(log.length, 1);                        // ÉN prompt for hele kjøringen
+  assert.equal(log[0].mode, 'run');
+  assert.deepEqual(log[0].names, ['dataset1', 'dataset2']);
+  assert.equal(K.get('dataset1'), null);              // aldri i synkron get
+  await K.resolve('dataset1');                        // utenfor scope → ny prompt
+  assert.equal(log.length, 2);
+});
+
+test('secret: runScope rydder også ved kastet feil', async () => {
+  const ls = makeLocalStorage();
+  const log = [];
+  const K = loadKeys(ls, promptStub('pw', log));
+  await K.set('d', 'D', 'secret');
+  log.length = 0;
+  await assert.rejects(() => K.runScope(['d'], async () => {
+    await K.resolve('d');
+    throw new Error('kjøringen feilet');
+  }), /kjøringen feilet/);
+  await K.resolve('d');                               // ny prompt — cachen er borte
+  assert.equal(log.length, 2);
+});
+
+test('runScope uten secret-navn prompter ikke', async () => {
+  const ls = makeLocalStorage();
+  const log = [];
+  const K = loadKeys(ls, promptStub('pw', log));
+  await K.set('open1', 'o');
+  log.length = 0;
+  const r = await K.runScope(['open1', 'finnesikke'], async () => 42);
+  assert.equal(r, 42);
+  assert.equal(log.length, 0);
+});
+
+test('secret prompter selv om økten er opplåst (locked ≠ secret)', async () => {
+  const ls = makeLocalStorage();
+  const log = [];
+  const K = loadKeys(ls, promptStub('pw', log));
+  await K.set('l', 'L', 'locked');
+  await K.set('s', 'S', 'secret');
+  log.length = 0;
+  assert.equal(K.get('l'), 'L');                      // opplåst økt (fra set)
+  await K.runScope(['s'], async () => K.resolve('s'));
+  assert.equal(log.length, 1);                        // secret krever likevel prompt
+});
+
+test('defaultPolicy: lagres i dokumentet, default open', async () => {
+  const ls = makeLocalStorage();
+  const K = loadKeys(ls);
+  assert.equal(K.getDefaultPolicy(), 'open');
+  K.setDefaultPolicy('locked');
+  assert.equal(loadKeys(ls).getDefaultPolicy(), 'locked');
+  assert.throws(() => K.setDefaultPolicy('tull'), /ukjent policy/);
+});

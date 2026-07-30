@@ -197,6 +197,34 @@
     return decText(mk, e);   // transient — caches ikke
   }
 
+  // Kjøringsomfang (spec §2/§3.2): ÉN prompt for alle secret-nøkler en kjøring
+  // trenger; dekryptert materiale lever i _run og slippes i finally. Nestet
+  // scope gjenbruker det ytterste (ingen dobbel prompt).
+  async function runScope(secretNames, fn) {
+    var doc = readDoc();
+    var names = [];
+    (secretNames || []).forEach(function (n) {
+      var e = doc.entries[n];
+      if (e && e.policy === 'secret' && names.indexOf(n) === -1) names.push(n);
+    });
+    if (!names.length || _run) return fn();
+    var pw = await askPassword({ mode: 'run', names: names });
+    var mk = await verifiedKey(pw, doc);
+    var cache = {};
+    for (var i = 0; i < names.length; i++) cache[names[i]] = await decText(mk, doc.entries[names[i]]);
+    _run = cache;
+    try { return await fn(); }
+    finally { _run = null; }
+  }
+
+  function getDefaultPolicy() { return readDoc().defaultPolicy || 'open'; }
+  function setDefaultPolicy(policy) {
+    if (!POLICIES[policy]) throw new Error('ukjent policy: ' + policy);
+    var doc = readDoc();
+    doc.defaultPolicy = policy;
+    writeDoc(doc);
+  }
+
   async function setPolicy(name, policy) {
     if (!POLICIES[policy]) throw new Error('ukjent policy: ' + policy);
     var doc = readDoc();
@@ -260,6 +288,7 @@
     get: get, set: set, remove: remove, registered: registered, policy: policyOf,
     resolve: resolve, setPolicy: setPolicy, changePassword: changePassword,
     lockNow: lockNow, resetEncrypted: resetEncrypted, status: status,
+    runScope: runScope, getDefaultPolicy: getDefaultPolicy, setDefaultPolicy: setDefaultPolicy,
     attachPrompt: attachPrompt,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
