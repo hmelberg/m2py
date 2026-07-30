@@ -242,7 +242,13 @@ EXAMPLES = [
         "id": "strict-sql-gruppe",
         "dialect": "duckdb",
         "expect_ok": True,
-        "code": "SELECT kjonn, avg(lonn) AS m, count(*) AS n FROM df GROUP BY kjonn",
+        # ORDER BY kjonn er IKKE kosmetikk: uten den svinger DuckDB sin
+        # radrekkefølge tilfeldig mellom kjøringer i samme prosess (målt ~35/65
+        # over 20 kall, 2026-07-30), og både harness-testen og hjelpesidenes
+        # resultatsammenligning blir flaky. ORDER BY på et aggregat er lovlig i
+        # strict SQL — verifisert.
+        "code": ("SELECT kjonn, avg(lonn) AS m, count(*) AS n "
+                 "FROM df GROUP BY kjonn ORDER BY kjonn"),
     },
 ]
 
@@ -1464,13 +1470,13 @@ Expected: FAIL — `fant ikke strict-r-seksjonen`
     <div class="example-code">
       <span class="example-label">Kode <span class="badge">sql</span></span>
       <pre><code>SELECT kjonn, avg(lonn) AS m, count(*) AS n
-FROM df GROUP BY kjonn</code></pre>
+FROM df GROUP BY kjonn ORDER BY kjonn</code></pre>
     </div>
     <div class="example-result">
       <span class="example-label">Resultat</span>
       <pre class="result">  m  n
-2  518 450  2 470
-1  520 790  2 530</pre>
+1  520 790  2 530
+2  518 450  2 470</pre>
     </div>
   </div>
 
@@ -1480,6 +1486,7 @@ FROM df GROUP BY kjonn</code></pre>
       <tr><td><code>SELECT … GROUP BY</code> med aggregatfunksjoner</td><td>Ja</td></tr>
       <tr><td><code>WHERE</code>-filtre</td><td>Ja</td></tr>
       <tr><td><code>JOIN</code> mellom kilder på samme nivå</td><td>Ja</td></tr>
+      <tr><td><code>ORDER BY</code> på et aggregat</td><td>Ja — og verdt å bruke: uten den er radrekkefølgen tilfeldig</td></tr>
       <tr><td><code>SELECT *</code> uten aggregering</td><td>Nei — det er rader</td></tr>
       <tr><td><code>LIMIT</code> som utvalgsmekanisme</td><td>Nei</td></tr>
       <tr><td><code>ORDER BY</code> etterfulgt av radhenting</td><td>Nei</td></tr>
