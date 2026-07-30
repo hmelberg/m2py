@@ -1142,7 +1142,7 @@ rett etter `#hurtigstart`:
     <thead><tr><th>Kilde</th><th>Låses opp med</th><th>Hvor nøkkelen bor</th></tr></thead>
     <tbody>
       <tr><td>Passordbeskyttet fil</td><td>Passord i dialogen</td><td>Bare i minnet, forsvinner ved reload</td></tr>
-      <tr><td>Kryptert datasett (<code>.enc</code>)</td><td>Nøkkel fra nøkkellageret</td><td>Nøkkellageret, knyttet til kontoen din</td></tr>
+      <tr><td>Kryptert datasett (<code>.enc</code>)</td><td>Nøkkel fra nøkkellageret</td><td>Nøkkellageret i <strong>nettleseren din</strong> — synkes til kontoen hvis du er innlogget</td></tr>
       <tr><td>Federert node</td><td>Node-token</td><td>På noden — data forlater den aldri</td></tr>
     </tbody>
   </table>
