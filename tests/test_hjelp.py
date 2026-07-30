@@ -146,9 +146,37 @@ def test_tillit_har_oversiktstabell():
         assert niva in blokk, f"tillit nevner ikke nivået «{niva}»"
 
 
+def test_strict_py_har_avvist_eksempel_med_ekte_feilmelding():
+    """Seksjonen skal vise et eksempel som blir avvist, med safepy sin
+    faktiske feilmelding — ikke en omskrevet variant."""
+    text = read("hjelp.html")
+    m = re.search(r'<section id="strict-py".*?</section>', text, re.DOTALL)
+    assert m, "fant ikke strict-py-seksjonen"
+    blokk = m.group(0)
+    assert "'head' is not allowed" in blokk
+    assert "reveal individual rows" in blokk
+
+
+def test_strict_py_resultatblokker_stemmer_med_harness():
+    """Hver <pre class="result"> i strict-py skal finnes ordrett i en
+    outputfil fra harnessen. Fanger resultater som er redigert for hånd."""
+    outdir = REPO / "docs" / "hjelp_examples" / "output"
+    kjort = [f.read_text(encoding="utf-8").strip() for f in outdir.glob("*.txt")]
+    text = read("hjelp.html")
+    m = re.search(r'<section id="strict-py".*?</section>', text, re.DOTALL)
+    assert m
+    blokker = re.findall(r'<pre class="result">(.*?)</pre>', m.group(0), re.DOTALL)
+    assert blokker, "strict-py har ingen resultatblokker"
+    import html as _html
+    for b in blokker:
+        ren = _html.unescape(b).strip()
+        assert any(ren == k for k in kjort), (
+            f"resultatblokk finnes ikke i harness-output:\n{ren[:200]}")
+
+
 @pytest.mark.xfail(
     strict=True,
-    reason="Tasks 5-7 legger til #tillit, #kilder, #strict-py, #strict-r",
+    reason="Task 7 legger til #strict-r",
 )
 def test_ingen_hengende_interne_lenker():
     """Hver href="#x" skal treffe en seksjon eller overskrift som finnes.

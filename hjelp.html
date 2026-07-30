@@ -243,6 +243,7 @@ nav a.nav-active {
   <div class="nav-section">Tillit</div>
   <a href="#tillit">Tillitsmodellen</a>
   <a href="#kilder">Beskyttede kilder</a>
+  <a href="#strict-py">Restricted Python</a>
   <div class="nav-section">Editoren</div>
   <a href="#editor">Editor og snarveier</a>
   <a href="#tab-intro">Tab-autocomplete</a>
@@ -367,6 +368,115 @@ df.groupby("kjonn")["lonn"].mean()</code></pre>
     </table>
     <p>Tømmer du nettleserdata uten å ha vært innlogget, er nøkkelen borte for godt — et kryptert datasett kan ikke låses opp igjen uten den.</p>
     <p>Nøkkellageret er beskrevet under <a href="#federert">Federerte kilder</a>, siden de to hører sammen i praksis.</p>
+  </section>
+
+  <!-- ── STRICT PYTHON ── -->
+  <section id="strict-py">
+    <h2>Restricted Python</h2>
+    <p>Du skriver pandas. Men i STRICT-profilen er <code>df</code> ikke en <code>DataFrame</code> — den er en <code>SafeFrame</code>, en fasade med et bevisst kort metodeutvalg. Alt som kunne vise deg en enkeltrad er ikke forbudt; det <em>finnes ikke</em>.</p>
+
+    <div class="overview">
+      <table class="doc-table">
+        <thead><tr><th>Du vil</th><th>Skriv</th><th>Virker</th></tr></thead>
+        <tbody>
+          <tr><td>Se på dataene</td><td><code>df.head()</code></td><td>Nei — bruk <code>df.describe()</code> eller <code>df.count()</code></td></tr>
+          <tr><td>Gruppegjennomsnitt</td><td><code>df.groupby("kjonn")["lonn"].mean()</code></td><td>Ja</td></tr>
+          <tr><td>Filtrere</td><td><code>df[df["alder"] &gt;= 40]</code></td><td>Ja — masken er lovlig, resultatet er fortsatt privat</td></tr>
+          <tr><td>Én rad</td><td><code>df["lonn"][0]</code></td><td>Nei — posisjonsindeksering er stengt</td></tr>
+          <tr><td>Regresjon</td><td><code>df.ols("lonn ~ alder + kjonn")</code></td><td>Ja</td></tr>
+          <tr><td>Eget uttrykk</td><td><code>df.apply(lambda r: …)</code></td><td>Nei — vilkårlig kode er den egentlige risikoen</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Det som virker</h3>
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Kode <span class="badge badge-py">py</span></span>
+        <pre><code>df.groupby("kjonn")["lonn"].mean()</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat</span>
+        <pre class="result">kjonn  mean(lonn)
+1  520 790
+2  518 450</pre>
+      </div>
+    </div>
+
+    <h3>Tre måter å bli avvist</h3>
+    <p>Portvokteren leser koden din før den kjører. Meldingene navngir <em>kode</em> — en metode, en modul, en linje — men aldri en dataverdi, siden feiltekst ellers ville vært en lekkasjekanal.</p>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Rå rader <span class="badge badge-py">py</span></span>
+        <pre><code>df.head()</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat</span>
+        <pre class="result">Avvist (attribute): 'head' is not allowed: it can reveal individual rows or run arbitrary code</pre>
+      </div>
+    </div>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Posisjonsindeks <span class="badge badge-py">py</span></span>
+        <pre><code>df["lonn"][0]</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat</span>
+        <pre class="result">Avvist (subscript): positional indexing (df[&lt;int&gt;]) is not allowed; select by column name or boolean mask</pre>
+      </div>
+    </div>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Import utenfor lista <span class="badge badge-py">py</span></span>
+        <pre><code>import os
+df.groupby("kjonn")["lonn"].mean()</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat</span>
+        <pre class="result">Avvist (import): module 'os' is not available in safepy</pre>
+      </div>
+    </div>
+
+    <h3>Hele metodeutvalget</h3>
+    <p>Dette er alt <code>SafeFrame</code> kan. Lista er kort med vilje — den er hele angrepsflaten.</p>
+    <table class="doc-table">
+      <thead><tr><th>Gruppe</th><th>Metoder</th></tr></thead>
+      <tbody>
+        <tr><td>Form og utvalg</td><td><code>assign</code> <code>astype</code> <code>drop</code> <code>drop_duplicates</code> <code>dropna</code> <code>fillna</code> <code>filter</code> <code>rename</code> <code>replace</code> <code>round</code> <code>select_dtypes</code> <code>sort_values</code> <code>where</code> <code>clip</code> <code>merge</code></td></tr>
+        <tr><td>Omforming</td><td><code>explode</code> <code>melt</code> <code>pivot</code> <code>pivot_table</code> <code>stack</code> <code>unstack</code> <code>crosstab</code></td></tr>
+        <tr><td>Aggregater</td><td><code>count</code> <code>mean</code> <code>median</code> <code>std</code> <code>sum</code> <code>var</code> <code>nunique</code> <code>describe</code> <code>value_counts</code> <code>corr</code> <code>cov</code> <code>groupby</code> <code>summarise</code> / <code>summarize</code></td></tr>
+        <tr><td>Tester</td><td><code>anova</code> <code>chisq</code> <code>corr_test</code> <code>ttest</code> <code>mannwhitney</code> <code>logrank</code></td></tr>
+        <tr><td>Modeller</td><td><code>ols</code> <code>logit</code> <code>poisson</code> <code>feols</code> <code>iv</code> <code>cox</code> <code>propensity</code> <code>ate</code> <code>refute_ate</code> <code>synthetic_control</code></td></tr>
+        <tr><td>Overlevelse</td><td><code>kaplan_meier</code> <code>rmst</code> <code>weibull_aft</code> <code>lognormal_aft</code> <code>loglogistic_aft</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3>Kolonner</h3>
+    <p>En kolonne (<code>SafeColumn</code>) har i tillegg <code>abs</code> <code>between</code> <code>cummax</code> <code>cummin</code> <code>cumprod</code> <code>cumsum</code> <code>diff</code> <code>dt</code> <code>ffill</code> <code>bfill</code> <code>interpolate</code> <code>isin</code> <code>isna</code> <code>notna</code> <code>kurt</code> <code>kurtosis</code> <code>map</code> <code>mask</code> <code>max</code> <code>min</code> <code>pct_change</code> <code>quantile</code> <code>sem</code> <code>shift</code> <code>skew</code> <code>str</code> — og <code>plot</code> / <code>hist</code> / <code>boxplot</code>, der histogrammet omdirigeres til en undertrykt frekvenstabell.</p>
+    <p>En gruppering (<code>SafeGroupBy</code>) har <code>count</code> <code>mean</code> <code>median</code> <code>size</code> <code>std</code> <code>sum</code> <code>var</code>.</p>
+
+    <h3>Hva som aldri er lov</h3>
+    <table class="doc-table">
+      <thead><tr><th>Kategori</th><th>Eksempler</th><th>Hvorfor</th></tr></thead>
+      <tbody>
+        <tr><td>Rå rader ut</td><td><code>head</code> <code>tail</code> <code>sample</code> <code>iloc</code> <code>loc</code> <code>at</code> <code>iat</code> <code>values</code> <code>iterrows</code> <code>to_csv</code> <code>to_dict</code> <code>to_numpy</code></td><td>Viser enkeltindivider direkte</td></tr>
+        <tr><td>Radidentifiserende reduksjon</td><td><code>idxmax</code> <code>idxmin</code> <code>argmax</code> <code>nlargest</code> <code>nsmallest</code> <code>first</code> <code>last</code> <code>mode</code></td><td>Returnerer én bestemt rad</td></tr>
+        <tr><td>Rangering</td><td><code>rank</code></td><td>Rangering pluss filter pluss sum er en differanseangrep-primitiv. Krever et spørrebudsjett som ennå ikke finnes.</td></tr>
+        <tr><td>Vilkårlig kode</td><td><code>apply</code> <code>applymap</code> <code>pipe</code> <code>query</code> <code>eval</code> <code>rolling</code></td><td>Tar en funksjon; den kan gjøre hva som helst</td></tr>
+        <tr><td>Sandkasseflukt</td><td><code>eval</code> <code>exec</code> <code>open</code> <code>getattr</code> <code>globals</code> <code>__import__</code></td><td>Ut av sandkassen</td></tr>
+        <tr><td>Syntaks</td><td>lambda, comprehensions, <code>def</code>, <code>for</code>, <code>while</code>, <code>try</code>, f-strenger, <code>df[1:5]</code></td><td>Portvokteren godtar bare tilordninger og uttrykk. Ny syntaks kan ikke snike seg inn.</td></tr>
+        <tr><td>Navn</td><td>alt som starter med <code>_</code></td><td>Private attributter er en omvei rundt fasaden</td></tr>
+      </tbody>
+    </table>
+
+    <p>Bare <code>len</code> <code>round</code> <code>abs</code> <code>int</code> <code>float</code> <code>str</code> <code>bool</code> kan kalles på navn. Bare <code>lifelines</code> <code>numpy</code> <code>pandas</code> <code>pyfixest</code> <code>polars</code> kan importeres, og de løses opp til trygge fasader — aldri de virkelige modulene.</p>
+
+    <div class="callout">
+      <strong>Omforminger er lov.</strong> <code>pivot</code>, <code>stack</code>, <code>melt</code> og <code>explode</code> beholder hele populasjonen og returnerer et privat objekt som bare kan forlate systemet som et undertrykt aggregat. De er trygge ved konstruksjon, ikke ved tillatelse.
+    </div>
   </section>
 
   <!-- ── RUNNING ── -->
