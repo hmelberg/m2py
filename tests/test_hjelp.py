@@ -233,3 +233,25 @@ def test_gammel_strict_seksjon_er_borte():
     assert "strict" not in ids, "den gamle #strict-seksjonen står fortsatt"
     for ny in ("strict-py", "strict-r", "strict-sql"):
         assert ny in ids, f"mangler #{ny}"
+
+
+def test_ikke_kjorte_resultater_er_merket():
+    """Et resultat som ikke kommer fra harnessen skal bære klassen
+    'illustration' OG ordet «illustrasjon» synlig for leseren. Ellers ser
+    oppdiktede tall ut som kjørt output."""
+    text = read("hjelp.html")
+    for m in re.finditer(r'<section id="(federert|nokler)".*?</section>',
+                         text, re.DOTALL):
+        seksjon = m.group(0)
+        for res in re.findall(r'<pre class="result([^"]*)">', seksjon):
+            assert "illustration" in res, (
+                f"resultatblokk i #{m.group(1)} er ikke merket som illustrasjon")
+        if 'class="result illustration"' in seksjon:
+            assert "illustrasjon" in seksjon.lower(), (
+                f"#{m.group(1)} mangler synlig «illustrasjon»-merking")
+
+
+def test_federert_og_nokler_finnes():
+    ids = grab("hjelp.html").section_ids
+    for s in ("federert", "nokler"):
+        assert s in ids, f"mangler seksjon #{s}"

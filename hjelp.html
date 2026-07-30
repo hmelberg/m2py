@@ -263,6 +263,7 @@ nav a.nav-active {
   <a href="#r">R (WebR)</a>
   <a href="#hybrid">Hybrid-skript</a>
   <a href="#federert">Federerte kilder</a>
+  <a href="#nokler">Nøkkellager</a>
   <div class="nav-section">Referanse</div>
   <a href="#tab-full">Tab-autocomplete (detalj)</a>
 </nav>
@@ -288,6 +289,7 @@ nav a.nav-active {
           <tr><td><a href="#strict-py">Restricted Python</a></td><td>Hva du kan skrive, hva som ikke finnes, og hvorfor</td></tr>
           <tr><td><a href="#strict-r">Restricted R</a></td><td>Samme frigivelseskjerne, R-syntaks</td></tr>
           <tr><td><a href="#federert">Federerte kilder</a></td><td>Analyser flere noder uten å samle dataene</td></tr>
+          <tr><td><a href="#nokler">Nøkkellager</a></td><td>Nøkler til krypterte datasett, knyttet til kontoen din</td></tr>
           <tr><td><a href="#modes">Moduser</a></td><td>De ni språkene, og når du velger hvilket</td></tr>
           <tr><td><a href="#tab-full">Referanse</a></td><td>Snarveier, direktiver, Tab-autocomplete</td></tr>
         </tbody>
@@ -368,7 +370,7 @@ df.groupby("kjonn")["lonn"].mean()</code></pre>
       </tbody>
     </table>
     <p>Tømmer du nettleserdata uten å ha vært innlogget, er nøkkelen borte for godt — et kryptert datasett kan ikke låses opp igjen uten den.</p>
-    <p>Nøkkellageret er beskrevet under <a href="#federert">Federerte kilder</a>, siden de to hører sammen i praksis.</p>
+    <p>Nøkkellageret er beskrevet under <a href="#nokler">Nøkkellager</a>.</p>
   </section>
 
   <!-- ── STRICT PYTHON ── -->
@@ -1120,7 +1122,7 @@ df %>% group_by(kjonn) %>%
 
   <section id="federert">
     <h2>Federerte kilder</h2>
-    <p>En federert kilde er ett datasett som ligger delt hos flere dataholdere (samme variabler, ulike personer — f.eks. én fil per region). Du skriver skriptet som om dataene var samlet; SafeStat gjør resten. To nivåer:</p>
+    <p>Noen ganger kan ikke dataene flyttes — de ligger hos flere eiere som hver har lov til å se sitt eget, men ingen har lov til å se alt. En federert kilde er ett datasett som ligger delt hos flere dataholdere (samme variabler, ulike personer — f.eks. én fil per region). Du skriver skriptet som om dataene var samlet; SafeStat gjør resten. To nivåer:</p>
     <h3>Pull — filene hentes og settes sammen</h3>
     <p>Medlemmene er vanlige filer (evt. krypterte). De hentes, unioneres automatisk, og kolonnen <code>__member</code> viser hvilket medlem hver rad kom fra. Virker i alle moduser:</p>
     <pre><code># connect demo-federert as helse
@@ -1128,12 +1130,71 @@ df %>% group_by(kjonn) %>%
 print(personer["__member"].value_counts())</code></pre>
     <p>Egendefinert: <code># connect federert(https://a.no/data, https://b.no/data) as h</code> + <code># load h/person.parquet as df</code>. Kolonnenavnene må stemme overens hos alle medlemmer, ellers nektes kjøringen. Sensitive medlemmer nektes i pull — de krever noder.</p>
     <h3>Noder — skriptet reiser, dataene blir</h3>
-    <p>Medlemmer med <code>tier: "node"</code> kjører skriptet lokalt hos seg og frigir bare SDC-beskyttede aggregater; nettleseren kombinerer dem eksakt (microdata-modus). Støttede verb: <code>tabulate</code>, <code>summarize</code>, <code>regress</code> og <code>logit</code> (iterative runder). Andre verb nektes med tydelig melding, og ett medlem nede stopper hele kjøringen.</p>
+    <p>Medlemmer med <code>tier: "node"</code> kjører skriptet lokalt hos seg og frigir bare SDC-beskyttede aggregater; nettleseren kombinerer dem (microdata-modus, <code>require ... as ...</code>). Andre verb enn de fire under nektes med tydelig melding, og ett medlem nede stopper hele kjøringen. Et skript kan i dag bare kreve <strong>ett</strong> federert mål:</p>
     <pre><code>require demo-federert-node as person
 create-dataset person
 tabulate BEFOLKNING_KJOENN
 logit kvinne BEFOLKNING_INNALDER</code></pre>
+    <p>To <code>require</code>-linjer mot federerte kilder i samme skript svarer SafeStat med: <em>«Federert kjøring støtter ett require-mål per skript (ennå).»</em></p>
     <p>En dataholder starter sin egen node med <code>pip install ./node</code> og <code>safestat-node --config node.json</code> (valgfritt token; da spør appen per kjøring). Se eksempelmenyen for kjørbare eksempler i python- og microdata-modus.</p>
+
+    <div class="overview">
+      <table class="doc-table">
+        <thead><tr><th>Verb</th><th>Hva noden regner ut</th><th>Eksakt på tvers av noder</th></tr></thead>
+        <tbody>
+          <tr><td><code>tabulate</code></td><td>Antall per celle</td><td>Ja — celletallene summeres</td></tr>
+          <tr><td><code>summarize</code></td><td>Sum, antall og kvadratsum per gruppe</td><td>Ja for gjennomsnitt, std, min og maks — men persentiler (median, p1/p25/p75/p99) sendes aldri tilbake fra noden</td></tr>
+          <tr><td><code>regress</code></td><td>Kryssproduktmatriser (XᵀX, Xᵀy)</td><td>Ja — normalligningene løses sentralt fra summerte matriser</td></tr>
+          <tr><td><code>logit</code></td><td>Gradient og Hessian, én runde per Newton-iterasjon</td><td>Ja, men krever flere tur-retur-runder mellom noder og nettleser — ikke ett enkelt kombinasjonstrinn som de tre andre</td></tr>
+        </tbody>
+      </table>
+      <p class="overview-hint">«Eksakt» betyr at svaret matcher det du ville fått om alle dataene lå i én tabell — bekreftet ved å teste mot en kjøring på den samlede tabellen (innenfor vanlig flyttallspresisjon), ikke bare antatt.</p>
+    </div>
+
+    <h3>Slik ser det ut</h3>
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Kode <span class="badge badge-py">py</span></span>
+        <pre><code># options.profile = strict
+# data: node_oslo, node_bergen
+fed.summarize("lonn", by="kjonn")</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat <span class="illustration-tag">illustrasjon</span></span>
+        <pre class="result illustration">kjonn  n      mean(lonn)
+1      12 430  521 400
+2      11 980  518 100
+
+2 noder svarte. Ingen rader forlot noen node.</pre>
+      </div>
+    </div>
+    <p>Blokken over er en <strong>illustrasjon</strong>: federering krever flere kjørende noder, så den kan ikke genereres av eksempel-harnessen slik de andre resultatene på denne siden kan.</p>
+
+    <h3>Det som ikke finnes ennå</h3>
+    <table class="doc-table">
+      <thead><tr><th>Mangler</th><th>Konsekvens</th></tr></thead>
+      <tbody>
+        <tr><td>Trusted hub</td><td>Ingen mellomledd som kan se delresultater før SDC. Alt koordineres av klienten din, og en liten celle undertrykkes per node selv om summen på tvers av noder ville vært stor nok til å slippe gjennom.</td></tr>
+        <tr><td><code>overlap</code> — håndtering</td><td>Du kan merke en kilde <code>overlap="possible"</code> og få en synlig advarsel i resultatet om at tellinger er episodenivå, ikke individnivå. Men SafeStat dedupliserer aldri individer på tvers av noder, og det finnes ingen funksjon for å spørre hvor mange som finnes i flere noder samtidig.</td></tr>
+        <tr><td>Persentiler / median</td><td>Faller bort uten feilmelding i federert <code>summarize</code> — resultatet viser bare gjennomsnitt, std, antall, min og maks.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="nokler">
+    <h2>Nøkkellager</h2>
+    <p>Krypterte datasett trenger en nøkkel. Nøkkellageret holder dine, knyttet til kontoen din, slik at du ikke må lime inn den samme nøkkelen hver gang.</p>
+    <table class="doc-table">
+      <thead><tr><th>Handling</th><th>Hvor det skjer</th><th>Hva serveren ser</th></tr></thead>
+      <tbody>
+        <tr><td>Legge inn en nøkkel</td><td>Nettleseren krypterer før sending</td><td>Bare den krypterte formen</td></tr>
+        <tr><td>Låse opp et datasett</td><td>Nettleseren, etter å ha hentet nøkkelen</td><td>Ingenting av innholdet</td></tr>
+        <tr><td>Synkronisere mellom enheter</td><td>Via kontoen din</td><td>Bare den krypterte formen</td></tr>
+      </tbody>
+    </table>
+    <div class="callout">
+      <strong>Mister du hovedpassordet, er nøklene borte.</strong> Serveren kan ikke gjenopprette dem — det er hele poenget med at den aldri ser dem i klartekst.
+    </div>
   </section>
 
   <section id="tab-full">
