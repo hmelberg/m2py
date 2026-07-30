@@ -2694,15 +2694,23 @@ git commit -m "fix(hjelp): rettelser fra nettlesergjennomgang av microdata"
 - Consumes: alt.
 - Produces: ingenting.
 
-- [ ] **Step 1: Kjør synk-sjekken fra alle fire repoer**
+- [ ] **Step 1: Kjør synk-sjekken i STRICT-modus fra alle fire repoer**
+
+`HJELP_SYNC_STRICT=1` gjør enhver «hopper over» til en feil. Under utrullingen
+(Task 3–15) er skriptet lempelig, fordi blokkene ikke finnes overalt ennå. Her,
+ved porten, skal ingenting hoppes over — en stille kopieringsfeil i Task 11, 13
+eller 15 ville ellers rapportert som suksess.
 
 ```bash
 for r in safestat openstat askstat microdata; do
   echo "── $r ──"
-  (cd ~/Documents/GitHub/$r && sh scripts/hjelp_sync_check.sh)
+  (cd ~/Documents/GitHub/$r && HJELP_SYNC_STRICT=1 sh scripts/hjelp_sync_check.sh)
+  echo "exit=$?"
 done
 ```
-Expected: fire ganger «fellesseksjonene stemmer», exit 0 hver gang.
+Expected: fire ganger «fellesseksjonene stemmer», exit 0 hver gang, og **ingen**
+«hopper over»-linjer. Får du en slik linje, mangler en fil sine SYNC-blokker og
+kopieringen har feilet stille.
 
 - [ ] **Step 2: Kjør alle hjelpe-tester i alle fire repoer**
 
