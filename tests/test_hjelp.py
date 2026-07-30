@@ -347,3 +347,42 @@ def test_engelsk_resultatblokker_er_identiske_med_norske():
     assert no, "fant ingen resultatblokker i hjelp.html"
     norm = lambda xs: sorted(_html.unescape(x).strip() for x in xs)
     assert norm(no) == norm(en), "resultatblokkene skiller seg mellom språkene"
+
+
+# ── Fix (koordinator-runde etter 9b): «ni språk» var feil i planen, ikke i
+# registeret — modeRegistry har sju. Testen under binder tallordet i lag 0
+# sin oversiktstabell til antall rader i selve modustabellen, slik at et
+# tall skrevet i prosa ikke kan råtne stille igjen når registeret endres.
+
+NO_TALLORD = {
+    "null": 0, "en": 1, "to": 2, "tre": 3, "fire": 4, "fem": 5, "seks": 6,
+    "sju": 7, "syv": 7, "åtte": 8, "ni": 9, "ti": 10,
+}
+EN_TALLORD = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+}
+
+
+@pytest.mark.parametrize("fil, tallord", [
+    ("hjelp.html", NO_TALLORD), ("hjelp.en.html", EN_TALLORD)])
+def test_sprakantall_stemmer_med_modustabellen(fil, tallord):
+    # Et tall skrevet i prosa råtner når registeret endres. Bind det til
+    # tabellen i stedet. Norsk og engelsk sjekkes mot hver sin ordliste —
+    # ellers kolliderer engelsk «to» (preposisjon) med norsk «to» (tallet 2).
+    text = read(fil)
+    m = re.search(r'<section id="modes".*?</section>', text, re.DOTALL)
+    assert m, f"fant ikke modes-seksjonen i {fil}"
+    tbody = re.search(r'<tbody>(.*?)</tbody>', m.group(0), re.DOTALL)
+    assert tbody, f"modustabellen i {fil} mangler <tbody>"
+    antall_rader = len(re.findall(r'<tr>', tbody.group(1)))
+
+    intro = re.search(r'<tr><td><a href="#modes">[^<]+</a></td><td>([^<]+)</td></tr>', text)
+    assert intro, f"fant ikke lag 0-raden som lenker til #modes i {fil}"
+    prosa = intro.group(1).lower()
+    treff = [ord_ for ord_ in tallord if re.search(rf'\b{ord_}\b', prosa)]
+    assert treff, f"fant ikke et tallord i «{intro.group(1)}» ({fil})"
+    tall = tallord[treff[0]]
+    assert tall == antall_rader, (
+        f"{fil}: lag 0 sier «{treff[0]}» ({tall}) men modustabellen har "
+        f"{antall_rader} rader")
