@@ -47,6 +47,35 @@
   Står det `.venv/bin/python` i en task som gjelder et søskenrepo, er det en feil i planen — bruk `python3`.
 - **De fire repoene må ligge side om side** i samme foreldermappe. `scripts/hjelp_sync_check.sh` slår opp søsknene relativt til sin egen plassering (`$HERE/..`, overstyrbart med `HJELP_SYNC_ROOT`), og taskene bruker stier som `../openstat`. Et git-worktree som flytter et repo ut av `~/Documents/GitHub/` brekker begge.
 
+## Modusfasit — den statiske lista er ikke hele sannheten
+
+`modeRegistry` i `index.html` er bare halve registeret. `jamovi` registreres
+**dynamisk** fra `js/modes/jamovi.js` via `M2PY.registerMode({id:'jamovi', …})`
+og lastes lazy gjennom `MODE_MODULES`. Den er likevel en fullverdig modus: egen
+ribbon, skjuler inndatapanelet og toppmenyen.
+
+Teller du bare den statiske lista, mister du jamovi og et tallord i prosaen blir
+feil. Det skjedde to ganger under arbeidet med denne planen — først «ni språk»
+uten dekning, så «sju» som mistet jamovi.
+
+Fasit, verifisert 2026-07-30:
+
+| Repo | Statisk i `modeRegistry` | Dynamisk | Totalt |
+|---|---|---|---|
+| safestat | microdata, python, r, duckdb, brython, micropython, safestat | jamovi | **8** |
+| openstat | python, r, duckdb, brython, micropython, javascript | jamovi | **7** |
+| askstat | python, r, duckdb, brython, micropython, javascript | jamovi | **7** |
+| microdata | microdata, python, r, **statx**, duckdb, brython | jamovi | **7** |
+
+Kommandoen som gir fasit for et repo:
+
+```bash
+ln=$(grep -noE 'modeRegistry\s*=\s*\{' index.html | head -1 | cut -d: -f1)
+awk -v s="$ln" 'NR>=s && NR<=s+400' index.html | grep -oE '^      [a-z]+:' | tr -d ' :'
+grep -ohE "registerMode\(\{ *id:'[a-z]+'" js/modes/*.js | grep -oE "'[a-z]+'" | tr -d "'" | sort -u
+```
+
+
 ---
 
 ## Filstruktur
