@@ -1082,8 +1082,27 @@ Expected: FAIL — `mangler seksjon #tillit`
 
 - [ ] **Step 3: Skriv seksjonene**
 
-Innholdet under er verifisert mot `safepy/policy.py` (`ProtectionLevel`,
-`Profile`, `sandbox_allowed`) 2026-07-30. Sett inn rett etter `#hurtigstart`:
+**Advarsel om kilden.** En tidligere versjon av denne planen hentet
+nivåtabellen fra docstringen øverst i `safepy/policy.py`. Den docstringen er
+feil på to punkter, verifisert 2026-07-30:
+
+- Den omtaler et felt `sandbox_allowed` og påstår «we encode the boundary as
+  a value, not a comment». Feltet **finnes ikke** på `Policy` — det opptrer
+  bare to steder i hele safepy, begge i den samme docstringen.
+- Den sier «protected and sensitive get the STRICT capability executor», mens
+  koden på linje 138 gjør `Profile.OPEN` for både `public` og `protected`.
+
+Det som faktisk gjelder for en SafeStat-bruker: appen sender
+`profile='strict'` eksplisitt ved hver strict-kjøring (`index.html:9532`), og
+`api.py:130` lar et eksplisitt argument overstyre den utledede profilen. Så
+protected *blir* STRICT i SafeStat — men fordi appen overstyrer, ikke fordi
+nivået bestemmer det. Det finnes heller ingen «oversett til artefakt»-sti
+noe sted i koden, og `index.html:2233` behandler `protected` og `sensitive`
+likt. Eneste reelle særbehandling av `sensitive` er at pull-federering
+nekter det (`js/data-directives.js:119`).
+
+**Skriv det som er sant om appen, ikke det docstringen påstår.** Sett inn
+rett etter `#hurtigstart`:
 
 ```html
 <section id="tillit">
@@ -1092,11 +1111,11 @@ Innholdet under er verifisert mot `safepy/policy.py` (`ProtectionLevel`,
 
   <div class="overview">
     <table class="doc-table">
-      <thead><tr><th>Nivå</th><th>Hvor koden kjører</th><th>Profil</th><th>Sandkasse tillatt</th></tr></thead>
+      <thead><tr><th>Nivå</th><th>Hvor koden kjører</th><th>Profil i SafeStat</th><th>Begrensning</th></tr></thead>
       <tbody>
-        <tr><td><code>public</code></td><td>I nettleseren din</td><td>OPEN</td><td>Ja</td></tr>
-        <tr><td><code>protected</code></td><td>På serveren, i sandkasse</td><td>STRICT</td><td>Ja — dette er forskningskonfigurasjonen</td></tr>
-        <tr><td><code>sensitive</code></td><td>Aldri som sandkassekode</td><td>STRICT</td><td>Nei — koden oversettes til et artefakt i stedet</td></tr>
+        <tr><td><code>public</code></td><td>I nettleseren din</td><td>OPEN, med mindre du ber om strict</td><td>Ingen</td></tr>
+        <tr><td><code>protected</code></td><td>Bak fasaden — lokalt eller på node</td><td>STRICT, alltid</td><td>Krever innlogging; kjøringen logges</td></tr>
+        <tr><td><code>sensitive</code></td><td>Bak fasaden, kun på node</td><td>STRICT, alltid</td><td>Som protected, og kan <strong>ikke</strong> brukes med pull-federering — krever node-medlem</td></tr>
       </tbody>
     </table>
     <p class="overview-hint">Blander du flere kilder, vinner det <strong>mest restriktive</strong> nivået.</p>
