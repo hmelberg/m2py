@@ -47,37 +47,20 @@ EXPECTED_TEXT = {
         "1  520 790  2 530\n"
         "2  518 450  2 470"
     ),
-    # DuckDB's GROUP BY is unordered by default: kjonn=2 comes before kjonn=1
-    # in this snapshot. That is real, deliberate output — do not "fix" it to
-    # match R's sorted order. It is also NOT stable: rerunning the harness
-    # repeatedly in the very same process shows the two rows swap order at
-    # random (observed roughly 35/65 across 20 calls), independent of any
-    # engine-version difference. So this one entry is compared order-
-    # insensitively below — see ORDER_INSENSITIVE.
+    # DuckDB's GROUP BY has no guaranteed row order on its own — measured
+    # ~35/65 split over 20 calls on 2026-07-30, within the same process, not
+    # just across engine versions. run_examples.py's strict-sql-gruppe entry
+    # now has an explicit ORDER BY kjonn, which was verified to make this
+    # fully deterministic (12 consecutive runs, one row order). So this is
+    # compared with plain exact equality below, same as the other two — no
+    # order-insensitive special case. If this ever starts failing, the first
+    # suspect is someone having dropped ORDER BY from that example's code.
     "strict-sql-gruppe": (
         "  m  n\n"
-        "2  518 450  2 470\n"
-        "1  520 790  2 530"
+        "1  520 790  2 530\n"
+        "2  518 450  2 470"
     ),
 }
-
-# Example ids whose EXPECTED_TEXT row order is not guaranteed reproducible
-# (DuckDB GROUP BY has no ORDER BY here, and its row emission order has been
-# observed to vary between calls within one process — not just across engine
-# versions). For these, compare the header line exactly but the data lines
-# as a set, so the test still catches a formatting/value bug in
-# _format_payload without being flaky on legitimate reruns.
-ORDER_INSENSITIVE = {"strict-sql-gruppe"}
-
-
-def _matches(actual: str, expected: str, order_insensitive: bool) -> bool:
-    if actual == expected:
-        return True
-    if not order_insensitive:
-        return False
-    a_lines = actual.splitlines()
-    e_lines = expected.splitlines()
-    return a_lines[:1] == e_lines[:1] and sorted(a_lines[1:]) == sorted(e_lines[1:])
 
 
 def test_godkjente_eksempler_gir_forventet_tekst():
@@ -92,12 +75,10 @@ def test_godkjente_eksempler_gir_forventet_tekst():
     for ex_id, expected in EXPECTED_TEXT.items():
         ex = next(e for e in run_examples.EXAMPLES if e["id"] == ex_id)
         actual = run_examples.run_one(ex, df)
-        order_insensitive = ex_id in ORDER_INSENSITIVE
-        assert _matches(actual, expected, order_insensitive), (
-            f"{ex_id}: uventet tekst"
-            + (" (rekkefølge ignorert, innhold sammenlignet som mengde)"
-               if order_insensitive else "")
-            + f".\n--- forventet ---\n{expected}\n--- fikk ---\n{actual}"
+        assert actual == expected, (
+            f"{ex_id}: uventet tekst.\n"
+            f"--- forventet ---\n{expected}\n"
+            f"--- fikk ---\n{actual}"
         )
 
 

@@ -87,7 +87,15 @@ EXAMPLES = [
         "id": "strict-sql-gruppe",
         "dialect": "duckdb",
         "expect_ok": True,
-        "code": "SELECT kjonn, avg(lonn) AS m, count(*) AS n FROM df GROUP BY kjonn",
+        # ORDER BY kjonn is load-bearing, not cosmetic: DuckDB's GROUP BY
+        # without an explicit order is NOT deterministic — measured ~35/65
+        # split in row order over 20 consecutive calls on 2026-07-30, in this
+        # very process (not just across engine versions). Without ORDER BY,
+        # the help page's SQL example would show a coin flip's worth of row
+        # order and the content-anchor test in tests/test_hjelp_examples.py
+        # would be flaky. Do not "simplify" this away.
+        "code": ("SELECT kjonn, avg(lonn) AS m, count(*) AS n "
+                 "FROM df GROUP BY kjonn ORDER BY kjonn"),
     },
 ]
 
