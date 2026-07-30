@@ -174,10 +174,6 @@ def test_strict_py_resultatblokker_stemmer_med_harness():
             f"resultatblokk finnes ikke i harness-output:\n{ren[:200]}")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Task 7 legger til #strict-r",
-)
 def test_ingen_hengende_interne_lenker():
     """Hver href="#x" skal treffe en seksjon eller overskrift som finnes.
     Fanger at en senere task omdøper eller dropper en seksjon som lag 0
@@ -186,3 +182,54 @@ def test_ingen_hengende_interne_lenker():
     mal = set(g.section_ids) | g.heading_ids
     hengende = g.hrefs - mal
     assert not hengende, f"hengende interne lenker (mangler id): {sorted(hengende)}"
+
+
+def test_strict_r_har_avvist_eksempel():
+    text = read("hjelp.html")
+    m = re.search(r'<section id="strict-r".*?</section>', text, re.DOTALL)
+    assert m, "fant ikke strict-r-seksjonen"
+    assert "base-R function 'head' is not supported" in m.group(0)
+
+
+def test_strict_r_og_sql_finnes():
+    ids = grab("hjelp.html").section_ids
+    for s in ("strict-r", "strict-sql"):
+        assert s in ids, f"mangler seksjon #{s}"
+
+
+def test_r_dialekten_er_beskrevet_som_oversatt():
+    """R-koden oversettes, den kjøres aldri direkte. Leseren må få vite det,
+    ellers forventer de at hele R er tilgjengelig."""
+    text = read("hjelp.html")
+    m = re.search(r'<section id="strict-r".*?</section>', text, re.DOTALL)
+    assert m
+    blokk = m.group(0).lower()
+    assert "oversett" in blokk, "strict-r sier ikke at koden oversettes"
+
+
+def test_strict_r_og_sql_resultatblokker_stemmer_med_harness():
+    """Hver <pre class="result"> i strict-r/strict-sql skal finnes ordrett i
+    en outputfil fra harnessen. Fanger resultater som er redigert for hånd."""
+    outdir = REPO / "docs" / "hjelp_examples" / "output"
+    kjort = [f.read_text(encoding="utf-8").strip() for f in outdir.glob("*.txt")]
+    text = read("hjelp.html")
+    import html as _html
+    for sid in ("strict-r", "strict-sql"):
+        m = re.search(rf'<section id="{sid}".*?</section>', text, re.DOTALL)
+        assert m, f"fant ikke {sid}-seksjonen"
+        blokker = re.findall(r'<pre class="result">(.*?)</pre>', m.group(0), re.DOTALL)
+        assert blokker, f"{sid} har ingen resultatblokker"
+        for b in blokker:
+            ren = _html.unescape(b).strip()
+            assert any(ren == k for k in kjort), (
+                f"{sid}: resultatblokk finnes ikke i harness-output:\n{ren[:200]}")
+
+
+def test_gammel_strict_seksjon_er_borte():
+    """Den gamle #strict dekket alle tre dialektene på femten linjer og er
+    erstattet av #strict-py/#strict-r/#strict-sql. To sett regler for det
+    samme er verre enn ingen."""
+    ids = grab("hjelp.html").section_ids
+    assert "strict" not in ids, "den gamle #strict-seksjonen står fortsatt"
+    for ny in ("strict-py", "strict-r", "strict-sql"):
+        assert ny in ids, f"mangler #{ny}"

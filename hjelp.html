@@ -244,6 +244,8 @@ nav a.nav-active {
   <a href="#tillit">Tillitsmodellen</a>
   <a href="#kilder">Beskyttede kilder</a>
   <a href="#strict-py">Restricted Python</a>
+  <a href="#strict-r">Restricted R</a>
+  <a href="#strict-sql">Restricted SQL</a>
   <div class="nav-section">Editoren</div>
   <a href="#editor">Editor og snarveier</a>
   <a href="#tab-intro">Tab-autocomplete</a>
@@ -260,7 +262,6 @@ nav a.nav-active {
   <a href="#python">Python (Pyodide)</a>
   <a href="#r">R (WebR)</a>
   <a href="#hybrid">Hybrid-skript</a>
-  <a href="#strict">Restriktivt språk (strict)</a>
   <a href="#federert">Federerte kilder</a>
   <div class="nav-section">Referanse</div>
   <a href="#tab-full">Tab-autocomplete (detalj)</a>
@@ -477,6 +478,92 @@ df.groupby("kjonn")["lonn"].mean()</code></pre>
     <div class="callout">
       <strong>Omforminger er lov.</strong> <code>pivot</code>, <code>stack</code>, <code>melt</code> og <code>explode</code> beholder hele populasjonen og returnerer et privat objekt som bare kan forlate systemet som et undertrykt aggregat. De er trygge ved konstruksjon, ikke ved tillatelse.
     </div>
+  </section>
+
+  <!-- ── STRICT R ── -->
+  <section id="strict-r">
+    <h2>Restricted R</h2>
+    <p>R-koden din <strong>oversettes</strong> — den kjøres aldri direkte. SafeStat leser uttrykket, bygger det om til den samme frigivelseskjernen som Restricted Python bruker, og kjører det der. Derfor er det ikke hele R du har tilgang til, men en dialekt: tidyverse-formen for det som kan uttrykkes trygt.</p>
+
+    <div class="overview">
+      <table class="doc-table">
+        <thead><tr><th>Du vil</th><th>Skriv</th><th>Virker</th></tr></thead>
+        <tbody>
+          <tr><td>Gruppere og oppsummere</td><td><code>df |&gt; group_by(kjonn) |&gt; summarise(m = mean(lonn))</code></td><td>Ja</td></tr>
+          <tr><td>Filtrere</td><td><code>df |&gt; filter(alder &gt;= 40)</code></td><td>Ja</td></tr>
+          <tr><td>Ny kolonne</td><td><code>df |&gt; mutate(logl = log(lonn))</code></td><td>Ja</td></tr>
+          <tr><td>Se på dataene</td><td><code>head(df)</code></td><td>Nei</td></tr>
+          <tr><td>Regresjon</td><td><code>lm(lonn ~ alder + kjonn, data = df)</code></td><td>Ja</td></tr>
+          <tr><td>Egen funksjon</td><td><code>sapply(df, function(x) …)</code></td><td>Nei — vilkårlig kode</td></tr>
+        </tbody>
+      </table>
+      <p class="overview-hint">Røroperatoren <code>|&gt;</code> og <code>%&gt;%</code> forstås begge.</p>
+    </div>
+
+    <h3>Det som virker</h3>
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Kode <span class="badge badge-r">r</span></span>
+        <pre><code>df |&gt; group_by(kjonn) |&gt; summarise(m = mean(lonn), n = n())</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat</span>
+        <pre class="result">  m  n
+1  520 790  2 530
+2  518 450  2 470</pre>
+      </div>
+    </div>
+
+    <h3>Det som ikke finnes</h3>
+    <p>Base-R-funksjoner som viser rader er ikke en del av dialekten. Meldingen sier hvilken funksjon det gjelder, ikke hva som var i dataene.</p>
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Kode <span class="badge badge-r">r</span></span>
+        <pre><code>head(df)</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat</span>
+        <pre class="result">Avvist (DisclosureError): base-R function 'head' is not supported in safepy's R dialect</pre>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Samme kjerne, samme regler.</strong> Alt i <a href="#strict-py">Restricted Python</a> sin «Hva som aldri er lov» gjelder her også — bare uttrykt i R. Rangering, radidentifiserende reduksjoner og vilkårlige funksjoner er stengt av samme grunn.
+    </div>
+  </section>
+
+  <!-- ── STRICT SQL ── -->
+  <section id="strict-sql">
+    <h2>Restricted SQL</h2>
+    <p>SQL er den tredje dialekten inn i den samme kjernen. I motsetning til R blir SQL faktisk <strong>kjørt</strong> — men bare etter en statisk portvokter som leser den parsede spørringen før noe utføres, i en låst DuckDB-motor uten fil- eller nettverkstilgang, og alt slipper ut gjennom den samme undertrykkingskjernen som pandas- og R-dialekten bruker. <code>SELECT</code> med <code>GROUP BY</code> virker; alt som ville returnert rader gjør ikke.</p>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Kode <span class="badge">sql</span></span>
+        <pre><code>SELECT kjonn, avg(lonn) AS m, count(*) AS n
+FROM df GROUP BY kjonn ORDER BY kjonn</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat</span>
+        <pre class="result">  m  n
+1  520 790  2 530
+2  518 450  2 470</pre>
+      </div>
+    </div>
+
+    <table class="doc-table">
+      <thead><tr><th>Konstruksjon</th><th>Virker</th></tr></thead>
+      <tbody>
+        <tr><td><code>SELECT … GROUP BY</code> med aggregatfunksjoner</td><td>Ja</td></tr>
+        <tr><td><code>WHERE</code>-filtre</td><td>Ja</td></tr>
+        <tr><td><code>JOIN</code> mellom kilder på samme nivå</td><td>Ja</td></tr>
+        <tr><td><code>ORDER BY</code> på en <code>GROUP BY</code>-nøkkel</td><td>Ja — og verdt å bruke: uten den er radrekkefølgen tilfeldig</td></tr>
+        <tr><td><code>ORDER BY</code> på et aggregat</td><td>Nei — det ville avslørt eksakte, urundede verdier</td></tr>
+        <tr><td><code>SELECT *</code> uten aggregering</td><td>Nei — det er rader</td></tr>
+        <tr><td><code>LIMIT</code> for å hente ut enkeltrader</td><td>Nei — samme regel som <code>SELECT *</code>: hvert ledd må være en gruppenøkkel eller et trygt aggregat</td></tr>
+        <tr><td><code>ORDER BY</code> etterfulgt av radhenting (klassisk min/maks-triks)</td><td>Nei — stanset av regelen over, før <code>LIMIT</code> i det hele tatt får virke</td></tr>
+      </tbody>
+    </table>
   </section>
 
   <!-- ── RUNNING ── -->
@@ -1029,28 +1116,6 @@ df %>% group_by(kjonn) %>%
   summarise(snitt = mean(inntekt, na.rm = TRUE))</code></pre>
 
     <p>Datasettene fra microdata-seksjonen overføres automatisk til Python som pandas DataFrames og til R som data frames.</p>
-  </section>
-
-  <!-- ── TAB FULL ── -->
-  <section id="strict">
-    <h2>Restriktivt språk (strict) — analyser beskyttede data</h2>
-    <p>SafeStat har en begrenset variant av ekte analysespråk (safepy-motoren): du skriver vanlig pandas, R eller SQL, men koden kjører mot en sikker fasade som bare frigir <strong>undertrykte aggregater</strong> — aldri en rad, et ekstremverdi eller noe som kan avsløre enkeltpersoner. Skru på med <code># options.profile = strict</code> øverst i skriptet (python-, r- eller duckdb-modus); beskyttede kilder tvinger strict automatisk.</p>
-    <h3>To profiler</h3>
-    <p><strong>OPEN</strong> (offentlige data): ekte pandas med vaktliste. <strong>STRICT</strong> (beskyttet/sensitivt): kun fasaden — <code>df.head()</code> og andre råvisninger <em>finnes ikke</em>; trygt per konstruksjon.</p>
-    <h3>Tre dialekter, samme frigivelseskjerne</h3>
-    <pre><code># python-modus
-df.groupby("kjonn")["alder"].mean()
-df[df["alder"] &gt;= 40]["lonn"].median()
-smf.ols("lonn ~ alder + C(kjonn)", data=df).fit().summary()
-
-# r-modus (oversettes — kjøres aldri direkte)
-df |&gt; group_by(kjonn) |&gt; summarise(m = mean(lonn), n = n())
-
--- duckdb-modus (låst motor, AST-portvoktet)
-SELECT kjonn, avg(lonn) AS m, count(*) AS n FROM df GROUP BY kjonn</code></pre>
-    <h3>Hva fasaden kan</h3>
-    <p><strong>Pandas:</strong> seleksjon og boolske masker, <code>groupby</code>/<code>agg</code>, reduksjoner (mean/median/std/quantile/nunique/…), <code>value_counts</code>, <code>crosstab</code>/<code>pivot_table</code>, dataforming (merge, rename, fillna, dropna, sort_values, melt/pivot, assign, <code>.str</code>/<code>.dt</code>), tester (ttest, anova, chisq, korrelasjon), modeller (ols/logit/poisson-formler, cox/kaplan_meier/logrank, feols/iv, propensity/ATE) og aggregerte plott (hist, boxplot). <strong>R:</strong> filter, mutate, group_by, summarise, select, arrange, count, distinct, rename, pivot_longer/wider, *_join, lm/glm. <strong>SQL:</strong> SELECT/GROUP BY der hvert ledd er nøkkel eller trygt aggregat.</p>
-    <p><strong>Bevisst utelatt:</strong> head/iloc/utskrift av rader, eksport, vilkårlige imports og alt som kan lekke enkeltverdier. Se eksempelmenyen («Strict — …» i python-, r- og duckdb-modus). Terskler og avrunding er de samme som ellers (min&nbsp;5, runding til 10).</p>
   </section>
 
   <section id="federert">
