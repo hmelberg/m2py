@@ -5,6 +5,15 @@
 window.M2PY_I18N = window.M2PY_I18N || {};
 window.M2PY_I18N.en = {
   "Meny": "Menu",
+  "Hovedpassord": "Master password",
+  "Sett hovedpassord": "Set master password",
+  "Gjenta passordet": "Repeat the password",
+  "Passordet kan ikke være tomt": "The password cannot be empty",
+  "Minst 8 tegn": "At least 8 characters",
+  "Passordene er ikke like": "The passwords do not match",
+  "Sett et hovedpassord for krypterte nøkler. Glemmer du det, kan de krypterte nøklene ikke gjenopprettes — da må de legges inn på nytt.": "Set a master password for encrypted keys. If you forget it, the encrypted keys cannot be recovered — you will have to re-enter them.",
+  "Lås opp nøkkellageret for denne økten.": "Unlock the key store for this session.",
+  "Kjøringen bruker hemmelige nøkler: {names}. Oppgi hovedpassordet for å autorisere denne kjøringen.": "This run uses secret keys: {names}. Enter the master password to authorize this run.",
   "Fil": "File",
   "Nytt script": "New script",
   "Åpne fra URL": "Open from URL",

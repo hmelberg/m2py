@@ -344,6 +344,19 @@
       </div>
     </div>
   </div>
+  <div class="ai-modal-backdrop" id="pwPromptBackdrop">
+    <div class="ai-modal" style="max-width:420px;">
+      <h3 id="pwPromptTitle" data-i18n>Hovedpassord</h3>
+      <div class="ai-modal-help" id="pwPromptMsg" style="margin-bottom:10px;"></div>
+      <input type="password" id="pwPromptInput" autocomplete="new-password" style="width:100%;">
+      <input type="password" id="pwPromptConfirm" autocomplete="new-password" style="width:100%;display:none;margin-top:6px;">
+      <div id="pwPromptError" style="color:#f87171;font-size:.85rem;margin-top:6px;display:none;"></div>
+      <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.8rem;">
+        <button type="button" id="pwPromptCancel" data-i18n>Avbryt</button>
+        <button type="button" id="pwPromptOk" data-i18n>OK</button>
+      </div>
+    </div>
+  </div>
   <div class="ai-modal-backdrop" id="loginBackdrop">
     <div class="ai-modal" style="max-width:420px;">
       <h3 data-i18n>Logg inn</h3>
@@ -11168,6 +11181,7 @@ def _run_microdata_chunk(_code):
   <script src="js/federate.js"></script>
   <script src="js/duckdb-native.js"></script>
   <script src="js/ai-chat.js"></script>
+  <script src="js/keys-ui.js"></script>
   <script src="js/github-storage.js"></script>
 
   <div id="dmResultBackdrop" class="ai-modal-backdrop" style="display:none;">
