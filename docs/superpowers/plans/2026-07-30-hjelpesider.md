@@ -2852,7 +2852,7 @@ kolonner; innholdet fylles fra uttrekkene, ikke fra hukommelsen.
 
 <section id="avsloring">
   <h2>Avsløringskontroll</h2>
-  <p>Emulatoren sensurerer output på samme måte som microdata.no gjør, fordi et skript som gir tall her og blir avvist der ikke er til hjelp. Kontrollen er på som standard.</p>
+  <p>Emulatoren kan sensurere output på samme måte som microdata.no gjør, fordi et skript som gir tall her og blir avvist der ikke er til hjelp. <strong>Kontrollen er AV som standard</strong> — tallene du får er derfor ikke uten videre sammenliknbare med det produksjon ville gitt. Slå den på med bryteren i hamburgermenyen, eller med direktivet <code>// m2py: disclosure-control=on</code> øverst i skriptet.</p>
   <table class="doc-table">
     <thead><tr><th>Regel</th><th>Terskel</th><th>Effekt når den slår inn</th></tr></thead>
     <tbody>
@@ -2860,9 +2860,9 @@ kolonner; innholdet fylles fra uttrekkene, ikke fra hukommelsen.
     </tbody>
   </table>
 
-  <h3>Skru den av</h3>
+  <h3>Slå den på</h3>
   <p>Legg direktivet øverst i skriptet:</p>
-  <pre><code>// m2py: disclosure-control=off</code></pre>
+  <pre><code>// m2py: disclosure-control=on</code></pre>
   <p>Direktivet er en vanlig kommentar, så microdata.no ignorerer det. Samme skript kan kjøres begge steder.</p>
   <div class="callout">
     <strong>Hva du mister:</strong> med kontrollen av er tallene ikke lenger sammenlignbare med det du ville fått i produksjon. Skru den av for å forstå dataene, ikke for å rapportere dem.
