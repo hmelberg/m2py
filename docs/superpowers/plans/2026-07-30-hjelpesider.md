@@ -1519,7 +1519,37 @@ FROM df GROUP BY kjonn ORDER BY kjonn</code></pre>
 
 Samme i `hjelp.en.html`.
 
-- [ ] **Step 5: Fjern xfail-markøren på lenketesten**
+- [ ] **Step 5: Slett den gamle `#strict`-seksjonen**
+
+Den opprinnelige `<section id="strict">` — «Restriktivt språk (strict) —
+analyser beskyttede data», rundt linje 1035 — dekket alle tre dialektene på
+femten linjer. Task 6 og denne tasken erstatter den med `#strict-py`,
+`#strict-r` og `#strict-sql`, og `#tillit` fra Task 5 har overtatt
+«To profiler». Blir den stående, har siden to sett med regler for det samme,
+og de er ikke helt enige.
+
+Slett hele seksjonen og nav-lenken til `#strict`. Sjekk først at ingenting
+peker på den:
+
+```bash
+grep -n 'href="#strict"' hjelp.html hjelp.en.html
+```
+
+Hvert treff skal enten fjernes eller pekes til `#strict-py`. Legg til en test
+som hindrer at den kommer tilbake:
+
+```python
+def test_gammel_strict_seksjon_er_borte():
+    """Den gamle #strict dekket alle tre dialektene på femten linjer og er
+    erstattet av #strict-py/#strict-r/#strict-sql. To sett regler for det
+    samme er verre enn ingen."""
+    ids = grab("hjelp.html").section_ids
+    assert "strict" not in ids, "den gamle #strict-seksjonen står fortsatt"
+    for ny in ("strict-py", "strict-r", "strict-sql"):
+        assert ny in ids, f"mangler #{ny}"
+```
+
+- [ ] **Step 6: Fjern xfail-markøren på lenketesten**
 
 Task 4 la inn `test_ingen_hengende_interne_lenker` merket
 `@pytest.mark.xfail(strict=True, reason="Tasks 5-7 legger til #tillit,
@@ -1531,12 +1561,12 @@ begynner å passere med markøren på — det er hele poenget, og det er
 signalet ditt. Fjern dekoratøren og `pytest`-importen hvis den ikke brukes
 til noe annet.
 
-- [ ] **Step 6: Kjør testene**
+- [ ] **Step 7: Kjør testene**
 
 Run: `.venv/bin/python -m pytest tests/test_hjelp.py -v`
 Expected: alle PASS, ingen xfail, ingen xpass.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add hjelp.html hjelp.en.html tests/test_hjelp.py
