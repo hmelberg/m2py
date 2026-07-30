@@ -1114,8 +1114,8 @@ rett etter `#hurtigstart`:
       <thead><tr><th>Nivå</th><th>Hvor koden kjører</th><th>Profil i SafeStat</th><th>Begrensning</th></tr></thead>
       <tbody>
         <tr><td><code>public</code></td><td>I nettleseren din</td><td>OPEN, med mindre du ber om strict</td><td>Ingen</td></tr>
-        <tr><td><code>protected</code></td><td>Bak fasaden — lokalt eller på node</td><td>STRICT, alltid</td><td>Krever innlogging; kjøringen logges</td></tr>
-        <tr><td><code>sensitive</code></td><td>Bak fasaden, kun på node</td><td>STRICT, alltid</td><td>Som protected, og kan <strong>ikke</strong> brukes med pull-federering — krever node-medlem</td></tr>
+        <tr><td><code>protected</code></td><td>Bak fasaden — lokalt hvis eieren har åpnet for det, ellers bare eksternt</td><td>STRICT, alltid</td><td>Krever innlogging; kjøringen logges</td></tr>
+        <tr><td><code>sensitive</code></td><td>Samme som protected</td><td>STRICT, alltid</td><td>Som protected, og kan <strong>ikke</strong> brukes med pull-federering — krever node-medlem</td></tr>
       </tbody>
     </table>
     <p class="overview-hint">Blander du flere kilder, vinner det <strong>mest restriktive</strong> nivået.</p>
