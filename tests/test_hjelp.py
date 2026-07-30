@@ -260,9 +260,10 @@ def test_federert_og_nokler_finnes():
 # ── Task 9: lag 2 og lag 3 i SYNC-blokker ──────────────────────────────────
 
 SYNC_BLOKKER = [
-    "felles-css", "felles-js", "felles-editor", "felles-sidebar",
-    "felles-lagre", "felles-forklar", "felles-widgets", "felles-ai",
-    "felles-eksempler", "felles-referanse-snarveier", "felles-referanse-tab",
+    "felles-css", "felles-js", "felles-running", "felles-editor",
+    "felles-sidebar", "felles-lagre", "felles-forklar", "felles-widgets",
+    "felles-ai", "felles-eksempler", "felles-referanse-snarveier",
+    "felles-referanse-tab",
 ]
 
 APPNAVN = ["SafeStat", "OpenStat", "AskStat", "Microdata"]

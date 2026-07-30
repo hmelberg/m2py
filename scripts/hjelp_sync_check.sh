@@ -31,8 +31,8 @@ HERE=$(cd "$(dirname "$0")/.." && pwd)
 ROOT="${HJELP_SYNC_ROOT:-$HERE/..}"
 SIBLINGS="${HJELP_SYNC_SIBLINGS:-openstat askstat microdata}"
 STRICT="${HJELP_SYNC_STRICT:-0}"
-BLOCKS="felles-css felles-js felles-editor felles-sidebar felles-lagre
-        felles-forklar felles-widgets felles-ai felles-eksempler
+BLOCKS="felles-css felles-js felles-running felles-editor felles-sidebar
+        felles-lagre felles-forklar felles-widgets felles-ai felles-eksempler
         felles-referanse-snarveier felles-referanse-tab"
 FILES="hjelp.html hjelp.en.html"
 

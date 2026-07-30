@@ -15,9 +15,10 @@ REPO = Path(__file__).resolve().parent.parent
 SCRIPT = REPO / "scripts" / "hjelp_sync_check.sh"
 
 BLOCK_NAMES = [
-    "felles-css", "felles-js", "felles-editor", "felles-sidebar",
-    "felles-lagre", "felles-forklar", "felles-widgets", "felles-ai",
-    "felles-eksempler", "felles-referanse-snarveier", "felles-referanse-tab",
+    "felles-css", "felles-js", "felles-running", "felles-editor",
+    "felles-sidebar", "felles-lagre", "felles-forklar", "felles-widgets",
+    "felles-ai", "felles-eksempler", "felles-referanse-snarveier",
+    "felles-referanse-tab",
 ]
 
 HJELP_FILER = ["hjelp.html", "hjelp.en.html"]
@@ -58,9 +59,9 @@ def test_alle_blokker_finnes_i_egen_hjelp(filnavn):
     over (se hjelp_sync_check.sh), så uten denne parametriseringen ville et
     slettet block-navn i den engelske sida vært et permanent blindsone.
 
-    hjelp.en.html har ingen SYNC-blokker ennå (Task 9 legger dem inn) — den
+    hjelp.en.html har ingen SYNC-blokker ennå (Task 9b legger dem inn) — den
     hopper selv-aktiverende over basert på fila sitt FAKTISKE innhold, ikke
-    et statisk merke noen må huske å fjerne. Så snart Task 9 legger inn
+    et statisk merke noen må huske å fjerne. Så snart Task 9b legger inn
     markørene, begynner denne testen å kjøre den ekte sjekken av seg selv."""
     text = (REPO / filnavn).read_text(encoding="utf-8")
     if "SYNC:START" not in text:
@@ -146,7 +147,7 @@ def test_streng_modus_avviser_manglende_enkeltblokk(tmp_path):
     HJELP_SYNC_STRICT=1 dette i det hele tatt — strengmodus-påstanden var
     uverifisert nettopp her.
 
-    Nå som safestat har alle elleve blokkene, finnes det ikke lenger et
+    Nå som safestat har alle tolv blokkene, finnes det ikke lenger et
     blokknavn som mangler av seg selv — så scenarioet bygges direkte: en
     blokk fjernes (markører og innhold) fra en KOPI av hjelp.html, og den
     samme fjernes fra det falske søskenet. Kopien kjøres fra sitt eget

@@ -572,6 +572,7 @@ FROM df GROUP BY kjonn ORDER BY kjonn</code></pre>
   </section>
 
   <!-- ── RUNNING ── -->
+  <!-- SYNC:START felles-running -->
   <section id="running">
     <h2>Kjøre</h2>
 
@@ -582,6 +583,7 @@ FROM df GROUP BY kjonn ORDER BY kjonn</code></pre>
     <h3>Stoppe / avbryte</h3>
     <p>Trykk <strong>Kjør</strong>-knappen igjen under kjøring for å avbryte.</p>
   </section>
+  <!-- SYNC:END -->
 
   <!-- ── MICRODATA ── -->
   <section id="microdata">
@@ -966,7 +968,7 @@ df.groupby("kjonn")["lonn"].mean()
     <p>Et eksperimentelt sidepanel med en AI-assistent som kan svare på spørsmål om syntaks, foreslå variabler og generere eller revidere skript. Åpnes med stjerne-ikonet øverst til høyre eller <kbd>Ctrl</kbd>+<kbd>I</kbd>.</p>
 
     <div class="callout">
-      <strong>Krever API-nøkkel.</strong> Klikk tannhjul-ikonet i AI-panelet og lim inn en nøkkel. Nøkkelen lagres lokalt i nettleseren (localStorage) og sendes som <code>X-API-Key</code>-header til Anvil-API-et. Ta kontakt med utvikleren for å få en nøkkel.
+      <strong>Krever API-nøkkel.</strong> Klikk tannhjul-ikonet i AI-panelet for å sette den opp. Nøkkelen lagres kun lokalt i nettleseren (localStorage).
     </div>
 
     <h3>Hva assistenten kan gjøre</h3>
@@ -997,7 +999,7 @@ df.groupby("kjonn")["lonn"].mean()
 
     <h3>Andre kontroller</h3>
     <ul>
-      <li><strong>Tannhjul</strong> — endre API-nøkkel og base-URL</li>
+      <li><strong>Tannhjul</strong> — endre API-nøkkel og andre innstillinger</li>
       <li><strong>Søppelbøtte</strong> — tøm samtalen (sletter ikke noe på serveren)</li>
       <li><strong>×</strong> — lukk panelet</li>
       <li><kbd>Enter</kbd> sender, <kbd>Shift</kbd>+<kbd>Enter</kbd> gir ny linje</li>
@@ -1009,8 +1011,11 @@ df.groupby("kjonn")["lonn"].mean()
     <div class="callout">
       <strong>Eksperimentell.</strong> AI-assistenten kan ta feil, foreslå variabler som ikke finnes, eller generere skript som ikke kjører. Sjekk alltid resultatet før bruk.
     </div>
+    <!-- SYNC:END -->
+
+    <h3>Slik får du en nøkkel i SafeStat</h3>
+    <p>Logg inn, eller lim inn din egen Anthropic-nøkkel (opprettet på <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>) under «Eller bruk egen Anthropic API-nøkkel» i innstillinger — da belastes forbruket din egen konto. Under «Avansert» kan du i tillegg sette et service-token som sendes som <code>X-API-Key</code> til appens Anvil-backend; det er ment for skript-/automatiseringsbruk, ikke vanlig chatting.</p>
   </section>
-  <!-- SYNC:END -->
 
   <!-- ── EKSEMPLER ── -->
   <!-- SYNC:START felles-eksempler -->
