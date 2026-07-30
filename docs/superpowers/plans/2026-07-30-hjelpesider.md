@@ -1500,12 +1500,24 @@ FROM df GROUP BY kjonn ORDER BY kjonn</code></pre>
 
 Samme i `hjelp.en.html`.
 
-- [ ] **Step 5: Kjør testene**
+- [ ] **Step 5: Fjern xfail-markøren på lenketesten**
+
+Task 4 la inn `test_ingen_hengende_interne_lenker` merket
+`@pytest.mark.xfail(strict=True, reason="Tasks 5-7 legger til #tillit,
+#kilder, #strict-py, #strict-r")`. Denne tasken lander den siste av de fire
+id-ene (`#strict-r`), så markøren skal bort nå.
+
+Fordi den er `strict=True`, blir testen rapportert som **FEIL** når den
+begynner å passere med markøren på — det er hele poenget, og det er
+signalet ditt. Fjern dekoratøren og `pytest`-importen hvis den ikke brukes
+til noe annet.
+
+- [ ] **Step 6: Kjør testene**
 
 Run: `.venv/bin/python -m pytest tests/test_hjelp.py -v`
-Expected: alle PASS.
+Expected: alle PASS, ingen xfail, ingen xpass.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add hjelp.html hjelp.en.html tests/test_hjelp.py
