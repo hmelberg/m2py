@@ -74,3 +74,97 @@ test('ukjent navn: get/policy gir null, registered tom', () => {
   assert.equal(K.policy('finnesikke'), null);
   assert.deepEqual(K.registered(), []);
 });
+
+function promptStub(password, log) {
+  return async (opts) => { (log || []).push(opts); return password; };
+}
+
+test('locked: set krever passord første gang (mode create), get virker i økten', async () => {
+  const ls = makeLocalStorage();
+  const log = [];
+  const K = loadKeys(ls, promptStub('hemmelig123', log));
+  await K.set('helse', 'K3Y-MATERIAL', 'locked');
+  assert.equal(log[0].mode, 'create');                  // første ikke-åpne nøkkel → sett passord
+  assert.equal(K.get('helse'), 'K3Y-MATERIAL');         // opplåst i økten
+  const doc = JSON.parse(ls.getItem('md_keys'));
+  assert.equal(doc.kdf.alg, 'PBKDF2-SHA-256');
+  assert.equal(doc.kdf.iters, 600000);
+  assert.ok(doc.verifier.ct);
+  assert.ok(!('value' in doc.entries.helse));           // ingen klartekst i dokumentet
+  assert.ok(doc.entries.helse.ct);
+});
+
+test('locked: ny økt er låst; resolve låser opp (mode unlock); lockNow låser igjen', async () => {
+  const ls = makeLocalStorage();
+  const K1 = loadKeys(ls, promptStub('pw1'));
+  await K1.set('helse', 'K3Y', 'locked');
+  // «Ny sidelasting»: ferskt modul-scope mot samme localStorage.
+  const log = [];
+  const K2 = loadKeys(ls, promptStub('pw1', log));
+  assert.equal(K2.get('helse'), null);                  // låst → get gir null
+  assert.equal(K2.status().hasPassword, true);
+  assert.equal(K2.status().unlocked, false);
+  assert.equal(await K2.resolve('helse', 'testkilde'), 'K3Y');
+  assert.equal(log[0].mode, 'unlock');
+  assert.equal(K2.get('helse'), 'K3Y');                 // nå i økt-cache
+  assert.equal(log.length, 1);                          // bare ÉN prompt per økt
+  await K2.resolve('helse');
+  assert.equal(log.length, 1);
+  K2.lockNow();
+  assert.equal(K2.get('helse'), null);
+});
+
+test('locked: feil passord gir «feil passord», ikke søppel', async () => {
+  const ls = makeLocalStorage();
+  const K1 = loadKeys(ls, promptStub('riktig'));
+  await K1.set('helse', 'K3Y', 'locked');
+  const K2 = loadKeys(ls, promptStub('feil'));
+  await assert.rejects(() => K2.resolve('helse'), /feil passord/);
+  assert.equal(K2.get('helse'), null);                  // forble låst
+});
+
+test('avbrutt prompt (null) → avbrutt-feil', async () => {
+  const ls = makeLocalStorage();
+  const K = loadKeys(ls, async () => null);
+  await assert.rejects(() => K.set('helse', 'K3Y', 'locked'), /avbrutt/);
+});
+
+test('setPolicy: open→locked krypterer, locked→open dekrypterer', async () => {
+  const ls = makeLocalStorage();
+  const K = loadKeys(ls, promptStub('pw'));
+  await K.set('fred', 'abc');
+  await K.setPolicy('fred', 'locked');
+  let doc = JSON.parse(ls.getItem('md_keys'));
+  assert.ok(!('value' in doc.entries.fred) && doc.entries.fred.ct);
+  assert.equal(K.get('fred'), 'abc');                   // fortsatt opplåst i økten
+  await K.setPolicy('fred', 'open');
+  doc = JSON.parse(ls.getItem('md_keys'));
+  assert.equal(doc.entries.fred.value, 'abc');
+});
+
+test('changePassword: re-krypterer alt; gammelt passord virker ikke lenger', async () => {
+  const ls = makeLocalStorage();
+  const K1 = loadKeys(ls, promptStub('gammel'));
+  await K1.set('a', 'AAA', 'locked');
+  await K1.changePassword('gammel', 'ny');
+  assert.equal(K1.get('a'), 'AAA');                     // fortsatt opplåst
+  const K2 = loadKeys(ls, promptStub('gammel'));
+  await assert.rejects(() => K2.resolve('a'), /feil passord/);
+  const K3 = loadKeys(ls, promptStub('ny'));
+  assert.equal(await K3.resolve('a'), 'AAA');
+  await assert.rejects(() => K1.changePassword('feilgammel', 'x'), /feil passord/);
+});
+
+test('resetEncrypted: sletter krypterte poster + kdf, beholder open', async () => {
+  const ls = makeLocalStorage();
+  const K = loadKeys(ls, promptStub('pw'));
+  await K.set('open1', 'o');
+  await K.set('locked1', 'l', 'locked');
+  K.resetEncrypted();
+  assert.equal(K.get('open1'), 'o');
+  assert.equal(K.get('locked1'), null);
+  assert.deepEqual(K.registered(), [{ name: 'open1', policy: 'open' }]);
+  const doc = JSON.parse(ls.getItem('md_keys'));
+  assert.ok(!doc.kdf && !doc.verifier);
+  assert.equal(K.status().hasPassword, false);
+});
