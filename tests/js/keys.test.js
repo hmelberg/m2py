@@ -236,3 +236,36 @@ test('defaultPolicy: lagres i dokumentet, default open', async () => {
   assert.equal(loadKeys(ls).getDefaultPolicy(), 'locked');
   assert.throws(() => K.setDefaultPolicy('tull'), /ukjent policy/);
 });
+
+test('sync-flater: updated stemples, onChange fyrer ved mutasjon', async () => {
+  const ls = makeLocalStorage();
+  const K = loadKeys(ls);
+  let fired = 0;
+  K.onChange(() => { fired++; });
+  assert.equal(K.updatedAt(), null);
+  await K.set('a', 'x');
+  const u1 = K.updatedAt();
+  assert.ok(u1 && fired === 1);
+  K.remove('a');
+  assert.ok(fired === 2);
+  assert.ok(K.updatedAt() >= u1);
+  K.get('a');                                          // lesing fyrer ikke
+  assert.equal(fired, 2);
+});
+
+test('replaceDoc: erstatter verbatim, låser, fyrer IKKE onChange', async () => {
+  const ls = makeLocalStorage();
+  const K = loadKeys(ls, promptStub('pw'));
+  await K.set('l', 'L', 'locked');
+  assert.equal(K.get('l'), 'L');                       // opplåst økt
+  let fired = 0;
+  K.onChange(() => { fired++; });
+  const remote = JSON.stringify({ v: 2, entries: { b: { policy: 'open', value: 'y' } }, updated: '9999-01-01T00:00:00.000Z' });
+  K.replaceDoc(remote);
+  assert.equal(fired, 0);
+  assert.equal(K.rawDoc(), remote);                    // byte-likt
+  assert.equal(K.get('b'), 'y');
+  assert.equal(K.status().unlocked, false);            // lockNow kjørte
+  assert.throws(() => K.replaceDoc('{ikke json'), /ugyldig nøkkeldokument/);
+  assert.throws(() => K.replaceDoc(JSON.stringify({ v: 1 })), /ugyldig nøkkeldokument/);
+});

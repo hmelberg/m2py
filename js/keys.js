@@ -19,6 +19,7 @@
   var _master = null;   // CryptoKey for økten (locked-poster)
   var _session = {};    // navn -> klartekst; KUN locked-poster, fylles ved opplåsing
   var _run = null;      // navn -> klartekst; KUN secret-poster, innenfor runScope
+  var _listeners = [];  // onChange-abonnenter (kontosynk, fase 2)
 
   function readDoc() {
     var raw = null;
@@ -35,7 +36,13 @@
     if (!raw.entries) raw.entries = {};
     return raw;
   }
-  function writeDoc(doc) { global.localStorage.setItem(LS, JSON.stringify(doc)); }
+  function writeDoc(doc) {
+    doc.updated = new Date().toISOString();
+    global.localStorage.setItem(LS, JSON.stringify(doc));
+    for (var i = 0; i < _listeners.length; i++) {
+      try { _listeners[i](); } catch (e) {}
+    }
+  }
   function today() { return new Date().toISOString().slice(0, 10); }
 
   function assertName(name) {
@@ -282,6 +289,22 @@
     return { hasPassword: !!doc.kdf, unlocked: !!_master };
   }
 
+  // -- kontosynk-flater (fase 2, spec §3.5) -------------------------------
+  function onChange(fn) { _listeners.push(fn); }
+  function rawDoc() { return global.localStorage.getItem(LS); }
+  function updatedAt() { return readDoc().updated || null; }
+  // Erstatt hele dokumentet med serverens versjon. Fyrer IKKE onChange
+  // (endringen KOM fra serveren — ellers push-løkke) og låser lageret:
+  // økt-cachen kan stamme fra det gamle dokumentet.
+  function replaceDoc(raw) {
+    var doc = null;
+    try { doc = JSON.parse(raw); } catch (e) {}
+    if (!doc || doc.v !== 2 || typeof doc.entries !== 'object' || !doc.entries)
+      throw new Error('ugyldig nøkkeldokument');
+    global.localStorage.setItem(LS, raw);
+    lockNow();
+  }
+
   function attachPrompt(fn) { _prompt = fn; }
 
   global.Keys = {
@@ -289,6 +312,7 @@
     resolve: resolve, setPolicy: setPolicy, changePassword: changePassword,
     lockNow: lockNow, resetEncrypted: resetEncrypted, status: status,
     runScope: runScope, getDefaultPolicy: getDefaultPolicy, setDefaultPolicy: setDefaultPolicy,
+    onChange: onChange, rawDoc: rawDoc, updatedAt: updatedAt, replaceDoc: replaceDoc,
     attachPrompt: attachPrompt,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
