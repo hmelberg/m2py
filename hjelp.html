@@ -247,7 +247,7 @@ nav a.nav-active {
   <a href="#strict-r">Restricted R</a>
   <a href="#strict-sql">Restricted SQL</a>
   <div class="nav-section">Editoren</div>
-  <a href="#editor">Editor og snarveier</a>
+  <a href="#editor">Editor</a>
   <a href="#tab-intro">Tab-autocomplete</a>
   <a href="#sidebar">Datasett-panel</a>
   <div class="nav-section">Lagre og dele</div>
@@ -257,6 +257,8 @@ nav a.nav-active {
   <a href="#widgets">Widgets</a>
   <div class="nav-section">AI assistent</div>
   <a href="#ai">AI assistent</a>
+  <div class="nav-section">Eksempler</div>
+  <a href="#eksempler">Eksempler</a>
   <div class="nav-section">Andre moduser</div>
   <a href="#modes">Moduser</a>
   <a href="#python">Python (Pyodide)</a>
@@ -265,6 +267,7 @@ nav a.nav-active {
   <a href="#federert">Federerte kilder</a>
   <a href="#nokler">Nøkkellager</a>
   <div class="nav-section">Referanse</div>
+  <a href="#referanse-snarveier">Tastatursnarveier</a>
   <a href="#tab-full">Tab-autocomplete (detalj)</a>
 </nav>
 
@@ -769,22 +772,12 @@ summarize kjonn</code></pre>
   </section>
 
   <!-- ── EDITOR ── -->
+  <!-- SYNC:START felles-editor -->
   <section id="editor">
-    <h2>Editor og tastatursnarveier</h2>
-
-    <table class="doc-table">
-      <thead><tr><th>Snarvei</th><th>Handling</th></tr></thead>
-      <tbody>
-        <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>Kjør scriptet</td></tr>
-        <tr><td><kbd>Tab</kbd></td><td>Autofullfør (kommando, variabel, metode)</td></tr>
-        <tr><td><kbd>Esc</kbd></td><td>Lukk autocomplete-liste</td></tr>
-        <tr><td>Klikk linjenummer</td><td>Sett / fjern stoppunkt (rød prikk) for Kjør skrittvis</td></tr>
-      </tbody>
-    </table>
-
-    <h3>Stoppunkter</h3>
-    <p>Klikk på et linjenummer for å sette et rød stoppunkt. Under <strong>Kjør skrittvis</strong> vil kjøringen pause ved stoppunktet og vente på at du trykker videre.</p>
+    <h2>Editor</h2>
+    <p>Klikk på et linjenummer for å sette et rødt stoppunkt. Under <strong>Kjør skrittvis</strong> pauser kjøringen ved stoppunktet og venter på at du trykker videre. Full liste over tastatursnarveier står i <a href="#referanse-snarveier">referansen</a>.</p>
   </section>
+  <!-- SYNC:END -->
 
   <!-- ── TAB INTRO ── -->
   <section id="tab-intro">
@@ -797,18 +790,21 @@ summarize kjonn</code></pre>
   </section>
 
   <!-- ── SIDEBAR ── -->
+  <!-- SYNC:START felles-sidebar -->
   <section id="sidebar">
     <h2>Datasett-panel (høyre sidemeny)</h2>
     <p>Sidemenyen til høyre viser alle datasett som er lastet inn i gjeldende kjøring.</p>
     <ul>
       <li><strong>Antall variabler og rader</strong> per datasett</li>
       <li><strong>Variabelliste</strong> med type-ikon: <code>ABC</code> tekst, <code>123</code> numerisk, skjold-ikon for pseudonymisert ID</li>
-      <li>Klikk på en variabel for <strong>detaljvisning</strong>: navn, type, beskrivelse og lenke til microdata-katalogen</li>
+      <li>Klikk på en variabel for <strong>detaljvisning</strong>: navn, type og beskrivelse, med lenke til mer informasjon der den finnes</li>
     </ul>
     <p>Sidemenyen oppdateres automatisk etter hver kjøring og etter hvert blokk i Kjør skrittvis-modus.</p>
   </section>
+  <!-- SYNC:END -->
 
   <!-- ── LAGRE OG DELE ── -->
+  <!-- SYNC:START felles-lagre -->
   <section id="lagre-dele">
     <h2>Lagre, dele og hente scripts</h2>
     <p>Alle valgene under ligger i <strong>hamburgermenyen</strong> øverst til venstre. De kjører i sin helhet i nettleseren din — vi lagrer aldri scriptene dine på en server.</p>
@@ -829,7 +825,7 @@ summarize kjonn</code></pre>
     <ul>
       <li>Fungerer med <strong>GitHub «raw»-lenker</strong>, <strong>GitHub gist</strong> (raw) og <strong>Dropbox</strong>.</li>
       <li>Vanlige delelenker (f.eks. en Google Drive- eller GitHub-<em>side</em>) virker <em>ikke</em> — du må bruke den rå fil-lenken. Får du en feilmelding, er det nesten alltid fordi kilden ikke tillater direkte henting (CORS).</li>
-      <li>Filendelsen styrer modus: <code>.py</code> → Python, <code>.r</code> → R, ellers Microdata.</li>
+      <li>Filendelsen styrer modus: <code>.py</code> → Python, <code>.r</code> → R, ellers standardmodus.</li>
     </ul>
 
     <h3>GitHub (for viderekomne)</h3>
@@ -865,30 +861,30 @@ summarize kjonn</code></pre>
       <li><strong>Det som er knyttet til én maskin</strong> er bare lokale ting i nettleseren: listen over «nylige URL-er» og det innlimte GitHub-tokenet. Selve scriptene dine i GitHub er <em>ikke</em> låst til maskinen.</li>
     </ul>
   </section>
+  <!-- SYNC:END -->
 
   <!-- ── FORKLAR ── -->
+  <!-- SYNC:START felles-forklar -->
   <section id="forklar">
     <h2>Kjør skrittvis — steg-for-steg gjennomgang</h2>
-    <p><strong>Kjør skrittvis</strong>-knappen kjører scriptet ett <em>blokk</em> om gangen og leser opp kommentarene med tale. Alle kommentarlinjer som starter med <code>//</code> (microdata) eller <code>#</code> (Python/R) blir lest høyt — kode-linjene utføres uten kommentar. Nyttig for presentasjoner og undervisning.</p>
+    <p><strong>Kjør skrittvis</strong>-knappen kjører scriptet ett <em>blokk</em> om gangen og leser opp kommentarene med tale. Kommentarlinjer — de som starter med <code>#</code> eller <code>//</code>, avhengig av hvilket kommentartegn modusen bruker — blir lest høyt; kode-linjene utføres uten kommentar. Nyttig for presentasjoner og undervisning.</p>
 
     <h3>Blokker</h3>
     <p>En blokk er en gruppe sammenhengende linjer uten tomlinjer imellom. Én eller flere tomlinjer separerer blokker.</p>
-    <pre><code>// Denne kommentaren leses OPP før koden kjøres
-create-dataset df
-import db/BEFOLKNING_KJOENN as kjonn
+    <pre><code># Denne kommentaren leses OPP før koden kjøres
+df["alder"] = 2024 - df["fodselsar"]
 
-// Dette er neste blokk
-summarize kjonn
-// Denne kommentaren leses etter at resultatet vises</code></pre>
+# Dette er neste blokk
+df.groupby("kjonn")["lonn"].mean()
+# Denne kommentaren leses etter at resultatet vises</code></pre>
 
     <h3>Kommentarsyntaks</h3>
     <table class="doc-table">
-      <thead><tr><th>Syntaks</th><th>Modus</th><th>Effekt</th></tr></thead>
+      <thead><tr><th>Syntaks</th><th>Effekt</th></tr></thead>
       <tbody>
-        <tr><td><code>// tekst</code></td><td><span class="badge badge-micro">Microdata</span></td><td>Leses som tale; foranstilt kommentar leses FØR koden, etterhengt leses ETTER</td></tr>
-        <tr><td><code># tekst</code></td><td><span class="badge badge-py">Python</span> <span class="badge badge-r">R</span></td><td>Samme som ovenfor</td></tr>
-        <tr><td><code>//-</code> eller <code>#-</code></td><td>Alle</td><td>Stille kommentar — første kodeord leses <em>ikke</em> høyt, og tekst etter <code>-</code> leses heller ikke</td></tr>
-        <tr><td><code>//(lang=nb-NO,rate=1.2) tekst</code></td><td>Alle</td><td>Tale med tilpassede parametere (språk, hastighet, stemme, toneleie)</td></tr>
+        <tr><td><code># tekst</code> / <code>// tekst</code></td><td>Leses som tale; foranstilt kommentar leses FØR koden, etterhengt leses ETTER</td></tr>
+        <tr><td><code>#-</code> / <code>//-</code></td><td>Stille kommentar — første kodeord leses <em>ikke</em> høyt, og tekst etter <code>-</code> leses heller ikke</td></tr>
+        <tr><td><code>//(lang=nb-NO,rate=1.2) tekst</code></td><td>Tale med tilpassede parametere (språk, hastighet, stemme, toneleie)</td></tr>
       </tbody>
     </table>
 
@@ -899,18 +895,17 @@ summarize kjonn
       <li>Stoppunkter (klikk på linjenummer) gjør at kjøringen pauser automatisk</li>
     </ul>
   </section>
+  <!-- SYNC:END -->
 
   <!-- ── WIDGETS ── -->
+  <!-- SYNC:START felles-widgets -->
   <section id="widgets">
     <h2>Widgets i Kjør skrittvis</h2>
     <p>Widgets er interaktive kort som vises mens scriptet kjøres skrittvis. De settes inn som spesielle kommentarlinjer og er tilgjengelig i alle moduser.</p>
 
     <h3>Syntaks</h3>
-    <pre><code>// microdata:
-//widget NAVN { ...json... }
-
-# python eller R:
-#widget NAVN { ...json... }</code></pre>
+    <pre><code>#widget NAVN { ...json... }</code></pre>
+    <p>Kommentartegnet følger modusen: <code>#</code> i de fleste moduser, <code>//</code> i moduser som bruker det som kommentartegn — begge tolkes likt.</p>
 
     <h3>Blokk-syntaks for lengre innhold</h3>
     <p>For HTML, SVG og markdown med flere linjer kan du bruke blokk-syntaks i stedet for JSON:</p>
@@ -962,11 +957,13 @@ summarize kjonn
       Alle widgets støtter <code>speak="tekst"</code> for parallell taleopplesning mens widgeten vises, og <code>auto_advance_ms=3000</code> for automatisk lukking etter angitt tid.
     </div>
   </section>
+  <!-- SYNC:END -->
 
   <!-- ── AI ── -->
+  <!-- SYNC:START felles-ai -->
   <section id="ai">
     <h2>AI assistent</h2>
-    <p>Et eksperimentelt sidepanel med en AI-assistent som kan svare på spørsmål om microdata-syntaks, foreslå variabler og generere eller revidere skript. Åpnes med stjerne-ikonet øverst til høyre eller <kbd>Ctrl</kbd>+<kbd>I</kbd>.</p>
+    <p>Et eksperimentelt sidepanel med en AI-assistent som kan svare på spørsmål om syntaks, foreslå variabler og generere eller revidere skript. Åpnes med stjerne-ikonet øverst til høyre eller <kbd>Ctrl</kbd>+<kbd>I</kbd>.</p>
 
     <div class="callout">
       <strong>Krever API-nøkkel.</strong> Klikk tannhjul-ikonet i AI-panelet og lim inn en nøkkel. Nøkkelen lagres lokalt i nettleseren (localStorage) og sendes som <code>X-API-Key</code>-header til Anvil-API-et. Ta kontakt med utvikleren for å få en nøkkel.
@@ -975,9 +972,9 @@ summarize kjonn
     <h3>Hva assistenten kan gjøre</h3>
     <p>Assistenten klassifiserer spørsmålet og svarer på én av tre måter:</p>
     <ul>
-      <li><strong>Spørsmål</strong> — forklarer kommandoer, syntaks og bruk («Hva gjør reshape long?»)</li>
-      <li><strong>Variabel-søk</strong> — finner relevante variabler i microdata-katalogen («Hvilke variabler finnes for utdanning?»)</li>
-      <li><strong>Skript-generering</strong> — lager et komplett microdata-skript fra et naturlig spørsmål («Vis sammendragsstatistikk for inntekt og kjønn»)</li>
+      <li><strong>Spørsmål</strong> — forklarer kommandoer, syntaks og bruk («Hva gjør denne funksjonen?»)</li>
+      <li><strong>Variabel-søk</strong> — finner relevante variabler i datakatalogen («Hvilke variabler finnes for utdanning?»)</li>
+      <li><strong>Skript-generering</strong> — lager et komplett skript fra et naturlig språk-spørsmål («Vis sammendragsstatistikk for inntekt og kjønn»)</li>
     </ul>
 
     <h3>Revidere et eksisterende skript</h3>
@@ -1013,6 +1010,23 @@ summarize kjonn
       <strong>Eksperimentell.</strong> AI-assistenten kan ta feil, foreslå variabler som ikke finnes, eller generere skript som ikke kjører. Sjekk alltid resultatet før bruk.
     </div>
   </section>
+  <!-- SYNC:END -->
+
+  <!-- ── EKSEMPLER ── -->
+  <!-- SYNC:START felles-eksempler -->
+  <section id="eksempler">
+    <h2>Eksempler</h2>
+    <p>Knappen <strong>Eksempler</strong> åpner en liste som er filtrert på modusen du står i. Listen bygges av appen selv, så den viser alltid det som faktisk finnes.</p>
+    <table class="doc-table">
+      <thead><tr><th>Du vil</th><th>Gjør</th></tr></thead>
+      <tbody>
+        <tr><td>Se hva som er mulig i denne modusen</td><td>Trykk <strong>Eksempler</strong></td></tr>
+        <tr><td>Starte fra et eksempel</td><td>Velg det — det erstatter innholdet i editoren</td></tr>
+        <tr><td>Beholde det du har skrevet</td><td>Lagre først; eksempelet overskriver editoren</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <!-- SYNC:END -->
 
   <!-- ── MODES ── -->
   <section id="modes">
@@ -1020,20 +1034,19 @@ summarize kjonn
     <p>Velg språk fra dropdown-menyen i bunnbaren, eller bruk modusveksler-linjer i scriptet for å veksle underveis (se <a href="#hybrid">Hybrid-skript</a>).</p>
     <p>Ved siden av språkvelgeren viser to merker sesjonens <strong>sikkerhetsnivå</strong> og <strong>beregningssted</strong>. Nivået avledes automatisk av kildene i skriptet og kan ikke overstyres — grønt <em>Åpen</em> (ingen beskyttede kilder), gult <em>Begrenset</em> (strict-profil eller beskyttet kilde: bare aggregerte resultater slipper ut), gult stiplet <em>Ukjent</em> (kilde vi ikke kjenner — logg inn for å se nivå), lilla <em>Kryptert</em> (homomorf kryptert kilde: kun <code>group_agg</code> / <code>value_counts</code> / <code>crosstab</code> / <code>ols</code>). Sted-merket viser <em>Lokalt</em> (i nettleseren) eller <em>Server</em>; når begge er mulig kan du klikke på merket — valget skrives som <code>exec(local|remote)</code> i skriptet, slik at skriptet alltid er fasiten. Hold musepekeren over merkene for å se hvilken kilde som bestemte nivået.</p>
 
-    <div class="card-grid">
-      <div class="card">
-        <div class="card-title"><span class="badge badge-micro">Microdata</span> Standard</div>
-        <div class="card-body">Microdata.no-syntaks. Laster registerdata, oppretter datasett, kjører statistikk og diagrammer.</div>
-      </div>
-      <div class="card">
-        <div class="card-title"><span class="badge badge-py">Python</span> Pyodide</div>
-        <div class="card-body">Komplett Python i nettleseren. Pandas, NumPy, Matplotlib, Scikit-learn, SciPy osv. er tilgjengelig.</div>
-      </div>
-      <div class="card">
-        <div class="card-title"><span class="badge badge-r">R</span> WebR</div>
-        <div class="card-body">Komplett R i nettleseren. Tidyverse, ggplot2, dplyr, survival m.m. installeres automatisk ved bruk.</div>
-      </div>
-    </div>
+    <table class="doc-table">
+      <thead><tr><th>Modus</th><th>Motor</th><th>Bruk den når</th></tr></thead>
+      <tbody>
+        <tr><td><strong>microdata</strong></td><td>m2py (emulator)</td><td>Du skriver microdata.no-kommandoer og vil se samme output som i produksjon</td></tr>
+        <tr><td><strong>Python</strong></td><td>Pyodide</td><td>Du vil ha pandas, statsmodels og hele det vanlige økosystemet</td></tr>
+        <tr><td><strong>R</strong></td><td>WebR</td><td>Du tenker i tidyverse, eller trenger en R-pakke</td></tr>
+        <tr><td><strong>SQL – DuckDB</strong></td><td>DuckDB</td><td>Spørsmålet er en spørring, ikke et skript</td></tr>
+        <tr><td><strong>Brython</strong></td><td>Brython</td><td>Du vil ha rask oppstart og holder deg til Python-kjernen</td></tr>
+        <tr><td><strong>MicroPython</strong></td><td>MicroPython</td><td>Du vil starte nesten umiddelbart</td></tr>
+        <tr><td><strong>SafeStat</strong></td><td>Pyodide (oversetter til pandas); fjernkjøres når kilden krever det</td><td>Dataene er beskyttet, og fasaden skal håndheves uansett hva du skriver</td></tr>
+      </tbody>
+    </table>
+    <p>Restriktiv kjøring gjelder Python, R og SQL — se <a href="#strict-py">Restricted Python</a>.</p>
   </section>
 
   <!-- ── PYTHON ── -->
@@ -1214,6 +1227,24 @@ fed.summarize("lonn", by="kjonn")</code></pre>
     </div>
   </section>
 
+  <!-- ── REFERANSE: SNARVEIER ── -->
+  <!-- SYNC:START felles-referanse-snarveier -->
+  <section id="referanse-snarveier">
+    <h2>Tastatursnarveier</h2>
+    <table class="doc-table">
+      <thead><tr><th>Snarvei</th><th>Handling</th></tr></thead>
+      <tbody>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>Kjør scriptet</td></tr>
+        <tr><td><kbd>Tab</kbd></td><td>Autofullfør (kommando, variabel, metode)</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Lukk autocomplete-liste</td></tr>
+        <tr><td>Klikk linjenummer</td><td>Sett / fjern stoppunkt (rød prikk) for Kjør skrittvis</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <!-- SYNC:END -->
+
+  <!-- ── REFERANSE: TAB-AUTOCOMPLETE ── -->
+  <!-- SYNC:START felles-referanse-tab -->
   <section id="tab-full">
     <h2>Tab-autocomplete — fullstendig referanse</h2>
     <p>Trykk <kbd>Tab</kbd> i editoren for kontekstbevisste forslag. Reglene er de samme i alle moduser:</p>
@@ -1223,13 +1254,13 @@ fed.summarize("lonn", by="kjonn")</code></pre>
       <tbody>
         <tr>
           <td>Etter <code>/</code> (f.eks. <code>import db/</code>)</td>
-          <td>Microdata-variabelnavn fra katalogen</td>
+          <td>Katalogvariabler, i moduser med en tilkoblet kildekatalog</td>
         </tr>
         <tr>
           <td>Tomt linjebegynnelse</td>
           <td>
-            <span class="badge badge-micro">Microdata</span> kommandoer<br>
-            <span class="badge badge-py">Python</span> nøkkelord + innebygde funksjoner<br>
+            Kommandoer eller nøkkelord for aktiv modus — f.eks.
+            <span class="badge badge-py">Python</span> innebygde funksjoner,
             <span class="badge badge-r">R</span> base R- og tidyverse-funksjoner
           </td>
         </tr>
@@ -1261,8 +1292,9 @@ fed.summarize("lonn", by="kjonn")</code></pre>
     </table>
 
     <h3>Variabelinformasjon</h3>
-    <p>Når du velger et microdata-variabelnavn fra autocomplete-listen, vises en liten popup med navn, type og beskrivelse fra katalogen. Klikk <strong>Mer info</strong> for å åpne full dokumentasjon på microdata.no.</p>
+    <p>Når du velger et variabelnavn fra autocomplete-listen, vises en liten popup med navn, type og beskrivelse. Klikk <strong>Mer info</strong> for å åpne fullstendig dokumentasjon, der det finnes.</p>
   </section>
+  <!-- SYNC:END -->
 
 </main>
 </div>

@@ -255,3 +255,50 @@ def test_federert_og_nokler_finnes():
     ids = grab("hjelp.html").section_ids
     for s in ("federert", "nokler"):
         assert s in ids, f"mangler seksjon #{s}"
+
+
+# ── Task 9: lag 2 og lag 3 i SYNC-blokker ──────────────────────────────────
+
+SYNC_BLOKKER = [
+    "felles-css", "felles-js", "felles-editor", "felles-sidebar",
+    "felles-lagre", "felles-forklar", "felles-widgets", "felles-ai",
+    "felles-eksempler", "felles-referanse-snarveier", "felles-referanse-tab",
+]
+
+APPNAVN = ["SafeStat", "OpenStat", "AskStat", "Microdata"]
+
+
+def _block(text, name):
+    pat = (r"(?:/\*|<!--)\s*SYNC:START\s+" + re.escape(name)
+           + r"\s*(?:\*/|-->)(.*?)(?:/\*|<!--)\s*SYNC:END\s*(?:\*/|-->)")
+    m = re.search(pat, text, re.DOTALL)
+    return m.group(1) if m else None
+
+
+@pytest.mark.parametrize("navn", SYNC_BLOKKER)
+def test_sync_blokk_finnes(navn):
+    assert _block(read("hjelp.html"), navn) is not None, f"mangler {navn}"
+
+
+@pytest.mark.parametrize("navn", SYNC_BLOKKER)
+def test_sync_blokk_er_repo_noytral(navn):
+    """En fellesblokk skal ikke nevne et appnavn — da kan den ikke deles."""
+    blokk = _block(read("hjelp.html"), navn)
+    assert blokk is not None
+    for navn_app in APPNAVN:
+        assert navn_app not in blokk, (
+            f"{navn} nevner «{navn_app}»; flytt det til lag 0 eller lag 1")
+
+
+def test_modustabell_finnes_og_er_utenfor_sync():
+    """Modustabellen er repo-spesifikk og skal IKKE ligge i en SYNC-blokk."""
+    text = read("hjelp.html")
+    m = re.search(r'<section id="modes".*?</section>', text, re.DOTALL)
+    assert m, "fant ikke modes-seksjonen"
+    blokk = m.group(0)
+    assert 'class="doc-table"' in blokk, "modes mangler tabell"
+    assert "SYNC:START" not in blokk, "modustabellen skal ikke være i en SYNC-blokk"
+    # safestat har microdata og safestat (remote) i tillegg til de sju vanlige.
+    for modus in ("microdata", "Python", "R", "DuckDB", "Brython",
+                  "MicroPython", "SafeStat"):
+        assert modus in blokk, f"modustabellen mangler «{modus}»"

@@ -5,6 +5,7 @@ byte-identiske; dagens tilstand er beviset på at de ellers driver fra
 hverandre (askstat sin het «OpenStat» i to måneder)."""
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -14,17 +15,6 @@ REPO = Path(__file__).resolve().parent.parent
 SCRIPT = REPO / "scripts" / "hjelp_sync_check.sh"
 
 BLOCK_NAMES = [
-    "felles-css", "felles-js",
-    # Task 9:
-    # "felles-editor", "felles-sidebar",
-    # "felles-lagre", "felles-forklar", "felles-widgets", "felles-ai",
-    # "felles-eksempler", "felles-referanse-snarveier", "felles-referanse-tab",
-]
-
-# Speiler skriptets BLOCKS-liste (alle 11, uavhengig av hva som er aktivt i
-# BLOCK_NAMES ennå) — brukt til å finne EN blokk som mangler hos alle for
-# å drive frem blokknivå-strengmodus-testen under.
-ALLE_BLOKKNAVN = [
     "felles-css", "felles-js", "felles-editor", "felles-sidebar",
     "felles-lagre", "felles-forklar", "felles-widgets", "felles-ai",
     "felles-eksempler", "felles-referanse-snarveier", "felles-referanse-tab",
@@ -39,6 +29,19 @@ def extract_block(text: str, name: str):
            + r"\s*(?:\*/|-->)(.*?)(?:/\*|<!--)\s*SYNC:END\s*(?:\*/|-->)")
     m = re.search(pat, text, re.DOTALL)
     return m.group(1) if m else None
+
+
+def strip_block(text: str, name: str) -> str:
+    """Fjern en hel SYNC-blokk — markørene OG innholdet — fra teksten.
+
+    Brukes til å konstruere «blokk mangler hos begge sider»-scenarioet på
+    forespørsel, i stedet for å lete etter et blokknavn som allerede er
+    fraværende (se test_streng_modus_avviser_manglende_enkeltblokk)."""
+    pat = (r"(?:/\*|<!--)\s*SYNC:START\s+" + re.escape(name)
+           + r"\s*(?:\*/|-->).*?(?:/\*|<!--)\s*SYNC:END\s*(?:\*/|-->)\n?")
+    ny, n = re.subn(pat, "", text, count=1, flags=re.DOTALL)
+    assert n == 1, f"fant ikke akkurat én blokk '{name}' å fjerne"
+    return ny
 
 
 def test_skriptet_finnes_og_er_kjorbart():
@@ -141,35 +144,56 @@ def test_streng_modus_avviser_manglende_enkeltblokk(tmp_path):
     9/11/13/15. Før 'continue'-linjen for dette tilfellet i
     hjelp_sync_check.sh ble rutet gjennom skip(), fanget ikke
     HJELP_SYNC_STRICT=1 dette i det hele tatt — strengmodus-påstanden var
-    uverifisert nettopp her."""
-    text = (REPO / "hjelp.html").read_text(encoding="utf-8")
-    savnet = [n for n in ALLE_BLOKKNAVN if extract_block(text, n) is None]
-    if not savnet:
-        pytest.skip(
-            "alle blokknavn finnes allerede i safestat sin hjelp.html — "
-            "blokknivå-hullet kan ikke drives frem på denne måten lenger")
-    blokknavn = savnet[0]
+    uverifisert nettopp her.
 
+    Nå som safestat har alle elleve blokkene, finnes det ikke lenger et
+    blokknavn som mangler av seg selv — så scenarioet bygges direkte: en
+    blokk fjernes (markører og innhold) fra en KOPI av hjelp.html, og den
+    samme fjernes fra det falske søskenet. Kopien kjøres fra sitt eget
+    'hovedrepo' (med en kopi av selve skriptet), slik at skriptets $HERE
+    peker dit i stedet for det virkelige safestat-repoet — ellers ville
+    skriptet lest den ekte, uendrede hjelp.html og aldri sett hullet."""
+    blokknavn = "felles-referanse-tab"  # vilkårlig valg blant BLOCK_NAMES
+
+    no_tekst = (REPO / "hjelp.html").read_text(encoding="utf-8")
+    en_tekst = (REPO / "hjelp.en.html").read_text(encoding="utf-8")
+    assert extract_block(no_tekst, blokknavn) is not None, (
+        f"'{blokknavn}' finnes ikke i hjelp.html — testen kan ikke fjerne den")
+
+    fjernet = strip_block(no_tekst, blokknavn)
+    assert extract_block(fjernet, blokknavn) is None
+    assert "SYNC:START" in fjernet, (
+        "fjerningen tok med seg alle blokkene — filnivå-hoppet ville da "
+        "dekket scenarioet i stedet for blokknivå-hoppet vi vil teste")
+
+    # 'hovedrepo': en kopi av det virkelige repoet, men med blokken fjernet
+    # fra hjelp.html — dette er $HERE sett fra skriptets eget ståsted.
+    hoved = tmp_path / "hovedrepo"
+    (hoved / "scripts").mkdir(parents=True)
+    hoved_script = hoved / "scripts" / "hjelp_sync_check.sh"
+    shutil.copy(SCRIPT, hoved_script)
+    hoved_script.chmod(0o755)
+    (hoved / "hjelp.html").write_text(fjernet, encoding="utf-8")
+    (hoved / "hjelp.en.html").write_text(en_tekst, encoding="utf-8")
+
+    # Falskt søsken: samme blokk fjernet — «mangler hos begge sider».
     falsk = tmp_path / "faksesosken3"
     falsk.mkdir()
-    # Uendret kopi: har felles-css/felles-js, så filnivå-sjekken slipper den
-    # gjennom — men mangler samme blokk som safestat selv ennå mangler.
-    (falsk / "hjelp.html").write_text(text, encoding="utf-8")
-    (falsk / "hjelp.en.html").write_text(
-        (REPO / "hjelp.en.html").read_text(encoding="utf-8"), encoding="utf-8")
+    (falsk / "hjelp.html").write_text(fjernet, encoding="utf-8")
+    (falsk / "hjelp.en.html").write_text(en_tekst, encoding="utf-8")
 
     env_base = {**os.environ,
                 "HJELP_SYNC_ROOT": str(tmp_path),
                 "HJELP_SYNC_SIBLINGS": "faksesosken3"}
 
-    r_lenient = subprocess.run(["sh", str(SCRIPT)], cwd=REPO,
+    r_lenient = subprocess.run(["sh", str(hoved_script)], cwd=hoved,
                                 capture_output=True, text=True, env=env_base)
     assert r_lenient.returncode == 0, (
         "ulåst (standard) modus skal godta en blokk som mangler hos begge "
         f"sider\n{r_lenient.stdout}\n{r_lenient.stderr}")
 
     r_strict = subprocess.run(
-        ["sh", str(SCRIPT)], cwd=REPO, capture_output=True, text=True,
+        ["sh", str(hoved_script)], cwd=hoved, capture_output=True, text=True,
         env={**env_base, "HJELP_SYNC_STRICT": "1"})
     assert r_strict.returncode == 1, (
         "streng modus godtok en blokk som mangler hos begge sider "
