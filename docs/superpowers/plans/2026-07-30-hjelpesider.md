@@ -33,6 +33,7 @@
 - **Strengen `Microdata Script Runner` skal ikke finnes i noen av de åtte filene** når planen er ferdig.
 - **Ingen oppdiktede resultattall.** Hvert `<pre class="result">` er enten generert av `docs/hjelp_examples/run_examples.py`, eller bærer klassen `result illustration` og teksten «illustrasjon» synlig for leseren.
 - **Slett den gamle scrollspyen i hvert repo.** Alle fire `hjelp.html` har fra før et `<script>` nederst som toggler klassen `active` basert på `scrollY >= offsetTop - 60`, og linje ~67 styler `nav a.active` med samme aksentfarge som den nye `nav a.nav-active`. Lar du den stå, kjører to scrollspyer med ulik terskel samtidig og fremhever ofte **to** navlenker. Blokken ligger utenfor SYNC-markørene, så den blir ikke ryddet av å kopiere fellesdelen — hvert repo må slette den selv. `tests/test_hjelp.py` har en test som håndhever det.
+- **En SYNC-blokk får aldri inneholde repo-spesifikk sannhet.** Ikke bare appnavnet — også backend-navn, hvordan man skaffer en API-nøkkel, hvilke moduser som finnes, microdata-kommandoer, strict, beskyttede kilder og federering. safestat henter AI gjennom et Anvil-API med `X-API-Key`; søsknene er BYOK. En slik setning inne i en delt blokk dokumenterer feil backend i tre repoer samtidig. Beskriv den delte oppførselen inne i blokken, og la det repo-spesifikke stå utenfor den.
 - **Ikke bryt linjer inne i en `<pre class="result">`.** Teksten sammenlignes ordrett mot harnessens outputfil, så en linjedeling for lesbarhetens skyld gjør at testen feiler. `.example-result pre` har `overflow-x: auto` — lange linjer ruller, og det er meningen.
 - **Resultatverdiene i denne planen er målt 2026-07-30** mot `vendor/safepy.zip` slik den var da. Avviker en outputfil fra planen, er **filen** som har rett — planens verdier er en hjelp, ikke en autoritet.
 - **Rekkefølge er bindende:** safestat (Task 1–10) → openstat (11–12) → askstat (13–14) → microdata (15–16) → sluttverifisering (17). Fellesseksjonene kopieres *fra safestat*, aldri omvendt.
@@ -68,7 +69,9 @@
 
 **SYNC-blokknavn** (identiske i alle fire repoer, definerer hva synk-sjekken dekker):
 
-`felles-css`, `felles-js`, `felles-editor`, `felles-sidebar`, `felles-lagre`, `felles-forklar`, `felles-widgets`, `felles-ai`, `felles-eksempler`, `felles-referanse-snarveier`, `felles-referanse-tab`
+`felles-css`, `felles-js`, `felles-running`, `felles-editor`, `felles-sidebar`, `felles-lagre`, `felles-forklar`, `felles-widgets`, `felles-ai`, `felles-eksempler`, `felles-referanse-snarveier`, `felles-referanse-tab`
+
+`felles-running` kom til i Task 9-gjennomgangen: `#running` viste seg å være **byte-identisk** i safestat, openstat og askstat allerede, men lå utenfor synk-listen og ville dermed drevet fra hverandre uten at noe fanget det.
 
 Lag 0, modustabellen og lag 1 er **ikke** i SYNC-blokker og er dermed unntatt sjekken.
 
