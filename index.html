@@ -368,7 +368,8 @@
   <div class="ai-modal-backdrop" id="keysBackdrop">
     <div class="ai-modal" style="max-width:600px;">
       <h3 data-i18n>Nøkler</h3>
-      <div class="ai-modal-help" style="margin-bottom:10px;" data-i18n>Nøkler lagres kun i denne nettleseren. Policy: åpen = klartekst; låst = passord én gang per økt; hemmelig = passord ved hver kjøring. I script refererer key(navn) til nøkkelen uten å avsløre den.</div>
+      <div class="ai-modal-help" style="margin-bottom:6px;" data-i18n>Nøkler lagres i denne nettleseren og synces til kontoen din når du er logget inn. Låste/hemmelige nøkler er kryptert også på serveren; åpne nøkler kan leses der — sett dem til låst om det betyr noe. Policy: åpen = klartekst; låst = passord én gang per økt; hemmelig = passord ved hver kjøring. I script refererer key(navn) til nøkkelen uten å avsløre den.</div>
+      <div class="ai-modal-help" id="keysSyncStatus" style="margin-bottom:10px;"></div>
       <table style="width:100%;border-collapse:collapse;font-size:.9rem;">
         <thead><tr style="text-align:left;">
           <th data-i18n>Navn</th><th data-i18n>Verdi</th><th data-i18n>Policy</th><th></th>

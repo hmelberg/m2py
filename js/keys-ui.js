@@ -120,6 +120,11 @@
     if (forgotBtn) forgotBtn.style.display = st.hasPassword ? '' : 'none';
     var defSel = $('keysDefaultPolicy');
     if (defSel) defSel.value = global.Keys.getDefaultPolicy();
+    var sync = $('keysSyncStatus');
+    if (sync) {
+      var on = global.KeysSync && global.KeysSync.active();
+      sync.textContent = on ? T('Synces til konto') : T('Kun lokalt (logg inn for synk)');
+    }
   }
 
   function wire() {
