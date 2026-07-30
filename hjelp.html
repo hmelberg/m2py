@@ -930,23 +930,6 @@ logit kvinne BEFOLKNING_INNALDER</code></pre>
 </div>
 
 <script>
-  // Highlight nav link matching current scroll position
-  const sections = document.querySelectorAll('section[id]');
-  const navLinks = document.querySelectorAll('nav a');
-  function updateNav() {
-    let current = '';
-    sections.forEach(s => {
-      if (window.scrollY >= s.offsetTop - 60) current = s.id;
-    });
-    navLinks.forEach(a => {
-      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
-    });
-  }
-  window.addEventListener('scroll', updateNav, { passive: true });
-  updateNav();
-</script>
-
-<script>
 /* SYNC:START felles-js */
 (function hjelpUI(w) {
   'use strict';
@@ -1026,12 +1009,16 @@ logit kvinne BEFOLKNING_INNALDER</code></pre>
         btn.textContent = 'Kopier';
         btn.addEventListener('click', function () {
           var text = pre.textContent;
-          var done = function () {
-            btn.textContent = 'Kopiert';
+          var flash = function (label) {
+            btn.textContent = label;
             w.setTimeout(function () { btn.textContent = 'Kopier'; }, 1400);
           };
+          var ok = function () { flash('Kopiert'); };
+          var fail = function () { flash('Kopier feilet'); };
           if (w.navigator && w.navigator.clipboard) {
-            w.navigator.clipboard.writeText(text).then(done, function () {});
+            w.navigator.clipboard.writeText(text).then(ok, fail);
+          } else {
+            fail();
           }
         });
         box.appendChild(btn);

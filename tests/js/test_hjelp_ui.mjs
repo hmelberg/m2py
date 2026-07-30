@@ -32,6 +32,23 @@ test('trimmer whitespace', () => {
   assert.deepEqual(matchNav('  strict  ', ['Editor', 'Strict']), [1]);
 });
 
-test('flere treff beholder rekkefølgen', () => {
-  assert.deepEqual(matchNav('e', ['Editor', 'Moduser', 'Referanse']), [0, 1, 2]);
+test('kun whitespace oppfører seg som tom query og viser alt', () => {
+  assert.deepEqual(matchNav('   ', ['Editor', 'Moduser', 'Strict']), [0, 1, 2]);
+});
+
+test('tom labels-liste gir tom liste, uansett query', () => {
+  assert.deepEqual(matchNav('foo', []), []);
+});
+
+test('flere treff beholder rekkefølgen i input, ikke alfabetisk rekkefølge', () => {
+  // 'Zebra' står alfabetisk sist men er indeks 0 — en implementasjon som
+  // sorterer treffene alfabetisk ville returnert [1, 2, 0] her, ikke [0, 1, 2].
+  assert.deepEqual(matchNav('e', ['Zebra', 'Editor', 'Moduser']), [0, 1, 2]);
+});
+
+test('matcher norske bokstaver æøå, uavhengig av store bokstaver', () => {
+  assert.deepEqual(
+    matchNav('ØRING', ['Avsløringskontroll', 'Spørsmålsløkka']),
+    [0]
+  );
 });
