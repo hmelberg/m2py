@@ -64,6 +64,12 @@
         <button type="button" id="menuToggleOutputMode" style="display:none">Output-modus: String</button>
         <button type="button" id="menuToggleSafestatOutput" style="display:none">SafeStat-output: Formatert</button>
         <hr style="margin:4px 0;border-color:#334155;">
+        <button type="button" id="menuKeys" data-i18n-title title="Nøkler" style="display:flex;align-items:center;gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
+            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+          </svg>
+          <span data-i18n>N&#248;kler&#8230;</span>
+        </button>
         <button type="button" id="menuSettings" data-i18n-title title="Innstillinger" style="display:flex;align-items:center;gap:8px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
             <circle cx="12" cy="12" r="3"/>
@@ -354,6 +360,47 @@
       <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.8rem;">
         <button type="button" id="pwPromptCancel" data-i18n>Avbryt</button>
         <button type="button" id="pwPromptOk" data-i18n>OK</button>
+      </div>
+    </div>
+  </div>
+  <div class="ai-modal-backdrop" id="keysBackdrop">
+    <div class="ai-modal" style="max-width:600px;">
+      <h3 data-i18n>Nøkler</h3>
+      <div class="ai-modal-help" style="margin-bottom:10px;" data-i18n>Nøkler lagres kun i denne nettleseren. Policy: åpen = klartekst; låst = passord én gang per økt; hemmelig = passord ved hver kjøring. I script refererer key(navn) til nøkkelen uten å avsløre den.</div>
+      <table style="width:100%;border-collapse:collapse;font-size:.9rem;">
+        <thead><tr style="text-align:left;">
+          <th data-i18n>Navn</th><th data-i18n>Verdi</th><th data-i18n>Policy</th><th></th>
+        </tr></thead>
+        <tbody id="keysTbody"></tbody>
+      </table>
+      <div style="display:flex;gap:.5rem;margin-top:12px;align-items:center;flex-wrap:wrap;">
+        <input id="keysAddName" placeholder="navn" data-i18n-placeholder style="width:120px;">
+        <input id="keysAddValue" type="password" placeholder="nøkkelverdi" data-i18n-placeholder style="flex:1;min-width:140px;">
+        <select id="keysAddPolicy">
+          <option value="open" data-i18n>åpen</option>
+          <option value="locked" data-i18n>låst</option>
+          <option value="secret" data-i18n>hemmelig</option>
+        </select>
+        <button type="button" id="keysAddBtn" data-i18n>Legg til</button>
+      </div>
+      <hr style="margin:12px 0;border-color:#334155;">
+      <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+        <span class="ai-modal-help" id="keysPwStatus"></span>
+        <button type="button" id="keysPwChangeBtn" data-i18n>Bytt hovedpassord</button>
+        <button type="button" id="keysLockBtn" data-i18n>Lås nå</button>
+        <button type="button" id="keysForgotBtn" data-i18n>Glemt passord…</button>
+      </div>
+      <div style="display:flex;gap:.5rem;align-items:center;margin-top:8px;flex-wrap:wrap;">
+        <label class="ai-modal-help" for="keysDefaultPolicy" data-i18n>Standardpolicy for nye nøkler</label>
+        <select id="keysDefaultPolicy">
+          <option value="open" data-i18n>åpen</option>
+          <option value="locked" data-i18n>låst</option>
+          <option value="secret" data-i18n>hemmelig</option>
+        </select>
+        <button type="button" id="keysEncryptAllBtn" data-i18n>Krypter alle åpne nøkler</button>
+      </div>
+      <div class="ai-modal-actions" style="margin-top:12px;">
+        <button type="button" class="ai-modal-btn" id="keysClose" data-i18n>Lukk</button>
       </div>
     </div>
   </div>
@@ -3410,6 +3457,13 @@
         var dd = document.getElementById('hamburgerDropdown');
         if (dd) dd.classList.remove('open');
         openSettings();
+      });
+
+      var menuKeysBtn = document.getElementById('menuKeys');
+      if (menuKeysBtn) menuKeysBtn.addEventListener('click', function () {
+        var dd = document.getElementById('hamburgerDropdown');
+        if (dd) dd.classList.remove('open');
+        if (window.KeysUi) window.KeysUi.open();
       });
 
       saveBtn.addEventListener('click', function() {
