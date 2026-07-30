@@ -300,9 +300,11 @@ def test_modustabell_finnes_og_er_utenfor_sync():
     blokk = m.group(0)
     assert 'class="doc-table"' in blokk, "modes mangler tabell"
     assert "SYNC:START" not in blokk, "modustabellen skal ikke være i en SYNC-blokk"
-    # safestat har microdata og safestat (remote) i tillegg til de sju vanlige.
+    # Åtte moduser: de sju i modeRegistry (index.html) pluss jamovi, som
+    # registreres dynamisk fra js/modes/jamovi.js via M2PY.registerMode() og
+    # derfor ikke står i den statiske lista — men kjører like fullt.
     for modus in ("microdata", "Python", "R", "DuckDB", "Brython",
-                  "MicroPython", "SafeStat"):
+                  "MicroPython", "SafeStat", "jamovi"):
         assert modus in blokk, f"modustabellen mangler «{modus}»"
 
 
