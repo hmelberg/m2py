@@ -1891,35 +1891,16 @@ Pakk snarveistabellen i `felles-referanse-snarveier` og
 en del av `#editor`, flytt tabellen ned i referansedelen og la `#editor`
 beholde prosaen — referansetabeller hører i lag 3.
 
-- [ ] **Step 7: Gjenta i hjelp.en.html — og ta igjen etterslepet**
+- [ ] **Step 7: La `hjelp.en.html` ligge — den er Task 9b**
 
-Samme blokker, samme navn, engelsk tekst. Blokkene er identiske *innad i
-et språk* — `hjelp.html` sammenlignes mot søsknenes `hjelp.html`, og
-`hjelp.en.html` mot deres `hjelp.en.html`.
+Den engelske fila ligger seks tasks etter: Task 2 la layoutlaget bare i den
+norske, Task 4 ga den engelske ny identitet uten å røre brødteksten, og
+Task 5-8 skrev lag 1 bare på norsk. Å ta igjen alt dette *og* pakke
+fellesseksjonene i samme task er for mye for én testsyklus og én
+gjennomgang.
 
-**Den engelske fila ligger tre tasks etter, og det er her den innhentes.**
-Task 2 la layoutlaget bare i den norske; Task 4 ga den engelske ny identitet,
-men lot brødteksten stå. Resultatet er en side som heter «SafeStat» i tittelen
-og forteller om «Script Runner ... microdata.no» i første avsnitt. Denne
-steppen lukker hele etterslepet:
-
-1. **`felles-css` og `felles-js`** — port begge SYNC-blokkene fra
-   `hjelp.html` til `hjelp.en.html`, ordrett. Uten dem har den engelske siden
-   verken scrollspy, navfilter, kopier-knapp eller styling for `.overview` og
-   `.example` — og synk-sjekken i streng modus vil felle den.
-2. **Lag 0** — oversett `#intro` og `#hurtigstart` fra Task 4, inkludert
-   oversiktstabellen og hurtigstart-eksempelet. Resultatblokken er
-   byte-identisk med den norske (tall er tall).
-3. **Lag 1** — oversett seksjonene fra Task 5–8 (`#tillit`, `#kilder`,
-   `#strict-py`, `#strict-r`, `#strict-sql`, `#federert`, `#nokler`).
-   Metodenavn, feilmeldinger, profilnavn (OPEN/STRICT), nivånavn
-   (public/protected/sensitive) og resultatblokker er identiske i begge
-   språk — bare prosaen oversettes.
-4. **Fjern gammel norsk-avledet prosa** som ikke lenger stemmer, særlig
-   avsnitt som beskriver appen som en microdata.no-kjører.
-
-Verifiser til slutt at `grep -c "Script Runner" hjelp.en.html` gir 0, og at
-`test_identitet_engelsk` fortsatt passerer.
+Denne tasken rører derfor ikke `hjelp.en.html`. **Task 9b** eier hele
+etterslepet, og kjører rett etter denne.
 
 - [ ] **Step 8: Fjern Task 9-kommentarene i synk-testen**
 
@@ -1960,6 +1941,143 @@ appnavn."
 ```
 
 ---
+
+## Task 9b: safestat — hele det engelske etterslepet
+
+**Files:**
+- Modify: `hjelp.en.html`
+- Modify: `tests/test_hjelp.py`
+
+**Interfaces:**
+- Consumes: alt fra Task 2 og Task 4–9, som til nå bare finnes på norsk.
+- Produces: `hjelp.en.html` i samme tilstand som `hjelp.html`. Task 11, 13 og 15
+  kopierer SYNC-blokkene fra begge filene, så begge må være ferdige først.
+
+Den engelske fila ligger seks tasks etter. Den heter «SafeStat» i tittelen og
+forteller om «Script Runner … microdata.no» i første avsnitt. Den har verken
+scrollspy, navfilter, kopier-knapp eller styling for `.overview`/`.example` — og
+den ville felt synk-sjekken i streng modus, siden `felles-css` og `felles-js`
+aldri ble portet dit.
+
+**Oversettelsesregler.** Identifikatorer oversettes ikke: metodenavn, safepy sine
+feilmeldinger, profilnavn (OPEN/STRICT), nivånavn (public/protected/sensitive),
+direktiver (`# options.profile = strict`), federeringsverb, policynavn
+(open/locked/secret) og microdata-kommandoer. Resultatblokker er byte-identiske
+med de norske — tall er tall. Bare prosa, tabelloverskrifter og forklaringer
+oversettes.
+
+- [ ] **Step 1: Skriv den feilende testen**
+
+Legg til i `tests/test_hjelp.py`:
+
+```python
+EN_SEKSJONER = [
+    "intro", "hurtigstart", "tillit", "kilder", "strict-py", "strict-r",
+    "strict-sql", "federert", "nokler", "modes", "editor", "sidebar",
+    "lagre-dele", "forklar", "widgets", "ai", "eksempler", "tab-full",
+]
+
+
+@pytest.mark.parametrize("seksjon", EN_SEKSJONER)
+def test_engelsk_har_samme_seksjoner(seksjon):
+    # Samme seksjons-id-er som den norske — ellers peker delte nav-lenker
+    # i tomme luften.
+    assert seksjon in grab("hjelp.en.html").section_ids
+
+
+def test_engelsk_har_sync_blokkene():
+    # Uten felles-css og felles-js har den engelske sida verken scrollspy,
+    # navfilter eller styling — og synk-sjekken feller den i streng modus.
+    text = read("hjelp.en.html")
+    for navn in SYNC_BLOKKER:
+        assert _block(text, navn) is not None, f"mangler {navn} i hjelp.en.html"
+
+
+def test_engelsk_har_ingen_norsk_rest():
+    # Gamle norsk-avledede avsnitt som beskriver appen som en
+    # microdata.no-kjører skal være borte.
+    text = read("hjelp.en.html")
+    for rest in ("Script Runner", "Microdata Script Runner"):
+        assert rest not in text, f"«{rest}» står igjen i hjelp.en.html"
+
+
+def test_engelsk_resultatblokker_er_identiske_med_norske():
+    # Tall er tall. En resultatblokk som avviker mellom språkene betyr at
+    # noen har redigert output for hånd.
+    import html as _html
+    no = re.findall(r'<pre class="result">(.*?)</pre>', read("hjelp.html"), re.DOTALL)
+    en = re.findall(r'<pre class="result">(.*?)</pre>', read("hjelp.en.html"), re.DOTALL)
+    assert no, "fant ingen resultatblokker i hjelp.html"
+    norm = lambda xs: sorted(_html.unescape(x).strip() for x in xs)
+    assert norm(no) == norm(en), "resultatblokkene skiller seg mellom språkene"
+```
+
+- [ ] **Step 2: Kjør testen for å se at den feiler**
+
+Run: `.venv/bin/python -m pytest tests/test_hjelp.py -k engelsk -v`
+Expected: FAIL på alle fire.
+
+- [ ] **Step 3: Port SYNC-blokkene**
+
+Kopier `felles-css` og `felles-js` ordrett fra `hjelp.html`. De skal være
+byte-identiske — synk-sjekken sammenligner `hjelp.en.html` mot søsknenes
+`hjelp.en.html`.
+
+Legg inn `<input class="nav-filter" …>` i nav, med engelsk `placeholder` og
+`aria-label`. Selve input-elementet ligger utenfor SYNC-blokkene, så det kan
+og skal være på engelsk.
+
+- [ ] **Step 4: Slett den gamle scrollspyen**
+
+Samme blokk som Task 2 fjernet fra den norske: `<script>` med `updateNav` og
+`classList.toggle('active', …)`. Utvid `test_ingen_gammel_scrollspy` til å
+dekke begge filene.
+
+- [ ] **Step 5: Oversett lag 0 og lag 1**
+
+`#intro`, `#hurtigstart` (Task 4), `#tillit`, `#kilder` (Task 5), `#strict-py`
+(Task 6), `#strict-r`, `#strict-sql` (Task 7), `#federert`, `#nokler` (Task 8).
+
+Ta HTML-strukturen fra den norske fila og oversett prosaen. **Ikke skriv
+innholdet på nytt fra planen** — den norske fila er fasit. Den har vært gjennom
+flere rettingsrunder som planen bare delvis speiler, blant annet tre usanne
+sikkerhetspåstander som ble luket ut.
+
+- [ ] **Step 6: Slett den gamle `#strict`-seksjonen og gammel prosa**
+
+Den engelske har fortsatt sin `<section id="strict">` (Task 7 fjernet bare
+nav-lenken, ikke seksjonen). Slett den. Fjern også avsnitt som beskriver appen
+som en microdata.no-kjører — arvet fra før navnebyttet.
+
+- [ ] **Step 7: Port lag 2 og 3**
+
+De ni resterende SYNC-blokkene fra Task 9, med engelsk tekst. Blokkene er
+identiske *innad i et språk*.
+
+- [ ] **Step 8: Kjør alt**
+
+```bash
+.venv/bin/python -m pytest tests/test_hjelp.py tests/test_hjelp_sync.py -v
+node --test tests/js/test_hjelp_ui.mjs
+sh scripts/hjelp_sync_check.sh
+grep -c "Script Runner" hjelp.en.html
+```
+
+Siste kommando skal gi 0. Merk at `test_alle_blokker_finnes_i_egen_hjelp` sin
+engelske halvdel er selv-aktiverende (Task 3) — den skal gå fra skipped til
+passing uten at du rører den. Bekreft det.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add hjelp.en.html tests/test_hjelp.py
+git commit -m "docs(hjelp): den engelske sida tar igjen seks tasks
+
+Hadde ny identitet men gammel brødtekst, og manglet hele layoutlaget.
+Nå: SYNC-blokkene, lag 0, lag 1 og lag 2-3 oversatt, gammel
+microdata.no-prosa og den gamle #strict-seksjonen borte."
+```
+
 
 ## Task 10: safestat — sluttsjekk i nettleseren
 
