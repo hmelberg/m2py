@@ -14,11 +14,21 @@
 # HJELP_SYNC_ROOT og HJELP_SYNC_SIBLINGS kan overstyres — testen bruker det for
 # å bygge et falskt søsken med en sabotert blokk og bekrefte at exit 1 faktisk
 # inntreffer. Uten overstyring er standarden søskenrepoene ved siden av dette.
+#
+# HJELP_SYNC_STRICT=1 slår av all toleranse: hvert "hopper over" (fil mangler
+# lokalt, fil mangler hos søsken, fil har ingen SYNC-blokker i det hele tatt —
+# verken lokalt eller hos søsken) blir en feil i stedet for et hopp, med en
+# melding om hvilken fil som manglet blokker. Uten dette kunne en fil miste
+# HELE synk-innføringen stille (f.eks. en kopi som bommer på hjelp.en.html) og
+# likevel gi exit 0. Task 17 kjører med HJELP_SYNC_STRICT=1 som sluttport fra
+# alle fire repoer og krever null "hopper over"-linjer. Standard er ulåst
+# (STRICT=0) — det er riktig under selve utrullingen (Task 4-15).
 set -eu
 
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 ROOT="${HJELP_SYNC_ROOT:-$HERE/..}"
 SIBLINGS="${HJELP_SYNC_SIBLINGS:-openstat askstat microdata}"
+STRICT="${HJELP_SYNC_STRICT:-0}"
 BLOCKS="felles-css felles-js felles-editor felles-sidebar felles-lagre
         felles-forklar felles-widgets felles-ai felles-eksempler
         felles-referanse-snarveier felles-referanse-tab"
@@ -37,20 +47,34 @@ extract() {
   ' "$1"
 }
 
+# Hopp over noe som ikke kan sjekkes ennå (ikke sjekket ut / ingen
+# SYNC-blokker). I HJELP_SYNC_STRICT=1 er ethvert hopp en feil.
+skip() {
+  if [ "$STRICT" = "1" ]; then
+    echo "STRENGT: $1 (HJELP_SYNC_STRICT=1 tillater ingen hopp-over)" >&2
+    fail=1
+  else
+    echo "hopper over $1"
+  fi
+}
+
 for f in $FILES; do
-  [ -f "$HERE/$f" ] || { echo "hopper over $f (finnes ikke her)"; continue; }
+  if [ ! -f "$HERE/$f" ]; then
+    skip "$f (finnes ikke her)"
+    continue
+  fi
   if ! grep -q "SYNC:START" "$HERE/$f"; then
-    echo "hopper over $f (ingen SYNC-blokker her ennå)"
+    skip "$f (ingen SYNC-blokker her ennå)"
     continue
   fi
   for sib in $SIBLINGS; do
     sibfile="$ROOT/$sib/$f"
     if [ ! -f "$sibfile" ]; then
-      echo "hopper over $sib/$f (ikke sjekket ut)"
+      skip "$sib/$f (ikke sjekket ut)"
       continue
     fi
     if ! grep -q "SYNC:START" "$sibfile"; then
-      echo "hopper over $sib/$f (ingen SYNC-blokker der ennå)"
+      skip "$sib/$f (ingen SYNC-blokker der ennå)"
       continue
     fi
     for b in $BLOCKS; do
