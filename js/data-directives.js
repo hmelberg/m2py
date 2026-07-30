@@ -46,9 +46,17 @@
   }
 
   // key(<literal>) -> key(***) før scriptet logges eller sendes til AI.
-  // key(ask) er ingen hemmelighet og beholdes.
+  // key(ask) er ingen hemmelighet og beholdes. Det er heller ikke en
+  // NAVNEREFERANSE til nøkkellageret (spec 2026-07-30 §3.3): key(minfred)
+  // inneholder bare navnet, aldri nøkkelen — beholdes så delte script virker.
+  // Guarded: uten js/keys.js lastet maskeres alt som før.
   function scrubKeys(script) {
-    return String(script || '').replace(/\b(key\()\s*(?!ask\s*\))[^)]*\)/gi, '$1***)');
+    return String(script || '').replace(/\b(key\()\s*(?!ask\s*\))([^)]*)\)/gi, function (m, head, inner) {
+      var name = String(inner).trim().replace(/^["']|["']$/g, '');
+      var K = global.Keys;
+      if (K && typeof K.policy === 'function' && K.policy(name)) return head + name + ')';
+      return head + '***)';
+    });
   }
 
   function parse(script) {
