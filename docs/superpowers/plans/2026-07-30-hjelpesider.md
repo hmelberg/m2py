@@ -1690,17 +1690,34 @@ fed.summarize("lonn", by="kjonn")</code></pre>
 
 <section id="nokler">
   <h2>Nøkkellager</h2>
-  <p>Krypterte datasett trenger en nøkkel. Nøkkellageret holder dine, knyttet til kontoen din, slik at du ikke må lime inn den samme nøkkelen hver gang.</p>
+  <p>Krypterte datasett trenger en nøkkel. Nøkkellageret holder dine i nettleseren, slik at du ikke må lime inn den samme nøkkelen hver gang. Er du innlogget, synkes lageret også til kontoen din.</p>
+
+  <h3>Tre policyer — og bare to av dem skjuler nøkkelen</h3>
+  <p>Hver nøkkel har en policy. Dette er det viktigste valget i hele lageret, for det avgjør om serveren kan lese nøkkelen din.</p>
   <table class="doc-table">
-    <thead><tr><th>Handling</th><th>Hvor det skjer</th><th>Hva serveren ser</th></tr></thead>
+    <thead><tr><th>Policy</th><th>Hvordan den lagres</th><th>Hvor ofte du taster passord</th><th>Kan serveren lese den?</th></tr></thead>
     <tbody>
-      <tr><td>Legge inn en nøkkel</td><td>Nettleseren krypterer før sending</td><td>Bare den krypterte formen</td></tr>
-      <tr><td>Låse opp et datasett</td><td>Nettleseren, etter å ha hentet nøkkelen</td><td>Ingenting av innholdet</td></tr>
-      <tr><td>Synkronisere mellom enheter</td><td>Via kontoen din</td><td>Bare den krypterte formen</td></tr>
+      <tr><td><code>open</code> <strong>(standard)</strong></td><td><strong>Klartekst</strong> — ingen kryptering</td><td>Aldri</td><td><strong>Ja</strong>, hvis du synker</td></tr>
+      <tr><td><code>locked</code></td><td>AES-256-GCM under hovedpassordet</td><td>Én gang per økt</td><td>Nei — bare chiffertekst</td></tr>
+      <tr><td><code>secret</code></td><td>Som <code>locked</code></td><td>Én gang per <em>kjøring</em>; caches aldri</td><td>Nei — bare chiffertekst</td></tr>
     </tbody>
   </table>
+
   <div class="callout">
-    <strong>Mister du hovedpassordet, er nøklene borte.</strong> Serveren kan ikke gjenopprette dem — det er hele poenget med at den aldri ser dem i klartekst.
+    <strong>Standardvalget er klartekst.</strong> <code>open</code> finnes for at ting skal være friksjonsfritt, og for en API-nøkkel du ikke bryr deg om er det greit. Men legger du inn en nøkkel som låser opp beskyttede data, velg <code>locked</code> eller <code>secret</code> — ellers ligger den ukryptert i nettleseren, og synkes lesbar til serveren hvis du er innlogget.
+  </div>
+
+  <table class="doc-table">
+    <thead><tr><th>Handling</th><th>Hvor det skjer</th></tr></thead>
+    <tbody>
+      <tr><td>Låse opp et datasett</td><td>I nettleseren, etter at nøkkelen er hentet fra lageret. Innholdet i datasettet sendes aldri ut.</td></tr>
+      <tr><td>Låse opp lageret</td><td>Hovedpassordet avleder en nøkkel som lever <strong>kun i minnet</strong> — aldri i sessionStorage. Ved reload må du taste igjen.</td></tr>
+      <tr><td>Synkronisere mellom enheter</td><td>Hele dokumentet synkes som det er, hvis du er innlogget. <code>locked</code>- og <code>secret</code>-poster er chiffertekst; <code>open</code>-poster er ikke.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <strong>Mister du hovedpassordet, er <code>locked</code>- og <code>secret</code>-nøklene borte.</strong> Serveren kan ikke gjenopprette dem — det er hele poenget. <code>open</code>-nøkler overlever, nettopp fordi de aldri var beskyttet.
   </div>
 </section>
 ```
