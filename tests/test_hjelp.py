@@ -77,14 +77,15 @@ def grab(fil: str) -> _Grab:
     return p
 
 
-def test_ingen_gammel_scrollspy():
+@pytest.mark.parametrize("fil", ["hjelp.html", "hjelp.en.html"])
+def test_ingen_gammel_scrollspy(fil):
     """Den gamle scroll-highlighteren toggler .active, som har samme styling
     som .nav-active. To scrollspyer med ulik terskel fremhever ofte to
     navlenker samtidig. Bare IntersectionObserver-varianten skal stå."""
-    text = (REPO / "hjelp.html").read_text(encoding="utf-8")
+    text = read(fil)
     assert "function updateNav" not in text
     assert "classList.toggle('active'" not in text
-    assert "initScrollspy" in text, "den nye scrollspyen mangler"
+    assert "initScrollspy" in text, f"den nye scrollspyen mangler i {fil}"
 
 
 @pytest.mark.parametrize("fil", ["hjelp.html", "hjelp.en.html"])
@@ -303,3 +304,46 @@ def test_modustabell_finnes_og_er_utenfor_sync():
     for modus in ("microdata", "Python", "R", "DuckDB", "Brython",
                   "MicroPython", "SafeStat"):
         assert modus in blokk, f"modustabellen mangler «{modus}»"
+
+
+# ── Task 9b: den engelske sida tar igjen resten ────────────────────────────
+
+EN_SEKSJONER = [
+    "intro", "hurtigstart", "tillit", "kilder", "strict-py", "strict-r",
+    "strict-sql", "federert", "nokler", "modes", "editor", "sidebar",
+    "lagre-dele", "forklar", "widgets", "ai", "eksempler", "tab-full",
+]
+
+
+@pytest.mark.parametrize("seksjon", EN_SEKSJONER)
+def test_engelsk_har_samme_seksjoner(seksjon):
+    # Samme seksjons-id-er som den norske — ellers peker delte nav-lenker
+    # i tomme luften.
+    assert seksjon in grab("hjelp.en.html").section_ids
+
+
+def test_engelsk_har_sync_blokkene():
+    # Uten felles-css og felles-js har den engelske sida verken scrollspy,
+    # navfilter eller styling — og synk-sjekken feller den i streng modus.
+    text = read("hjelp.en.html")
+    for navn in SYNC_BLOKKER:
+        assert _block(text, navn) is not None, f"mangler {navn} i hjelp.en.html"
+
+
+def test_engelsk_har_ingen_norsk_rest():
+    # Gamle norsk-avledede avsnitt som beskriver appen som en
+    # microdata.no-kjører skal være borte.
+    text = read("hjelp.en.html")
+    for rest in ("Script Runner", "Microdata Script Runner"):
+        assert rest not in text, f"«{rest}» står igjen i hjelp.en.html"
+
+
+def test_engelsk_resultatblokker_er_identiske_med_norske():
+    # Tall er tall. En resultatblokk som avviker mellom språkene betyr at
+    # noen har redigert output for hånd.
+    import html as _html
+    no = re.findall(r'<pre class="result">(.*?)</pre>', read("hjelp.html"), re.DOTALL)
+    en = re.findall(r'<pre class="result">(.*?)</pre>', read("hjelp.en.html"), re.DOTALL)
+    assert no, "fant ingen resultatblokker i hjelp.html"
+    norm = lambda xs: sorted(_html.unescape(x).strip() for x in xs)
+    assert norm(no) == norm(en), "resultatblokkene skiller seg mellom språkene"

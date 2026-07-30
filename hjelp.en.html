@@ -167,6 +167,65 @@
 
   /* ── Section anchor offset ── */
   section { scroll-margin-top: 20px; }
+
+/* SYNC:START felles-css */
+/* ── Oversiktstabell først i hver hovedseksjon ── */
+.overview { margin: 0 0 28px; }
+.overview .doc-table { margin: 0; }
+.overview-hint {
+  font-size: 13px; color: var(--text-muted); margin: 6px 0 0;
+}
+
+/* ── Todelt eksempelblokk: kode ‖ resultat ── */
+.example {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+  background: var(--border); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; margin: 18px 0;
+}
+.example > * { background: var(--bg-card); }
+.example-code, .example-result { padding: 14px 16px; min-width: 0; }
+.example-code pre, .example-result pre {
+  margin: 0; overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+.example-label {
+  display: block; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 8px;
+}
+.result { color: var(--text); }
+.result.illustration { color: var(--text-muted); font-style: italic; }
+.illustration-tag {
+  display: inline-block; font-size: 11px; font-style: normal;
+  padding: 1px 6px; border-radius: 4px; margin-left: 6px;
+  background: var(--bg-code); color: var(--text-muted);
+}
+@media (max-width: 900px) {
+  .example { grid-template-columns: 1fr; }
+}
+
+/* ── Kopier-knapp ── */
+.example-code { position: relative; }
+.copy-btn {
+  position: absolute; top: 10px; right: 10px;
+  font-size: 11px; padding: 3px 8px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg-card); color: var(--text-muted);
+}
+.copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ── Nav: filter + scrollspy ── */
+.nav-filter {
+  width: calc(100% - 36px); margin: 0 18px 14px; padding: 6px 9px;
+  font-size: 13px; font-family: inherit;
+  border: 1px solid var(--border); border-radius: 7px;
+  background: var(--bg); color: var(--text);
+}
+.nav-filter:focus { outline: none; border-color: var(--accent); }
+.nav-link-hidden { display: none !important; }
+nav a.nav-active {
+  color: var(--accent); background: var(--accent-light);
+  border-left: 2px solid var(--accent);
+}
+/* SYNC:END */
 </style>
 </head>
 <body>
@@ -175,12 +234,20 @@
 <nav>
   <div class="nav-logo">SafeStat</div>
   <a href="hjelp.html" style="font-size:12px;color:var(--text-muted)">Norsk versjon</a>
+  <input class="nav-filter" type="search" placeholder="Filter…" aria-label="Filter the table of contents">
   <div class="nav-section">Getting started</div>
   <a href="#intro">What is this?</a>
+  <a href="#hurtigstart">30 seconds</a>
   <a href="#running">Running</a>
   <a href="#microdata">Microdata commands</a>
+  <div class="nav-section">Trust</div>
+  <a href="#tillit">The trust model</a>
+  <a href="#kilder">Protected sources</a>
+  <a href="#strict-py">Restricted Python</a>
+  <a href="#strict-r">Restricted R</a>
+  <a href="#strict-sql">Restricted SQL</a>
   <div class="nav-section">The editor</div>
-  <a href="#editor">Editor and shortcuts</a>
+  <a href="#editor">Editor</a>
   <a href="#tab-intro">Tab autocomplete</a>
   <a href="#sidebar">Dataset panel</a>
   <div class="nav-section">Save and share</div>
@@ -190,13 +257,17 @@
   <a href="#widgets">Widgets</a>
   <div class="nav-section">AI assistant</div>
   <a href="#ai">AI assistant</a>
+  <div class="nav-section">Examples</div>
+  <a href="#eksempler">Examples</a>
   <div class="nav-section">Other modes</div>
   <a href="#modes">Modes</a>
   <a href="#python">Python (Pyodide)</a>
   <a href="#r">R (WebR)</a>
   <a href="#hybrid">Hybrid scripts</a>
   <a href="#federert">Federated sources</a>
+  <a href="#nokler">Key store</a>
   <div class="nav-section">Reference</div>
+  <a href="#referanse-snarveier">Keyboard shortcuts</a>
   <a href="#tab-full">Tab autocomplete (detail)</a>
 </nav>
 
@@ -210,20 +281,298 @@
   <!-- ── INTRO ── -->
   <section id="intro">
     <h2>What is this?</h2>
-    <p>Script Runner is a tool for writing and running code against Norwegian register data from <strong>microdata.no</strong>. You can write microdata commands and see results immediately, and run hybrid scripts where different languages work together.</p>
+    <p>SafeStat is an analysis workbench in the browser for data that cannot be looked at directly. You write ordinary Python, R or SQL; SafeStat makes sure that only <strong>suppressed aggregates</strong> get out — never a single row, never an extreme value.</p>
 
-    <div class="callout">
-      <strong>Note:</strong> This is a hobby project and is not made by microdata.no itself. The page does not contain real figures, and there is no guarantee that the analyses are correctly implemented.
+    <div class="overview">
+      <table class="doc-table">
+        <thead><tr><th>Section</th><th>What you'll find there</th></tr></thead>
+        <tbody>
+          <tr><td><a href="#tillit">The trust model</a></td><td>Where the code runs, what gets out, who sees what</td></tr>
+          <tr><td><a href="#kilder">Protected sources</a></td><td>Encrypted and password-protected datasets, the key store</td></tr>
+          <tr><td><a href="#strict-py">Restricted Python</a></td><td>What you can write, what doesn't exist, and why</td></tr>
+          <tr><td><a href="#strict-r">Restricted R</a></td><td>The same release core, R syntax</td></tr>
+          <tr><td><a href="#federert">Federated sources</a></td><td>Analyse several nodes without pooling the data</td></tr>
+          <tr><td><a href="#nokler">Key store</a></td><td>Keys for encrypted datasets, in the browser and synced to your account if you're logged in</td></tr>
+          <tr><td><a href="#modes">Modes</a></td><td>The nine languages, and when to choose which</td></tr>
+          <tr><td><a href="#tab-full">Reference</a></td><td>Shortcuts, directives, Tab autocomplete</td></tr>
+        </tbody>
+      </table>
+      <p class="overview-hint">Filter the table of contents on the left to jump straight to a topic.</p>
     </div>
 
-    <p>Everything happens in the browser — no data leaves your machine.</p>
-
-    <div class="callout tip">
-      <strong>Quick start:</strong> Write microdata commands in the text field, press <kbd>Ctrl</kbd>+<kbd>Enter</kbd> or the <strong>Run</strong> button. Use <kbd>Tab</kbd> for suggested commands and variables.
+    <div class="callout">
+      <strong>Note:</strong> This is a hobby project and is not made by microdata.no. The demo data does not contain real figures, and there is no guarantee that the analyses are correctly implemented.
     </div>
   </section>
 
+  <!-- ── QUICK START ── -->
+  <section id="hurtigstart">
+    <h2>30 seconds</h2>
+    <p>Choose <strong>python</strong> in the mode menu, paste this in, and press <kbd>Ctrl</kbd>+<kbd>Enter</kbd>:</p>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Code <span class="badge badge-py">py</span></span>
+        <pre><code># options.profile = strict
+df.groupby("kjonn")["lonn"].mean()</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Result</span>
+        <pre class="result">kjonn  mean(lonn)
+1  520 790
+2  518 450</pre>
+      </div>
+    </div>
+
+    <p>You got a group mean. Now try <code>df.head()</code> instead — it doesn't exist, and <a href="#strict-py">Restricted Python</a> explains why.</p>
+  </section>
+
+  <!-- ── TRUST ── -->
+  <section id="tillit">
+    <h2>The trust model</h2>
+    <p>Everything hinges on one question: <em>where does your code run, and what is allowed to leave that place?</em> A protected source decides the answer itself, no matter what you write in the script. For public data, the choice is yours — you can request the same strict facade yourself, before you've even connected to a protected source.</p>
+
+    <div class="overview">
+      <table class="doc-table">
+        <thead><tr><th>Level</th><th>Where the code runs</th><th>Profile in SafeStat</th><th>Restriction</th></tr></thead>
+        <tbody>
+          <tr><td><code>public</code></td><td>In your browser</td><td>OPEN, unless you request strict</td><td>None</td></tr>
+          <tr><td><code>protected</code></td><td>Behind the facade — locally if the owner has enabled it, otherwise only remotely</td><td>STRICT, always</td><td>Requires login; the run is logged</td></tr>
+          <tr><td><code>sensitive</code></td><td>Same as protected</td><td>STRICT, always</td><td>Same as protected, and it can NOT be used with pull federation — it requires a node member</td></tr>
+        </tbody>
+      </table>
+      <p class="overview-hint">Mix several sources, and the <strong>most restrictive</strong> level wins.</p>
+    </div>
+
+    <p>By default, neither protected nor sensitive can be run locally — the owner must enable that per source. SafeStat always runs protected sources through the facade, no matter what you write — the app enforces this, not the library.</p>
+
+    <h3>Two profiles</h3>
+    <table class="doc-table">
+      <thead><tr><th>Profile</th><th>What's in the namespace</th><th>The defense</th></tr></thead>
+      <tbody>
+        <tr><td><strong>OPEN</strong></td><td>Real pandas and the raw data frame</td><td>Enumeration: a gatekeeper on syntax nodes, a deny-list on methods, and a provenance check on the way out. "Probably safe" — the whole of pandas is the attack surface.</td></tr>
+        <tr><td><strong>STRICT</strong></td><td>Only the <code>SafeFrame</code> facade and the safe verbs. No pandas, no raw data frame.</td><td>Construction: the revealing capabilities <em>do not exist</em>. The attack surface is the short, closed method list.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout tip">
+      <strong>Turn it on yourself:</strong> <code># options.profile = strict</code> at the top of the script, in python, r or duckdb mode. Protected sources force strict no matter what you write.
+    </div>
+  </section>
+
+  <!-- ── SOURCES ── -->
+  <section id="kilder">
+    <h2>Protected sources</h2>
+    <p>A protected source is encrypted on disk and is unlocked with a key you provide. The key is used to decrypt, never to send data out.</p>
+    <table class="doc-table">
+      <thead><tr><th>Source</th><th>Unlocked with</th><th>Where the key lives</th></tr></thead>
+      <tbody>
+        <tr><td>Password-protected file</td><td>Password in the dialog</td><td>In memory only, gone on reload</td></tr>
+        <tr><td>Encrypted dataset (<code>.enc</code>)</td><td>Key from the key store</td><td>The key store in <strong>your browser</strong> — synced to your account if you're logged in</td></tr>
+        <tr><td>Federated node</td><td>Node token</td><td>On the node — the data never leaves it</td></tr>
+      </tbody>
+    </table>
+    <p>If you clear your browser data without having been logged in, the key is gone for good — an encrypted dataset cannot be unlocked again without it.</p>
+    <p>The key store is described under <a href="#nokler">Key store</a>.</p>
+  </section>
+
+  <!-- ── STRICT PYTHON ── -->
+  <section id="strict-py">
+    <h2>Restricted Python</h2>
+    <p>You write pandas. But in the STRICT profile, <code>df</code> is not a <code>DataFrame</code> — it is a <code>SafeFrame</code>, a facade with a deliberately short selection of methods. Everything that could show you a single row is not forbidden; it <em>does not exist</em>.</p>
+
+    <div class="overview">
+      <table class="doc-table">
+        <thead><tr><th>You want to</th><th>Write</th><th>Works</th></tr></thead>
+        <tbody>
+          <tr><td>Look at the data</td><td><code>df.head()</code></td><td>No — use <code>df.describe()</code> or <code>df.count()</code></td></tr>
+          <tr><td>Group mean</td><td><code>df.groupby("kjonn")["lonn"].mean()</code></td><td>Yes</td></tr>
+          <tr><td>Filter</td><td><code>df[df["alder"] &gt;= 40]</code></td><td>Yes — the mask is legal, the result is still private</td></tr>
+          <tr><td>One row</td><td><code>df["lonn"][0]</code></td><td>No — positional indexing is closed</td></tr>
+          <tr><td>Regression</td><td><code>df.ols("lonn ~ alder + kjonn")</code></td><td>Yes</td></tr>
+          <tr><td>Custom expression</td><td><code>df.apply(lambda r: …)</code></td><td>No — arbitrary code is the actual risk</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>What works</h3>
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Code <span class="badge badge-py">py</span></span>
+        <pre><code>df.groupby("kjonn")["lonn"].mean()</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Result</span>
+        <pre class="result">kjonn  mean(lonn)
+1  520 790
+2  518 450</pre>
+      </div>
+    </div>
+
+    <h3>Three ways to get rejected</h3>
+    <p>The gatekeeper reads your code before it runs. The messages name <em>code</em> — a method, a module, a line — but never a data value, since error text would otherwise be a leak channel.</p>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Raw rows <span class="badge badge-py">py</span></span>
+        <pre><code>df.head()</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Result</span>
+        <pre class="result">Avvist (attribute): 'head' is not allowed: it can reveal individual rows or run arbitrary code</pre>
+      </div>
+    </div>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Positional index <span class="badge badge-py">py</span></span>
+        <pre><code>df["lonn"][0]</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Result</span>
+        <pre class="result">Avvist (subscript): positional indexing (df[&lt;int&gt;]) is not allowed; select by column name or boolean mask</pre>
+      </div>
+    </div>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Import outside the list <span class="badge badge-py">py</span></span>
+        <pre><code>import os
+df.groupby("kjonn")["lonn"].mean()</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Result</span>
+        <pre class="result">Avvist (import): module 'os' is not available in safepy</pre>
+      </div>
+    </div>
+
+    <h3>The whole method selection</h3>
+    <p>This is everything <code>SafeFrame</code> can do. The list is short on purpose — it is the entire attack surface.</p>
+    <table class="doc-table">
+      <thead><tr><th>Group</th><th>Methods</th></tr></thead>
+      <tbody>
+        <tr><td>Shape and selection</td><td><code>assign</code> <code>astype</code> <code>drop</code> <code>drop_duplicates</code> <code>dropna</code> <code>fillna</code> <code>filter</code> <code>rename</code> <code>replace</code> <code>round</code> <code>select_dtypes</code> <code>sort_values</code> <code>where</code> <code>clip</code> <code>merge</code></td></tr>
+        <tr><td>Reshaping</td><td><code>explode</code> <code>melt</code> <code>pivot</code> <code>pivot_table</code> <code>stack</code> <code>unstack</code> <code>crosstab</code></td></tr>
+        <tr><td>Aggregates</td><td><code>count</code> <code>mean</code> <code>median</code> <code>std</code> <code>sum</code> <code>var</code> <code>nunique</code> <code>describe</code> <code>value_counts</code> <code>corr</code> <code>cov</code> <code>groupby</code> <code>summarise</code> / <code>summarize</code></td></tr>
+        <tr><td>Tests</td><td><code>anova</code> <code>chisq</code> <code>corr_test</code> <code>ttest</code> <code>mannwhitney</code> <code>logrank</code></td></tr>
+        <tr><td>Models</td><td><code>ols</code> <code>logit</code> <code>poisson</code> <code>feols</code> <code>iv</code> <code>cox</code> <code>propensity</code> <code>ate</code> <code>refute_ate</code> <code>synthetic_control</code></td></tr>
+        <tr><td>Survival</td><td><code>kaplan_meier</code> <code>rmst</code> <code>weibull_aft</code> <code>lognormal_aft</code> <code>loglogistic_aft</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3>Columns</h3>
+    <p>A column (<code>SafeColumn</code>) additionally has <code>abs</code> <code>between</code> <code>cummax</code> <code>cummin</code> <code>cumprod</code> <code>cumsum</code> <code>diff</code> <code>dt</code> <code>ffill</code> <code>bfill</code> <code>interpolate</code> <code>isin</code> <code>isna</code> <code>notna</code> <code>kurt</code> <code>kurtosis</code> <code>map</code> <code>mask</code> <code>max</code> <code>min</code> <code>pct_change</code> <code>quantile</code> <code>sem</code> <code>shift</code> <code>skew</code> <code>str</code> — and <code>plot</code> / <code>hist</code> / <code>boxplot</code>, where the histogram is redirected to a suppressed frequency table.</p>
+    <p>A grouping (<code>SafeGroupBy</code>) has <code>count</code> <code>mean</code> <code>median</code> <code>size</code> <code>std</code> <code>sum</code> <code>var</code>.</p>
+
+    <h3>What's never allowed</h3>
+    <table class="doc-table">
+      <thead><tr><th>Category</th><th>Examples</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>Raw rows out</td><td><code>head</code> <code>tail</code> <code>sample</code> <code>iloc</code> <code>loc</code> <code>at</code> <code>iat</code> <code>values</code> <code>iterrows</code> <code>to_csv</code> <code>to_dict</code> <code>to_numpy</code></td><td>Shows individual units directly</td></tr>
+        <tr><td>Row-identifying reduction</td><td><code>idxmax</code> <code>idxmin</code> <code>argmax</code> <code>nlargest</code> <code>nsmallest</code> <code>first</code> <code>last</code> <code>mode</code></td><td>Returns one specific row</td></tr>
+        <tr><td>Ranking</td><td><code>rank</code></td><td>Ranking plus filter plus sum is a differencing-attack primitive. Requires a query budget that doesn't exist yet.</td></tr>
+        <tr><td>Arbitrary code</td><td><code>apply</code> <code>applymap</code> <code>pipe</code> <code>query</code> <code>eval</code> <code>rolling</code></td><td>Takes a function; it can do anything</td></tr>
+        <tr><td>Sandbox escape</td><td><code>eval</code> <code>exec</code> <code>open</code> <code>getattr</code> <code>globals</code> <code>__import__</code></td><td>Out of the sandbox</td></tr>
+        <tr><td>Syntax</td><td>lambda, comprehensions, <code>def</code>, <code>for</code>, <code>while</code>, <code>try</code>, f-strings, <code>df[1:5]</code></td><td>The gatekeeper only accepts assignments and expressions. New syntax can't sneak in.</td></tr>
+        <tr><td>Names</td><td>anything starting with <code>_</code></td><td>Private attributes are a detour around the facade</td></tr>
+      </tbody>
+    </table>
+
+    <p>Only <code>len</code> <code>round</code> <code>abs</code> <code>int</code> <code>float</code> <code>str</code> <code>bool</code> can be called on names. Only <code>lifelines</code> <code>numpy</code> <code>pandas</code> <code>pyfixest</code> <code>polars</code> can be imported, and they resolve to safe facades — never the real modules.</p>
+
+    <div class="callout">
+      <strong>Reshaping is allowed.</strong> <code>pivot</code>, <code>stack</code>, <code>melt</code> and <code>explode</code> keep the whole population and return a private object that can only leave the system as a suppressed aggregate. They are safe by construction, not by permission.
+    </div>
+  </section>
+
+  <!-- ── STRICT R ── -->
+  <section id="strict-r">
+    <h2>Restricted R</h2>
+    <p>Your R code is <strong>translated</strong> — it is never run directly. SafeStat reads the expression, rebuilds it into the same release core that Restricted Python uses, and runs it there. So it isn't the whole of R you have access to, but a dialect: the tidyverse form of whatever can be expressed safely.</p>
+
+    <div class="overview">
+      <table class="doc-table">
+        <thead><tr><th>You want to</th><th>Write</th><th>Works</th></tr></thead>
+        <tbody>
+          <tr><td>Group and summarise</td><td><code>df |&gt; group_by(kjonn) |&gt; summarise(m = mean(lonn))</code></td><td>Yes</td></tr>
+          <tr><td>Filter</td><td><code>df |&gt; filter(alder &gt;= 40)</code></td><td>Yes</td></tr>
+          <tr><td>New column</td><td><code>df |&gt; mutate(logl = log(lonn))</code></td><td>Yes</td></tr>
+          <tr><td>Look at the data</td><td><code>head(df)</code></td><td>No</td></tr>
+          <tr><td>Regression</td><td><code>lm(lonn ~ alder + kjonn, data = df)</code></td><td>Yes</td></tr>
+          <tr><td>Custom function</td><td><code>sapply(df, function(x) …)</code></td><td>No — arbitrary code</td></tr>
+        </tbody>
+      </table>
+      <p class="overview-hint">Both the pipe operator <code>|&gt;</code> and <code>%&gt;%</code> are understood.</p>
+    </div>
+
+    <h3>What works</h3>
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Code <span class="badge badge-r">r</span></span>
+        <pre><code>df |&gt; group_by(kjonn) |&gt; summarise(m = mean(lonn), n = n())</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Result</span>
+        <pre class="result">  m  n
+1  520 790  2 530
+2  518 450  2 470</pre>
+      </div>
+    </div>
+
+    <h3>What doesn't exist</h3>
+    <p>Base-R functions that show rows are not part of the dialect. The message names which function is involved, not what was in the data.</p>
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Code <span class="badge badge-r">r</span></span>
+        <pre><code>head(df)</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Result</span>
+        <pre class="result">Avvist (DisclosureError): base-R function 'head' is not supported in safepy's R dialect</pre>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Same core, same rules.</strong> Everything in <a href="#strict-py">Restricted Python</a>'s "What's never allowed" applies here too — just expressed in R. Ranking, row-identifying reductions and arbitrary functions are closed for the same reason.
+    </div>
+  </section>
+
+  <!-- ── STRICT SQL ── -->
+  <section id="strict-sql">
+    <h2>Restricted SQL</h2>
+    <p>SQL is the third dialect into the same core. Unlike R, SQL is actually <strong>run</strong> — but only after a static gatekeeper that reads the parsed query before anything executes, in a locked DuckDB engine with no file or network access, and everything gets out through the same suppression core that the pandas and R dialects use. <code>SELECT</code> with <code>GROUP BY</code> works; anything that would return rows does not.</p>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Code <span class="badge">sql</span></span>
+        <pre><code>SELECT kjonn, avg(lonn) AS m, count(*) AS n
+FROM df GROUP BY kjonn ORDER BY kjonn</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Result</span>
+        <pre class="result">  m  n
+1  520 790  2 530
+2  518 450  2 470</pre>
+      </div>
+    </div>
+
+    <table class="doc-table">
+      <thead><tr><th>Construct</th><th>Works</th></tr></thead>
+      <tbody>
+        <tr><td><code>SELECT … GROUP BY</code> with aggregate functions</td><td>Yes</td></tr>
+        <tr><td><code>WHERE</code> filters</td><td>Yes</td></tr>
+        <tr><td><code>JOIN</code> between sources at the same level</td><td>Yes</td></tr>
+        <tr><td><code>ORDER BY</code> on a <code>GROUP BY</code> key</td><td>Yes — and worth using: without it, row order is arbitrary</td></tr>
+        <tr><td><code>ORDER BY</code> on an aggregate</td><td>No — it would reveal exact, unrounded values</td></tr>
+        <tr><td><code>SELECT *</code> without aggregation</td><td>No — that's rows</td></tr>
+        <tr><td><code>LIMIT</code> to fetch individual rows</td><td>No — same rule as <code>SELECT *</code>: every item must be a group key or a safe aggregate</td></tr>
+        <tr><td><code>ORDER BY</code> followed by row fetching (the classic min/max trick)</td><td>No — stopped by the rule above, before <code>LIMIT</code> even gets to run</td></tr>
+      </tbody>
+    </table>
+  </section>
+
   <!-- ── RUNNING ── -->
+  <!-- SYNC:START felles-running -->
   <section id="running">
     <h2>Running</h2>
 
@@ -234,6 +583,7 @@
     <h3>Stop / cancel</h3>
     <p>Press the <strong>Run</strong> button again while running to cancel.</p>
   </section>
+  <!-- SYNC:END -->
 
   <!-- ── MICRODATA ── -->
   <section id="microdata">
@@ -424,22 +774,12 @@ summarize kjonn</code></pre>
   </section>
 
   <!-- ── EDITOR ── -->
+  <!-- SYNC:START felles-editor -->
   <section id="editor">
-    <h2>Editor and keyboard shortcuts</h2>
-
-    <table class="doc-table">
-      <thead><tr><th>Shortcut</th><th>Action</th></tr></thead>
-      <tbody>
-        <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>Run the script</td></tr>
-        <tr><td><kbd>Tab</kbd></td><td>Autocomplete (command, variable, method)</td></tr>
-        <tr><td><kbd>Esc</kbd></td><td>Close autocomplete list</td></tr>
-        <tr><td>Click line number</td><td>Set / remove breakpoint (red dot) for Run step by step</td></tr>
-      </tbody>
-    </table>
-
-    <h3>Breakpoints</h3>
-    <p>Click a line number to set a red breakpoint. During <strong>Run step by step</strong>, execution will pause at the breakpoint and wait for you to press continue.</p>
+    <h2>Editor</h2>
+    <p>Click a line number to set a red breakpoint. During <strong>Run step by step</strong>, execution pauses at the breakpoint and waits for you to press continue. The full list of keyboard shortcuts is in the <a href="#referanse-snarveier">reference</a>.</p>
   </section>
+  <!-- SYNC:END -->
 
   <!-- ── TAB INTRO ── -->
   <section id="tab-intro">
@@ -452,18 +792,21 @@ summarize kjonn</code></pre>
   </section>
 
   <!-- ── SIDEBAR ── -->
+  <!-- SYNC:START felles-sidebar -->
   <section id="sidebar">
     <h2>Dataset panel (right sidebar)</h2>
     <p>The sidebar on the right shows all datasets loaded in the current run.</p>
     <ul>
       <li><strong>Number of variables and rows</strong> per dataset</li>
       <li><strong>Variable list</strong> with type icon: <code>ABC</code> text, <code>123</code> numeric, shield icon for pseudonymised ID</li>
-      <li>Click a variable for <strong>detail view</strong>: name, type, description and link to the microdata catalogue</li>
+      <li>Click a variable for <strong>detail view</strong>: name, type and description, with a link to more information where it exists</li>
     </ul>
     <p>The sidebar updates automatically after each run and after each block in Run step by step mode.</p>
   </section>
+  <!-- SYNC:END -->
 
-  <!-- ── LAGRE OG DELE ── -->
+  <!-- ── SAVE AND SHARE ── -->
+  <!-- SYNC:START felles-lagre -->
   <section id="lagre-dele">
     <h2>Save, share and fetch scripts</h2>
     <p>All the options below are in the <strong>hamburger menu</strong> at the top left. They run entirely in your browser — we never store your scripts on a server.</p>
@@ -484,7 +827,7 @@ summarize kjonn</code></pre>
     <ul>
       <li>Works with <strong>GitHub "raw" links</strong>, <strong>GitHub gist</strong> (raw) and <strong>Dropbox</strong>.</li>
       <li>Regular share links (e.g. a Google Drive or GitHub <em>page</em>) do <em>not</em> work — you must use the raw file link. If you get an error message, it's almost always because the source doesn't allow direct fetching (CORS).</li>
-      <li>The file extension controls the mode: <code>.py</code> → Python, <code>.r</code> → R, otherwise Microdata.</li>
+      <li>The file extension controls the mode: <code>.py</code> → Python, <code>.r</code> → R, otherwise the default mode.</li>
     </ul>
 
     <h3>GitHub (advanced)</h3>
@@ -520,30 +863,30 @@ summarize kjonn</code></pre>
       <li><strong>What is tied to one machine</strong> is only local things in the browser: the list of "recent URLs" and the pasted-in GitHub token. Your actual scripts in GitHub are <em>not</em> locked to the machine.</li>
     </ul>
   </section>
+  <!-- SYNC:END -->
 
-  <!-- ── FORKLAR ── -->
+  <!-- ── STEP BY STEP ── -->
+  <!-- SYNC:START felles-forklar -->
   <section id="forklar">
     <h2>Run step by step — a step-by-step walkthrough</h2>
-    <p><strong>Run step by step</strong> runs the script one <em>block</em> at a time and reads the comments aloud using speech. All comment lines starting with <code>//</code> (microdata) or <code>#</code> (Python/R) are read aloud — the code lines are executed without commentary. Useful for presentations and teaching.</p>
+    <p><strong>Run step by step</strong> runs the script one <em>block</em> at a time and reads the comments aloud using speech. Comment lines — those starting with <code>#</code> or <code>//</code>, depending on which comment character the mode uses — are read aloud; the code lines are executed without commentary. Useful for presentations and teaching.</p>
 
     <h3>Blocks</h3>
     <p>A block is a group of consecutive lines with no blank lines between them. One or more blank lines separate blocks.</p>
-    <pre><code>// This comment is read ALOUD before the code runs
-create-dataset df
-import db/BEFOLKNING_KJOENN as kjonn
+    <pre><code># This comment is read ALOUD before the code runs
+df["alder"] = 2024 - df["fodselsar"]
 
-// This is the next block
-summarize kjonn
-// This comment is read after the result is shown</code></pre>
+# This is the next block
+df.groupby("kjonn")["lonn"].mean()
+# This comment is read after the result is shown</code></pre>
 
     <h3>Comment syntax</h3>
     <table class="doc-table">
-      <thead><tr><th>Syntax</th><th>Mode</th><th>Effect</th></tr></thead>
+      <thead><tr><th>Syntax</th><th>Effect</th></tr></thead>
       <tbody>
-        <tr><td><code>// text</code></td><td><span class="badge badge-micro">Microdata</span></td><td>Read as speech; a leading comment is read BEFORE the code, a trailing one is read AFTER</td></tr>
-        <tr><td><code># text</code></td><td><span class="badge badge-py">Python</span> <span class="badge badge-r">R</span></td><td>Same as above</td></tr>
-        <tr><td><code>//-</code> or <code>#-</code></td><td>All</td><td>Silent comment — the first code word is <em>not</em> read aloud, and text after <code>-</code> is not read either</td></tr>
-        <tr><td><code>//(lang=nb-NO,rate=1.2) text</code></td><td>All</td><td>Speech with custom parameters (language, rate, voice, pitch)</td></tr>
+        <tr><td><code># text</code> / <code>// text</code></td><td>Read as speech; a leading comment is read BEFORE the code, a trailing one is read AFTER</td></tr>
+        <tr><td><code>#-</code> / <code>//-</code></td><td>Silent comment — the first code word is <em>not</em> read aloud, and text after <code>-</code> is not read either</td></tr>
+        <tr><td><code>//(lang=nb-NO,rate=1.2) text</code></td><td>Speech with custom parameters (language, rate, voice, pitch)</td></tr>
       </tbody>
     </table>
 
@@ -554,18 +897,17 @@ summarize kjonn
       <li>Breakpoints (click a line number) make the run pause automatically</li>
     </ul>
   </section>
+  <!-- SYNC:END -->
 
   <!-- ── WIDGETS ── -->
+  <!-- SYNC:START felles-widgets -->
   <section id="widgets">
     <h2>Widgets in Run step by step</h2>
     <p>Widgets are interactive cards shown while the script runs step by step. They are inserted as special comment lines and are available in all modes.</p>
 
     <h3>Syntax</h3>
-    <pre><code>// microdata:
-//widget NAME { ...json... }
-
-# python or R:
-#widget NAME { ...json... }</code></pre>
+    <pre><code>#widget NAME { ...json... }</code></pre>
+    <p>The comment character follows the mode: <code>#</code> in most modes, <code>//</code> in modes that use it as the comment character — both are interpreted the same way.</p>
 
     <h3>Block syntax for longer content</h3>
     <p>For HTML, SVG and markdown with multiple lines, you can use block syntax instead of JSON:</p>
@@ -617,22 +959,24 @@ summarize kjonn
       All widgets support <code>speak="text"</code> for parallel speech narration while the widget is shown, and <code>auto_advance_ms=3000</code> for automatic closing after a specified time.
     </div>
   </section>
+  <!-- SYNC:END -->
 
   <!-- ── AI ── -->
+  <!-- SYNC:START felles-ai -->
   <section id="ai">
     <h2>AI assistant</h2>
-    <p>An experimental side panel with an AI assistant that can answer questions about microdata syntax, suggest variables, and generate or revise scripts. Opened with the star icon at the top right or <kbd>Ctrl</kbd>+<kbd>I</kbd>.</p>
+    <p>An experimental side panel with an AI assistant that can answer questions about syntax, suggest variables, and generate or revise scripts. Opened with the star icon at the top right or <kbd>Ctrl</kbd>+<kbd>I</kbd>.</p>
 
     <div class="callout">
-      <strong>Requires an API key.</strong> Click the gear icon in the AI panel and paste in a key. The key is stored locally in the browser (localStorage) and sent as an <code>X-API-Key</code> header to the Anvil API. Contact the developer to get a key.
+      <strong>Requires an API key.</strong> Click the gear icon in the AI panel to set it up. The key is stored only locally in the browser (localStorage).
     </div>
 
     <h3>What the assistant can do</h3>
     <p>The assistant classifies the question and answers in one of three ways:</p>
     <ul>
-      <li><strong>Question</strong> — explains commands, syntax and usage ("What does reshape long do?")</li>
-      <li><strong>Variable search</strong> — finds relevant variables in the microdata catalogue ("What variables exist for education?")</li>
-      <li><strong>Script generation</strong> — creates a complete microdata script from a natural-language question ("Show summary statistics for income and gender")</li>
+      <li><strong>Question</strong> — explains commands, syntax and usage ("What does this function do?")</li>
+      <li><strong>Variable search</strong> — finds relevant variables in the data catalogue ("What variables exist for education?")</li>
+      <li><strong>Script generation</strong> — creates a complete script from a natural-language question ("Show summary statistics for income and gender")</li>
     </ul>
 
     <h3>Revising an existing script</h3>
@@ -655,7 +999,7 @@ summarize kjonn
 
     <h3>Other controls</h3>
     <ul>
-      <li><strong>Gear icon</strong> — change API key and base URL</li>
+      <li><strong>Gear icon</strong> — change API key and other settings</li>
       <li><strong>Trash icon</strong> — clear the conversation (does not delete anything on the server)</li>
       <li><strong>×</strong> — close the panel</li>
       <li><kbd>Enter</kbd> sends, <kbd>Shift</kbd>+<kbd>Enter</kbd> inserts a new line</li>
@@ -667,28 +1011,47 @@ summarize kjonn
     <div class="callout">
       <strong>Experimental.</strong> The AI assistant can be wrong, suggest variables that don't exist, or generate scripts that don't run. Always check the result before use.
     </div>
+    <!-- SYNC:END -->
+
+    <h3>How to get a key in SafeStat</h3>
+    <p>Log in, or paste in your own Anthropic key (created at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>) under "Or use your own Anthropic API key" in settings — usage is then billed to your own account. Under "Advanced" you can additionally set a service token that is sent as <code>X-API-Key</code> to the app's Anvil backend; it is meant for script/automation use, not ordinary chatting.</p>
   </section>
+
+  <!-- ── EXAMPLES ── -->
+  <!-- SYNC:START felles-eksempler -->
+  <section id="eksempler">
+    <h2>Examples</h2>
+    <p>The <strong>Examples</strong> button opens a list filtered to the mode you're in. The list is built by the app itself, so it always shows what actually exists.</p>
+    <table class="doc-table">
+      <thead><tr><th>You want to</th><th>Do</th></tr></thead>
+      <tbody>
+        <tr><td>See what's possible in this mode</td><td>Press <strong>Examples</strong></td></tr>
+        <tr><td>Start from an example</td><td>Select it — it replaces the content of the editor</td></tr>
+        <tr><td>Keep what you've written</td><td>Save first; the example overwrites the editor</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <!-- SYNC:END -->
 
   <!-- ── MODES ── -->
   <section id="modes">
     <h2>Modes</h2>
     <p>Choose a language from the dropdown menu in the bottom bar, or use mode-switch lines in the script to switch along the way (see <a href="#hybrid">Hybrid scripts</a>).</p>
-    <p>Next to the language selector, two badges show the session's <strong>security level</strong> and <strong>compute location</strong>. The level is derived automatically from the sources in the script and cannot be overridden — green <em>Open</em> (no protected sources), amber <em>Restricted</em> (strict profile or a protected source: only aggregated results are released), dashed amber <em>Unknown</em> (a source we cannot vouch for — log in to see its level), purple <em>Encrypted</em> (a homomorphically encrypted source: only <code>group_agg</code> / <code>value_counts</code> / <code>crosstab</code> / <code>ols</code>). The location badge shows <em>Local</em> (in the browser) or <em>Server</em>; when both are possible you can click it — the choice is written as <code>exec(local|remote)</code> into the script, so the script remains the single source of truth. Hover the badges to see which source determined the level.</p>
+    <p>Next to the language selector, two badges show the session's <strong>security level</strong> and <strong>compute location</strong>. The level is derived automatically from the sources in the script and cannot be overridden — green <em>Open</em> (no protected sources), amber <em>Restricted</em> (strict profile or a protected source: only aggregated results are released), dashed amber <em>Unknown</em> (a source we don't recognize — log in to see the level), purple <em>Encrypted</em> (a homomorphically encrypted source: only <code>group_agg</code> / <code>value_counts</code> / <code>crosstab</code> / <code>ols</code>). The location badge shows <em>Local</em> (in the browser) or <em>Server</em>; when both are possible you can click the badge — the choice is written as <code>exec(local|remote)</code> into the script, so the script always remains the source of truth. Hover the badges to see which source determined the level.</p>
 
-    <div class="card-grid">
-      <div class="card">
-        <div class="card-title"><span class="badge badge-micro">Microdata</span> Standard</div>
-        <div class="card-body">Microdata.no syntax. Loads register data, creates datasets, runs statistics and charts.</div>
-      </div>
-      <div class="card">
-        <div class="card-title"><span class="badge badge-py">Python</span> Pyodide</div>
-        <div class="card-body">Complete Python in the browser. Pandas, NumPy, Matplotlib, Scikit-learn, SciPy, etc. are available.</div>
-      </div>
-      <div class="card">
-        <div class="card-title"><span class="badge badge-r">R</span> WebR</div>
-        <div class="card-body">Complete R in the browser. Tidyverse, ggplot2, dplyr, survival, etc. are installed automatically on use.</div>
-      </div>
-    </div>
+    <table class="doc-table">
+      <thead><tr><th>Mode</th><th>Engine</th><th>Use it when</th></tr></thead>
+      <tbody>
+        <tr><td><strong>microdata</strong></td><td>m2py (emulator)</td><td>You write microdata.no commands and want to see the same output as in production</td></tr>
+        <tr><td><strong>Python</strong></td><td>Pyodide</td><td>You want pandas, statsmodels and the whole familiar ecosystem</td></tr>
+        <tr><td><strong>R</strong></td><td>WebR</td><td>You think in tidyverse, or need an R package</td></tr>
+        <tr><td><strong>SQL – DuckDB</strong></td><td>DuckDB</td><td>The question is a query, not a script</td></tr>
+        <tr><td><strong>Brython</strong></td><td>Brython</td><td>You want a fast start and stick to the Python core</td></tr>
+        <tr><td><strong>MicroPython</strong></td><td>MicroPython</td><td>You want to start almost instantly</td></tr>
+        <tr><td><strong>SafeStat</strong></td><td>Pyodide (translates to pandas); runs remotely when the source requires it</td><td>The data is protected, and the facade must be enforced no matter what you write</td></tr>
+      </tbody>
+    </table>
+    <p>Restricted execution applies to Python, R and SQL — see <a href="#strict-py">Restricted Python</a>.</p>
   </section>
 
   <!-- ── PYTHON ── -->
@@ -775,62 +1138,136 @@ df %>% group_by(kjonn) %>%
     <p>The datasets from the microdata section are automatically transferred to Python as pandas DataFrames and to R as data frames.</p>
   </section>
 
-  <section id="strict">
-    <h2>Restricted language (strict) — analyzing protected data</h2>
-    <p>SafeStat ships a restricted variant of real analysis languages (the safepy engine): you write ordinary pandas, R or SQL, but the code runs against a safe facade that only releases <strong>suppressed aggregates</strong> — never a row, an extreme value, or anything that could identify an individual. Enable it with <code># options.profile = strict</code> at the top of the script (python, r or duckdb mode); protected sources force strict automatically.</p>
-    <h3>Two profiles</h3>
-    <p><strong>OPEN</strong> (public data): real pandas with a deny-list. <strong>STRICT</strong> (protected/sensitive): the facade only — <code>df.head()</code> and other raw views <em>do not exist</em>; safe by construction.</p>
-    <h3>Three dialects, one release core</h3>
-    <pre><code># python mode
-df.groupby("kjonn")["alder"].mean()
-df[df["alder"] &gt;= 40]["lonn"].median()
-smf.ols("lonn ~ alder + C(kjonn)", data=df).fit().summary()
-
-# r mode (translated — never executed directly)
-df |&gt; group_by(kjonn) |&gt; summarise(m = mean(lonn), n = n())
-
--- duckdb mode (locked engine, AST-gated)
-SELECT kjonn, avg(lonn) AS m, count(*) AS n FROM df GROUP BY kjonn</code></pre>
-    <h3>What the facade offers</h3>
-    <p><strong>Pandas:</strong> selection and boolean masks, <code>groupby</code>/<code>agg</code>, reducers (mean/median/std/quantile/nunique/…), <code>value_counts</code>, <code>crosstab</code>/<code>pivot_table</code>, data shaping (merge, rename, fillna, dropna, sort_values, melt/pivot, assign, <code>.str</code>/<code>.dt</code>), tests (ttest, anova, chisq, correlation), models (ols/logit/poisson formulas, cox/kaplan_meier/logrank, feols/iv, propensity/ATE) and aggregate plots (hist, boxplot). <strong>R:</strong> filter, mutate, group_by, summarise, select, arrange, count, distinct, rename, pivot_longer/wider, *_join, lm/glm. <strong>SQL:</strong> SELECT/GROUP BY where every item is a key or a safe aggregate.</p>
-    <p><strong>Deliberately missing:</strong> head/iloc/printing rows, export, arbitrary imports, and anything that could leak individual values. See the examples menu ("Strict — …" in python, r and duckdb mode). Thresholds and rounding match the rest of the app (min&nbsp;5, round to 10).</p>
-  </section>
-
+  <!-- ── FEDERATED ── -->
   <section id="federert">
     <h2>Federated sources</h2>
-    <p>A federated source is one dataset split across several data holders (same variables, different people — e.g. one file per region). You write the script as if the data were pooled; SafeStat does the rest. Two tiers:</p>
-    <h3>Pull — files are fetched and unioned</h3>
-    <p>Members are ordinary (optionally encrypted) files. They are fetched, auto-unioned, and the <code>__member</code> column shows which member each row came from. Works in every mode:</p>
+    <p>Sometimes the data can't be moved — it sits with several owners, each allowed to see their own, but no one allowed to see all of it. A federated source is one dataset that sits split across several data holders (same variables, different people — e.g. one file per region). You write the script as if the data were pooled; SafeStat does the rest. Two tiers:</p>
+    <h3>Pull — the files are fetched and combined</h3>
+    <p>Members are ordinary files (optionally encrypted). They are fetched, unioned automatically, and the <code>__member</code> column shows which member each row came from. Works in every mode:</p>
     <pre><code># connect demo-federert as helse
 # load helse as personer
 print(personer["__member"].value_counts())</code></pre>
-    <p>Custom: <code># connect federert(https://a.no/data, https://b.no/data) as h</code> + <code># load h/person.parquet as df</code>. Column names must agree across members or the run is refused. Sensitive members are refused in pull — they require nodes.</p>
+    <p>Custom: <code># connect federert(https://a.no/data, https://b.no/data) as h</code> + <code># load h/person.parquet as df</code>. Column names must agree across all members, or the run is refused. Sensitive members are refused in pull — they require nodes.</p>
     <h3>Nodes — the script travels, the data stays</h3>
-    <p>Members with <code>tier: "node"</code> run the script locally and release only SDC-protected aggregates; the browser combines them exactly (microdata mode). Supported verbs: <code>tabulate</code>, <code>summarize</code>, <code>regress</code> and <code>logit</code> (iterative rounds). Other verbs are refused with a clear message, and one member being down fails the whole run.</p>
+    <p>Members with <code>tier: "node"</code> run the script locally on their end and only release SDC-protected aggregates; the browser combines them (microdata mode, <code>require ... as ...</code>). Verbs other than the four below are refused with a clear message, and one member being down stops the whole run. A script can today only require <strong>one</strong> federated target:</p>
     <pre><code>require demo-federert-node as person
 create-dataset person
 tabulate BEFOLKNING_KJOENN
 logit kvinne BEFOLKNING_INNALDER</code></pre>
-    <p>A data holder starts their own node with <code>pip install ./node</code> and <code>safestat-node --config node.json</code> (optional token; the app then prompts per run). See the examples menu for runnable examples in python and microdata mode.</p>
+    <p>Two <code>require</code> lines against federated sources in the same script get SafeStat's response: <em>"Federated execution supports one require target per script (for now)."</em></p>
+    <p>A data holder starts their own node with <code>pip install ./node</code> and <code>safestat-node --config node.json</code> (optional token; the app then asks per run). See the examples menu for runnable examples in python and microdata mode.</p>
+
+    <div class="overview">
+      <table class="doc-table">
+        <thead><tr><th>Verb</th><th>What the node computes</th><th>Exact across nodes</th></tr></thead>
+        <tbody>
+          <tr><td><code>tabulate</code></td><td>Count per cell</td><td>Yes — the cell counts are summed</td></tr>
+          <tr><td><code>summarize</code></td><td>Count, mean, std, min and max per group</td><td>Yes for mean, std, min and max — but percentiles (median, p1/p25/p75/p99) are never sent back from the node</td></tr>
+          <tr><td><code>regress</code></td><td>Cross-product matrices (XᵀX, Xᵀy)</td><td>Yes — the normal equations are solved centrally from summed matrices</td></tr>
+          <tr><td><code>logit</code></td><td>Gradient and Hessian, one round per Newton iteration</td><td>Yes, but requires several round trips between nodes and browser — not a single combination step like the other three</td></tr>
+        </tbody>
+      </table>
+      <p class="overview-hint">"Exact" means the answer matches what you would have gotten if all the data sat in one table — confirmed by testing against a run on the pooled table (within ordinary floating-point precision), not just assumed.</p>
+    </div>
+
+    <h3>What it looks like</h3>
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Code <span class="badge badge-py">py</span></span>
+        <pre><code># options.profile = strict
+# data: node_oslo, node_bergen
+fed.summarize("lonn", by="kjonn")</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Result <span class="illustration-tag">illustration</span></span>
+        <pre class="result illustration">kjonn  n      mean(lonn)
+1      12 430  521 400
+2      11 980  518 100
+
+2 noder svarte. Ingen rader forlot noen node.</pre>
+      </div>
+    </div>
+    <p>The block above is an <strong>illustration</strong>: federation requires several running nodes, so it cannot be generated by the example harness the way the other results on this page can.</p>
+
+    <h3>What doesn't exist yet</h3>
+    <table class="doc-table">
+      <thead><tr><th>Missing</th><th>Consequence</th></tr></thead>
+      <tbody>
+        <tr><td>Trusted hub</td><td>No intermediary that can see partial results before SDC. Everything is coordinated by your client, and a small cell is suppressed per node even if the sum across nodes would have been large enough to pass.</td></tr>
+        <tr><td><code>overlap</code> handling</td><td>You can mark a source <code>overlap="possible"</code> and get a visible warning in the result that counts are at the episode level, not the individual level. But SafeStat never deduplicates individuals across nodes, and there is no function to ask how many exist in several nodes at once.</td></tr>
+        <tr><td>Percentiles / median</td><td>Silently dropped in federated <code>summarize</code> — the result only shows mean, std, count, min and max.</td></tr>
+      </tbody>
+    </table>
   </section>
 
-  <!-- ── TAB FULL ── -->
+  <!-- ── KEY STORE ── -->
+  <section id="nokler">
+    <h2>Key store</h2>
+    <p>Encrypted datasets need a key. The key store holds yours in the browser, so you don't have to paste the same key in every time. If you're logged in, the store is also synced to your account.</p>
+
+    <h3>Three policies — and only two of them hide the key</h3>
+    <p>Every key has a policy. This is the single most important choice in the whole store, because it decides whether the server can read your key.</p>
+    <table class="doc-table">
+      <thead><tr><th>Policy</th><th>How it's stored</th><th>How often you enter a password</th><th>Can the server read it?</th></tr></thead>
+      <tbody>
+        <tr><td><code>open</code> <strong>(default)</strong></td><td><strong>Plaintext</strong> — no encryption</td><td>Never</td><td><strong>Yes</strong>, if you sync</td></tr>
+        <tr><td><code>locked</code></td><td>AES-256-GCM under the master password</td><td>Once per session</td><td>No — ciphertext only</td></tr>
+        <tr><td><code>secret</code></td><td>Same as <code>locked</code></td><td>Once per <em>run</em>; never cached</td><td>No — ciphertext only</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>The default is plaintext.</strong> <code>open</code> exists so things are frictionless, and for an API key you don't care about, that's fine. But if you add a key that unlocks protected data, choose <code>locked</code> or <code>secret</code> — otherwise it sits unencrypted in the browser, and is synced readable to the server if you're logged in.
+    </div>
+
+    <table class="doc-table">
+      <thead><tr><th>Action</th><th>Where it happens</th></tr></thead>
+      <tbody>
+        <tr><td>Unlock a dataset</td><td>In the browser, after the key has been fetched from the store. The contents of the dataset are never sent out.</td></tr>
+        <tr><td>Unlock the store</td><td>The master password derives a key that lives <strong>in memory only</strong> — never in sessionStorage. On reload you have to enter it again.</td></tr>
+        <tr><td>Sync between devices</td><td>The whole document is synced as-is, if you're logged in. <code>locked</code> and <code>secret</code> entries are ciphertext; <code>open</code> entries are not.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>If you lose the master password, the <code>locked</code> and <code>secret</code> keys are gone.</strong> The server cannot recover them — that's the whole point. <code>open</code> keys survive, precisely because they were never protected.
+    </div>
+  </section>
+
+  <!-- ── REFERENCE: SHORTCUTS ── -->
+  <!-- SYNC:START felles-referanse-snarveier -->
+  <section id="referanse-snarveier">
+    <h2>Keyboard shortcuts</h2>
+    <table class="doc-table">
+      <thead><tr><th>Shortcut</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>Run the script</td></tr>
+        <tr><td><kbd>Tab</kbd></td><td>Autocomplete (command, variable, method)</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Close the autocomplete list</td></tr>
+        <tr><td>Click line number</td><td>Set / remove a breakpoint (red dot) for Run step by step</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <!-- SYNC:END -->
+
+  <!-- ── REFERENCE: TAB AUTOCOMPLETE ── -->
+  <!-- SYNC:START felles-referanse-tab -->
   <section id="tab-full">
     <h2>Tab autocomplete — full reference</h2>
-    <p>Press <kbd>Tab</kbd> in the editor for context-aware suggestions. The rules are the same in all modes:</p>
+    <p>Press <kbd>Tab</kbd> in the editor for context-aware suggestions. The rules are the same in every mode:</p>
 
     <table class="doc-table">
       <thead><tr><th>Context</th><th>Suggestion</th></tr></thead>
       <tbody>
         <tr>
           <td>After <code>/</code> (e.g. <code>import db/</code>)</td>
-          <td>Microdata variable names from the catalogue</td>
+          <td>Catalogue variables, in modes with a connected source catalogue</td>
         </tr>
         <tr>
           <td>Empty start of line</td>
           <td>
-            <span class="badge badge-micro">Microdata</span> commands<br>
-            <span class="badge badge-py">Python</span> keywords + built-in functions<br>
+            Commands or keywords for the active mode — e.g.
+            <span class="badge badge-py">Python</span> built-in functions,
             <span class="badge badge-r">R</span> base R and tidyverse functions
           </td>
         </tr>
@@ -862,27 +1299,123 @@ logit kvinne BEFOLKNING_INNALDER</code></pre>
     </table>
 
     <h3>Variable information</h3>
-    <p>When you select a microdata variable name from the autocomplete list, a small popup shows the name, type and description from the catalogue. Click <strong>More info</strong> to open full documentation on microdata.no.</p>
+    <p>When you select a variable name from the autocomplete list, a small popup shows the name, type and description. Click <strong>More info</strong> to open full documentation, where it exists.</p>
   </section>
+  <!-- SYNC:END -->
 
 </main>
 </div>
 
 <script>
-  // Highlight nav link matching current scroll position
-  const sections = document.querySelectorAll('section[id]');
-  const navLinks = document.querySelectorAll('nav a');
-  function updateNav() {
-    let current = '';
-    sections.forEach(s => {
-      if (window.scrollY >= s.offsetTop - 60) current = s.id;
-    });
-    navLinks.forEach(a => {
-      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+/* SYNC:START felles-js */
+(function hjelpUI(w) {
+  'use strict';
+
+  // Ren funksjon — node-testet i tests/js/test_hjelp_ui.mjs.
+  // Returnerer indeksene i `labels` som matcher `query`.
+  function matchNav(query, labels) {
+    var q = String(query || '').trim().toLowerCase();
+    var out = [];
+    for (var i = 0; i < labels.length; i++) {
+      if (!q || String(labels[i]).toLowerCase().indexOf(q) >= 0) out.push(i);
+    }
+    return out;
+  }
+
+  function navLinks() {
+    return Array.prototype.slice.call(document.querySelectorAll('nav a[href^="#"]'));
+  }
+
+  function initNavFilter() {
+    var input = document.querySelector('.nav-filter');
+    if (!input || input.dataset.wired) return;
+    input.dataset.wired = '1';
+    var links = navLinks();
+    var labels = links.map(function (a) { return a.textContent; });
+    input.addEventListener('input', function () {
+      var keep = matchNav(input.value, labels);
+      var show = Object.create(null);
+      keep.forEach(function (i) { show[i] = true; });
+      links.forEach(function (a, i) {
+        a.classList.toggle('nav-link-hidden', !show[i]);
+      });
+      // Skjul en seksjonsoverskrift som ikke har synlige lenker under seg.
+      Array.prototype.forEach.call(
+        document.querySelectorAll('nav .nav-section'),
+        function (h) {
+          var any = false, el = h.nextElementSibling;
+          while (el && !el.classList.contains('nav-section')) {
+            if (el.tagName === 'A' && !el.classList.contains('nav-link-hidden')) any = true;
+            el = el.nextElementSibling;
+          }
+          h.classList.toggle('nav-link-hidden', !any);
+        });
     });
   }
-  window.addEventListener('scroll', updateNav, { passive: true });
-  updateNav();
+
+  function initScrollspy() {
+    var links = navLinks();
+    if (!links.length || document.body.dataset.spyWired) return;
+    document.body.dataset.spyWired = '1';
+    var byId = Object.create(null);
+    links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+    var targets = Object.keys(byId)
+      .map(function (id) { return document.getElementById(id); })
+      .filter(Boolean);
+    if (!targets.length || !w.IntersectionObserver) return;
+    var seen = Object.create(null);
+    var obs = new w.IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { seen[e.target.id] = e.isIntersecting; });
+      var active = targets.filter(function (t) { return seen[t.id]; })[0];
+      links.forEach(function (a) { a.classList.remove('nav-active'); });
+      if (active && byId[active.id]) byId[active.id].classList.add('nav-active');
+    }, { rootMargin: '-80px 0px -70% 0px' });
+    targets.forEach(function (t) { obs.observe(t); });
+  }
+
+  function initCopyButtons() {
+    Array.prototype.forEach.call(
+      document.querySelectorAll('.example-code'),
+      function (box) {
+        if (box.querySelector('.copy-btn')) return;
+        var pre = box.querySelector('pre');
+        if (!pre) return;
+        var btn = document.createElement('button');
+        btn.className = 'copy-btn';
+        btn.type = 'button';
+        btn.textContent = 'Kopier';
+        btn.addEventListener('click', function () {
+          var text = pre.textContent;
+          var flash = function (label) {
+            btn.textContent = label;
+            w.setTimeout(function () { btn.textContent = 'Kopier'; }, 1400);
+          };
+          var ok = function () { flash('Kopiert'); };
+          var fail = function () { flash('Kopier feilet'); };
+          if (w.navigator && w.navigator.clipboard) {
+            w.navigator.clipboard.writeText(text).then(ok, fail);
+          } else {
+            fail();
+          }
+        });
+        box.appendChild(btn);
+      });
+  }
+
+  w.HjelpUI = {
+    matchNav: matchNav,
+    initNavFilter: initNavFilter,
+    initScrollspy: initScrollspy,
+    initCopyButtons: initCopyButtons,
+  };
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', function () {
+      initNavFilter(); initScrollspy(); initCopyButtons();
+    });
+  }
+})(typeof window !== 'undefined' ? window : this);
+/* SYNC:END */
 </script>
 </body>
 </html>
