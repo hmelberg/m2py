@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Microdata Script Runner – Dokumentasjon</title>
+<title>SafeStat – Dokumentasjon</title>
 <style>
   :root {
     --accent: #2563eb;
@@ -232,11 +232,12 @@ nav a.nav-active {
 <div class="page">
 
 <nav>
-  <div class="nav-logo">Script Runner</div>
+  <div class="nav-logo">SafeStat</div>
   <a href="hjelp.en.html" style="font-size:12px;color:var(--text-muted)">In English</a>
   <input class="nav-filter" type="search" placeholder="Filtrer…" aria-label="Filtrer innholdsfortegnelsen">
   <div class="nav-section">Kom i gang</div>
   <a href="#intro">Hva er dette?</a>
+  <a href="#hurtigstart">30 sekunder</a>
   <a href="#running">Kjøre</a>
   <a href="#microdata">Microdata-kommandoer</a>
   <div class="nav-section">Editoren</div>
@@ -264,24 +265,56 @@ nav a.nav-active {
 <main>
 
   <div class="doc-header">
-    <h1>Microdata Script Runner</h1>
-    <p class="lead">Skriv og kjør microdata.no-kode, Python og R direkte i nettleseren — uten installasjon.</p>
+    <h1>SafeStat</h1>
+    <p class="lead">Analyser beskyttede data uten at dataene forlater det trygge.</p>
   </div>
 
   <!-- ── INTRO ── -->
   <section id="intro">
     <h2>Hva er dette?</h2>
-    <p>Script Runner er et verktøy for å skrive og kjøre kode mot norske registerdata fra <strong>microdata.no</strong>. Du kan skrive microdata-kommandoer og se resultater umiddelbart, og kjøre hybridskript der ulike språk samarbeider.</p>
+    <p>SafeStat er en analysearbeidsbenk i nettleseren for data som ikke tåler å bli sett. Du skriver vanlig Python, R eller SQL; SafeStat sørger for at bare <strong>undertrykte aggregater</strong> slipper ut — aldri en enkeltrad, aldri et ekstremverdi.</p>
+
+    <div class="overview">
+      <table class="doc-table">
+        <thead><tr><th>Del</th><th>Hva du finner der</th></tr></thead>
+        <tbody>
+          <tr><td><a href="#tillit">Tillitsmodellen</a></td><td>Hvor koden kjører, hva som slipper ut, hvem som ser hva</td></tr>
+          <tr><td><a href="#kilder">Beskyttede kilder</a></td><td>Krypterte og passordbeskyttede datasett, nøkkellageret</td></tr>
+          <tr><td><a href="#strict-py">Restricted Python</a></td><td>Hva du kan skrive, hva som ikke finnes, og hvorfor</td></tr>
+          <tr><td><a href="#strict-r">Restricted R</a></td><td>Samme frigivelseskjerne, R-syntaks</td></tr>
+          <tr><td><a href="#federert">Federerte kilder</a></td><td>Analyser flere noder uten å samle dataene</td></tr>
+          <tr><td><a href="#modes">Moduser</a></td><td>De ni språkene, og når du velger hvilket</td></tr>
+          <tr><td><a href="#tab-full">Referanse</a></td><td>Snarveier, direktiver, Tab-autocomplete</td></tr>
+        </tbody>
+      </table>
+      <p class="overview-hint">Filtrer innholdsfortegnelsen til venstre for å hoppe rett til et emne.</p>
+    </div>
 
     <div class="callout">
-      <strong>NB:</strong> Dette er et hobbyprosjekt og er ikke laget av microdata.no selv. Siden inneholder ikke ekte tall, og det gis ingen garantier for at analysene er korrekt implementert.
+      <strong>NB:</strong> Dette er et hobbyprosjekt og er ikke laget av microdata.no. Demodataene inneholder ikke ekte tall, og det gis ingen garantier for at analysene er korrekt implementert.
+    </div>
+  </section>
+
+  <!-- ── HURTIGSTART ── -->
+  <section id="hurtigstart">
+    <h2>30 sekunder</h2>
+    <p>Velg <strong>python</strong> i modusmenyen, lim inn dette, og trykk <kbd>Ctrl</kbd>+<kbd>Enter</kbd>:</p>
+
+    <div class="example">
+      <div class="example-code">
+        <span class="example-label">Kode <span class="badge badge-py">py</span></span>
+        <pre><code># options.profile = strict
+df.groupby("kjonn")["lonn"].mean()</code></pre>
+      </div>
+      <div class="example-result">
+        <span class="example-label">Resultat</span>
+        <pre class="result">kjonn  mean(lonn)
+1  520 790
+2  518 450</pre>
+      </div>
     </div>
 
-    <p>Alt skjer i nettleseren — ingen data forlater maskinen din.</p>
-
-    <div class="callout tip">
-      <strong>Hurtigstart:</strong> Skriv microdata-kommandoer i tekstfeltet, trykk <kbd>Ctrl</kbd>+<kbd>Enter</kbd> eller knappen <strong>Kjør</strong>. Bruk <kbd>Tab</kbd> for forslag til kommandoer og variabler.
-    </div>
+    <p>Du fikk et gruppegjennomsnitt. Prøv nå <code>df.head()</code> i stedet — det finnes ikke, og <a href="#strict-py">Restricted Python</a> forklarer hvorfor.</p>
   </section>
 
   <!-- ── RUNNING ── -->
