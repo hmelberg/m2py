@@ -157,7 +157,7 @@ window.M2PY_I18N.en = {
   "Spør AI": "Ask AI",
   "Skriv et spørsmål og trykk Enter — AI-panelet åpnes og svarer": "Type a question and press Enter — the AI panel opens and answers",
   "Tolk resultat": "Interpret results",
-  "Tolk resultatene (output) med AI i sidemenyen": "Interpret the results (output) with AI in the sidebar",
+  "Send output til AI som oppsummerer og tolker det": "Send the output to AI, which summarises and interprets it",
   "Forklar avspilling": "Step-through playback",
   "Forrige blokk": "Previous block",
   "Pause forklaring": "Pause step-through",

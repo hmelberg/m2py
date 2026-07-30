@@ -1177,7 +1177,8 @@ df.groupby("kjonn")["lonn"].mean()
     </ul>
 
     <h3>Personvern</h3>
-    <p>Det som sendes til API-et er kun spørsmålsteksten din, og — hvis avhuket — innholdet i skripteditoren. Datafiler, kjøreresultater, output og widget-innhold sendes ikke. Norsk eller engelsk språk gjettes automatisk fra spørsmålet.</p>
+    <p>Det som sendes til API-et er spørsmålsteksten din, og innholdet i skripteditoren når boksen «Inkluder skript fra editor (revider)» er avhuket. Datafiler og datasettinnhold sendes aldri. Norsk eller engelsk språk gjettes automatisk fra spørsmålet.</p>
+    <p><strong>«Tolk resultat»</strong> sender mer, uansett avhukingsboks: scriptet og kjøreresultatet (output) — det er selve poenget med knappen, siden den skal tolke det du nettopp kjørte. Widgets er kommentarlinjer i scriptet (se <a href="#widgets">Widgets</a>) og følger dermed med. Bruk ikke «Tolk resultat» på output du ikke vil dele.</p>
 
     <div class="callout">
       <strong>Eksperimentell.</strong> AI-assistenten kan ta feil, foreslå variabler som ikke finnes, eller generere skript som ikke kjører. Sjekk alltid resultatet før bruk.

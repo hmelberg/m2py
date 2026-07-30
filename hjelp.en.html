@@ -1177,7 +1177,8 @@ df.groupby("kjonn")["lonn"].mean()
     </ul>
 
     <h3>Privacy</h3>
-    <p>What is sent to the API is only your question text, and — if checked — the content of the script editor. Data files, run results, output and widget content are not sent. Norwegian or English language is guessed automatically from the question.</p>
+    <p>What is sent to the API is your question text, and the content of the script editor when the "Include script from editor (revise)" checkbox is ticked. Data files and dataset contents are never sent. Norwegian or English language is guessed automatically from the question.</p>
+    <p><strong>"Interpret results"</strong> sends more, regardless of that checkbox: the script and the run output — that's the whole point of the button, since it exists to interpret what you just ran. Widgets are comment lines inside the script (see <a href="#widgets">Widgets</a>) and travel along with it. Don't use "Interpret results" on output you don't want to share.</p>
 
     <div class="callout">
       <strong>Experimental.</strong> The AI assistant can be wrong, suggest variables that don't exist, or generate scripts that don't run. Always check the result before use.
