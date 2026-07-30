@@ -1812,11 +1812,35 @@ Pakk snarveistabellen i `felles-referanse-snarveier` og
 en del av `#editor`, flytt tabellen ned i referansedelen og la `#editor`
 beholde prosaen — referansetabeller hører i lag 3.
 
-- [ ] **Step 7: Gjenta i hjelp.en.html**
+- [ ] **Step 7: Gjenta i hjelp.en.html — og ta igjen etterslepet**
 
 Samme blokker, samme navn, engelsk tekst. Blokkene er identiske *innad i
 et språk* — `hjelp.html` sammenlignes mot søsknenes `hjelp.html`, og
 `hjelp.en.html` mot deres `hjelp.en.html`.
+
+**Den engelske fila ligger tre tasks etter, og det er her den innhentes.**
+Task 2 la layoutlaget bare i den norske; Task 4 ga den engelske ny identitet,
+men lot brødteksten stå. Resultatet er en side som heter «SafeStat» i tittelen
+og forteller om «Script Runner ... microdata.no» i første avsnitt. Denne
+steppen lukker hele etterslepet:
+
+1. **`felles-css` og `felles-js`** — port begge SYNC-blokkene fra
+   `hjelp.html` til `hjelp.en.html`, ordrett. Uten dem har den engelske siden
+   verken scrollspy, navfilter, kopier-knapp eller styling for `.overview` og
+   `.example` — og synk-sjekken i streng modus vil felle den.
+2. **Lag 0** — oversett `#intro` og `#hurtigstart` fra Task 4, inkludert
+   oversiktstabellen og hurtigstart-eksempelet. Resultatblokken er
+   byte-identisk med den norske (tall er tall).
+3. **Lag 1** — oversett seksjonene fra Task 5–8 (`#tillit`, `#kilder`,
+   `#strict-py`, `#strict-r`, `#strict-sql`, `#federert`, `#nokler`).
+   Metodenavn, feilmeldinger, profilnavn (OPEN/STRICT), nivånavn
+   (public/protected/sensitive) og resultatblokker er identiske i begge
+   språk — bare prosaen oversettes.
+4. **Fjern gammel norsk-avledet prosa** som ikke lenger stemmer, særlig
+   avsnitt som beskriver appen som en microdata.no-kjører.
+
+Verifiser til slutt at `grep -c "Script Runner" hjelp.en.html` gir 0, og at
+`test_identitet_engelsk` fortsatt passerer.
 
 - [ ] **Step 8: Fjern Task 9-kommentarene i synk-testen**
 
