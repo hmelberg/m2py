@@ -137,6 +137,8 @@
         localStorage.setItem(LS_TOKEN, state.token);
         localStorage.setItem(LS_USER, JSON.stringify(state.user));
         if (window.mdUpdateAskVisibility) window.mdUpdateAskVisibility();
+        // Kontosynk av nøkkellageret (fase 2): hent/publiser ved innlogging.
+        if (window.KeysSync) window.KeysSync.syncNow();
       }
 
       async function handleLoginParam() {
