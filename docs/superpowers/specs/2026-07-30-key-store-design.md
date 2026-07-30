@@ -2,7 +2,11 @@
 
 **Date:** 2026-07-30 (revised same day after review: run-scoped secret prompt;
 account sync as phase 2)
-**Status:** Approved (design). Not yet implemented.
+**Status:** v1 implemented+shipped 2026-07-30 (plan `docs/superpowers/plans/2026-07-30-key-store-v1.md`).
+Phase 2 (account sync) implemented 2026-07-30 client+server (plan
+`…/2026-07-30-key-store-fase2.md`; endpoints in microdata-api `server_code/keystore.py`
++ `keystores` table — LIVE FIRST AFTER ANVIL PULL). Write endpoint is POST (not PUT
+as §3.5 says) for CORS-consistency with the rest of the API.
 **Scope decision:** Full three-policy model in v1 (open/locked/secret); one master
 password; unlocked state lives in JS memory only (reload = re-prompt); `secret`
 prompts once per *run*, not per key. Phase 2: zero-knowledge sync of the store via
