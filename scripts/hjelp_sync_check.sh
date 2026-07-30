@@ -15,14 +15,16 @@
 # å bygge et falskt søsken med en sabotert blokk og bekrefte at exit 1 faktisk
 # inntreffer. Uten overstyring er standarden søskenrepoene ved siden av dette.
 #
-# HJELP_SYNC_STRICT=1 slår av all toleranse: hvert "hopper over" (fil mangler
-# lokalt, fil mangler hos søsken, fil har ingen SYNC-blokker i det hele tatt —
-# verken lokalt eller hos søsken) blir en feil i stedet for et hopp, med en
-# melding om hvilken fil som manglet blokker. Uten dette kunne en fil miste
-# HELE synk-innføringen stille (f.eks. en kopi som bommer på hjelp.en.html) og
-# likevel gi exit 0. Task 17 kjører med HJELP_SYNC_STRICT=1 som sluttport fra
-# alle fire repoer og krever null "hopper over"-linjer. Standard er ulåst
-# (STRICT=0) — det er riktig under selve utrullingen (Task 4-15).
+# HJELP_SYNC_STRICT=1 slår av ALL toleranse — også på blokknivå: hvert
+# "hopper over" (fil mangler lokalt, fil mangler hos søsken, fil har ingen
+# SYNC-blokker i det hele tatt, ELLER én bestemt blokk mangler hos begge
+# sider) blir en feil i stedet for et hopp, med en melding om hva som
+# manglet. Uten dette kunne en fil — eller én enkelt blokk — miste hele
+# synk-innføringen stille (f.eks. en kopi som bommer på hjelp.en.html, eller
+# en blokk som blir glemt i alle repoer under Task 9/11/13/15) og likevel gi
+# exit 0. Task 17 kjører med HJELP_SYNC_STRICT=1 som sluttport fra alle fire
+# repoer og krever null hopp av noe slag. Standard er ulåst (STRICT=0) — det
+# er riktig under selve utrullingen (Task 4-15).
 set -eu
 
 HERE=$(cd "$(dirname "$0")/.." && pwd)
@@ -81,7 +83,8 @@ for f in $FILES; do
       extract "$HERE/$f" "$b" > "$tmp/a"
       extract "$sibfile" "$b" > "$tmp/b"
       if [ ! -s "$tmp/a" ] && [ ! -s "$tmp/b" ]; then
-        continue  # blokken finnes ikke hos noen ennå (rulles ut i senere task)
+        skip "blokk '$b' i $f (mangler i både safestat og $sib)"
+        continue
       fi
       if [ ! -s "$tmp/a" ]; then
         echo "AVVIK: blokk '$b' mangler i safestat/$f" >&2

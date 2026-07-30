@@ -21,17 +21,16 @@ BLOCK_NAMES = [
     # "felles-eksempler", "felles-referanse-snarveier", "felles-referanse-tab",
 ]
 
-# hjelp.en.html har ingen SYNC-blokker ennå (Task 2 rørte kun hjelp.html;
-# Task 9 legger dem inn i den engelske sida). Eksplisitt utsatt, ikke bare
-# fraværende — se marks= under.
-HJELP_FILER = [
-    "hjelp.html",
-    pytest.param(
-        "hjelp.en.html",
-        marks=pytest.mark.skip(
-            reason="Task 9: hjelp.en.html har ingen SYNC-blokker ennå"),
-    ),
+# Speiler skriptets BLOCKS-liste (alle 11, uavhengig av hva som er aktivt i
+# BLOCK_NAMES ennå) — brukt til å finne EN blokk som mangler hos alle for
+# å drive frem blokknivå-strengmodus-testen under.
+ALLE_BLOKKNAVN = [
+    "felles-css", "felles-js", "felles-editor", "felles-sidebar",
+    "felles-lagre", "felles-forklar", "felles-widgets", "felles-ai",
+    "felles-eksempler", "felles-referanse-snarveier", "felles-referanse-tab",
 ]
+
+HJELP_FILER = ["hjelp.html", "hjelp.en.html"]
 
 
 def extract_block(text: str, name: str):
@@ -54,8 +53,15 @@ def test_alle_blokker_finnes_i_egen_hjelp(filnavn):
     Dekker både hjelp.html og hjelp.en.html — en blokk som mangler i BEGGE
     filer på begge sider av en sammenligning hopper synk-skriptet stille
     over (se hjelp_sync_check.sh), så uten denne parametriseringen ville et
-    slettet block-navn i den engelske sida vært et permanent blindsone."""
+    slettet block-navn i den engelske sida vært et permanent blindsone.
+
+    hjelp.en.html har ingen SYNC-blokker ennå (Task 9 legger dem inn) — den
+    hopper selv-aktiverende over basert på fila sitt FAKTISKE innhold, ikke
+    et statisk merke noen må huske å fjerne. Så snart Task 9 legger inn
+    markørene, begynner denne testen å kjøre den ekte sjekken av seg selv."""
     text = (REPO / filnavn).read_text(encoding="utf-8")
+    if "SYNC:START" not in text:
+        pytest.skip(f"{filnavn} har ingen SYNC-blokker ennå")
     mangler = [n for n in BLOCK_NAMES if extract_block(text, n) is None]
     assert not mangler, f"{filnavn} mangler SYNC-blokker: {mangler}"
 
@@ -124,3 +130,50 @@ def test_streng_modus_avviser_manglende_blokker(tmp_path):
         f"(exit {r_strict.returncode})\n{r_strict.stdout}\n{r_strict.stderr}")
     assert "hjelp.html" in r_strict.stderr, (
         "feilmeldingen i streng modus navngir ikke fila som mangler blokker")
+
+
+def test_streng_modus_avviser_manglende_enkeltblokk(tmp_path):
+    """Skiller seg fra test_streng_modus_avviser_manglende_blokker over: der
+    hadde fila NULL SYNC-blokker (filnivå-hoppet). Her HAR fila blokker —
+    filnivå-sjekken slipper den gjennom — men én bestemt blokk mangler hos
+    BEGGE sider. Det er nøyaktig scenarioet fra koordinator-reviewen: en
+    blokk (f.eks. felles-referanse-tab) glemt i alle repoer under Task
+    9/11/13/15. Før 'continue'-linjen for dette tilfellet i
+    hjelp_sync_check.sh ble rutet gjennom skip(), fanget ikke
+    HJELP_SYNC_STRICT=1 dette i det hele tatt — strengmodus-påstanden var
+    uverifisert nettopp her."""
+    text = (REPO / "hjelp.html").read_text(encoding="utf-8")
+    savnet = [n for n in ALLE_BLOKKNAVN if extract_block(text, n) is None]
+    if not savnet:
+        pytest.skip(
+            "alle blokknavn finnes allerede i safestat sin hjelp.html — "
+            "blokknivå-hullet kan ikke drives frem på denne måten lenger")
+    blokknavn = savnet[0]
+
+    falsk = tmp_path / "faksesosken3"
+    falsk.mkdir()
+    # Uendret kopi: har felles-css/felles-js, så filnivå-sjekken slipper den
+    # gjennom — men mangler samme blokk som safestat selv ennå mangler.
+    (falsk / "hjelp.html").write_text(text, encoding="utf-8")
+    (falsk / "hjelp.en.html").write_text(
+        (REPO / "hjelp.en.html").read_text(encoding="utf-8"), encoding="utf-8")
+
+    env_base = {**os.environ,
+                "HJELP_SYNC_ROOT": str(tmp_path),
+                "HJELP_SYNC_SIBLINGS": "faksesosken3"}
+
+    r_lenient = subprocess.run(["sh", str(SCRIPT)], cwd=REPO,
+                                capture_output=True, text=True, env=env_base)
+    assert r_lenient.returncode == 0, (
+        "ulåst (standard) modus skal godta en blokk som mangler hos begge "
+        f"sider\n{r_lenient.stdout}\n{r_lenient.stderr}")
+
+    r_strict = subprocess.run(
+        ["sh", str(SCRIPT)], cwd=REPO, capture_output=True, text=True,
+        env={**env_base, "HJELP_SYNC_STRICT": "1"})
+    assert r_strict.returncode == 1, (
+        "streng modus godtok en blokk som mangler hos begge sider "
+        f"(exit {r_strict.returncode})\n{r_strict.stdout}\n{r_strict.stderr}")
+    assert blokknavn in r_strict.stderr, (
+        f"feilmeldingen i streng modus navngir ikke den manglende blokken "
+        f"'{blokknavn}'\n{r_strict.stderr}")
