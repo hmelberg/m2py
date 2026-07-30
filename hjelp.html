@@ -167,6 +167,65 @@
 
   /* ── Section anchor offset ── */
   section { scroll-margin-top: 20px; }
+
+/* SYNC:START felles-css */
+/* ── Oversiktstabell først i hver hovedseksjon ── */
+.overview { margin: 0 0 28px; }
+.overview .doc-table { margin: 0; }
+.overview-hint {
+  font-size: 13px; color: var(--text-muted); margin: 6px 0 0;
+}
+
+/* ── Todelt eksempelblokk: kode ‖ resultat ── */
+.example {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+  background: var(--border); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; margin: 18px 0;
+}
+.example > * { background: var(--bg-card); }
+.example-code, .example-result { padding: 14px 16px; min-width: 0; }
+.example-code pre, .example-result pre {
+  margin: 0; overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+.example-label {
+  display: block; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 8px;
+}
+.result { color: var(--text); }
+.result.illustration { color: var(--text-muted); font-style: italic; }
+.illustration-tag {
+  display: inline-block; font-size: 11px; font-style: normal;
+  padding: 1px 6px; border-radius: 4px; margin-left: 6px;
+  background: var(--bg-code); color: var(--text-muted);
+}
+@media (max-width: 900px) {
+  .example { grid-template-columns: 1fr; }
+}
+
+/* ── Kopier-knapp ── */
+.example-code { position: relative; }
+.copy-btn {
+  position: absolute; top: 10px; right: 10px;
+  font-size: 11px; padding: 3px 8px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg-card); color: var(--text-muted);
+}
+.copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ── Nav: filter + scrollspy ── */
+.nav-filter {
+  width: calc(100% - 36px); margin: 0 18px 14px; padding: 6px 9px;
+  font-size: 13px; font-family: inherit;
+  border: 1px solid var(--border); border-radius: 7px;
+  background: var(--bg); color: var(--text);
+}
+.nav-filter:focus { outline: none; border-color: var(--accent); }
+.nav-link-hidden { display: none !important; }
+nav a.nav-active {
+  color: var(--accent); background: var(--accent-light);
+  border-left: 2px solid var(--accent);
+}
+/* SYNC:END */
 </style>
 </head>
 <body>
@@ -175,6 +234,7 @@
 <nav>
   <div class="nav-logo">Script Runner</div>
   <a href="hjelp.en.html" style="font-size:12px;color:var(--text-muted)">In English</a>
+  <input class="nav-filter" type="search" placeholder="Filtrer…" aria-label="Filtrer innholdsfortegnelsen">
   <div class="nav-section">Kom i gang</div>
   <a href="#intro">Hva er dette?</a>
   <a href="#running">Kjøre</a>
@@ -884,6 +944,114 @@ logit kvinne BEFOLKNING_INNALDER</code></pre>
   }
   window.addEventListener('scroll', updateNav, { passive: true });
   updateNav();
+</script>
+
+<script>
+/* SYNC:START felles-js */
+(function hjelpUI(w) {
+  'use strict';
+
+  // Ren funksjon — node-testet i tests/js/test_hjelp_ui.mjs.
+  // Returnerer indeksene i `labels` som matcher `query`.
+  function matchNav(query, labels) {
+    var q = String(query || '').trim().toLowerCase();
+    var out = [];
+    for (var i = 0; i < labels.length; i++) {
+      if (!q || String(labels[i]).toLowerCase().indexOf(q) >= 0) out.push(i);
+    }
+    return out;
+  }
+
+  function navLinks() {
+    return Array.prototype.slice.call(document.querySelectorAll('nav a[href^="#"]'));
+  }
+
+  function initNavFilter() {
+    var input = document.querySelector('.nav-filter');
+    if (!input || input.dataset.wired) return;
+    input.dataset.wired = '1';
+    var links = navLinks();
+    var labels = links.map(function (a) { return a.textContent; });
+    input.addEventListener('input', function () {
+      var keep = matchNav(input.value, labels);
+      var show = Object.create(null);
+      keep.forEach(function (i) { show[i] = true; });
+      links.forEach(function (a, i) {
+        a.classList.toggle('nav-link-hidden', !show[i]);
+      });
+      // Skjul en seksjonsoverskrift som ikke har synlige lenker under seg.
+      Array.prototype.forEach.call(
+        document.querySelectorAll('nav .nav-section'),
+        function (h) {
+          var any = false, el = h.nextElementSibling;
+          while (el && !el.classList.contains('nav-section')) {
+            if (el.tagName === 'A' && !el.classList.contains('nav-link-hidden')) any = true;
+            el = el.nextElementSibling;
+          }
+          h.classList.toggle('nav-link-hidden', !any);
+        });
+    });
+  }
+
+  function initScrollspy() {
+    var links = navLinks();
+    if (!links.length || document.body.dataset.spyWired) return;
+    document.body.dataset.spyWired = '1';
+    var byId = Object.create(null);
+    links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+    var targets = Object.keys(byId)
+      .map(function (id) { return document.getElementById(id); })
+      .filter(Boolean);
+    if (!targets.length || !w.IntersectionObserver) return;
+    var seen = Object.create(null);
+    var obs = new w.IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { seen[e.target.id] = e.isIntersecting; });
+      var active = targets.filter(function (t) { return seen[t.id]; })[0];
+      links.forEach(function (a) { a.classList.remove('nav-active'); });
+      if (active && byId[active.id]) byId[active.id].classList.add('nav-active');
+    }, { rootMargin: '-80px 0px -70% 0px' });
+    targets.forEach(function (t) { obs.observe(t); });
+  }
+
+  function initCopyButtons() {
+    Array.prototype.forEach.call(
+      document.querySelectorAll('.example-code'),
+      function (box) {
+        if (box.querySelector('.copy-btn')) return;
+        var pre = box.querySelector('pre');
+        if (!pre) return;
+        var btn = document.createElement('button');
+        btn.className = 'copy-btn';
+        btn.type = 'button';
+        btn.textContent = 'Kopier';
+        btn.addEventListener('click', function () {
+          var text = pre.textContent;
+          var done = function () {
+            btn.textContent = 'Kopiert';
+            w.setTimeout(function () { btn.textContent = 'Kopier'; }, 1400);
+          };
+          if (w.navigator && w.navigator.clipboard) {
+            w.navigator.clipboard.writeText(text).then(done, function () {});
+          }
+        });
+        box.appendChild(btn);
+      });
+  }
+
+  w.HjelpUI = {
+    matchNav: matchNav,
+    initNavFilter: initNavFilter,
+    initScrollspy: initScrollspy,
+    initCopyButtons: initCopyButtons,
+  };
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', function () {
+      initNavFilter(); initScrollspy(); initCopyButtons();
+    });
+  }
+})(typeof window !== 'undefined' ? window : this);
+/* SYNC:END */
 </script>
 </body>
 </html>
