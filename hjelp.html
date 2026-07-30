@@ -240,6 +240,9 @@ nav a.nav-active {
   <a href="#hurtigstart">30 sekunder</a>
   <a href="#running">Kjøre</a>
   <a href="#microdata">Microdata-kommandoer</a>
+  <div class="nav-section">Tillit</div>
+  <a href="#tillit">Tillitsmodellen</a>
+  <a href="#kilder">Beskyttede kilder</a>
   <div class="nav-section">Editoren</div>
   <a href="#editor">Editor og snarveier</a>
   <a href="#tab-intro">Tab-autocomplete</a>
@@ -315,6 +318,52 @@ df.groupby("kjonn")["lonn"].mean()</code></pre>
     </div>
 
     <p>Du fikk et gruppegjennomsnitt. Prøv nå <code>df.head()</code> i stedet — det finnes ikke, og <a href="#strict-py">Restricted Python</a> forklarer hvorfor.</p>
+  </section>
+
+  <!-- ── TILLIT ── -->
+  <section id="tillit">
+    <h2>Tillitsmodellen</h2>
+    <p>Alt henger på ett spørsmål: <em>hvor kjører koden din, og hva får forlate det stedet?</em> Svaret bestemmes av datakildens beskyttelsesnivå — ikke av hva du selv velger.</p>
+
+    <div class="overview">
+      <table class="doc-table">
+        <thead><tr><th>Nivå</th><th>Hvor koden kjører</th><th>Profil</th><th>Sandkasse tillatt</th></tr></thead>
+        <tbody>
+          <tr><td><code>public</code></td><td>I nettleseren din</td><td>OPEN</td><td>Ja</td></tr>
+          <tr><td><code>protected</code></td><td>På serveren, i sandkasse</td><td>STRICT</td><td>Ja — dette er forskningskonfigurasjonen</td></tr>
+          <tr><td><code>sensitive</code></td><td>Aldri som sandkassekode</td><td>STRICT</td><td>Nei — koden oversettes til et artefakt i stedet</td></tr>
+        </tbody>
+      </table>
+      <p class="overview-hint">Blander du flere kilder, vinner det <strong>mest restriktive</strong> nivået.</p>
+    </div>
+
+    <h3>To profiler</h3>
+    <table class="doc-table">
+      <thead><tr><th>Profil</th><th>Hva som er i navnerommet</th><th>Forsvaret</th></tr></thead>
+      <tbody>
+        <tr><td><strong>OPEN</strong></td><td>Ekte pandas og den rå datarammen</td><td>Oppregning: en portvokter på syntaksnoder, en nektliste på metoder, og en proveniensjekk på vei ut. «Sannsynligvis trygt» — hele pandas er angrepsflate.</td></tr>
+        <tr><td><strong>STRICT</strong></td><td>Bare <code>SafeFrame</code>-fasaden og de trygge verbene. Ingen pandas, ingen rå dataramme.</td><td>Konstruksjon: de avslørende mulighetene <em>finnes ikke</em>. Angrepsflaten er den korte, lukkede metodelista.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout tip">
+      <strong>Skru på selv:</strong> <code># options.profile = strict</code> øverst i skriptet, i python-, r- eller duckdb-modus. Beskyttede kilder tvinger strict uansett hva du skriver.
+    </div>
+  </section>
+
+  <!-- ── KILDER ── -->
+  <section id="kilder">
+    <h2>Beskyttede kilder</h2>
+    <p>En beskyttet kilde er kryptert på disk og låses opp med en nøkkel du oppgir. Nøkkelen brukes til å dekryptere, aldri til å sende data ut.</p>
+    <table class="doc-table">
+      <thead><tr><th>Kilde</th><th>Låses opp med</th><th>Hvor nøkkelen bor</th></tr></thead>
+      <tbody>
+        <tr><td>Passordbeskyttet fil</td><td>Passord i dialogen</td><td>Bare i minnet, forsvinner ved reload</td></tr>
+        <tr><td>Kryptert datasett (<code>.enc</code>)</td><td>Nøkkel fra nøkkellageret</td><td>Nøkkellageret, knyttet til kontoen din</td></tr>
+        <tr><td>Federert node</td><td>Node-token</td><td>På noden — data forlater den aldri</td></tr>
+      </tbody>
+    </table>
+    <p>Nøkkellageret er beskrevet under <a href="#federert">Federerte kilder</a>, siden de to hører sammen i praksis.</p>
   </section>
 
   <!-- ── RUNNING ── -->

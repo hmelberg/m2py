@@ -129,6 +129,23 @@ def test_denne_siden_dekker_tabell():
     assert 'class="overview"' in m.group(0), "intro mangler oversiktstabell"
 
 
+def test_tillit_og_kilder_finnes():
+    ids = grab("hjelp.html").section_ids
+    for s in ("tillit", "kilder"):
+        assert s in ids, f"mangler seksjon #{s}"
+
+
+def test_tillit_har_oversiktstabell():
+    text = read("hjelp.html")
+    m = re.search(r'<section id="tillit".*?</section>', text, re.DOTALL)
+    assert m, "fant ikke tillit-seksjonen"
+    blokk = m.group(0)
+    assert 'class="doc-table"' in blokk, "tillit mangler tabell"
+    # De tre nivåene skal navngis eksplisitt.
+    for niva in ("public", "protected", "sensitive"):
+        assert niva in blokk, f"tillit nevner ikke nivået «{niva}»"
+
+
 @pytest.mark.xfail(
     strict=True,
     reason="Tasks 5-7 legger til #tillit, #kilder, #strict-py, #strict-r",
