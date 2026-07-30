@@ -323,19 +323,21 @@ df.groupby("kjonn")["lonn"].mean()</code></pre>
   <!-- ── TILLIT ── -->
   <section id="tillit">
     <h2>Tillitsmodellen</h2>
-    <p>Alt henger på ett spørsmål: <em>hvor kjører koden din, og hva får forlate det stedet?</em> Svaret bestemmes av datakildens beskyttelsesnivå — ikke av hva du selv velger.</p>
+    <p>Alt henger på ett spørsmål: <em>hvor kjører koden din, og hva får forlate det stedet?</em> En beskyttet kilde bestemmer svaret selv, uansett hva du skriver i skriptet. På offentlige data er valget derimot ditt — du kan be om den samme strenge fasaden selv, før du i det hele tatt kobler til en beskyttet kilde.</p>
 
     <div class="overview">
       <table class="doc-table">
-        <thead><tr><th>Nivå</th><th>Hvor koden kjører</th><th>Profil</th><th>Sandkasse tillatt</th></tr></thead>
+        <thead><tr><th>Nivå</th><th>Hvor koden kjører</th><th>Profil i SafeStat</th><th>Begrensning</th></tr></thead>
         <tbody>
-          <tr><td><code>public</code></td><td>I nettleseren din</td><td>OPEN</td><td>Ja</td></tr>
-          <tr><td><code>protected</code></td><td>På serveren, i sandkasse</td><td>STRICT</td><td>Ja — dette er forskningskonfigurasjonen</td></tr>
-          <tr><td><code>sensitive</code></td><td>Aldri som sandkassekode</td><td>STRICT</td><td>Nei — koden oversettes til et artefakt i stedet</td></tr>
+          <tr><td><code>public</code></td><td>I nettleseren din</td><td>OPEN, med mindre du ber om strict</td><td>Ingen</td></tr>
+          <tr><td><code>protected</code></td><td>Bak fasaden — lokalt eller på node</td><td>STRICT, alltid</td><td>Krever innlogging; kjøringen logges</td></tr>
+          <tr><td><code>sensitive</code></td><td>Bak fasaden, kun på node</td><td>STRICT, alltid</td><td>Som protected, og kan IKKE brukes med pull-federering — krever node-medlem</td></tr>
         </tbody>
       </table>
       <p class="overview-hint">Blander du flere kilder, vinner det <strong>mest restriktive</strong> nivået.</p>
     </div>
+
+    <p>SafeStat kjører alltid beskyttede kilder gjennom fasaden, uansett hva du skriver — det er appen som håndhever det, ikke biblioteket.</p>
 
     <h3>To profiler</h3>
     <table class="doc-table">
