@@ -1074,6 +1074,11 @@
         let sources = null;
         let _lastRender = 0;
         let resume = null;
+        // Editor context only rides along when the user ticked "Inkluder
+        // skript fra editor" — matches sendMessage() above (~535).
+        // data-svar-prompt.ts's script?.trim() check drops the section
+        // cleanly when omitted, so gating it here can't break the repair loop.
+        const includeScript = dom.aiIncludeScript.checked && dom.scriptInput && dom.scriptInput.value.trim();
         for (let hop = 0; ; hop++) {
           if (hop > 40) throw new Error(T('Avbrutt: svaret ble ikke ferdig etter 40 fortsettelses-runder.'));
           const resp = await fetch('/api/data-svar', {
@@ -1082,7 +1087,7 @@
             body: JSON.stringify({
               question,
               mode,
-              script: scrubScript((dom.scriptInput && dom.scriptInput.value) || ''),
+              script: includeScript ? scrubScript(dom.scriptInput.value) : undefined,
               repair: repair ? { script: repair.script, error: repair.error, round } : undefined,
               resume: resume || undefined,
             }),
