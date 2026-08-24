@@ -3,17 +3,17 @@
 // safepy/docs/plan-integration.md; the key is format-checked only here, so
 // this endpoint is reachable with a fabricated key, bounded by the per-IP
 // rate limit — accepted by the owner 2026-07-04). GET /api/hent?url=…[&body=…]
-import { adminGate } from "./_lib/auth.ts";
+import { adminGate, type IpContext } from "./_lib/auth.ts";
 import { loadRegistry } from "./_lib/registry.ts";
 import { handleHent } from "./_lib/hent-core.ts";
 
-export default async (request: Request): Promise<Response> => {
+export default async (request: Request, context: IpContext): Promise<Response> => {
   const gateResp = await adminGate(request, {
     endpoint: "hent",
     maxBodyBytes: 0,
     allowedMethods: ["GET"],
     allowByok: true,
-  });
+  }, context);
   if (gateResp) return gateResp;
 
   let registry;
