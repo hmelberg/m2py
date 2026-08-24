@@ -1,6 +1,6 @@
 import { detectLanguage } from "./_lib/parse-script-context.ts";
 import { streamAnthropic } from "./_lib/anthropic.ts";
-import { extractByokKey, gate, upstreamErrorResponse } from "./_lib/auth.ts";
+import { extractByokKey, gate, upstreamErrorResponse, type IpContext } from "./_lib/auth.ts";
 
 interface RequestBody {
   script?: string;
@@ -73,8 +73,8 @@ function languageInstruction(requested: string, detected: string): string {
   return `Detektert språk: ${detected}.`;
 }
 
-export default async (request: Request): Promise<Response> => {
-  const gateResp = await gate(request, { endpoint: "tolk-resultat", maxBodyBytes: 120_000, allowByok: true });
+export default async (request: Request, context: IpContext): Promise<Response> => {
+  const gateResp = await gate(request, { endpoint: "tolk-resultat", maxBodyBytes: 120_000, allowByok: true }, context);
   if (gateResp) return gateResp;
 
   let body: RequestBody;

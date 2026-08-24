@@ -1,6 +1,6 @@
 // /api/data-svar — Web mode: agentic discovery + generation (admin-only).
 // Spec: docs/superpowers/specs/2026-07-03-web-data-svar-design.md
-import { adminGate, extractByokKey } from "./_lib/auth.ts";
+import { adminGate, extractByokKey, type IpContext } from "./_lib/auth.ts";
 import { type AgenticResumeState, runAgenticStream } from "./_lib/anthropic.ts";
 import { loadRegistry, renderRegistryBlock } from "./_lib/registry.ts";
 import { searchCatalog } from "./_lib/tools/search-catalog.ts";
@@ -35,8 +35,8 @@ function validResumeState(s: AgenticResumeState | undefined): s is AgenticResume
     typeof s.usage === "object" && s.usage !== null;
 }
 
-export default async (request: Request): Promise<Response> => {
-  const gateResp = await adminGate(request, { endpoint: "data-svar", maxBodyBytes: MAX_BODY_BYTES, allowByok: true });
+export default async (request: Request, context: IpContext): Promise<Response> => {
+  const gateResp = await adminGate(request, { endpoint: "data-svar", maxBodyBytes: MAX_BODY_BYTES, allowByok: true }, context);
   if (gateResp) return gateResp;
 
   let body: RequestBody;

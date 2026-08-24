@@ -6,7 +6,7 @@ import {
   type ScriptContext,
 } from "./_lib/parse-script-context.ts";
 import { streamAnthropic } from "./_lib/anthropic.ts";
-import { extractByokKey, gate, upstreamErrorResponse } from "./_lib/auth.ts";
+import { extractByokKey, gate, upstreamErrorResponse, type IpContext } from "./_lib/auth.ts";
 
 interface RequestBody {
   script: string;
@@ -354,9 +354,9 @@ function languageInstruction(requested: string, detected: Language): string {
 // EDGE FUNCTION HANDLER
 // ====================================================================
 
-export default async (request: Request): Promise<Response> => {
+export default async (request: Request, context: IpContext): Promise<Response> => {
   const MAX_BODY_BYTES = 50_000;
-  const gateResp = await gate(request, { endpoint: "dm-vurder", maxBodyBytes: MAX_BODY_BYTES, allowByok: true });
+  const gateResp = await gate(request, { endpoint: "dm-vurder", maxBodyBytes: MAX_BODY_BYTES, allowByok: true }, context);
   if (gateResp) return gateResp;
 
   let body: RequestBody;

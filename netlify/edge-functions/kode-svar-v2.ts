@@ -1,5 +1,5 @@
 import { messageAnthropic, streamAnthropic } from "./_lib/anthropic.ts";
-import { extractByokKey, gate, upstreamErrorResponse } from "./_lib/auth.ts";
+import { extractByokKey, gate, upstreamErrorResponse, type IpContext } from "./_lib/auth.ts";
 import { buildCachedPrefix, coerceMode, type GenMode } from "./kode-svar.ts";
 import {
   type CatalogMeta,
@@ -98,8 +98,8 @@ function inlineLabelCount(v: Record<string, unknown> | undefined): number {
   return l && typeof l === "object" ? Object.keys(l as Record<string, unknown>).length : 0;
 }
 
-export default async (request: Request): Promise<Response> => {
-  const gateResp = await gate(request, { endpoint: "kode-svar-v2", maxBodyBytes: 50_000, allowByok: true });
+export default async (request: Request, context: IpContext): Promise<Response> => {
+  const gateResp = await gate(request, { endpoint: "kode-svar-v2", maxBodyBytes: 50_000, allowByok: true }, context);
   if (gateResp) return gateResp;
 
   let body: RequestBody;

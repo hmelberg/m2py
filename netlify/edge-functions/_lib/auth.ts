@@ -39,8 +39,12 @@ export function timingSafeEqual(a: string, b: string): boolean {
  * do NOT fall back to it (that fallback let a client spoof its IP to dodge the
  * per-IP limit).
  */
-export function clientIp(request: Request): string {
-  return request.headers.get("x-nf-client-connection-ip") ?? "";
+export interface IpContext {
+  ip?: string;
+}
+
+export function clientIp(request: Request, context?: IpContext): string {
+  return (context?.ip ?? "") || (request.headers.get("x-nf-client-connection-ip") ?? "");
 }
 
 /**
@@ -109,6 +113,7 @@ async function runBaseChecks(
   opts: GateOptions,
   checkRateLimit: GateDeps["checkRateLimit"],
   requireToken = true,
+  context?: IpContext,
 ): Promise<BaseCheckResult> {
   // 1. token presence (free) — skipped for BYOK requests, which carry the
   // user's own Anthropic key instead of an account token.
@@ -145,7 +150,7 @@ async function runBaseChecks(
   }
 
   // 4. rate-limit BEFORE the expensive Anvil validation (no amplification)
-  const rate = await checkRateLimit(opts.endpoint, clientIp(request));
+  const rate = await checkRateLimit(opts.endpoint, clientIp(request, context));
   if (!rate.allowed) {
     return {
       presentedToken,
@@ -167,13 +172,14 @@ export async function runGate(
   request: Request,
   opts: GateOptions,
   deps: GateDeps,
+  context?: IpContext,
 ): Promise<Response | null> {
   const byokKey = opts.allowByok ? extractByokKey(request) : null;
   const { presentedToken, failure } = await runBaseChecks(
     request,
     opts,
     deps.checkRateLimit,
-    /* requireToken */ byokKey === null,
+    /* requireToken */ byokKey === null, context,
   );
   if (failure) return failure;
 
@@ -237,7 +243,7 @@ export function makeAnvilValidator(
 }
 
 /** Env-wired gate used by the handlers. */
-export function gate(request: Request, opts: GateOptions): Promise<Response | null> {
+export function gate(request: Request, opts: GateOptions, context?: IpContext): Promise<Response | null> {
   const anvilUrl = Deno.env.get("M2PY_ANVIL_VALIDATE_URL") ?? ANVIL_DEFAULT_URL;
   return runGate(request, opts, {
     sharedToken: Deno.env.get("M2PY_ACCESS_TOKEN") ?? undefined,
@@ -245,7 +251,7 @@ export function gate(request: Request, opts: GateOptions): Promise<Response | nu
     validateToken: makeAnvilValidator(anvilUrl),
     now: () => Date.now(),
     cache: _authCache,
-  });
+  }, context);
 }
 
 export interface UserInfo {
@@ -296,13 +302,14 @@ export async function runAdminGate(
   request: Request,
   opts: GateOptions,
   deps: AdminGateDeps,
+  context?: IpContext,
 ): Promise<Response | null> {
   const byokKey = opts.allowByok ? extractByokKey(request) : null;
   const { presentedToken, failure } = await runBaseChecks(
     request,
     opts,
     deps.checkRateLimit,
-    /* requireToken */ byokKey === null,
+    /* requireToken */ byokKey === null, context,
   );
   if (failure) return failure;
 
@@ -333,7 +340,7 @@ export async function runAdminGate(
 }
 
 /** Env-wired admin gate used by data-svar and hent. */
-export function adminGate(request: Request, opts: GateOptions): Promise<Response | null> {
+export function adminGate(request: Request, opts: GateOptions, context?: IpContext): Promise<Response | null> {
   const anvilUrl = Deno.env.get("M2PY_ANVIL_VALIDATE_URL") ?? ANVIL_DEFAULT_URL;
   return runAdminGate(request, opts, {
     sharedToken: Deno.env.get("M2PY_ACCESS_TOKEN") ?? undefined,
@@ -341,5 +348,5 @@ export function adminGate(request: Request, opts: GateOptions): Promise<Response
     fetchUser: makeAnvilUserFetcher(anvilUrl),
     now: () => Date.now(),
     cache: _adminCache,
-  });
+  }, context);
 }

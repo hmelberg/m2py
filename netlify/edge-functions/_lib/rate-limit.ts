@@ -2,7 +2,9 @@
 import { getStore } from "https://esm.sh/@netlify/blobs@7";
 
 const WINDOW_MS = 60 * 60 * 1000;
-const MAX_CALLS = 10;
+// Generous on purpose: these are interactive endpoints, and 10/hour ran out
+// mid-session. This is an abuse guard, not a quota.
+const MAX_CALLS = 60;
 
 interface RateRecord {
   calls: number[];
@@ -17,9 +19,15 @@ export async function checkRateLimit(
   endpoint: string,
   ip: string,
   // Injectable for tests; defaults to the Netlify Blobs store.
-  getStoreImpl: (name: string) => RateStore = getStore as unknown as (
-    name: string,
-  ) => RateStore,
+  getStoreImpl: (name: string) => RateStore = ((name: string) =>
+    (getStore as unknown as (opts: { name: string; consistency: string }) => RateStore)({
+      name,
+      // Strong consistency is REQUIRED. With the default (eventual), the
+      // writes below succeed but the reads above never see them, so the
+      // counter stays empty and the limit silently never fires — measured
+      // against prod on 2026-08-24 before this change.
+      consistency: "strong",
+    })),
 ): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
   if (!ip) return { allowed: true, retryAfterSeconds: 0 };
   try {
