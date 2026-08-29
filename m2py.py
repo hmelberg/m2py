@@ -125,10 +125,15 @@ _M2PY_MESSAGES_EN = {
     'reshape-to-panel krever minst ett variabel-prefiks, f.eks. `reshape-to-panel lonn` når datasettet har lonn2014, lonn2018.': 'reshape-to-panel requires at least one variable prefix, e.g. `reshape-to-panel lonn` when the dataset has lonn2014, lonn2018.',
     'robust: kunne ikke beregne robuste standardfeil ({err_type}: {err}).': 'robust: could not compute robust standard errors ({err_type}: {err}).',
     # --- regress-mml (flernivåanalyse) ---
-    'regress-mml støtter ikke control() ennå — skriv '
-    'variablene i variabellista i stedet.':
-        'regress-mml does not support control() yet — put the variables in the '
+    'control() krever minst én variabel, '
+    'f.eks. control(i.bosted, i.næring).':
+        'control() requires at least one variable, e.g. control(i.bosted, i.industry).',
+    'control() støttes ikke for {cmd} — skriv variablene i '
+    'variabellista i stedet.':
+        'control() is not supported for {cmd} — put the variables in the '
         'variable list instead.',
+    'control: {vars} — med i modellen, koeffisienter skjult':
+        'control: {vars} — in the model, coefficients hidden',
     'regress-mml støtter høyst to gruppevariabler '
     '(tre nivåer). Fikk {n}: {names}':
         'regress-mml supports at most two group variables (three levels). '
@@ -144,7 +149,16 @@ _M2PY_MESSAGES_EN = {
         'Multilevel model (MML, REML): {dep} — {n} levels',
     'Nivå {lvl} (øverst)': 'Level {lvl} (top)',
     'Nivå {lvl}': 'Level {lvl}',
-    '  {label}: {g} — {n} grupper': '  {label}: {g} — {n} groups',
+    '  {label}: {g} — {n} grupper '
+    '(min {mn}, maks {mx}, gjennomsnitt {avg})':
+        '  {label}: {g} — {n} groups (min {mn}, max {mx}, mean {avg})',
+    '  Antall obs:        {n}': '  No. obs:           {n}',
+    '  Log likelihood:    {v}': '  Log likelihood:    {v}',
+    '  {label} chi2({df}) = {v}   p = {p}':
+        '  {label} chi2({df}) = {v}   p = {p}',
+    'LR-test mot OLS:': 'LR test vs OLS:',
+    'Wald coef:': 'Wald coef:',
+    'Wald total:': 'Wald total:',
     # --- oaxaca (Blinder-Oaxaca) ---
     'oaxaca støtter ikke cluster(). Bruk robust for '
     'robuste standardfeil.':
@@ -5626,6 +5640,51 @@ class StatsEngine:
             return results
 
 class RegressionHandler:
+    # control(): variablene er MED i modellen, men koeffisientene skjules.
+    # Manualen dokumenterer opsjonen for regress og viser til den fra
+    # regress-mml. Andre regresjonskommandoer avviser den heller enn å
+    # ignorere den stille — en skjult ekstra variabel endrer alle estimatene.
+    _CONTROL_COMMANDS = frozenset({'regress', 'regress-predict',
+                                   'regress-mml', 'regress-mml-predict'})
+
+    @staticmethod
+    def _control_vars(options):
+        """control(i.bosted, i.næring) -> ['i.bosted', 'i.næring']."""
+        raw = options.get('control')
+        if raw in (None, False):
+            return []
+        if raw is True:
+            raise ValueError(_t("control() krever minst én variabel, "
+                                "f.eks. control(i.bosted, i.næring)."))
+        return [t for t in re.split(r'[,\s]+', str(raw).strip()) if t]
+
+    @staticmethod
+    def _hide_control_rows(summary_text, hidden):
+        """Fjern koeffisientradene for control()-variablene fra en
+        statsmodels-summary. Gjøres på tekstnivå fordi OLS og MixedLM bruker
+        ulike tabelltyper (SimpleTable vs DataFrame), og fordi rekonstruksjon
+        av tabellobjektet ødelegger kolonnejusteringen. En linje fjernes bare
+        når den BÅDE starter med et skjult variabelnavn OG ser ut som en
+        koeffisientrad (navnet etterfulgt av minst tre tall) — ellers ville
+        control(x) også truffet en rad for x1."""
+        if not hidden:
+            return summary_text
+        rx = re.compile(r'^\s*(\S+)((?:\s+-?\d+\.?\d*(?:[eE][-+]?\d+)?){3,})\s*$')
+        keep = []
+        for line in summary_text.splitlines():
+            m = rx.match(line)
+            if m and m.group(1) in hidden:
+                continue
+            keep.append(line)
+        return "\n".join(keep)
+
+    def _with_control_note(self, summary_text, control_raw, hidden):
+        if not control_raw:
+            return summary_text
+        note = _t("control: {vars} — med i modellen, koeffisienter skjult",
+                  vars=', '.join(control_raw))
+        return note + "\n" + self._hide_control_rows(summary_text, hidden)
+
     def _add_const(self, X, add):
         sm, _ = _ensure_statsmodels()
         return sm.add_constant(X) if add else X
@@ -5811,15 +5870,30 @@ class RegressionHandler:
     # topp-gruppa — bygd for hånd, ikke via formel-API-et, fordi patsy ikke er
     # garantert tilgjengelig i Pyodide.
 
+    @staticmethod
+    def _reml_llf_ols(y, X):
+        """REML-loglikelihood for y = Xb + e UTEN tilfeldige effekter.
+
+        LR-testen microdata.no rapporterer sammenlikner flernivåmodellen med
+        en vanlig OLS. statsmodels' OLS.llf er ML og kan ikke sammenliknes med
+        MixedLM sin REML-verdi. Denne kan: på data uten gruppeeffekt faller
+        MixedLM sin REML-llf sammen med den (verifisert i testene), så den
+        sparer oss for en ekstra modelltilpasning."""
+        y = np.asarray(y, dtype=np.float64).ravel()
+        X = np.asarray(X, dtype=np.float64)
+        n, p = X.shape
+        beta, *_ = np.linalg.lstsq(X, y, rcond=None)
+        dof = n - p
+        sig2 = float(np.sum((y - X @ beta) ** 2)) / dof
+        _sign, logdet = np.linalg.slogdet(X.T @ X)
+        return -0.5 * (dof * np.log(2 * np.pi * sig2) + dof + logdet)
+
     def _mml_fit(self, df, dep_var, raw_indep, groups, options):
         """Estimer flernivåmodellen. Returnerer dict med modellen, radindeksen
         den er estimert på, og prediksjon inkludert gruppeeffektene (BLUP)."""
         sm, _ = _ensure_statsmodels()
         add_const = 'noconstant' not in options
 
-        if options.get('control'):
-            raise ValueError(_t("regress-mml støtter ikke control() ennå — skriv "
-                                "variablene i variabellista i stedet."))
         if len(groups) > 2:
             raise ValueError(_t("regress-mml støtter høyst to gruppevariabler "
                                 "(tre nivåer). Fikk {n}: {names}",
@@ -5830,6 +5904,20 @@ class RegressionHandler:
                                 missing=missing_g))
 
         indep_vars, computed, cont_bases = self._expand_factor_design(raw_indep, df)
+
+        control_raw = self._control_vars(options)
+        hidden_terms = set()
+        if control_raw:
+            c_vars, c_computed, c_bases = self._expand_factor_design(control_raw, df)
+            hidden_terms = set(c_vars) - set(indep_vars)
+            for v in c_vars:
+                if v not in indep_vars:
+                    indep_vars.append(v)
+            computed.update(c_computed)
+            for b in c_bases:
+                if b not in cont_bases:
+                    cont_bases.append(b)
+
         cont_vars = [dep_var] + [b for b in cont_bases if b != dep_var]
         missing = [v for v in cont_vars if v not in df.columns]
         if missing:
@@ -5889,9 +5977,58 @@ class RegressionHandler:
 
         return {
             'model': model, 'index': clean.index, 'dep': dep_var, 'groups': groups,
+            'control': control_raw, 'hidden': hidden_terms,
             'n_groups': [int(clean[g].nunique()) for g in groups],
+            'group_sizes': [clean.groupby(g).size() for g in groups],
             'predicted': predicted, 'observed': Y,
         }
+
+    def _mml_stats(self, r):
+        """Størrelsene microdata.no rapporterer for regress-mml: antall obs,
+        log likelihood, LR-test mot OLS uten gruppevariabler, Wald-test for
+        forklaringsvariablene, og Wald-test der variansleddene også inngår.
+        Hver enkelt størrelse hoppes over hvis den ikke lar seg regne ut —
+        resten av resultatet er fortsatt nyttig."""
+        from scipy import stats as _st
+        m = r['model']
+        lines = [_t("  Antall obs:        {n}", n=len(r['index'])),
+                 _t("  Log likelihood:    {v}", v=f"{float(m.llf):.3f}")]
+
+        def _row(label, stat, dfree):
+            if dfree <= 0 or not np.isfinite(stat):
+                return
+            lines.append(_t("  {label} chi2({df}) = {v}   p = {p}",
+                            label=f"{label:<17}", df=dfree,
+                            v=f"{max(float(stat), 0.0):.3f}".rjust(10),
+                            p=f"{_st.chi2.sf(max(float(stat), 0.0), dfree):.4f}"))
+
+        try:
+            lr = 2 * (float(m.llf) - self._reml_llf_ols(
+                np.asarray(m.model.endog), np.asarray(m.model.exog)))
+            _row(_t("LR-test mot OLS:"), lr, len(r['groups']))
+        except Exception:
+            pass
+
+        try:
+            names = list(m.params.index)
+            k_fe = int(m.model.k_fe)
+            fe_idx = [i for i in range(k_fe) if str(names[i]) != 'const']
+            vc_idx = list(range(k_fe, len(names)))
+
+            def _wald(idx, label):
+                if not idx:
+                    return
+                R = np.zeros((len(idx), len(names)))
+                for row, j in enumerate(idx):
+                    R[row, j] = 1.0
+                w = m.wald_test(R, scalar=True)
+                _row(label, float(w.statistic), len(idx))
+
+            _wald(fe_idx, _t("Wald coef:"))
+            _wald(fe_idx + vc_idx, _t("Wald total:"))
+        except Exception:
+            pass
+        return lines
 
     def _execute_mml(self, cmd, df, args, options):
         if not isinstance(args, dict) or not args.get('groups') or not args.get('dep'):
@@ -5905,11 +6042,17 @@ class RegressionHandler:
         n_lvl = len(r['groups']) + 1
         head = [_t("Flernivåmodell (MML, REML): {dep} — {n} nivåer",
                    dep=r['dep'], n=n_lvl)]
-        for i, (g, n) in enumerate(zip(r['groups'], r['n_groups'])):
+        for i, (g, n, sizes) in enumerate(zip(r['groups'], r['n_groups'], r['group_sizes'])):
             label = (_t("Nivå {lvl} (øverst)", lvl=n_lvl) if i == 0 and n_lvl > 2
                      else _t("Nivå {lvl}", lvl=n_lvl - i))
-            head.append(_t("  {label}: {g} — {n} grupper", label=label, g=g, n=n))
-        summary = "\n".join(head) + "\n\n" + str(r['model'].summary(alpha=alpha))
+            head.append(_t("  {label}: {g} — {n} grupper "
+                           "(min {mn}, maks {mx}, gjennomsnitt {avg})",
+                           label=label, g=g, n=n, mn=int(sizes.min()),
+                           mx=int(sizes.max()), avg=f"{float(sizes.mean()):.1f}"))
+        head.append("")
+        head.extend(self._mml_stats(r))
+        summary = "\n".join(head) + "\n\n" + self._with_control_note(
+            str(r['model'].summary(alpha=alpha)), r['control'], r['hidden'])
 
         if cmd == 'regress-mml-predict':
             extra = {}
@@ -6161,6 +6304,23 @@ class RegressionHandler:
         # a##b → full kryssing. Referansekategori droppes (drop_first=True).
         indep_vars, _computed_cols, _cont_bases = self._expand_factor_design(raw_indep, df)
 
+        control_raw = self._control_vars(options)
+        hidden_terms = set()
+        if control_raw:
+            if cmd not in self._CONTROL_COMMANDS:
+                raise ValueError(
+                    _t("control() støttes ikke for {cmd} — skriv variablene i "
+                       "variabellista i stedet.", cmd=cmd))
+            _c_vars, _c_computed, _c_bases = self._expand_factor_design(control_raw, df)
+            hidden_terms = set(_c_vars) - set(indep_vars)
+            for _v in _c_vars:
+                if _v not in indep_vars:
+                    indep_vars.append(_v)
+            _computed_cols.update(_c_computed)
+            for _b in _c_bases:
+                if _b not in _cont_bases:
+                    _cont_bases.append(_b)
+
         # Kontinuerlige basisvariabler (+ evt. cluster) som hentes fra df
         cont_vars = [dep_var] + [b for b in _cont_bases if b != dep_var]
         if options.get('cluster') and options['cluster'] not in cont_vars:
@@ -6191,7 +6351,8 @@ class RegressionHandler:
         if cmd == 'regress':
             model = sm.OLS(Y, X).fit()
             model = self._apply_cov(model, options, df_clean)
-            return (str(model.summary(alpha=alpha)), None)
+            return (self._with_control_note(str(model.summary(alpha=alpha)),
+                                            control_raw, hidden_terms), None)
 
         if cmd == 'probit':
             model = Probit(Y, X).fit(disp=0)
@@ -6479,7 +6640,8 @@ class RegressionHandler:
                 from statsmodels.stats.outliers_influence import OLSInfluence
                 inf = OLSInfluence(model)
                 extra[str(cook_name) if cook_name != True else 'cooksd'] = pd.Series(inf.cooks_distance[0], index=df_clean.index)
-            return (str(model.summary(alpha=alpha)), extra)
+            return (self._with_control_note(str(model.summary(alpha=alpha)),
+                                            control_raw, hidden_terms), extra)
 
         if cmd in ('probit-predict', 'logit-predict'):
             if cmd == 'probit-predict':

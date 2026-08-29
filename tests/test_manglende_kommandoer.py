@@ -7,6 +7,8 @@ ved å kjøre hele manuallista mot emulatoren):
 
 Manual: https://microdata.no/manual/kommandoer_og_funksjoner/kommandoer
 """
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -164,9 +166,11 @@ class TestRegressMml:
         out, _ = _run(_multilevel_data(), "regress-mml lonn mann by region fylke kommune")
         assert "FEIL" in out and "høyst to" in out
 
-    def test_control_avvises_hoeyt_i_stedet_for_aa_ignoreres_stille(self):
+    def test_control_holder_variabelen_i_modellen_men_skjuler_den(self):
+        """control() ble implementert 2026-08-30; se tests/test_control_option.py
+        for full dekning."""
         out, _ = _run(_multilevel_data(), "regress-mml lonn mann by region, control(fylke)")
-        assert "FEIL" in out and "control" in out
+        assert "FEIL" not in out and "control" in out.lower()
 
     def test_trenivaa_matcher_patsy_referansen(self):
         """VCSpec bygges for hånd (patsy er ikke garantert i Pyodide) — den må gi
@@ -332,6 +336,88 @@ class TestEngelskeMeldinger:
         out = self._en(_multilevel_data(), "regress-mml lonn mann by a b c")
         assert "at most two" in out
 
-    def test_mml_control_feilmelding_oversettes(self):
+    def test_control_notatet_oversettes(self):
         out = self._en(_multilevel_data(), "regress-mml lonn mann by region, control(fylke)")
-        assert "does not support control()" in out
+        assert "coefficients hidden" in out and "skjult" not in out
+
+
+# ---------------------------------------------------------------------------
+# Statistikkblokken microdata.no rapporterer for regress-mml
+# (https://www.microdata.no/ny-analysefunksjonalitet-flernivaanalyse/):
+# Antall Obs, Log Likelihood, LR-test mot OLS, Wald coef, Wald total,
+# N grupper / Min / Maks / Gjennomsnitt PER gruppevariabel, og
+# Random Effects Variance per nivå.
+# ---------------------------------------------------------------------------
+
+def _stat(out, label):
+    m = re.search(rf"{re.escape(label)}[^\n]*?chi2\((\d+)\)\s*=\s*(-?[\d.]+)\s+p\s*=\s*([\d.]+)",
+                  out)
+    return (int(m.group(1)), float(m.group(2)), float(m.group(3))) if m else None
+
+
+class TestMmlStatistikkblokk:
+    def test_analytisk_reml_llf_for_ols_matcher_statsmodels(self):
+        """LR-testen sammenlikner REML-loglikelihood, og OLS sin .llf er ML.
+        Referansen regnes derfor analytisk. På data UTEN gruppeeffekt skal
+        MixedLM sin REML-llf falle sammen med den analytiske OLS-verdien."""
+        rng = np.random.default_rng(4)
+        n = 1500
+        g = np.repeat(np.arange(50), 30)
+        X = sm.add_constant(pd.DataFrame({"x": rng.normal(0, 1, n)}))
+        y = pd.Series(1 + 0.5 * X["x"] + rng.normal(0, 1, n))
+        mm = sm.MixedLM(y, X, groups=g).fit(reml=True)
+        assert RegressionHandler()._reml_llf_ols(y.to_numpy(), X.to_numpy(float)) == \
+            pytest.approx(mm.llf, abs=1e-4)
+
+    def test_lr_test_mot_ols_rapporteres(self):
+        out, _ = _run(_multilevel_data(), "regress-mml lonn mann by region")
+        got = _stat(out, "LR-test")
+        assert got is not None, out
+        df, stat, p = got
+        assert df == 1 and stat > 0 and p < 0.05      # ekte gruppevarians i dataene
+
+    def test_lr_test_har_en_frihetsgrad_per_gruppevariabel(self):
+        out, _ = _run(_multilevel_data(), "regress-mml lonn mann by region fylke")
+        assert _stat(out, "LR-test")[0] == 2
+
+    def test_lr_statistikken_er_2_ganger_llf_differansen(self):
+        df = _multilevel_data()
+        out, _ = _run(df, "regress-mml lonn mann by region")
+        r = RegressionHandler()._mml_fit(df, "lonn", ["mann"], ["region"], {})
+        X = sm.add_constant(df.loc[r["index"], ["mann"]].astype(float)).to_numpy(float)
+        ref = 2 * (r["model"].llf -
+                   RegressionHandler()._reml_llf_ols(r["observed"].to_numpy(), X))
+        assert _stat(out, "LR-test")[1] == pytest.approx(ref, abs=5e-3)
+
+    def test_wald_coef_har_en_frihetsgrad_per_forklaringsvariabel(self):
+        df = _multilevel_data()
+        df["alder"] = np.arange(len(df)) % 40 + 20
+        out, _ = _run(df, "regress-mml lonn mann alder by region")
+        assert _stat(out, "Wald coef")[0] == 2
+
+    def test_wald_total_teller_ogsaa_gruppevariablene(self):
+        out, _ = _run(_multilevel_data(), "regress-mml lonn mann by region fylke")
+        assert _stat(out, "Wald coef")[0] == 1
+        assert _stat(out, "Wald total")[0] == 3        # 1 forklaringsvar + 2 gruppevar
+
+    def test_gruppestoerrelser_rapporteres_per_gruppevariabel(self):
+        df = _multilevel_data()
+        out, _ = _run(df, "regress-mml lonn mann by region fylke")
+        for g in ("region", "fylke"):
+            sizes = df.groupby(g).size()
+            rad = next(l for l in out.splitlines() if l.strip().startswith(f"{g}") or f": {g} " in l)
+            assert f"{df[g].nunique()} grupper" in rad
+            assert f"min {sizes.min()}" in rad and f"maks {sizes.max()}" in rad
+
+    def test_antall_obs_og_log_likelihood_rapporteres(self):
+        df = _multilevel_data()
+        out, _ = _run(df, "regress-mml lonn mann by region")
+        assert f"Antall obs" in out and str(len(df)) in out
+        assert "Log likelihood" in out
+
+    def test_blokken_er_borte_naar_modellen_ikke_konvergerer_er_irrelevant(self):
+        """Statistikkblokken skal ikke velte kommandoen hvis en enkeltstørrelse
+        ikke lar seg regne ut — resten av resultatet er fortsatt nyttig."""
+        df = _multilevel_data()
+        out, _ = _run(df, "regress-mml lonn mann by region, noconstant")
+        assert "FEIL" not in out and "Mixed Linear Model" in out

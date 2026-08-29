@@ -185,6 +185,44 @@ alias/. Se openstats commits 35b7f2d + dd46e58.*
       til `key(region aar)` og kompilatoren til `USING (a, b)` — gjøres
       ordentlig, egen økt. Eurostat/OECD kan gjenbruke adapterformen etterpå.
 
+## Flernivåanalyse (regress-mml) — å tenke på
+
+Implementert 2026-08-30 mot microdata.no sin beskrivelse
+(https://www.microdata.no/ny-analysefunksjonalitet-flernivaanalyse/ og
+manualens §regress-mml). Modellen (MixedLM, REML, nøstede tilfeldige
+konstantledd, høyeste nivå først) og statistikkblokken (Antall obs, Log
+likelihood, LR-test mot OLS, Wald coef, Wald total, N/min/maks/gjennomsnitt
+per gruppevariabel, Random Effects Variance) følger beskrivelsen.
+
+- [ ] **Rådene om valg av gruppevariabel bør nå brukeren tidligere enn i
+      hjelpeteksten.** microdata.no gir fem kriterier: teoretisk mening,
+      hierarki, variasjon mellom OG innenfor grupper, gruppestørrelse, og
+      ingen overlapp (overlapp krever kryssede effekter, som kommandoen ikke
+      støtter). De ligger nå i `command_help.js`. Vurder: en advarsel i
+      outputen når en gruppe er svært liten, eller når en gruppevariabel har
+      nesten ingen varians mellom grupper — det er da modellen er verdiløs,
+      og det er ikke synlig for en nybegynner.
+- [ ] **Forarbeidet er en egen arbeidsflyt.** `boxplot lønn, by(fylke)`,
+      `histogram lønn, by(fylke)` og `tabulate fylke, summarize(lønn) std`
+      er det microdata.no anbefaler før man velger gruppevariabel, og
+      `regress` med samme variabler er ettnivå-referansen. Vurder å foreslå
+      denne sekvensen i AI-prompten, eller som et eksempelskript.
+- [ ] **LR-testen er vår tolkning, ikke verifisert mot microdata.no.**
+      REML-loglikelihood kan ikke sammenliknes med OLS sin ML-verdi, så
+      OLS-referansen regnes analytisk (`_reml_llf_ols`, verifisert mot
+      MixedLM på data uten gruppeeffekt). Vi vet ikke om microdata.no gjør
+      det på samme måte — sammenlign mot ekte output når noen har tilgang.
+      Merk også at LR-testen på variansledd er på grensen av
+      parameterrommet, så p-verdien er konservativ.
+- [ ] **Wald coef teller control()-variablene med** blant
+      forklaringsvariablene. Det er den rimelige lesningen av «df = antall
+      forklaringsvariabler», men er ikke bekreftet.
+- [ ] **Kryssede effekter** støttes ikke av microdata.no i dag, og ikke av
+      oss. Hvis de åpner for det, er `VCSpec` allerede veien inn.
+- [ ] **`control()` finnes nå for `regress` og `regress-mml`.** Andre
+      regresjonskommandoer avviser den høyt i stedet for å ignorere den
+      stille. Sjekk om microdata.no faktisk støtter den bredere.
+
 ## Diverse / uavklart
 
 - [ ] **Publiser-flyten og datasett-sidebaren (openstat, Hans tenker):** «Publiser
