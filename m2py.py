@@ -124,6 +124,42 @@ _M2PY_MESSAGES_EN = {
     'reshape-to-panel fant ingen variabler å panele for prefiks(ene) {prefixes_str}. Den trenger kolonner på formen <prefiks><suffiks> der suffikset er tall/dato (f.eks. lonn2014, lonn2018 → prefiks `lonn`). Importer samme variabel på flere datoer med ulike navn FØR reshape, f.eks. `import db/INNTEKT_WLONN 2014-12-31 as lonn2014`. Kolonner i datasettet nå: {cols}.': 'reshape-to-panel found no variables to reshape for the prefix(es) {prefixes_str}. It needs columns of the form <prefix><suffix> where the suffix is a number/date (e.g. lonn2014, lonn2018 → prefix `lonn`). Import the same variable on multiple dates under different names BEFORE reshaping, e.g. `import db/INNTEKT_WLONN 2014-12-31 as lonn2014`. Columns currently in the dataset: {cols}.',
     'reshape-to-panel krever minst ett variabel-prefiks, f.eks. `reshape-to-panel lonn` når datasettet har lonn2014, lonn2018.': 'reshape-to-panel requires at least one variable prefix, e.g. `reshape-to-panel lonn` when the dataset has lonn2014, lonn2018.',
     'robust: kunne ikke beregne robuste standardfeil ({err_type}: {err}).': 'robust: could not compute robust standard errors ({err_type}: {err}).',
+    # --- oaxaca (Blinder-Oaxaca) ---
+    'oaxaca støtter ikke cluster(). Bruk robust for '
+    'robuste standardfeil.':
+        'oaxaca does not support cluster(). Use robust for robust standard errors.',
+    'oaxaca krever minst én forklaringsvariabel.':
+        'oaxaca requires at least one explanatory variable.',
+    "by-variabelen '{by}' finnes ikke i datasettet":
+        "the by-variable '{by}' is not in the dataset",
+    "by-variabelen '{by}' kan ikke også være "
+    "forklaringsvariabel.":
+        "the by-variable '{by}' cannot also be an explanatory variable.",
+    "oaxaca: by-variabelen '{by}' må ha nøyaktig to verdier, "
+    "men har {k} ({vals}).":
+        "oaxaca: the by-variable '{by}' must have exactly two values, but has {k} ({vals}).",
+    'oaxaca: gruppen {by} = {code} har {n} observasjoner, '
+    'for få til å estimere {k} parametre.':
+        'oaxaca: group {by} = {code} has {n} observations, too few to estimate {k} parameters.',
+    'oaxaca krever: depvar var-liste by gruppevariabel. '
+    'Eksempel: oaxaca ln_lønn utd_høy alder oslo by kvinne':
+        'oaxaca requires: depvar var-list by group-variable. '
+        'Example: oaxaca ln_wage high_edu age oslo by female',
+    'three-fold, gruppe 2 som referanse': 'three-fold, group 2 as reference',
+    'two-fold, pooled referanse': 'two-fold, pooled reference',
+    'Blinder-Oaxaca: {dep} etter {by}  ({kind})':
+        'Blinder-Oaxaca: {dep} by {by}  ({kind})',
+    '  Gruppe {i}  {by} = {code}:   N = {n}   gjennomsnitt = {mean}':
+        '  Group {i}  {by} = {code}:   N = {n}   mean = {mean}',
+    '  Differanse (gruppe 1 - gruppe 2): {diff}':
+        '  Difference (group 1 - group 2): {diff}',
+    '  (noconstant: dekomponeringen gjelder den modellberegnede '
+    'differansen {pred})':
+        '  (noconstant: the decomposition applies to the model-implied '
+        'difference {pred})',
+    'Koeff.': 'Coef.',
+    'Std.f.': 'Std.err.',
+    'KI': 'CI',
     'statsmodels må være installert for regresjonskommandoer. Kjør: pip install statsmodels': 'statsmodels must be installed for regression commands. Run: pip install statsmodels',
     'summarize-panel krever paneldata (tid-kolonne mangler).': 'summarize-panel requires panel data (time column missing).',
     'tabulate-panel krever paneldata (tid-kolonne mangler).': 'tabulate-panel requires panel data (time column missing).',
@@ -737,6 +773,17 @@ class MicroParser:
             instruments = [t.strip() for t in m_paren.group(2).split() if t.strip()]
             return {'dep': dep_var, 'exog': exog, 'endog': endog,
                     'instruments': instruments, 'method': method}
+
+        if cmd == 'oaxaca':
+            # oaxaca depvar var-liste by gruppevariabel
+            m_by = re.match(r'^(?P<vars>.+?)\s+by\s+(?P<by>\S+)\s*$',
+                            remainder.strip(), re.IGNORECASE)
+            if not m_by:
+                return {"raw": remainder.strip()}
+            toks = m_by.group('vars').split()
+            if len(toks) < 2:
+                return {"raw": remainder.strip()}
+            return {'dep': toks[0], 'indep': toks[1:], 'by': m_by.group('by')}
 
         if cmd == 'rdd':
             # rdd depvar runvar [covariates...]
@@ -5706,6 +5753,179 @@ class RegressionHandler:
 
         return indep_vars, computed, cont_bases
 
+    # ── Blinder-Oaxaca ────────────────────────────────────────────────────
+    # Jann (2008), "The Blinder-Oaxaca decomposition for linear regression
+    # models", Stata Journal 8(4):453-479 — samme dekomponering og samme
+    # delta-metode-standardfeil som Stata `oaxaca`.
+    #   three-fold (standard):  R = (X1-X2)'b2 + X2'(b1-b2) + (X1-X2)'(b1-b2)
+    #   two-fold  (, pool):     R = (X1-X2)'b* + [X1'(b1-b*) + X2'(b*-b2)]
+    # Gruppe 1 er den LAVESTE verdien av by-variabelen, slik at differansen
+    # er mean(gruppe 1) - mean(gruppe 2) som i microdata.no-manualen.
+
+    def _oaxaca_fit(self, df, dep_var, raw_indep, by_var, options):
+        """Blinder-Oaxaca-dekomponering. Returnerer en dict med gruppekoder,
+        gruppestørrelser, gjennomsnitt, differanse og komponentene med
+        standardfeil, z, p og konfidensintervall."""
+        sm, _ = _ensure_statsmodels()
+        from scipy import stats as _scipy_stats
+
+        add_const = 'noconstant' not in options
+        pooled = bool(options.get('pool'))
+        level = float(options.get('level', 95)) if options.get('level') not in (None, True) else 95.0
+        zcrit = float(_scipy_stats.norm.ppf(1 - (1 - level / 100.0) / 2))
+
+        if options.get('cluster'):
+            raise ValueError(_t("oaxaca støtter ikke cluster(). Bruk robust for "
+                                "robuste standardfeil."))
+        if by_var not in df.columns:
+            raise ValueError(_t("by-variabelen '{by}' finnes ikke i datasettet", by=by_var))
+
+        indep_vars, computed, cont_bases = self._expand_factor_design(raw_indep, df)
+        if not indep_vars:
+            raise ValueError(_t("oaxaca krever minst én forklaringsvariabel."))
+        if by_var in indep_vars or by_var in cont_bases:
+            raise ValueError(_t("by-variabelen '{by}' kan ikke også være "
+                                "forklaringsvariabel.", by=by_var))
+
+        cont_vars = [dep_var] + [b for b in cont_bases if b != dep_var]
+        missing = [v for v in cont_vars if v not in df.columns]
+        if missing:
+            raise ValueError(_t("Variabler ikke funnet i datasettet: {missing}", missing=missing))
+
+        work = df[list(dict.fromkeys(cont_vars))].copy()
+        for v in cont_vars:
+            work[v] = pd.to_numeric(work[v], errors='coerce')
+        for name, series in computed.items():
+            work[name] = pd.to_numeric(series.reindex(work.index), errors='coerce')
+        work['__oax_by__'] = df[by_var].reindex(work.index)
+
+        clean = work.dropna(subset=[dep_var] + indep_vars + ['__oax_by__']).copy()
+        if clean.empty:
+            raise ValueError(_t("Ingen observasjoner etter numerisk konvertering — sjekk at "
+                                "avhengig og uavhengige variabler er tall."))
+
+        try:
+            codes = sorted(pd.unique(clean['__oax_by__']))
+        except TypeError:                       # blandede typer -> sorter som tekst
+            codes = sorted(pd.unique(clean['__oax_by__']), key=str)
+        if len(codes) != 2:
+            raise ValueError(_t("oaxaca: by-variabelen '{by}' må ha nøyaktig to verdier, "
+                                "men har {k} ({vals}).", by=by_var, k=len(codes),
+                                vals=', '.join(str(c) for c in codes[:6])))
+
+        k = len(indep_vars) + (1 if add_const else 0)
+        parts = {}
+        for code in codes:
+            sub = clean[clean['__oax_by__'] == code]
+            if len(sub) <= k:
+                raise ValueError(_t("oaxaca: gruppen {by} = {code} har {n} observasjoner, "
+                                    "for få til å estimere {k} parametre.",
+                                    by=by_var, code=code, n=len(sub), k=k))
+            X = self._add_const(sub[indep_vars].astype(np.float64), add_const)
+            model = sm.OLS(sub[dep_var].astype(np.float64), X).fit()
+            Xv = X.to_numpy(dtype=np.float64)
+            parts[code] = {
+                'n': int(len(sub)),
+                'mean': float(sub[dep_var].mean()),
+                'beta': np.asarray(model.params, dtype=np.float64),
+                'V': np.asarray(self._apply_cov(model, options, sub).cov_params(),
+                                dtype=np.float64),
+                'xbar': Xv.mean(axis=0),
+                'Vx': np.atleast_2d(np.cov(Xv, rowvar=False)) / len(sub),
+            }
+
+        g1, g2 = codes[0], codes[1]
+        p1, p2 = parts[g1], parts[g2]
+        b1, b2, x1, x2 = p1['beta'], p2['beta'], p1['xbar'], p2['xbar']
+        V1, V2, Vx1, Vx2 = p1['V'], p2['V'], p1['Vx'], p2['Vx']
+        d, db = x1 - x2, b1 - b2
+
+        pred_diff = float(x1 @ b1 - x2 @ b2)
+        diff_var = float(x1 @ V1 @ x1 + x2 @ V2 @ x2 + b1 @ Vx1 @ b1 + b2 @ Vx2 @ b2)
+
+        beta_star = None
+        if pooled:
+            # Referansekoeffisienter fra én modell over begge gruppene, med
+            # gruppeindikator (Jann 2008 §3.2 / Stata `oaxaca, pooled`).
+            Xp = clean[indep_vars].astype(np.float64).copy()
+            Xp['__oax_grp__'] = (clean['__oax_by__'] == g1).astype(np.float64)
+            Xp = self._add_const(Xp, add_const)
+            pmodel = sm.OLS(clean[dep_var].astype(np.float64), Xp).fit()
+            keep = [i for i, c in enumerate(Xp.columns) if c != '__oax_grp__']
+            beta_star = np.asarray(pmodel.params, dtype=np.float64)[keep]
+            Vs = np.asarray(self._apply_cov(pmodel, options, clean).cov_params(),
+                            dtype=np.float64)[np.ix_(keep, keep)]
+            u1, u2 = b1 - beta_star, beta_star - b2
+            raw_terms = [
+                ('explained', float(d @ beta_star),
+                 float(d @ Vs @ d + beta_star @ (Vx1 + Vx2) @ beta_star)),
+                ('unexplained', float(x1 @ u1 + x2 @ u2),
+                 float(x1 @ V1 @ x1 + x2 @ V2 @ x2 + d @ Vs @ d
+                       + u1 @ Vx1 @ u1 + u2 @ Vx2 @ u2)),
+            ]
+        else:
+            raw_terms = [
+                ('endowments', float(d @ b2),
+                 float(d @ V2 @ d + b2 @ (Vx1 + Vx2) @ b2)),
+                ('coefficients', float(x2 @ db),
+                 float(x2 @ (V1 + V2) @ x2 + db @ Vx2 @ db)),
+                ('interaction', float(d @ db),
+                 float(d @ (V1 + V2) @ d + db @ (Vx1 + Vx2) @ db)),
+            ]
+
+        def _row(name, est, var):
+            se = float(np.sqrt(var)) if var > 0 else float('nan')
+            z = est / se if se and np.isfinite(se) else float('nan')
+            return {
+                'name': name, 'est': est, 'se': se, 'z': z,
+                'p': float(2 * _scipy_stats.norm.sf(abs(z))) if np.isfinite(z) else float('nan'),
+                'ci_lo': est - zcrit * se, 'ci_hi': est + zcrit * se,
+            }
+
+        return {
+            'dep': dep_var, 'by': by_var, 'indep': indep_vars,
+            'g1': g1, 'g2': g2, 'n1': p1['n'], 'n2': p2['n'],
+            'mean1': p1['mean'], 'mean2': p2['mean'],
+            'diff': p1['mean'] - p2['mean'], 'pred_diff': pred_diff,
+            'difference': _row('difference', pred_diff, diff_var),
+            'diff_se': float(np.sqrt(diff_var)),
+            'terms': [_row(n, e, v) for n, e, v in raw_terms],
+            'pooled': pooled, 'beta_star': beta_star,
+            'constant': add_const, 'level': level,
+        }
+
+    def _execute_oaxaca(self, df, args, options):
+        """Formatter oaxaca-resultatet som tekst i samme stil som microdata.no."""
+        if not isinstance(args, dict) or not args.get('by') or not args.get('dep'):
+            raise ValueError(_t("oaxaca krever: depvar var-liste by gruppevariabel. "
+                                "Eksempel: oaxaca ln_lønn utd_høy alder oslo by kvinne"))
+        r = self._oaxaca_fit(df, args['dep'], list(args.get('indep') or []),
+                             args['by'], options)
+        lvl = int(r['level']) if float(r['level']).is_integer() else r['level']
+        kind = _t("two-fold, pooled referanse") if r['pooled'] else _t("three-fold, gruppe 2 som referanse")
+
+        out = [_t("Blinder-Oaxaca: {dep} etter {by}  ({kind})",
+                  dep=r['dep'], by=r['by'], kind=kind), ""]
+        for i, (code, n, mean) in enumerate(
+                ((r['g1'], r['n1'], r['mean1']), (r['g2'], r['n2'], r['mean2'])), start=1):
+            out.append(_t("  Gruppe {i}  {by} = {code}:   N = {n}   gjennomsnitt = {mean}",
+                          i=i, by=r['by'], code=code, n=n, mean=f"{mean:.4f}"))
+        out.append(_t("  Differanse (gruppe 1 - gruppe 2): {diff}", diff=f"{r['diff']:.4f}"))
+        if not r['constant']:
+            out.append(_t("  (noconstant: dekomponeringen gjelder den modellberegnede "
+                          "differansen {pred})", pred=f"{r['pred_diff']:.4f}"))
+        out.append("")
+
+        rows = [r['difference']] + r['terms']
+        w = max(14, max(len(t['name']) for t in rows) + 2)
+        out.append(f"  {'':<{w}}{_t('Koeff.'):>11}{_t('Std.f.'):>11}"
+                   f"{'z':>9}{'P>|z|':>9}{f'[{lvl}% ' + _t('KI') + ']':>20}")
+        for t in rows:
+            out.append(f"  {t['name']:<{w}}{t['est']:>11.4f}{t['se']:>11.4f}"
+                       f"{t['z']:>9.3f}{t['p']:>9.3f}"
+                       f"{t['ci_lo']:>10.4f}{t['ci_hi']:>10.4f}")
+        return ("\n".join(out), None)
+
     def _fit_simple(self, reg_cmd, df, args, options):
         """Fit en enkel regresjon og returner (model, dep_var, indep_vars, df_clean).
         Brukes av coefplot og evt. andre metoder som trenger råmodellen.
@@ -5762,6 +5982,8 @@ class RegressionHandler:
             return self._execute_iv(cmd, df, args, options)
         if cmd == 'rdd':
             return self._execute_rdd(cmd, df, args, options)
+        if cmd == 'oaxaca':
+            return self._execute_oaxaca(df, args, options)
         sm, Probit = _ensure_statsmodels()
 
         dep_var = args[0]
@@ -7135,7 +7357,7 @@ _COND_FILTER_COMMANDS = frozenset([
     'logit', 'logit-predict', 'mlogit', 'mlogit-predict',
     'negative-binomial', 'negative-binomial-predict',
     'poisson', 'poisson-predict', 'probit', 'probit-predict',
-    'rdd', 'regress', 'regress-panel', 'regress-panel-diff',
+    'oaxaca', 'rdd', 'regress', 'regress-panel', 'regress-panel-diff',
     'regress-panel-predict', 'regress-predict',
     # Overlevelsesanalyse
     'cox', 'kaplan-meier', 'kaplan_meier', 'weibull',
@@ -9705,16 +9927,30 @@ class MicroInterpreter:
                 return
 
             # 6. Regresjon
-            if cmd in ['regress', 'logit', 'probit', 'poisson', 'negative-binomial', 'negative-binomial-predict', 'regress-panel', 'regress-panel-predict', 'regress-panel-diff', 'hausman', 'regress-predict', 'probit-predict', 'logit-predict', 'mlogit', 'mlogit-predict', 'ivregress', 'ivregress-predict', 'rdd']:
+            if cmd in ['regress', 'logit', 'probit', 'poisson', 'negative-binomial', 'negative-binomial-predict', 'regress-panel', 'regress-panel-predict', 'regress-panel-diff', 'hausman', 'regress-predict', 'probit-predict', 'logit-predict', 'mlogit', 'mlogit-predict', 'ivregress', 'ivregress-predict', 'rdd', 'oaxaca']:
                 # T7 (D5): regresjon på et subsett summarize ville nektet
                 # (N < dc_min_summarize) avslører de samme størrelsene via
                 # koeffisienter/N — samme populasjonsminimum som summarize.
                 if _is_disclosure_control():
                     try:
                         self._check_t7_summarize_pop(len(df_target), cmd)
+                        # T7 (D4-analog): oaxaca estimerer én regresjon per
+                        # gruppe, så hver by-gruppe er sin egen populasjon.
+                        if (cmd == 'oaxaca' and isinstance(args, dict)
+                                and args.get('by') in getattr(df_target, 'columns', [])):
+                            for _code, _n in df_target.groupby(
+                                    args['by'], dropna=False).size().items():
+                                self._check_t7_summarize_pop(int(_n), cmd)
                     except ValueError as _t7_err:
                         self._log(_t("FEIL: {err}", err=_t7_err))
                         return
+                if isinstance(args, dict) and 'raw' in args:
+                    self._log(
+                        _t("FEIL: Kunne ikke tolke argumentene til '{cmd}': "
+                           "«{raw}». Sjekk syntaksen med `help {cmd}`.",
+                           cmd=cmd, raw=args['raw'])
+                    )
+                    return
                 result = self.reg_engine.execute(cmd, df_target, args, opts)
                 summary, extra = result if isinstance(result, tuple) else (result, None)
                 self._log(_t("\n--- Modell: {cmd} ---\n{summary}\n", cmd=cmd, summary=summary))

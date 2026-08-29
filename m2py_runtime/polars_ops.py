@@ -315,6 +315,11 @@ def rdd(lf, dep, runvar, exog=(), cutoff=0.0, polynomial=1, fuzzy=None):
                      polynomial=polynomial, fuzzy=fuzzy)
 
 
+def oaxaca(lf, dep, indep, by, pool=False, noconstant=False, robust=False):
+    return _analysis(lf, "oaxaca", dep, indep, by, pool=pool,
+                     noconstant=noconstant, robust=robust)
+
+
 def regress_panel(lf, dep, indep, effect="fe", key=None):
     return _analysis(lf, "regress_panel", dep, indep, effect=effect, key=key)
 

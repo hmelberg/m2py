@@ -1192,6 +1192,87 @@ def rdd(df, dep, runvar, exog=(), cutoff=0.0, polynomial=1, fuzzy=None):
     }])
 
 
+def oaxaca(df, dep, indep, by, pool=False, noconstant=False, robust=False):
+    """Blinder-Oaxaca decomposition of the mean gap in ``dep`` between the two
+    groups of ``by``, matching the emulator. Group 1 is the lower code, so the
+    gap is mean(group 1) - mean(group 2).
+
+    Three-fold by default: ``endowments`` = (X1-X2)'b2, ``coefficients`` =
+    X2'(b1-b2), ``interaction`` = (X1-X2)'(b1-b2). With ``pool=True`` the
+    two-fold variant: ``explained`` = (X1-X2)'b*, ``unexplained`` =
+    X1'(b1-b*) + X2'(b*-b2), where b* comes from a pooled model over both
+    groups that includes a group indicator.
+
+    Returns ``[term, estimate, se, z, p]`` with the model-implied
+    ``difference`` first. Standard errors follow the delta method in Jann
+    (2008), Stata Journal 8(4):453-479; with ``pool`` the reference
+    coefficients are treated as independent of the group-specific ones.
+    Group sizes and means are not part of this table -- get them from
+    ``summarize(df, [dep], by=by)``."""
+    import statsmodels.api as sm
+    from scipy import stats as st
+    indep = list(indep)
+    d = df[[dep] + indep].apply(pd.to_numeric, errors="coerce")
+    d[by] = df[by]
+    d = d.dropna()
+    codes = sorted(pd.unique(d[by]))
+    if len(codes) != 2:
+        raise ValueError(f"oaxaca: {by!r} must have exactly two values, has {len(codes)}")
+
+    def _fit(frame):
+        X = frame[indep].astype(float)
+        if not noconstant:
+            X = sm.add_constant(X, has_constant="add")
+        m = sm.OLS(frame[dep].astype(float), X).fit()
+        cov = m.get_robustcov_results(cov_type="HC1") if robust else m
+        Xv = X.to_numpy(dtype=float)
+        return (np.asarray(m.params, dtype=float), Xv.mean(axis=0),
+                np.asarray(cov.cov_params(), dtype=float),
+                np.atleast_2d(np.cov(Xv, rowvar=False)) / len(frame),
+                float(frame[dep].mean()))
+
+    b1, x1, V1, Vx1, _ = _fit(d[d[by] == codes[0]])
+    b2, x2, V2, Vx2, _ = _fit(d[d[by] == codes[1]])
+    gap, db = x1 - x2, b1 - b2
+    rows = [("difference", float(x1 @ b1 - x2 @ b2),
+             float(x1 @ V1 @ x1 + x2 @ V2 @ x2 + b1 @ Vx1 @ b1 + b2 @ Vx2 @ b2))]
+
+    if pool:
+        Xp = d[indep].astype(float).copy()
+        Xp["__grp__"] = (d[by] == codes[0]).astype(float)
+        if not noconstant:
+            Xp = sm.add_constant(Xp, has_constant="add")
+        pm = sm.OLS(d[dep].astype(float), Xp).fit()
+        pcov = pm.get_robustcov_results(cov_type="HC1") if robust else pm
+        keep = [i for i, c in enumerate(Xp.columns) if c != "__grp__"]
+        bs = np.asarray(pm.params, dtype=float)[keep]
+        Vs = np.asarray(pcov.cov_params(), dtype=float)[np.ix_(keep, keep)]
+        u1, u2 = b1 - bs, bs - b2
+        rows += [
+            ("explained", float(gap @ bs),
+             float(gap @ Vs @ gap + bs @ (Vx1 + Vx2) @ bs)),
+            ("unexplained", float(x1 @ u1 + x2 @ u2),
+             float(x1 @ V1 @ x1 + x2 @ V2 @ x2 + gap @ Vs @ gap
+                   + u1 @ Vx1 @ u1 + u2 @ Vx2 @ u2)),
+        ]
+    else:
+        rows += [
+            ("endowments", float(gap @ b2),
+             float(gap @ V2 @ gap + b2 @ (Vx1 + Vx2) @ b2)),
+            ("coefficients", float(x2 @ db),
+             float(x2 @ (V1 + V2) @ x2 + db @ Vx2 @ db)),
+            ("interaction", float(gap @ db),
+             float(gap @ (V1 + V2) @ gap + db @ (Vx1 + Vx2) @ db)),
+        ]
+
+    est = np.array([r[1] for r in rows])
+    se = np.sqrt(np.array([r[2] for r in rows]))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        z = np.where(se > 0, est / se, np.nan)
+    return pd.DataFrame({"term": [r[0] for r in rows], "estimate": est,
+                         "se": se, "z": z, "p": 2 * st.norm.sf(np.abs(z))})
+
+
 def mlogit_predict(df, dep, indep, predicted=None, probabilities=None, residuals=None,
                    noconstant=False):
     """Multinomial-logit predictions, one column per category (suffix ``_<cat>``),

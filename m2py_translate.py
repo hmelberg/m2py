@@ -59,7 +59,7 @@ REGRESSION = {
 SURVIVAL = {"cox": "cox", "kaplan-meier": "kaplan_meier", "weibull": "weibull"}
 # panel & IV regression (analysis verbs, linearmodels/statsmodels)
 PANEL_IV = {"regress-panel", "regress-panel-diff", "ivregress"}
-ANALYSIS = ({"summarize", "tabulate", "correlate", "mlogit", "rdd",
+ANALYSIS = ({"summarize", "tabulate", "correlate", "mlogit", "rdd", "oaxaca",
              "normaltest", "ci", "anova", "hausman",
              "summarize-panel", "tabulate-panel", "transitions-panel"}
             | set(REGRESSION) | set(SURVIVAL) | PANEL_IV)
@@ -121,6 +121,8 @@ HANDLED_OPTIONS = {
     "mlogit": {"noconstant"},
     # rdd: local-polynomial OLS (sharp + fuzzy); cluster/robust/derivate deferred
     "rdd": {"cutoff", "polynomial", "fuzzy"},
+    # oaxaca: three-fold + pooled two-fold (Jann 2008); level() deferred
+    "oaxaca": {"pool", "noconstant", "robust"},
     # survival: by/level/hazard variants deferred
     "cox": set(),
     "kaplan-meier": set(),
@@ -664,6 +666,13 @@ def _emit_analysis(instr, backend, idx, frame=None, print_results=True):
         if not vars_ or len(vars_) < 2:
             return None
         call = f"ops.mlogit({var}, dep={vars_[0]!r}, indep={vars_[1:]!r})"
+    elif cmd == "oaxaca":
+        if not isinstance(args, dict) or not args.get("by") or not args.get("indep"):
+            return None
+        call = (f"ops.oaxaca({var}, dep={args['dep']!r}, indep={args['indep']!r}, "
+                f"by={args['by']!r}, pool={bool(opts.get('pool'))!r}, "
+                f"noconstant={bool(opts.get('noconstant'))!r}, "
+                f"robust={bool(opts.get('robust'))!r})")
     elif cmd == "rdd":
         if not isinstance(args, dict) or not args.get("dep") or not args.get("runvar"):
             return None
