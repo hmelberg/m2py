@@ -124,6 +124,27 @@ _M2PY_MESSAGES_EN = {
     'reshape-to-panel fant ingen variabler å panele for prefiks(ene) {prefixes_str}. Den trenger kolonner på formen <prefiks><suffiks> der suffikset er tall/dato (f.eks. lonn2014, lonn2018 → prefiks `lonn`). Importer samme variabel på flere datoer med ulike navn FØR reshape, f.eks. `import db/INNTEKT_WLONN 2014-12-31 as lonn2014`. Kolonner i datasettet nå: {cols}.': 'reshape-to-panel found no variables to reshape for the prefix(es) {prefixes_str}. It needs columns of the form <prefix><suffix> where the suffix is a number/date (e.g. lonn2014, lonn2018 → prefix `lonn`). Import the same variable on multiple dates under different names BEFORE reshaping, e.g. `import db/INNTEKT_WLONN 2014-12-31 as lonn2014`. Columns currently in the dataset: {cols}.',
     'reshape-to-panel krever minst ett variabel-prefiks, f.eks. `reshape-to-panel lonn` når datasettet har lonn2014, lonn2018.': 'reshape-to-panel requires at least one variable prefix, e.g. `reshape-to-panel lonn` when the dataset has lonn2014, lonn2018.',
     'robust: kunne ikke beregne robuste standardfeil ({err_type}: {err}).': 'robust: could not compute robust standard errors ({err_type}: {err}).',
+    # --- regress-mml (flernivåanalyse) ---
+    'regress-mml støtter ikke control() ennå — skriv '
+    'variablene i variabellista i stedet.':
+        'regress-mml does not support control() yet — put the variables in the '
+        'variable list instead.',
+    'regress-mml støtter høyst to gruppevariabler '
+    '(tre nivåer). Fikk {n}: {names}':
+        'regress-mml supports at most two group variables (three levels). '
+        'Got {n}: {names}',
+    'gruppevariabel ikke funnet i datasettet: {missing}':
+        'group variable not found in the dataset: {missing}',
+    'regress-mml krever: depvar var-liste by gruppevar-1 '
+    '[gruppevar-2]. Eksempel: regress-mml lønn mann gift '
+    'i.utdnivå by region':
+        'regress-mml requires: depvar var-list by group-var-1 [group-var-2]. '
+        'Example: regress-mml wage male married i.edulevel by region',
+    'Flernivåmodell (MML, REML): {dep} — {n} nivåer':
+        'Multilevel model (MML, REML): {dep} — {n} levels',
+    'Nivå {lvl} (øverst)': 'Level {lvl} (top)',
+    'Nivå {lvl}': 'Level {lvl}',
+    '  {label}: {g} — {n} grupper': '  {label}: {g} — {n} groups',
     # --- oaxaca (Blinder-Oaxaca) ---
     'oaxaca støtter ikke cluster(). Bruk robust for '
     'robuste standardfeil.':
@@ -667,7 +688,16 @@ class MicroParser:
                 opt_matches = re.finditer(r"(?P<opt>\w+)(?:\((?P<arg>[^)]+)\))?", opt_part)
                 for m in opt_matches:
                     arg = m.group('arg')
-                    options_dict[m.group('opt')] = arg.strip() if arg else True
+                    if arg is None:
+                        options_dict[m.group('opt')] = True
+                        continue
+                    arg = arg.strip()
+                    # Anførselstegn er avgrensere, ikke innhold: manualen skriver
+                    # `prefix('new_')`, og verdien skal være new_ — ikke 'new_'.
+                    # (recode stripper dem i sin egen gren; her gjelder det alle.)
+                    if len(arg) >= 2 and arg[0] == arg[-1] and arg[0] in ("'", '"'):
+                        arg = arg[1:-1]
+                    options_dict[m.group('opt')] = arg
 
         # 2. Skill ut 'if'-betingelse — quote-bevisst (B3, review 2026-07-24):
         # naiv split rev strenger med ' if ' i (f.eks. define-labels
@@ -773,6 +803,18 @@ class MicroParser:
             instruments = [t.strip() for t in m_paren.group(2).split() if t.strip()]
             return {'dep': dep_var, 'exog': exog, 'endog': endog,
                     'instruments': instruments, 'method': method}
+
+        if cmd in ('regress-mml', 'regress-mml-predict'):
+            # regress-mml depvar var-liste by gruppevar-1 [gruppevar-2]
+            m_by = re.match(r'^(?P<vars>.+?)\s+by\s+(?P<groups>.+?)\s*$',
+                            remainder.strip(), re.IGNORECASE)
+            if not m_by:
+                return {"raw": remainder.strip()}
+            toks = m_by.group('vars').split()
+            if len(toks) < 2:
+                return {"raw": remainder.strip()}
+            return {'dep': toks[0], 'indep': toks[1:],
+                    'groups': m_by.group('groups').split()}
 
         if cmd == 'oaxaca':
             # oaxaca depvar var-liste by gruppevariabel
@@ -5762,6 +5804,127 @@ class RegressionHandler:
     # Gruppe 1 er den LAVESTE verdien av by-variabelen, slik at differansen
     # er mean(gruppe 1) - mean(gruppe 2) som i microdata.no-manualen.
 
+    # ── regress-mml: flernivåanalyse (MML) ────────────────────────────────
+    # Manualen: to eller tre nivåer, gruppevariablene etter `by`, høyeste nivå
+    # først. Modellen er statsmodels MixedLM med REML, tilfeldig konstantledd
+    # på hvert gruppenivå. Trenivå bygges som en variansdel (VCSpec) nøstet i
+    # topp-gruppa — bygd for hånd, ikke via formel-API-et, fordi patsy ikke er
+    # garantert tilgjengelig i Pyodide.
+
+    def _mml_fit(self, df, dep_var, raw_indep, groups, options):
+        """Estimer flernivåmodellen. Returnerer dict med modellen, radindeksen
+        den er estimert på, og prediksjon inkludert gruppeeffektene (BLUP)."""
+        sm, _ = _ensure_statsmodels()
+        add_const = 'noconstant' not in options
+
+        if options.get('control'):
+            raise ValueError(_t("regress-mml støtter ikke control() ennå — skriv "
+                                "variablene i variabellista i stedet."))
+        if len(groups) > 2:
+            raise ValueError(_t("regress-mml støtter høyst to gruppevariabler "
+                                "(tre nivåer). Fikk {n}: {names}",
+                                n=len(groups), names=', '.join(groups)))
+        missing_g = [g for g in groups if g not in df.columns]
+        if missing_g:
+            raise ValueError(_t("gruppevariabel ikke funnet i datasettet: {missing}",
+                                missing=missing_g))
+
+        indep_vars, computed, cont_bases = self._expand_factor_design(raw_indep, df)
+        cont_vars = [dep_var] + [b for b in cont_bases if b != dep_var]
+        missing = [v for v in cont_vars if v not in df.columns]
+        if missing:
+            raise ValueError(_t("Variabler ikke funnet i datasettet: {missing}", missing=missing))
+
+        work = df[list(dict.fromkeys(cont_vars))].copy()
+        for v in cont_vars:
+            work[v] = pd.to_numeric(work[v], errors='coerce')
+        for name, series in computed.items():
+            work[name] = pd.to_numeric(series.reindex(work.index), errors='coerce')
+        for g in groups:
+            work[g] = df[g].reindex(work.index)
+
+        clean = work.dropna(subset=[dep_var] + indep_vars + groups)
+        if clean.empty:
+            raise ValueError(_t("Ingen observasjoner etter numerisk konvertering — sjekk at "
+                                "avhengig og uavhengige variabler er tall."))
+        # VCSpec bygges gruppe for gruppe, så radene må ligge sammenhengende
+        # og i samme rekkefølge som MixedLM sorterer gruppene.
+        clean = clean.sort_values(groups[0], kind='stable')
+
+        Y = clean[dep_var].astype(np.float64)
+        X = self._add_const(clean[indep_vars].astype(np.float64), add_const)
+        top = groups[0]
+        exog_re = pd.DataFrame({top: np.ones(len(clean))}, index=clean.index)
+
+        vc_blocks = []
+        kw = {}
+        if len(groups) == 2:
+            from statsmodels.regression.mixed_linear_model import VCSpec
+            sub = groups[1]
+            colnames, mats = [], []
+            for gval, rows in clean.groupby(top, sort=True):
+                d = pd.get_dummies(rows[sub]).astype(np.float64)
+                d = d.loc[:, d.sum() > 0]
+                cn = [f"{sub}[{c}]" for c in d.columns]
+                colnames.append(cn)
+                mats.append(d.to_numpy())
+                vc_blocks.append((gval, rows.index, cn, d.to_numpy()))
+            kw['exog_vc'] = VCSpec([sub], [colnames], [mats])
+
+        model = sm.MixedLM(Y, X, groups=clean[top].to_numpy(),
+                           exog_re=exog_re, **kw).fit(reml=True)
+
+        # Prediksjon = faste effekter + BLUP for hvert gruppenivå. MixedLM sin
+        # fittedvalues er bare Xb; uten gruppeleddene ville prediksjonen ligget
+        # systematisk feil for hver gruppe.
+        effects = pd.Series(0.0, index=clean.index)
+        re_dict = model.random_effects
+        for gval, rows in clean.groupby(top, sort=True):
+            re_g = re_dict[gval]
+            effects.loc[rows.index] += float(re_g.get(top, 0.0))
+        for gval, idx, cn, mat in vc_blocks:
+            re_g = re_dict[gval]
+            effects.loc[idx] += mat @ np.array([float(re_g.get(c, 0.0)) for c in cn])
+        predicted = pd.Series(np.asarray(model.fittedvalues), index=clean.index) + effects
+
+        return {
+            'model': model, 'index': clean.index, 'dep': dep_var, 'groups': groups,
+            'n_groups': [int(clean[g].nunique()) for g in groups],
+            'predicted': predicted, 'observed': Y,
+        }
+
+    def _execute_mml(self, cmd, df, args, options):
+        if not isinstance(args, dict) or not args.get('groups') or not args.get('dep'):
+            raise ValueError(_t("regress-mml krever: depvar var-liste by gruppevar-1 "
+                                "[gruppevar-2]. Eksempel: regress-mml lønn mann gift "
+                                "i.utdnivå by region"))
+        alpha = round(1 - (float(options.get('level', 95)) / 100), 10)
+        r = self._mml_fit(df, args['dep'], list(args.get('indep') or []),
+                          list(args['groups']), options)
+
+        n_lvl = len(r['groups']) + 1
+        head = [_t("Flernivåmodell (MML, REML): {dep} — {n} nivåer",
+                   dep=r['dep'], n=n_lvl)]
+        for i, (g, n) in enumerate(zip(r['groups'], r['n_groups'])):
+            label = (_t("Nivå {lvl} (øverst)", lvl=n_lvl) if i == 0 and n_lvl > 2
+                     else _t("Nivå {lvl}", lvl=n_lvl - i))
+            head.append(_t("  {label}: {g} — {n} grupper", label=label, g=g, n=n))
+        summary = "\n".join(head) + "\n\n" + str(r['model'].summary(alpha=alpha))
+
+        if cmd == 'regress-mml-predict':
+            extra = {}
+            pred_name = options.get('predicted', 'predicted')
+            res_name = options.get('residuals')
+            if pred_name:
+                extra[str(pred_name) if pred_name is not True else 'predicted'] = r['predicted']
+            if res_name:
+                extra[str(res_name) if res_name is not True else 'residuals'] = \
+                    r['observed'] - r['predicted']
+            if not extra:
+                extra['predicted'] = r['predicted']
+            return (summary, extra)
+        return (summary, None)
+
     def _oaxaca_fit(self, df, dep_var, raw_indep, by_var, options):
         """Blinder-Oaxaca-dekomponering. Returnerer en dict med gruppekoder,
         gruppestørrelser, gjennomsnitt, differanse og komponentene med
@@ -5984,12 +6147,14 @@ class RegressionHandler:
             return self._execute_rdd(cmd, df, args, options)
         if cmd == 'oaxaca':
             return self._execute_oaxaca(df, args, options)
+        if cmd in ('regress-mml', 'regress-mml-predict'):
+            return self._execute_mml(cmd, df, args, options)
         sm, Probit = _ensure_statsmodels()
 
         dep_var = args[0]
         raw_indep = list(args[1:])
         add_const = 'noconstant' not in options
-        alpha = 1 - (float(options.get('level', 95)) / 100)
+        alpha = round(1 - (float(options.get('level', 95)) / 100), 10)
 
         # ── Stata-stil faktor-/interaksjonssyntaks (i. c. # ##) ──────────────
         # i.kjønn → dummyer; c.alder → kontinuerlig; a#b → interaksjon;
@@ -6052,6 +6217,36 @@ class RegressionHandler:
                 out = f"\n{_t('Modell: poisson (incidence rate ratios)')}\n{pd.DataFrame({'IRR': coef, '2.5%': conf[0], '97.5%': conf[1]})}\n"
                 return (out, None)
             return (str(model.summary(alpha=alpha)), None)
+
+        if cmd == 'poisson-predict':
+            # Samme modell som `poisson`, men genererer variabler i stedet for
+            # bare en tabell. exposure() er en log-offset, jf. poisson.
+            Y_p, X_p, _idx = Y, X, df_clean.index
+            _glm_kw = {}
+            _expo = options.get('exposure')
+            if _expo:
+                if _expo not in df.columns:
+                    raise ValueError(_t("exposure-variabel '{expo}' finnes ikke i datasettet", expo=_expo))
+                _ev = pd.to_numeric(df.loc[_idx, _expo], errors='coerce')
+                _keep = _ev.notna() & (_ev > 0)
+                if not bool(_keep.all()):
+                    Y_p, X_p, _ev, _idx = Y_p[_keep], X_p[_keep], _ev[_keep], _idx[_keep]
+                _glm_kw['exposure'] = _ev.astype(float).values
+            model = sm.GLM(Y_p, X_p, family=sm.families.Poisson(), **_glm_kw).fit()
+            model = self._apply_cov(model, options, df_clean.loc[_idx])
+
+            extra = {}
+            pred_name = options.get('predicted', 'predicted')
+            res_name = options.get('residuals')
+            fitted = pd.Series(np.asarray(model.predict()), index=_idx)
+            if pred_name:
+                extra[str(pred_name) if pred_name is not True else 'predicted'] = fitted
+            if res_name:
+                extra[str(res_name) if res_name is not True else 'residuals'] = pd.Series(
+                    Y_p.values - fitted.values, index=_idx)
+            if not extra:
+                extra['predicted'] = fitted
+            return (str(model.summary(alpha=alpha)), extra)
 
         if cmd in ('negative-binomial', 'negative-binomial-predict'):
             # MLE-estimering av dispersjon (alpha); passer telledata med
@@ -6359,7 +6554,7 @@ class RegressionHandler:
 
     def _execute_iv(self, cmd, df, args, options):
         sm, _ = _ensure_statsmodels()
-        alpha = 1 - (float(options.get('level', 95)) / 100)
+        alpha = round(1 - (float(options.get('level', 95)) / 100), 10)
         dep = args.get('dep')
         exog_vars = args.get('exog', [])
         endog_vars = args.get('endog', [])
@@ -6451,7 +6646,7 @@ class RegressionHandler:
         poly_order = int(options.get('polynomial', 1))
         fuzzy_var = options.get('fuzzy')
         deriv = int(options.get('derivate', 0))
-        alpha = 1 - (float(options.get('level', 95)) / 100)
+        alpha = round(1 - (float(options.get('level', 95)) / 100), 10)
         cluster_var = options.get('cluster')
 
         if not dep or not runvar:
@@ -7357,7 +7552,8 @@ _COND_FILTER_COMMANDS = frozenset([
     'logit', 'logit-predict', 'mlogit', 'mlogit-predict',
     'negative-binomial', 'negative-binomial-predict',
     'poisson', 'poisson-predict', 'probit', 'probit-predict',
-    'oaxaca', 'rdd', 'regress', 'regress-panel', 'regress-panel-diff',
+    'oaxaca', 'rdd', 'regress', 'regress-mml', 'regress-mml-predict',
+    'regress-panel', 'regress-panel-diff',
     'regress-panel-predict', 'regress-predict',
     # Overlevelsesanalyse
     'cox', 'kaplan-meier', 'kaplan_meier', 'weibull',
@@ -9927,7 +10123,8 @@ class MicroInterpreter:
                 return
 
             # 6. Regresjon
-            if cmd in ['regress', 'logit', 'probit', 'poisson', 'negative-binomial', 'negative-binomial-predict', 'regress-panel', 'regress-panel-predict', 'regress-panel-diff', 'hausman', 'regress-predict', 'probit-predict', 'logit-predict', 'mlogit', 'mlogit-predict', 'ivregress', 'ivregress-predict', 'rdd', 'oaxaca']:
+            if cmd in ['regress', 'logit', 'probit', 'poisson', 'negative-binomial', 'negative-binomial-predict', 'regress-panel', 'regress-panel-predict', 'regress-panel-diff', 'hausman', 'regress-predict', 'probit-predict', 'logit-predict', 'mlogit', 'mlogit-predict', 'ivregress', 'ivregress-predict', 'rdd', 'oaxaca',
+                       'poisson-predict', 'regress-mml', 'regress-mml-predict']:
                 # T7 (D5): regresjon på et subsett summarize ville nektet
                 # (N < dc_min_summarize) avslører de samme størrelsene via
                 # koeffisienter/N — samme populasjonsminimum som summarize.

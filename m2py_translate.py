@@ -33,11 +33,11 @@ def _looks_like_source(s):
 
 
 # prediction verbs (transform: fit a model and add predicted/residual columns).
-# poisson-predict is NOT a real microdata command (the emulator rejects it).
 PREDICT = {
     "regress-predict": "regress_predict", "logit-predict": "logit_predict",
     "probit-predict": "probit_predict", "mlogit-predict": "mlogit_predict",
     "negative-binomial-predict": "negative_binomial_predict",
+    "poisson-predict": "poisson_predict",
 }
 # binary/multinomial predicts: `predicted` is Xβ, `probabilities` is P(Y=…)
 PREDICT_BINARY = {"logit-predict", "probit-predict", "mlogit-predict"}
@@ -46,6 +46,7 @@ TRANSFORM = {
     "generate", "replace", "recode", "keep", "drop", "rename", "destring",
     "collapse", "aggregate", "merge", "reshape-to-panel", "reshape-from-panel",
     "clone-variables", "ivregress-predict", "regress-panel-predict",
+    "regress-mml-predict",
 } | set(PREDICT)
 # ANALYSIS verbs compute a side result and PRINT it; the working frame is
 # unchanged (matching the emulator, where summarize/tabulate/regress don't alter
@@ -60,6 +61,7 @@ SURVIVAL = {"cox": "cox", "kaplan-meier": "kaplan_meier", "weibull": "weibull"}
 # panel & IV regression (analysis verbs, linearmodels/statsmodels)
 PANEL_IV = {"regress-panel", "regress-panel-diff", "ivregress"}
 ANALYSIS = ({"summarize", "tabulate", "correlate", "mlogit", "rdd", "oaxaca",
+             "regress-mml",
              "normaltest", "ci", "anova", "hausman",
              "summarize-panel", "tabulate-panel", "transitions-panel"}
             | set(REGRESSION) | set(SURVIVAL) | PANEL_IV)
@@ -123,6 +125,10 @@ HANDLED_OPTIONS = {
     "rdd": {"cutoff", "polynomial", "fuzzy"},
     # oaxaca: three-fold + pooled two-fold (Jann 2008); level() deferred
     "oaxaca": {"pool", "noconstant", "robust"},
+    # regress-mml: MixedLM/REML, two or three levels; control()/level() deferred
+    "regress-mml": {"noconstant"},
+    "regress-mml-predict": {"predicted", "residuals", "noconstant"},
+    "poisson-predict": {"predicted", "residuals", "noconstant"},
     # survival: by/level/hazard variants deferred
     "cox": set(),
     "kaplan-meier": set(),
@@ -441,6 +447,17 @@ def _emit(instr, backend, frame=None, known=(), tracker=None, active=None,
                 f"exog={args.get('exog', [])!r}, endog={args['endog']!r}, "
                 f"instruments={args.get('instruments', [])!r}, "
                 f"predicted={pred!r}, residuals={res!r})")
+    if cmd == "regress-mml-predict":
+        if not isinstance(args, dict) or not args.get("groups") or not args.get("indep"):
+            return None
+        pred = opts.get("predicted")
+        pred = "predicted" if pred in (None, True) else pred
+        res = opts.get("residuals")
+        res = "residuals" if res is True else res
+        return (f"{var} = ops.regress_mml_predict({var}, dep={args['dep']!r}, "
+                f"indep={args['indep']!r}, groups={args['groups']!r}, "
+                f"predicted={pred!r}, residuals={res!r}, "
+                f"noconstant={bool(opts.get('noconstant'))!r})")
     if cmd in PREDICT:
         if not isinstance(args, (list, tuple)) or len(args) < 2:
             return None
@@ -666,6 +683,12 @@ def _emit_analysis(instr, backend, idx, frame=None, print_results=True):
         if not vars_ or len(vars_) < 2:
             return None
         call = f"ops.mlogit({var}, dep={vars_[0]!r}, indep={vars_[1:]!r})"
+    elif cmd == "regress-mml":
+        if not isinstance(args, dict) or not args.get("groups") or not args.get("indep"):
+            return None
+        call = (f"ops.regress_mml({var}, dep={args['dep']!r}, indep={args['indep']!r}, "
+                f"groups={args['groups']!r}, "
+                f"noconstant={bool(opts.get('noconstant'))!r})")
     elif cmd == "oaxaca":
         if not isinstance(args, dict) or not args.get("by") or not args.get("indep"):
             return None

@@ -849,3 +849,61 @@ class TestGenerateReplaceIfStillWork:
     def test_dead_branch_removed_from_source(self):
         src = inspect.getsource(m2py)
         assert r"^(\d+)\s+if\s+(.+)$" not in src
+
+
+# ---------------------------------------------------------------------------
+# clone-variables: prefix()/suffix() beholdt anførselstegnene i kolonnenavnet
+# Manualens eget eksempel er `clone-variables var1 var2, prefix('new_')`, altså
+# nettopp formen som feilet — stille, uten feilmelding. recode stripper
+# anførselstegn selv i parseren; clone-variables gjorde det ikke.
+# ---------------------------------------------------------------------------
+
+class TestCloneVariablesStripperAnførselstegn:
+    def _run(self, line):
+        it = MicroInterpreter(metadata_path=None)
+        it.datasets["d"] = pd.DataFrame({"x": [1.0, 2.0], "y": [3.0, 4.0]})
+        it.active_name = "d"
+        it._execute_instruction(it.parser.parse_line(line))
+        return list(it.datasets["d"].columns)
+
+    def test_prefix_med_enkle_anførselstegn(self):
+        assert self._run("clone-variables x y, prefix('n_')") == ["x", "y", "n_x", "n_y"]
+
+    def test_prefix_med_doble_anførselstegn(self):
+        assert self._run('clone-variables x y, prefix("n_")') == ["x", "y", "n_x", "n_y"]
+
+    def test_suffix_med_anførselstegn(self):
+        assert self._run("clone-variables x y, suffix('_2')") == ["x", "y", "x_2", "y_2"]
+
+    def test_prefix_uten_anførselstegn_virker_fortsatt(self):
+        assert self._run("clone-variables x y, prefix(n_)") == ["x", "y", "n_x", "n_y"]
+
+    def test_pilnavn_er_uendret(self):
+        assert self._run("clone-variables x -> nyx") == ["x", "y", "nyx"]
+
+
+# ---------------------------------------------------------------------------
+# level() ga flyttallsstøy i KI-overskriften: alpha = 1 - 95/100 er
+# 0.050000000000000044, og statsmodels skriver den ut som
+# «[0.025000000000000022  0.975]» i alle regresjonstabeller.
+# ---------------------------------------------------------------------------
+
+class TestKonfidensnivaaUtenFlyttallsstøy:
+    def _head(self, line):
+        it = MicroInterpreter(metadata_path=None)
+        it.datasets["d"] = pd.DataFrame({
+            "y": np.arange(60.0) + np.random.default_rng(0).normal(0, 1, 60),
+            "x": np.arange(60.0), "g": [1, 2, 3] * 20})
+        it.active_name = "d"
+        it._execute_instruction(it.parser.parse_line(line))
+        return "\n".join(str(m) for m in it.output_log)
+
+    def test_regress_standardnivaa(self):
+        assert "[0.025      0.975]" in self._head("regress y x")
+
+    def test_regress_med_level(self):
+        out = self._head("regress y x, level(90)")
+        assert "0.050000000" not in out and "[0.05" in out
+
+    def test_flernivaamodell(self):
+        assert "0.025000000" not in self._head("regress-mml y x by g")

@@ -453,9 +453,14 @@ def test_reshape_to_and_from_panel_match_emulator():
     assert _reshape_norm(mine_wide).equals(_reshape_norm(pl_wide))
 
 
-def test_poisson_predict_is_flagged():
-    # not a real microdata command (the emulator rejects it)
-    assert T.unsupported("poisson-predict cnt x1") == ["poisson-predict cnt x1"]
+def test_poisson_predict_translates():
+    # poisson-predict IS a real microdata command — it is in the manual, and the
+    # emulator only rejected it because it had no handler (fixed 2026-08-30).
+    # See tests/test_manglende_kommandoer.py for the emulator-side coverage.
+    assert T.unsupported("poisson-predict cnt x1") == []
+    out = T.run("poisson-predict cnt x1, predicted(p)", {"df": _predict_df()},
+                "polars").to_pandas()
+    assert "p" in out.columns and (out["p"] > 0).all()
 
 
 def test_predict_augments_frame_pipeline_continues():

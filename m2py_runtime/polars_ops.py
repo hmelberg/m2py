@@ -315,6 +315,22 @@ def rdd(lf, dep, runvar, exog=(), cutoff=0.0, polynomial=1, fuzzy=None):
                      polynomial=polynomial, fuzzy=fuzzy)
 
 
+def poisson_predict(lf, dep, indep, predicted="predicted", residuals=None,
+                    noconstant=False):
+    return _predict_transform(lf, "poisson_predict", dep, indep, predicted,
+                              residuals, noconstant)
+
+
+def regress_mml(lf, dep, indep, groups, noconstant=False):
+    return _analysis(lf, "regress_mml", dep, indep, groups, noconstant=noconstant)
+
+
+def regress_mml_predict(lf, dep, indep, groups, predicted="predicted",
+                        residuals=None, noconstant=False):
+    return _predict_transform(lf, "regress_mml_predict", dep, indep, groups,
+                              predicted, residuals, noconstant)
+
+
 def oaxaca(lf, dep, indep, by, pool=False, noconstant=False, robust=False):
     return _analysis(lf, "oaxaca", dep, indep, by, pool=pool,
                      noconstant=noconstant, robust=robust)

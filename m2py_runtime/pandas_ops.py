@@ -987,6 +987,12 @@ def negative_binomial_predict(df, dep, indep, predicted="predicted", residuals=N
     return _predict(df, "negative-binomial", dep, indep, predicted, residuals, noconstant)
 
 
+def poisson_predict(df, dep, indep, predicted="predicted", residuals=None,
+                    noconstant=False):
+    """Poisson: add predicted counts (and Y-fitted residuals)."""
+    return _predict(df, "poisson", dep, indep, predicted, residuals, noconstant)
+
+
 def _binary_predict(df, family, dep, indep, predicted=None, probabilities=None,
                     residuals=None, noconstant=False):
     """logit/probit predictions, matching the emulator: ``predicted`` is the
@@ -1112,6 +1118,81 @@ def negative_binomial(df, dep, indep, noconstant=False):
 
 
 # ── multinomial logit & regression discontinuity ─────────────────────────────
+
+def _mml(df, dep, indep, groups, noconstant=False):
+    """Fit the multilevel model behind ``regress-mml``, matching the emulator:
+    statsmodels MixedLM with REML and a random intercept per grouping level.
+    ``groups`` is one variable (two levels) or two, highest level first (three
+    levels). The three-level case is built as a variance component nested in the
+    top group, assembled by hand rather than through the formula API so it does
+    not depend on patsy. Returns ``(model, index, predicted, observed)`` where
+    ``predicted`` includes the group BLUPs, not just Xb."""
+    import statsmodels.api as sm
+    groups = list(groups)
+    if len(groups) > 2:
+        raise ValueError("regress-mml: at most two group variables (three levels)")
+    d = df[[dep] + list(indep)].apply(pd.to_numeric, errors="coerce")
+    for g in groups:
+        d[g] = df[g]
+    d = d.dropna().sort_values(groups[0], kind="stable")
+    top = groups[0]
+    X = d[list(indep)].astype(float)
+    if not noconstant:
+        X = sm.add_constant(X, has_constant="add")
+    exog_re = pd.DataFrame({top: np.ones(len(d))}, index=d.index)
+
+    blocks, kw = [], {}
+    if len(groups) == 2:
+        from statsmodels.regression.mixed_linear_model import VCSpec
+        sub = groups[1]
+        colnames, mats = [], []
+        for gval, rows in d.groupby(top, sort=True):
+            dm = pd.get_dummies(rows[sub]).astype(float)
+            dm = dm.loc[:, dm.sum() > 0]
+            cn = [f"{sub}[{c}]" for c in dm.columns]
+            colnames.append(cn)
+            mats.append(dm.to_numpy())
+            blocks.append((gval, rows.index, cn, dm.to_numpy()))
+        kw["exog_vc"] = VCSpec([sub], [colnames], [mats])
+
+    Y = d[dep].astype(float)
+    model = sm.MixedLM(Y, X, groups=d[top].to_numpy(), exog_re=exog_re, **kw).fit(reml=True)
+
+    eff = pd.Series(0.0, index=d.index)
+    re = model.random_effects
+    for gval, rows in d.groupby(top, sort=True):
+        eff.loc[rows.index] += float(re[gval].get(top, 0.0))
+    for gval, idx, cn, mat in blocks:
+        eff.loc[idx] += mat @ np.array([float(re[gval].get(c, 0.0)) for c in cn])
+    predicted = pd.Series(np.asarray(model.fittedvalues), index=d.index) + eff
+    return model, d.index, predicted, Y
+
+
+def regress_mml(df, dep, indep, groups, noconstant=False):
+    """Multilevel (mixed) linear model — see ``_mml``. Returns the coefficient
+    table ``[term, coef, se, z, p]``; the variance components appear as terms
+    named ``<group> Var``."""
+    model, _, _, _ = _mml(df, dep, indep, groups, noconstant)
+    return pd.DataFrame({
+        "term": list(model.params.index),
+        "coef": model.params.to_numpy(),
+        "se": model.bse.reindex(model.params.index).to_numpy(),
+        "z": model.tvalues.reindex(model.params.index).to_numpy(),
+        "p": model.pvalues.reindex(model.params.index).to_numpy(),
+    })
+
+
+def regress_mml_predict(df, dep, indep, groups, predicted="predicted",
+                        residuals=None, noconstant=False):
+    """Multilevel model: add fitted values including the group random effects
+    (and optionally residuals), aligned to the original rows."""
+    _, idx, pred, Y = _mml(df, dep, indep, groups, noconstant)
+    out = df.copy()
+    out[predicted or "predicted"] = pred.reindex(df.index)
+    if residuals:
+        out[residuals] = (Y - pred).reindex(df.index)
+    return out
+
 
 def mlogit(df, dep, indep, noconstant=False):
     """Multinomial logit (statsmodels MNLogit). Returns one coefficient row per
